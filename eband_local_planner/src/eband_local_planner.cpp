@@ -984,13 +984,13 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
     bubble_jump.angular.y = 0.0;
     bubble_jump.angular.z =
         band.at(bubble_num).expansion / getCircumscribedRadius(*costmap_ros_) * forces.at(bubble_num).wrench.torque.z;
-    bubble_jump.angular.z = angles::normalize_angle(bubble_jump.angular.z);
+    bubble_jump.angular.z = normalize_angle(bubble_jump.angular.z);
 
     // apply changes to calc tmp bubble position
     new_bubble_pose2D.x = bubble_pose2D.x + bubble_jump.linear.x;
     new_bubble_pose2D.y = bubble_pose2D.y + bubble_jump.linear.y;
     new_bubble_pose2D.theta = bubble_pose2D.theta + bubble_jump.angular.z;
-    new_bubble_pose2D.theta = angles::normalize_angle(new_bubble_pose2D.theta);
+    new_bubble_pose2D.theta = normalize_angle(new_bubble_pose2D.theta);
 
     // apply changes to local copy
     Pose2DToPose(new_bubble_pose, new_bubble_pose2D);
@@ -1181,7 +1181,7 @@ bool EBandPlanner::moveApproximateEquilibrium(const int& bubble_num, const std::
     new_bubble_pose2D.x = curr_bubble_pose2D.x + curr_step_width.linear.x;
     new_bubble_pose2D.y = curr_bubble_pose2D.y + curr_step_width.linear.y;
     new_bubble_pose2D.theta = curr_bubble_pose2D.theta + curr_step_width.angular.z;
-    new_bubble_pose2D.theta = angles::normalize_angle(new_bubble_pose2D.theta);
+    new_bubble_pose2D.theta = normalize_angle(new_bubble_pose2D.theta);
 
     // apply changes to local copy
     Pose2DToPose(new_bubble.center.pose, new_bubble_pose2D);
@@ -1522,7 +1522,7 @@ bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geomet
     // calculate delta-poses (on upper edge of bubble) for x-direction
     PoseToPose2D(curr_bubble.center.pose, edge_pose2D);
     edge_pose2D.theta = edge_pose2D.theta + (curr_bubble.expansion / getCircumscribedRadius(*costmap_ros_));
-    edge_pose2D.theta = angles::normalize_angle(edge_pose2D.theta);
+    edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
     PoseToPose2D(edge, edge_pose2D);
     // get expansion on bubble at this point
     if (!calcObstacleKinematicDistance(edge, distance1))
@@ -1535,7 +1535,7 @@ bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geomet
     }
     // calculate delta-poses (on lower edge of bubble) for x-direction
     edge_pose2D.theta = edge_pose2D.theta - 2.0 * (curr_bubble.expansion / getCircumscribedRadius(*costmap_ros_));
-    edge_pose2D.theta = angles::normalize_angle(edge_pose2D.theta);
+    edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
     PoseToPose2D(edge, edge_pose2D);
 
     // get expansion on bubble at this point
@@ -1658,9 +1658,9 @@ bool EBandPlanner::interpolateBubbles(geometry_msgs::PoseStamped start_center, g
 
     // calc mean of theta angle
     delta_theta = end_pose2D.theta - start_pose2D.theta;
-    delta_theta = angles::normalize_angle(delta_theta) / 2.0;
+    delta_theta = normalize_angle(delta_theta) / 2.0;
     interpolated_pose2D.theta = start_pose2D.theta + delta_theta;
-    interpolated_pose2D.theta = angles::normalize_angle(interpolated_pose2D.theta);
+    interpolated_pose2D.theta = normalize_angle(interpolated_pose2D.theta);
 
     // convert back to quaternion
     interpolated_pose2D.x = 0.0;
@@ -1726,7 +1726,7 @@ bool EBandPlanner::calcBubbleDistance(geometry_msgs::Pose start_center_pose, geo
 
     // get rotational difference
     diff_pose2D.theta = end_pose2D.theta - start_pose2D.theta;
-    diff_pose2D.theta = angles::normalize_angle(diff_pose2D.theta);
+    diff_pose2D.theta = normalize_angle(diff_pose2D.theta);
 
     // get translational difference
     diff_pose2D.x = end_pose2D.x - start_pose2D.x;
@@ -1764,7 +1764,7 @@ bool EBandPlanner::calcBubbleDifference(geometry_msgs::Pose start_center_pose, g
 
     // get rotational difference
     diff_pose2D.theta = end_pose2D.theta - start_pose2D.theta;
-    diff_pose2D.theta = angles::normalize_angle(diff_pose2D.theta);
+    diff_pose2D.theta = normalize_angle(diff_pose2D.theta);
 
     // get translational difference
     diff_pose2D.x = end_pose2D.x - start_pose2D.x;

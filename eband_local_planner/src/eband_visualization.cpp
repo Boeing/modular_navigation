@@ -1,4 +1,3 @@
-// Copyright Boeing 2017
 #include <eband_local_planner/eband_visualization.h>
 
 #include <string>
@@ -335,10 +334,11 @@ void EBandVisualization::forceToMarker(geometry_msgs::WrenchStamped wrench, geom
         Eigen::Quaterniond rotate_quat(c, s * rotation_axis.x(), s * rotation_axis.y(), s * rotation_axis.z());
 
         // transform quaternion back from Eigen to ROS
-        tf::Quaternion orientation_tf;
         geometry_msgs::Quaternion orientation_msg;
-        tf::quaternionEigenToTF(rotate_quat, orientation_tf);
-        tf::quaternionTFToMsg(orientation_tf, orientation_msg);
+        orientation_msg.w = rotate_quat.w();
+        orientation_msg.x = rotate_quat.x();
+        orientation_msg.y = rotate_quat.y();
+        orientation_msg.z = rotate_quat.z();
 
         // finally set orientation of marker
         marker.pose.orientation = orientation_msg;

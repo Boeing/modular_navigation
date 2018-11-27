@@ -17,10 +17,6 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
-#include <angles/angles.h>
-#include <tf/tf.h>
-#include <tf_conversions/tf_eigen.h>
-
 #include <costmap_2d/costmap_2d_ros.h>
 
 #include <Eigen/Core>

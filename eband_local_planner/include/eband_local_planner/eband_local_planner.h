@@ -21,9 +21,6 @@
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 
-#include <angles/angles.h>
-#include <tf/tf.h>
-
 #include <costmap_2d/costmap_2d_ros.h>
 
 #include <boost/shared_ptr.hpp>

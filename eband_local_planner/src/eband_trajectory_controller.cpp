@@ -226,7 +226,7 @@ bool EBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twist_
             double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
             double goal_yaw =
                 tf::getYaw(elastic_band_.at(static_cast<int>(elastic_band_.size()) - 1).center.pose.orientation);
-            float orientation_diff = angles::normalize_angle(goal_yaw - robot_yaw);
+            float orientation_diff = normalize_angle(goal_yaw - robot_yaw);
             if (fabs(orientation_diff) > tolerance_rot_)
             {
                 in_final_goal_turn_ = true;
@@ -775,14 +775,14 @@ geometry_msgs::Twist EBandTrajectoryCtrl::getFrame1ToFrame2InRefFrame(const geom
     frame1_pose2D_rf.y = -(frame1_pose2D.x - ref_frame_pose2D.x) * sin(ref_frame_pose2D.theta) +
                          (frame1_pose2D.y - ref_frame_pose2D.y) * cos(ref_frame_pose2D.theta);
     frame1_pose2D_rf.theta = frame1_pose2D.theta - ref_frame_pose2D.theta;
-    frame1_pose2D_rf.theta = angles::normalize_angle(frame1_pose2D_rf.theta);
+    frame1_pose2D_rf.theta = normalize_angle(frame1_pose2D_rf.theta);
     // transform frame2 into ref frame
     frame2_pose2D_rf.x = (frame2_pose2D.x - ref_frame_pose2D.x) * cos(ref_frame_pose2D.theta) +
                          (frame2_pose2D.y - ref_frame_pose2D.y) * sin(ref_frame_pose2D.theta);
     frame2_pose2D_rf.y = -(frame2_pose2D.x - ref_frame_pose2D.x) * sin(ref_frame_pose2D.theta) +
                          (frame2_pose2D.y - ref_frame_pose2D.y) * cos(ref_frame_pose2D.theta);
     frame2_pose2D_rf.theta = frame2_pose2D.theta - ref_frame_pose2D.theta;
-    frame2_pose2D_rf.theta = angles::normalize_angle(frame2_pose2D_rf.theta);
+    frame2_pose2D_rf.theta = normalize_angle(frame2_pose2D_rf.theta);
 
     // get differences
     frame_diff.linear.x = frame2_pose2D_rf.x - frame1_pose2D_rf.x;
@@ -793,7 +793,7 @@ geometry_msgs::Twist EBandTrajectoryCtrl::getFrame1ToFrame2InRefFrame(const geom
     frame_diff.angular.z = frame2_pose2D_rf.theta - frame1_pose2D_rf.theta;
 
     // normalize angle
-    frame_diff.angular.z = angles::normalize_angle(frame_diff.angular.z);
+    frame_diff.angular.z = normalize_angle(frame_diff.angular.z);
 
     return frame_diff;
 }
@@ -813,14 +813,14 @@ geometry_msgs::Twist EBandTrajectoryCtrl::getFrame1ToFrame2InRefFrameNew(const g
     double theta_diff = atan2(y_diff, x_diff);
 
     // Now project this vector on to the reference frame
-    double rotation = angles::normalize_angle(yaw_ref);
+    double rotation = normalize_angle(yaw_ref);
     double x_final = x_diff * cos(rotation) + y_diff * sin(rotation);
     double y_final = -x_diff * sin(rotation) + y_diff * cos(rotation);
 
     geometry_msgs::Twist twist_msg;
     twist_msg.linear.x = x_final;
     twist_msg.linear.y = y_final;
-    twist_msg.angular.z = angles::normalize_angle(theta_diff - yaw_ref);
+    twist_msg.angular.z = normalize_angle(theta_diff - yaw_ref);
 
     return twist_msg;
 }
@@ -842,7 +842,7 @@ geometry_msgs::Twist EBandTrajectoryCtrl::transformTwistFromFrame1ToFrame2(const
 
     // get orientation diff of frames
     delta_ang = frame2_pose2D.theta - frame1_pose2D.theta;
-    delta_ang = angles::normalize_angle(delta_ang);
+    delta_ang = normalize_angle(delta_ang);
 
     // transform twist
     tmp_transformed.linear.x = curr_twist.linear.x * cos(delta_ang) + curr_twist.linear.y * sin(delta_ang);

@@ -28,6 +28,9 @@ enum AddAtPosition
     add_back
 };
 
+double normalize_angle_positive(const double angle);
+double normalize_angle(const double angle);
+
 /**
  * @brief Converts a frame of type Pose to type Pose2D (mainly -> conversion of orientation from quaternions to euler
  * angles)

@@ -19,9 +19,6 @@
 
 #include <nav_msgs/Odometry.h>
 
-#include <angles/angles.h>
-#include <tf/tf.h>
-
 namespace eband_local_planner
 {
 
