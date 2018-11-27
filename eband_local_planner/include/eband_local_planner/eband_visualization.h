@@ -1,4 +1,3 @@
-// Copyright Boeing 2017
 #ifndef EBAND_LOCAL_PLANNER_EBAND_VISUALIZATION_H
 #define EBAND_LOCAL_PLANNER_EBAND_VISUALIZATION_H
 
@@ -7,10 +6,8 @@
 #include <string>
 #include <vector>
 
-// classes wich are part of this pkg
 #include <eband_local_planner/conversions_and_types.h>
 
-// msgs
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -20,15 +17,12 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
-// transforms
 #include <angles/angles.h>
 #include <tf/tf.h>
 #include <tf_conversions/tf_eigen.h>
 
-// costmap & geometry
 #include <costmap_2d/costmap_2d_ros.h>
 
-// Eigen library for geometric operation
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 

@@ -1,5 +1,6 @@
-// Copyright Boeing 2017
 #include <eband_local_planner/conversions_and_types.h>
+
+#include <tf2/utils.h>
 
 #include <string>
 #include <vector>
@@ -9,23 +10,11 @@ namespace eband_local_planner
 
 void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D)
 {
-    // use tf-pkg to convert angles
-    tf::Pose pose_tf;
+    tf2::Quaternion qt(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
 
-    // convert geometry_msgs::PoseStamped to tf::Pose
-    tf::poseMsgToTF(pose, pose_tf);
-
-    // now get Euler-Angles from pose_tf
-    double useless_pitch, useless_roll, yaw;
-    pose_tf.getBasis().getEulerYPR(yaw, useless_pitch, useless_roll);
-
-    // normalize angle
-    yaw = angles::normalize_angle(yaw);
-
-    // and set to pose2D
     pose2D.x = pose.position.x;
     pose2D.y = pose.position.y;
-    pose2D.theta = yaw;
+    pose2D.theta = tf2::getYaw(qt);
 
     return;
 }
@@ -34,10 +23,8 @@ void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D)
 void Pose2DToPose(geometry_msgs::Pose& pose, const geometry_msgs::Pose2D pose2D)
 {
     // use tf-pkg to convert angles
-    tf::Quaternion frame_quat;
-
-    // transform angle from euler-angle to quaternion representation
-    frame_quat = tf::createQuaternionFromYaw(pose2D.theta);
+    tf2::Quaternion frame_quat;
+    frame_quat.setRPY(0, 0, pose2D.theta);
 
     // set position
     pose.position.x = pose2D.x;
@@ -54,7 +41,7 @@ void Pose2DToPose(geometry_msgs::Pose& pose, const geometry_msgs::Pose2D pose2D)
 }
 
 
-bool transformGlobalPlan(const tf::TransformListener& tf, const std::vector<geometry_msgs::PoseStamped>& global_plan,
+bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geometry_msgs::PoseStamped>& global_plan,
                          costmap_2d::Costmap2DROS& costmap, const std::string& global_frame,
                          std::vector<geometry_msgs::PoseStamped>& transformed_plan, std::vector<int>& start_end_counts)
 {
@@ -71,16 +58,11 @@ bool transformGlobalPlan(const tf::TransformListener& tf, const std::vector<geom
             return false;
         }
 
-        tf::StampedTransform transform;
-        tf.lookupTransform(global_frame, ros::Time(), plan_pose.header.frame_id, plan_pose.header.stamp,
-                           plan_pose.header.frame_id, transform);
+        const geometry_msgs::TransformStamped transform = tf_buffer.lookupTransform(global_frame, ros::Time(), plan_pose.header.frame_id, plan_pose.header.stamp, plan_pose.header.frame_id);
+        tf2::Transform transform_;
+        tf2::convert(transform.transform, transform_);
 
-        // let's get the pose of the robot in the frame of the plan
-        tf::Stamped<tf::Pose> robot_pose;
-        robot_pose.setIdentity();
-        robot_pose.frame_id_ = costmap.getBaseFrameID();
-        robot_pose.stamp_ = ros::Time();
-        tf.transformPose(plan_pose.header.frame_id, robot_pose, robot_pose);
+        const geometry_msgs::TransformStamped robot_pose = tf_buffer.lookupTransform(costmap.getBaseFrameID(), plan_pose.header.frame_id, ros::Time(), ros::Duration(1.0));
 
         // we'll keep points on the plan that are within the window that we're looking at
         double dist_threshold =
@@ -90,88 +72,76 @@ bool transformGlobalPlan(const tf::TransformListener& tf, const std::vector<geom
         double sq_dist_threshold = dist_threshold * dist_threshold;
         double sq_dist = DBL_MAX;
 
-        // --- start - modification w.r.t. base_local_planner
         // initiate start_end_count
         std::vector<int> start_end_count;
         start_end_count.assign(2, 0);
 
-        // we know only one direction and that is forward! - initiate search with previous start_end_counts
-        // this is necessary to work with the sampling based planners - path may severall time enter and leave moving
-        // window
+        // we know only one direction and that is forward!
+        // initiate search with previous start_end_counts this is necessary to work with the sampling based planners
+        // path may severall time enter and leave moving window
         ROS_ASSERT((start_end_counts.at(0) > 0) && (start_end_counts.at(0) <= int(global_plan.size())));
-        i = (unsigned int)global_plan.size() - (unsigned int)start_end_counts.at(0);
-        // --- end - modification w.r.t. base_local_planner
+        i = static_cast<unsigned int>(global_plan.size()) - static_cast<unsigned int>(start_end_counts.at(0));
 
         // we need to loop to a point on the plan that is within a certain distance of the robot
         while (i < global_plan.size() && sq_dist > sq_dist_threshold)
         {
-            double x_diff = robot_pose.getOrigin().x() - global_plan[i].pose.position.x;
-            double y_diff = robot_pose.getOrigin().y() - global_plan[i].pose.position.y;
+            double x_diff = robot_pose.transform.translation.x - global_plan[i].pose.position.x;
+            double y_diff = robot_pose.transform.translation.y - global_plan[i].pose.position.y;
             sq_dist = x_diff * x_diff + y_diff * y_diff;
 
-            // --- start - modification w.r.t. base_local_planner
             // not yet in reach - get next frame
             if (sq_dist > sq_dist_threshold)
+            {
                 ++i;
+            }
             else
             {
                 // set counter for start of transformed intervall - from back as beginning of plan might be prunned
                 start_end_count.at(0) = global_plan.size() - i;
             }
-
-            // --- end - modification w.r.t. base_local_planner
         }
-
-
-        tf::Stamped<tf::Pose> tf_pose;
-        geometry_msgs::PoseStamped newer_pose;
 
         // now we'll transform until points are outside of our distance threshold
         while (i < global_plan.size() && sq_dist < sq_dist_threshold)
         {
-            double x_diff = robot_pose.getOrigin().x() - global_plan[i].pose.position.x;
-            double y_diff = robot_pose.getOrigin().y() - global_plan[i].pose.position.y;
+            double x_diff = robot_pose.transform.translation.x - global_plan[i].pose.position.x;
+            double y_diff = robot_pose.transform.translation.y - global_plan[i].pose.position.y;
             sq_dist = x_diff * x_diff + y_diff * y_diff;
 
             const geometry_msgs::PoseStamped& pose = global_plan[i];
-            poseStampedMsgToTF(pose, tf_pose);
-            tf_pose.setData(transform * tf_pose);
-            tf_pose.stamp_ = transform.stamp_;
-            tf_pose.frame_id_ = global_frame;
-            poseStampedTFToMsg(tf_pose, newer_pose);
 
-            transformed_plan.push_back(newer_pose);
+            tf2::Transform pose_;
+            tf2::convert(pose, pose_);
 
-            // --- start - modification w.r.t. base_local_planner
+            const tf2::Transform transformed_pose_ = transform_ * pose_;
+
+            geometry_msgs::PoseStamped transformed_pose;
+            transformed_pose.header.stamp = transform.header.stamp;
+            transformed_pose.header.frame_id = transform.header.frame_id;
+
+            transformed_pose.pose.position.x = transformed_pose_.getOrigin().x();
+            transformed_pose.pose.position.y = transformed_pose_.getOrigin().y();
+            transformed_pose.pose.position.z = transformed_pose_.getOrigin().z();
+
+            transformed_pose.pose.orientation.w = transformed_pose_.getRotation().w();
+            transformed_pose.pose.orientation.x = transformed_pose_.getRotation().x();
+            transformed_pose.pose.orientation.y = transformed_pose_.getRotation().y();
+            transformed_pose.pose.orientation.z = transformed_pose_.getRotation().z();
+
+            transformed_plan.push_back(transformed_pose);
+
             // set counter for end of transformed intervall - from back as beginning of plan might be prunned
             start_end_count.at(1) = global_plan.size() - i;
-            // --- end - modification w.r.t. base_local_planner
 
             ++i;
         }
 
-        // --- start - modification w.r.t. base_local_planner
         // write to reference variable
         start_end_counts = start_end_count;
-        // --- end - modification w.r.t. base_local_planner
     }
-    catch (tf::LookupException& ex)
+    catch (tf2::TransformException& ex)
     {
-        ROS_ERROR("No Transform available Error: %s\n", ex.what());
-        return false;
-    }
-    catch (tf::ConnectivityException& ex)
-    {
-        ROS_ERROR("Connectivity Error: %s\n", ex.what());
-        return false;
-    }
-    catch (tf::ExtrapolationException& ex)
-    {
-        ROS_ERROR("Extrapolation Error: %s\n", ex.what());
-        if (global_plan.size() > 0)
-            ROS_ERROR("Global Frame: %s Plan Frame size %lu: %s\n", global_frame.c_str(), global_plan.size(),
-                      global_plan[0].header.frame_id.c_str());
-
+        ROS_ERROR_STREAM("TransformException: " << ex.what());
         return false;
     }
 

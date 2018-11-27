@@ -29,8 +29,10 @@
 
 #include <global_planner/quadratic_calculator.h>
 
-namespace global_planner {
-float QuadraticCalculator::calculatePotential(float* potential, unsigned char cost, int n, float prev_potential) {
+namespace global_planner
+{
+float QuadraticCalculator::calculatePotential(float* potential, unsigned char cost, int n, float prev_potential)
+{
     // get neighbors
     float u, d, l, r;
     l = potential[n - 1];
@@ -52,18 +54,18 @@ float QuadraticCalculator::calculatePotential(float* potential, unsigned char co
     else
         ta = d;
 
-    float hf = cost; // traversability factor
-    float dc = tc - ta;        // relative cost between ta,tc
-    if (dc < 0)         // tc is lowest
-            {
+    float hf = cost;     // traversability factor
+    float dc = tc - ta;  // relative cost between ta,tc
+    if (dc < 0)          // tc is lowest
+    {
         dc = -dc;
         ta = tc;
     }
 
     // calculate new potential
-    if (dc >= hf)        // if too large, use ta-only update
+    if (dc >= hf)  // if too large, use ta-only update
         return ta + hf;
-    else            // two-neighbor interpolation update
+    else  // two-neighbor interpolation update
     {
         // use quadratic approximation
         // might speed this up through table lookup, but still have to
@@ -74,4 +76,3 @@ float QuadraticCalculator::calculatePotential(float* potential, unsigned char co
     }
 }
 }
-

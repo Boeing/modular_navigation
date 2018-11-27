@@ -1,4 +1,3 @@
-// Copyright Boeing 2017
 #ifndef EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_ROS_H
 #define EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_ROS_H
 
@@ -7,37 +6,25 @@
 #include <string>
 #include <vector>
 
-// abstract class from which our plugin inherits
 #include <nav_core/base_local_planner.h>
 
-// classes wich are parts of this pkg
 #include <eband_local_planner/conversions_and_types.h>
 #include <eband_local_planner/eband_local_planner.h>
 #include <eband_local_planner/eband_trajectory_controller.h>
 #include <eband_local_planner/eband_visualization.h>
 
-// local planner specific classes which provide some macros
 #include <base_local_planner/goal_functions.h>
 
-// msgs
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
-// transforms
-#include <angles/angles.h>
-#include <tf/tf.h>
-#include <tf/transform_listener.h>
-
-// costmap & geometry
 #include <costmap_2d/costmap_2d_ros.h>
 
-// boost classes
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
-
 
 namespace eband_local_planner
 {
@@ -46,10 +33,9 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
 {
   public:
     EBandPlannerROS();
-    EBandPlannerROS(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros);
     ~EBandPlannerROS();
 
-    void initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros);
+    void initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros);
 
     bool setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan);
 
@@ -58,12 +44,8 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
     bool isGoalReached();
 
   private:
-    // pointer to external objects (do NOT delete object)
     costmap_2d::Costmap2DROS* costmap_ros_;
-    tf::TransformListener* tf_;
-
-    // flags
-    bool initialized_;
+    tf2_ros::Buffer* tf_buffer_;
 
     // parameters
     double yaw_goal_tolerance_, xy_goal_tolerance_;

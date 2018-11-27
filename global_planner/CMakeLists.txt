@@ -10,7 +10,6 @@ find_package(catkin REQUIRED
     dynamic_reconfigure
     geometry_msgs
     nav_core
-    navfn
     nav_msgs
     pluginlib
     roscpp
@@ -30,7 +29,6 @@ catkin_package(
     dynamic_reconfigure
     geometry_msgs
     nav_core
-    navfn
     nav_msgs
     pluginlib
     roscpp
@@ -43,30 +41,22 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME}
-  src/quadratic_calculator.cpp
-  src/dijkstra.cpp
-  src/astar.cpp
-  src/grid_path.cpp
-  src/gradient_path.cpp
-  src/orientation_filter.cpp
-  src/planner_core.cpp
+    src/quadratic_calculator.cpp
+    src/dijkstra.cpp
+    src/astar.cpp
+    src/grid_path.cpp
+    src/gradient_path.cpp
+    src/orientation_filter.cpp
+    src/planner_core.cpp
 )
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 
-add_executable(planner
-  src/plan_node.cpp
+install(TARGETS ${PROJECT_NAME}
+    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
-add_dependencies(planner ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(planner
-  ${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-)
-
-install(TARGETS ${PROJECT_NAME} planner
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
 install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}

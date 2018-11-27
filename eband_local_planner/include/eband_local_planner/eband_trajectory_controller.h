@@ -8,25 +8,19 @@
 #include <string>
 #include <vector>
 
-// classes which are part of this package
 #include <eband_local_planner/conversions_and_types.h>
 #include <eband_local_planner/eband_visualization.h>
+#include <eband_local_planner/pid.h>
 
-// geometry_msg
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
 
-// nav_msgs
 #include <nav_msgs/Odometry.h>
 
-// geometry
 #include <angles/angles.h>
 #include <tf/tf.h>
-
-// PID control library
-#include <control_toolbox/pid.h>
 
 namespace eband_local_planner
 {
@@ -54,7 +48,7 @@ class EBandTrajectoryCtrl
     costmap_2d::Costmap2DROS* costmap_ros_;
     boost::shared_ptr<EBandVisualization> target_visual_;
 
-    control_toolbox::Pid pid_;
+    Pid pid_;
 
     // flags
     bool initialized_;

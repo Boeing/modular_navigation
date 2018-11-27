@@ -1,13 +1,10 @@
-// Copyright Boeing 2017
 #include <eband_local_planner/eband_local_planner_ros.h>
 
 #include <string>
 #include <vector>
 
-// pluginlib macros (defines, ...)
 #include <pluginlib/class_list_macros.h>
 
-// abstract class from which our plugin inherits
 #include <nav_core/base_local_planner.h>
 
 PLUGINLIB_DECLARE_CLASS(eband_local_planner, EBandPlannerROS, eband_local_planner::EBandPlannerROS,
@@ -17,103 +14,75 @@ namespace eband_local_planner
 {
 
 EBandPlannerROS::EBandPlannerROS()
-    : costmap_ros_(NULL), tf_(NULL), initialized_(false), yaw_goal_tolerance_(0.05), xy_goal_tolerance_(0.1),
+    : costmap_ros_(nullptr), tf_buffer_(nullptr), yaw_goal_tolerance_(0.05), xy_goal_tolerance_(0.1),
       rot_stopped_vel_(0.01), trans_stopped_vel_(0.01), goal_reached_(false)
 {
 }
-
-
-EBandPlannerROS::EBandPlannerROS(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros)
-    : costmap_ros_(NULL), tf_(NULL), initialized_(false)
-{
-    // initialize planner
-    initialize(name, tf, costmap_ros);
-}
-
 
 EBandPlannerROS::~EBandPlannerROS()
 {
 }
 
-
-void EBandPlannerROS::initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros)
+void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros)
 {
-    // check if the plugin is already initialized
-    if (!initialized_)
-    {
-        // copy adress of costmap and Transform Listener (handed over from move_base)
-        costmap_ros_ = costmap_ros;
-        tf_ = tf;
+    // copy adress of costmap and Transform Listener (handed over from move_base)
+    costmap_ros_ = costmap_ros;
+    tf_buffer_ = tf_buffer;
 
-        // create Node Handle with name of plugin (as used in move_base for loading)
-        ros::NodeHandle pn("~/" + name);
+    // create Node Handle with name of plugin (as used in move_base for loading)
+    ros::NodeHandle pn("~/" + name);
 
-        // read parameters from parameter server
-        // get tolerances for "Target reached"
-        pn.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.05);
-        pn.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
+    // read parameters from parameter server
+    // get tolerances for "Target reached"
+    pn.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.05);
+    pn.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
 
-        // set lower bound for velocity -> if velocity in this region stop! (to avoid limit-cycles or lock)
-        pn.param("rot_stopped_vel", rot_stopped_vel_, 0.01);
-        pn.param("trans_stopped_vel", trans_stopped_vel_, 0.01);
+    // set lower bound for velocity -> if velocity in this region stop! (to avoid limit-cycles or lock)
+    pn.param("rot_stopped_vel", rot_stopped_vel_, 0.01);
+    pn.param("trans_stopped_vel", trans_stopped_vel_, 0.01);
 
-        // advertise topics (adapted global plan and predicted local trajectory)
-        plan_pub_ = pn.advertise<nav_msgs::Path>("plan", 1);
+    // advertise topics (adapted global plan and predicted local trajectory)
+    plan_pub_ = pn.advertise<nav_msgs::Path>("plan", 1);
 
-        // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global
-        // namespace)
-        ros::NodeHandle gn;
-        odom_sub_ = gn.subscribe<nav_msgs::Odometry>("odom", 1, boost::bind(&EBandPlannerROS::odomCallback, this, _1));
+    // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global
+    // namespace)
+    ros::NodeHandle gn;
+    odom_sub_ = gn.subscribe<nav_msgs::Odometry>("odom", 1, boost::bind(&EBandPlannerROS::odomCallback, this, _1));
 
-        // create the actual planner that we'll use. Pass Name of plugin and pointer to global costmap to it.
-        // (configuration is done via parameter server)
-        eband_ = boost::shared_ptr<EBandPlanner>(new EBandPlanner(name, costmap_ros_));
+    // create the actual planner that we'll use. Pass Name of plugin and pointer to global costmap to it.
+    // (configuration is done via parameter server)
+    eband_ = boost::shared_ptr<EBandPlanner>(new EBandPlanner(name, costmap_ros_));
 
-        // create the according controller
-        eband_trj_ctrl_ = boost::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(name, costmap_ros_));
+    // create the according controller
+    eband_trj_ctrl_ = boost::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(name, costmap_ros_));
 
-        // create object for visualization
-        eband_visual_ = boost::shared_ptr<EBandVisualization>(new EBandVisualization);
+    // create object for visualization
+    eband_visual_ = boost::shared_ptr<EBandVisualization>(new EBandVisualization);
 
-        // pass visualization object to elastic band
-        eband_->setVisualization(eband_visual_);
+    // pass visualization object to elastic band
+    eband_->setVisualization(eband_visual_);
 
-        // pass visualization object to controller
-        eband_trj_ctrl_->setVisualization(eband_visual_);
+    // pass visualization object to controller
+    eband_trj_ctrl_->setVisualization(eband_visual_);
 
-        // initialize visualization - set node handle and pointer to costmap
-        eband_visual_->initialize(pn, costmap_ros);
+    // initialize visualization - set node handle and pointer to costmap
+    eband_visual_->initialize(pn, costmap_ros);
 
-        // set initialized flag
-        initialized_ = true;
-
-        // this is only here to make this process visible in the rxlogger right from the start
-        ROS_DEBUG("Elastic Band plugin initialized.");
-    }
-    else
-    {
-        ROS_WARN("This planner has already been initialized, doing nothing.");
-    }
+    // this is only here to make this process visible in the rxlogger right from the start
+    ROS_DEBUG("Elastic Band plugin initialized.");
 }
 
 
 // set global plan to wrapper and pass it to eband
 bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // Reset the global plan
     global_plan_ = orig_global_plan;
 
     // transform global plan to the map frame we are working in
     // this also cuts the plan off (reduces it to local window)
     std::vector<int> start_end_counts(2, static_cast<int>(global_plan_.size()));  // counts from the end() of the plan
-    if (!eband_local_planner::transformGlobalPlan(*tf_, global_plan_, *costmap_ros_, costmap_ros_->getGlobalFrameID(),
+    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_, costmap_ros_->getGlobalFrameID(),
                                                   transformed_plan_, start_end_counts))
     {
         // if plan could not be tranformed abort control and local planning
@@ -158,28 +127,19 @@ bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& ori
 // cppcheck-suppress unusedFunction
 bool EBandPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // instantiate local variables
-    tf::Stamped<tf::Pose> global_pose;
     geometry_msgs::PoseStamped global_pose_msg;
     std::vector<geometry_msgs::PoseStamped> tmp_plan;
 
     // get current robot position
     ROS_DEBUG("Reading current robot Position from costmap and appending it to elastic band.");
-    if (!costmap_ros_->getRobotPose(global_pose))
+    if (!costmap_ros_->getRobotPose(global_pose_msg))
     {
         ROS_WARN("Could not retrieve up to date robot pose from costmap for local planning.");
         return false;
     }
 
     // convert robot pose to frame in plan and set position in band at which to append
-    tf::poseStampedTFToMsg(global_pose, global_pose_msg);
     tmp_plan.assign(1, global_pose_msg);
     eband_local_planner::AddAtPosition add_frames_at = add_front;
 
@@ -197,7 +157,7 @@ bool EBandPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 
     // transform global plan to the map frame we are working in - careful this also cuts the plan off (reduces it to
     // local window)
-    if (!eband_local_planner::transformGlobalPlan(*tf_, global_plan_, *costmap_ros_, costmap_ros_->getGlobalFrameID(),
+    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_, costmap_ros_->getGlobalFrameID(),
                                                   transformed_plan_, plan_start_end_counter))
     {
         // if plan could not be transformed abort control and local planning
@@ -317,13 +277,6 @@ bool EBandPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 // cppcheck-suppress unusedFunction
 bool EBandPlannerROS::isGoalReached()
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     return goal_reached_;
 }
 

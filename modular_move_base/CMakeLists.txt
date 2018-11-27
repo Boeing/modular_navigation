@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
     pluginlib
     roscpp
     std_srvs
-    tf
+    tf2_ros
 )
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})

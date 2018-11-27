@@ -3,7 +3,6 @@
 
 #include <eband_local_planner/world_model.h>
 
-// For obstacle data access
 #include <costmap_2d/costmap_2d.h>
 
 namespace eband_local_planner

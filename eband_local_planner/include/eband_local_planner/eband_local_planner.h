@@ -1,4 +1,3 @@
-// Copyright Boeing 2017
 #ifndef EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
 #define EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
 
@@ -10,14 +9,10 @@
 #include <string>
 #include <vector>
 
-// classes which are part of this package
 #include <eband_local_planner/conversions_and_types.h>
+#include <eband_local_planner/costmap_model.h>
 #include <eband_local_planner/eband_visualization.h>
 
-// local planner specific classes
-#include <base_local_planner/costmap_model.h>
-
-// msgs
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -26,14 +21,11 @@
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
 
-// transforms
 #include <angles/angles.h>
 #include <tf/tf.h>
 
-// costmap & geometry
 #include <costmap_2d/costmap_2d_ros.h>
 
-// boost classes
 #include <boost/shared_ptr.hpp>
 
 namespace eband_local_planner
@@ -123,7 +115,7 @@ class EBandPlanner
     double costmap_weight_;     // the costmap weight or scaling factor
 
     // pointer to locally created objects (delete)
-    base_local_planner::CostmapModel* world_model_;       // local world model
+    CostmapModel* world_model_;                           // local world model
     boost::shared_ptr<EBandVisualization> eband_visual_;  // pointer to visualization object
 
     // data

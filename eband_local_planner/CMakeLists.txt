@@ -10,8 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
     nav_msgs
     pluginlib
     roscpp
-    tf
-    tf_conversions
+    tf2_ros
 )
 
 find_package(Eigen3)
@@ -32,8 +31,7 @@ catkin_package(
         nav_msgs
         pluginlib
         roscpp
-        tf
-        tf_conversions
+        tf2_ros
     INCLUDE_DIRS include
     LIBRARIES ${PROJECT_NAME}
 )
@@ -45,7 +43,9 @@ add_library(${PROJECT_NAME}
     include/${PROJECT_NAME}/${PROJECT_NAME}_ros.h
     include/${PROJECT_NAME}/eband_trajectory_controller.h
     include/${PROJECT_NAME}/eband_visualization.h
+    include/${PROJECT_NAME}/goal_functions.h
     include/${PROJECT_NAME}/line_iterator.h
+    include/${PROJECT_NAME}/pid.h
     include/${PROJECT_NAME}/planar_laser_scan.h
     include/${PROJECT_NAME}/world_model.h
 
@@ -55,6 +55,8 @@ add_library(${PROJECT_NAME}
     src/${PROJECT_NAME}_ros.cpp
     src/eband_trajectory_controller.cpp
     src/eband_visualization.cpp
+    src/goal_functions.cpp
+    src/pid.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
