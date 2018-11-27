@@ -135,7 +135,7 @@ class MoveBase
     boost::shared_ptr<nav_core::BaseLocalPlanner> tc_;
 
     costmap_2d::Costmap2DROS planner_costmap_ros_;
-    costmap_2d::Costmap2DROS controller_costmap_ros_;
+//    costmap_2d::Costmap2DROS controller_costmap_ros_;
 
     std::vector<boost::shared_ptr<nav_core::RecoveryBehavior>> recovery_behaviors_;
     unsigned int recovery_index_;

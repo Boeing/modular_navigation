@@ -6,11 +6,11 @@
 #include <ros/assert.h>
 #include <ros/ros.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include <eband_local_planner/conversions_and_types.h>
-#include <eband_local_planner/costmap_model.h>
 #include <eband_local_planner/eband_visualization.h>
 
 #include <geometry_msgs/Pose.h>
@@ -23,25 +23,24 @@
 
 #include <costmap_2d/costmap_2d_ros.h>
 
-#include <boost/shared_ptr.hpp>
-
 namespace eband_local_planner
 {
 
 class EBandPlanner
 {
   public:
-    EBandPlanner();
-    EBandPlanner(std::string name, costmap_2d::Costmap2DROS* costmap_ros);
+    EBandPlanner(costmap_2d::Costmap2DROS* costmap_ros, const int num_optim_iterations,
+                 const double internal_force_gain, const double external_force_gain, const double tiny_bubble_distance,
+                 const double tiny_bubble_expansion, const double min_bubble_overlap,
+                 const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
+                 const double significant_force, const double costmap_weight);
     ~EBandPlanner();
-
-    void initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros);
 
     /**
      * @brief passes a reference to the eband visualization object which can be used to visualize the band optimization
      * @param pointer to visualization object
      */
-    void setVisualization(boost::shared_ptr<EBandVisualization> eband_visual);
+    void setVisualization(std::shared_ptr<EBandVisualization> eband_visual);
 
     /**
      * @brief Set plan which shall be optimized to elastic band planner
@@ -86,39 +85,30 @@ class EBandPlanner
     bool optimizeBand(std::vector<Bubble>& band);
 
   private:
-    // pointer to external objects (do NOT delete object)
     costmap_2d::Costmap2DROS* costmap_ros_;
 
-    // flags
-    bool initialized_;
+    // parameters
+    const int num_optim_iterations_;      // maximal number of iteration steps during optimization of band
+    const double internal_force_gain_;    // gain for internal forces ("Elasticity of Band")
+    const double external_force_gain_;    // gain for external forces ("Penalty on low distance to abstacles")
+    const double tiny_bubble_distance_;   // internal forces between two bubbles are only calc. if there distance is
+                                          // bigger than this lower bound
+    const double tiny_bubble_expansion_;  // lower bound for bubble expansion. below this bound bubble is considered as
+                                          // "in collision"
+    const double min_bubble_overlap_;     // minimum relative overlap two bubbles must have to be treated as connected
+    const int max_recursion_depth_approx_equi_;  // maximum depth for recursive approximation to constrain computational
+                                                 // burden
+    const double equilibrium_relative_overshoot_;  // percentage of old force for which a new force is considered
+                                                   // significant when higher as this value
+    const double significant_force_;  // lower bound for absolute value of force below which it is treated as
+                                      // insignificant (no recursive approximation)
+    const double costmap_weight_;     // the costmap weight or scaling factor
+
     bool visualization_;
 
-    // parameters
-    std::vector<double> acc_lim_;   // acceleration limits for translational and rotational motion
-    int num_optim_iterations_;      // maximal number of iteration steps during optimization of band
-    double internal_force_gain_;    // gain for internal forces ("Elasticity of Band")
-    double external_force_gain_;    // gain for external forces ("Penalty on low distance to abstacles")
-    double tiny_bubble_distance_;   // internal forces between two bubbles are only calc. if there distance is bigger
-                                    // than this lower bound
-    double tiny_bubble_expansion_;  // lower bound for bubble expansion. below this bound bubble is considered as "in
-                                    // collision"
-    double min_bubble_overlap_;     // minimum relative overlap two bubbles must have to be treated as connected
-    int max_recursion_depth_approx_equi_;    // maximum depth for recursive approximation to constrain computational
-                                             // burden
-    double equilibrium_relative_overshoot_;  // percentage of old force for which a new force is considered significant
-                                             // when higher as this value
-    double significant_force_;  // lower bound for absolute value of force below which it is treated as insignificant
-                                // (no recursive approximation)
-    double costmap_weight_;     // the costmap weight or scaling factor
-
-    // pointer to locally created objects (delete)
-    CostmapModel* world_model_;                           // local world model
-    boost::shared_ptr<EBandVisualization> eband_visual_;  // pointer to visualization object
-
-    // data
-    std::vector<geometry_msgs::Point> footprint_spec_;  // specification of robot footprint as vector of corner points
-    costmap_2d::Costmap2D* costmap_;                    // pointer to underlying costmap
-    std::vector<geometry_msgs::PoseStamped> global_plan_;  // copy of the plan that shall be optimized
+    std::shared_ptr<EBandVisualization> eband_visual_;
+    costmap_2d::Costmap2D* costmap_;
+    std::vector<geometry_msgs::PoseStamped> global_plan_;
     std::vector<Bubble> elastic_band_;
 
     /**

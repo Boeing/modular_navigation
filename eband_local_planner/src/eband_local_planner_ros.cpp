@@ -14,8 +14,7 @@ namespace eband_local_planner
 {
 
 EBandPlannerROS::EBandPlannerROS()
-    : costmap_ros_(nullptr), tf_buffer_(nullptr), yaw_goal_tolerance_(0.05), xy_goal_tolerance_(0.1),
-      rot_stopped_vel_(0.01), trans_stopped_vel_(0.01), goal_reached_(false)
+    : costmap_ros_(nullptr), tf_buffer_(nullptr), yaw_goal_tolerance_(0.05), xy_goal_tolerance_(0.1), goal_reached_(false)
 {
 }
 
@@ -25,55 +24,62 @@ EBandPlannerROS::~EBandPlannerROS()
 
 void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros)
 {
-    // copy adress of costmap and Transform Listener (handed over from move_base)
     costmap_ros_ = costmap_ros;
     tf_buffer_ = tf_buffer;
 
-    // create Node Handle with name of plugin (as used in move_base for loading)
+    ros::NodeHandle gn;
     ros::NodeHandle pn("~/" + name);
 
-    // read parameters from parameter server
-    // get tolerances for "Target reached"
     pn.param("yaw_goal_tolerance", yaw_goal_tolerance_, 0.05);
     pn.param("xy_goal_tolerance", xy_goal_tolerance_, 0.1);
 
-    // set lower bound for velocity -> if velocity in this region stop! (to avoid limit-cycles or lock)
-    pn.param("rot_stopped_vel", rot_stopped_vel_, 0.01);
-    pn.param("trans_stopped_vel", trans_stopped_vel_, 0.01);
-
-    // advertise topics (adapted global plan and predicted local trajectory)
     plan_pub_ = pn.advertise<nav_msgs::Path>("plan", 1);
-
-    // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global
-    // namespace)
-    ros::NodeHandle gn;
     odom_sub_ = gn.subscribe<nav_msgs::Odometry>("odom", 1, boost::bind(&EBandPlannerROS::odomCallback, this, _1));
 
-    // create the actual planner that we'll use. Pass Name of plugin and pointer to global costmap to it.
-    // (configuration is done via parameter server)
-    eband_ = boost::shared_ptr<EBandPlanner>(new EBandPlanner(name, costmap_ros_));
+    const int num_optim_iterations = pn.param("num_iterations_eband_optimization", 3);
+    const double internal_force_gain = pn.param("eband_internal_force_gain", 1.0);
+    const double external_force_gain = pn.param("eband_external_force_gain", 2.0);
+    const double tiny_bubble_distance = pn.param("eband_tiny_bubble_distance", 0.01);
+    const double tiny_bubble_expansion = pn.param("eband_tiny_bubble_expansion", 0.01);
+    const double min_bubble_overlap = pn.param("eband_min_relative_bubble_overlap", 0.7);
+    const int equilibrium_max_recursion_depth = pn.param("eband_equilibrium_approx_max_recursion_depth", 4);
+    const double equilibrium_relative_overshoot = pn.param("eband_equilibrium_relative_overshoot", 0.75);
+    const double significant_force = pn.param("eband_significant_force_lower_bound", 0.15);
+    const double costmap_weight = pn.param("costmap_weight", 10.0);
 
-    // create the according controller
-    eband_trj_ctrl_ = boost::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(name, costmap_ros_));
+    eband_ = std::shared_ptr<EBandPlanner>(new EBandPlanner(
+        costmap_ros_, num_optim_iterations, internal_force_gain, external_force_gain, tiny_bubble_distance,
+        tiny_bubble_expansion, min_bubble_overlap, equilibrium_max_recursion_depth, equilibrium_relative_overshoot,
+        significant_force, costmap_weight));
 
-    // create object for visualization
-    eband_visual_ = boost::shared_ptr<EBandVisualization>(new EBandVisualization);
+    const double max_vel_lin = pn.param("max_vel_lin", 0.75);
+    const double max_vel_th = pn.param("max_vel_th", 1.0);
+    const double min_vel_lin = pn.param("min_vel_lin", 0.1);
+    const double min_vel_th = pn.param("min_vel_th", 0.0);
+    const double min_in_place_vel_th = pn.param("min_in_place_vel_th", 0.0);
+    const double in_place_trans_vel = pn.param("in_place_trans_vel", 0.0);
+    const double tolerance_timeout = pn.param("tolerance_timeout", 0.5);
+    const double k_prop = pn.param("k_prop", 4.0);
+    const double k_damp = pn.param("k_damp", 3.5);
+    const double ctrl_rate = pn.param("ctrl_rate", 10.0);
+    const double max_acceleration = pn.param("max_acceleration", 0.5);
+    const double virtual_mass = pn.param("virtual_mass", 0.75);
+    const double max_translational_acceleration = pn.param("max_translational_acceleration", 0.5);
+    const double max_rotational_acceleration = pn.param("max_rotational_acceleration", 1.5);
+    const double rotation_correction_threshold = pn.param("rotation_correction_threshold", 0.5);
 
-    // pass visualization object to elastic band
+    eband_trj_ctrl_ = std::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(
+        costmap_ros_, max_vel_lin, max_vel_th, min_vel_lin, min_vel_th, min_in_place_vel_th, in_place_trans_vel,
+        xy_goal_tolerance_, yaw_goal_tolerance_, tolerance_timeout, k_prop, k_damp, ctrl_rate, max_acceleration,
+        virtual_mass, max_translational_acceleration, max_rotational_acceleration, rotation_correction_threshold));
+
+    eband_visual_ = std::shared_ptr<EBandVisualization>(new EBandVisualization(pn, costmap_ros));
     eband_->setVisualization(eband_visual_);
-
-    // pass visualization object to controller
     eband_trj_ctrl_->setVisualization(eband_visual_);
 
-    // initialize visualization - set node handle and pointer to costmap
-    eband_visual_->initialize(pn, costmap_ros);
-
-    // this is only here to make this process visible in the rxlogger right from the start
-    ROS_DEBUG("Elastic Band plugin initialized.");
+    ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-
-// set global plan to wrapper and pass it to eband
 bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)
 {
     // Reset the global plan
@@ -264,7 +270,11 @@ bool EBandPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
     std::vector<geometry_msgs::PoseStamped> refined_plan;
     if (eband_->getPlan(refined_plan))
     {
-        base_local_planner::publishPlan(refined_plan, plan_pub_);
+        nav_msgs::Path gui_path;
+        gui_path.header.frame_id = refined_plan[0].header.frame_id;
+        gui_path.header.stamp = refined_plan[0].header.stamp;
+        gui_path.poses = refined_plan;
+        plan_pub_.publish(gui_path);
     }
 
     // display current band
@@ -286,7 +296,7 @@ bool EBandPlannerROS::isGoalReached()
 void EBandPlannerROS::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
     // lock Callback while reading data from topic
-    boost::mutex::scoped_lock lock(odom_mutex_);
+    std::lock_guard<std::mutex> lock(odom_mutex_);
 
     // get odometry and write it to member variable (we assume that the odometry is published in the frame of the base)
     base_odom_.twist.twist.linear.x = msg->twist.twist.linear.x;

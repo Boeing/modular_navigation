@@ -41,11 +41,8 @@ class EBandVisualization
         green
     };
 
-    EBandVisualization();
     EBandVisualization(ros::NodeHandle& pn, costmap_2d::Costmap2DROS* costmap_ros);
     ~EBandVisualization();
-
-    void initialize(ros::NodeHandle& pn, costmap_2d::Costmap2DROS* costmap_ros);
 
     /**
      * @brief publishes the bubbles (Position and Expansion) in a band as Marker-Array
@@ -92,17 +89,11 @@ class EBandVisualization
                       Bubble bubble);
 
   private:
-    // external objects
     costmap_2d::Costmap2DROS* costmap_ros_;
 
-    // Topics & Services
     ros::Publisher bubble_pub_;
     ros::Publisher one_bubble_pub_;
 
-    // flags
-    bool initialized_;
-
-    // parameters
     double marker_lifetime_;
 
     /**

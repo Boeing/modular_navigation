@@ -1,4 +1,3 @@
-#include <eband_local_planner/costmap_model.h>
 #include <eband_local_planner/eband_local_planner.h>
 
 #include <string>
@@ -7,99 +6,33 @@
 namespace eband_local_planner
 {
 
-EBandPlanner::EBandPlanner()
-    : costmap_ros_(nullptr), initialized_(false), visualization_(false), num_optim_iterations_(3),
-      internal_force_gain_(1), external_force_gain_(2), tiny_bubble_distance_(0.01), tiny_bubble_expansion_(0.01),
-      min_bubble_overlap_(0.7), max_recursion_depth_approx_equi_(4), equilibrium_relative_overshoot_(0.75),
-      significant_force_(0.15), costmap_weight_(10), world_model_(nullptr), costmap_(nullptr)
+EBandPlanner::EBandPlanner(costmap_2d::Costmap2DROS* costmap_ros, const int num_optim_iterations,
+                           const double internal_force_gain, const double external_force_gain,
+                           const double tiny_bubble_distance, const double tiny_bubble_expansion,
+                           const double min_bubble_overlap, const int equilibrium_max_recursion_depth,
+                           const double equilibrium_relative_overshoot, const double significant_force,
+                           const double costmap_weight)
+    : costmap_ros_(costmap_ros), num_optim_iterations_(num_optim_iterations), internal_force_gain_(internal_force_gain),
+      external_force_gain_(external_force_gain), tiny_bubble_distance_(tiny_bubble_distance),
+      tiny_bubble_expansion_(tiny_bubble_expansion), min_bubble_overlap_(min_bubble_overlap),
+      max_recursion_depth_approx_equi_(equilibrium_max_recursion_depth),
+      equilibrium_relative_overshoot_(equilibrium_relative_overshoot), significant_force_(significant_force),
+      costmap_weight_(costmap_weight), visualization_(false), costmap_(costmap_ros_->getCostmap())
 {
-}
-
-EBandPlanner::EBandPlanner(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
-    : costmap_ros_(nullptr), initialized_(false)
-{
-    // initialize planner
-    initialize(name, costmap_ros);
 }
 
 EBandPlanner::~EBandPlanner()
 {
-    delete world_model_;
 }
 
-
-void EBandPlanner::initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
-{
-    // check if the plugin is already initialized
-    if (!initialized_)
-    {
-        // copy address of costmap (handed over from move_base via eband wrapper)
-        costmap_ros_ = costmap_ros;
-
-        // get a pointer to the underlying costmap
-        costmap_ = costmap_ros_->getCostmap();
-
-        // create world model from costmap
-        world_model_ = new CostmapModel(*costmap_);
-
-        // get footprint of the robot
-        footprint_spec_ = costmap_ros_->getRobotFootprint();
-
-        // create Node Handle with name of plugin (as used in move_base for loading)
-        ros::NodeHandle pn("~/" + name);
-
-        // read parameters from parameter server
-        // connectivity checking
-        pn.param("eband_min_relative_bubble_overlap", min_bubble_overlap_, 0.7);
-
-        // bubble geometric bounds
-        pn.param("eband_tiny_bubble_distance", tiny_bubble_distance_, 0.01);
-        pn.param("eband_tiny_bubble_expansion", tiny_bubble_expansion_, 0.01);
-
-        // optimization - force calculation
-        pn.param("eband_internal_force_gain", internal_force_gain_, 1.0);
-        pn.param("eband_external_force_gain", external_force_gain_, 2.0);
-        pn.param("num_iterations_eband_optimization", num_optim_iterations_, 3);
-
-        // recursive approximation of bubble equilibrium position based
-        pn.param("eband_equilibrium_approx_max_recursion_depth", max_recursion_depth_approx_equi_, 4);
-        pn.param("eband_equilibrium_relative_overshoot", equilibrium_relative_overshoot_, 0.75);
-        pn.param("eband_significant_force_lower_bound", significant_force_, 0.15);
-
-        // use this parameter if a different weight is supplied to the costmap in dyn reconfigure
-        pn.param("costmap_weight", costmap_weight_, 10.0);
-
-        // clean up band
-        elastic_band_.clear();
-
-        // set initialized flag
-        initialized_ = true;
-
-        // set flag whether visualization available to false by default
-        visualization_ = false;
-    }
-    else
-    {
-        ROS_WARN("This planner has already been initialized, doing nothing.");
-    }
-}
-
-void EBandPlanner::setVisualization(boost::shared_ptr<EBandVisualization> eband_visual)
+void EBandPlanner::setVisualization(std::shared_ptr<EBandVisualization> eband_visual)
 {
     eband_visual_ = eband_visual;
-
     visualization_ = true;
 }
 
 bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // check if plan valid (minimum 2 frames)
     if (global_plan.size() < 2)
     {
@@ -144,13 +77,6 @@ bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global
 
 bool EBandPlanner::getPlan(std::vector<geometry_msgs::PoseStamped>& global_plan)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // check if there is a band
     if (elastic_band_.empty())
     {
@@ -170,13 +96,6 @@ bool EBandPlanner::getPlan(std::vector<geometry_msgs::PoseStamped>& global_plan)
 
 bool EBandPlanner::getBand(std::vector<Bubble>& elastic_band)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     elastic_band = elastic_band_;
 
     // check if there is a band
@@ -192,13 +111,6 @@ bool EBandPlanner::getBand(std::vector<Bubble>& elastic_band)
 bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan_to_add,
                              const AddAtPosition& add_frames_at)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // check that there is a plan at all (minimum 1 frame in this case, as robot + goal = plan)
     if (elastic_band_.size() < 1)
     {
@@ -336,13 +248,6 @@ bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan
 
 bool EBandPlanner::optimizeBand()
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // check if there is a band
     if (elastic_band_.empty())
     {
@@ -365,13 +270,6 @@ bool EBandPlanner::optimizeBand()
 
 bool EBandPlanner::optimizeBand(std::vector<Bubble>& band)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // check whether band and costmap are in the same frame
     if (band.front().center.header.frame_id != costmap_ros_->getGlobalFrameID())
     {
@@ -447,13 +345,6 @@ bool EBandPlanner::optimizeBand(std::vector<Bubble>& band)
 
 bool EBandPlanner::refineBand(std::vector<Bubble>& band)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // check if band valid (minimum 2 bubbles)
     if (band.size() < 2)
     {
@@ -1343,13 +1234,6 @@ bool EBandPlanner::getForcesAt(int bubble_num, std::vector<Bubble> band, Bubble 
 bool EBandPlanner::calcInternalForces(int bubble_num, std::vector<Bubble> band, Bubble curr_bubble,
                                       geometry_msgs::WrenchStamped& forces)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // cycle over all bubbles except first and last (these are fixed)
     if (band.size() <= 2)
     {
@@ -1421,13 +1305,6 @@ bool EBandPlanner::calcInternalForces(int bubble_num, std::vector<Bubble> band, 
 
 bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geometry_msgs::WrenchStamped& forces)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // init tmp variables
     double distance1, distance2;
     geometry_msgs::Pose edge;
@@ -1634,13 +1511,6 @@ bool EBandPlanner::suppressTangentialForces(int bubble_num, std::vector<Bubble> 
 bool EBandPlanner::interpolateBubbles(geometry_msgs::PoseStamped start_center, geometry_msgs::PoseStamped end_center,
                                       geometry_msgs::PoseStamped& interpolated_center)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // instantiate local variables
     geometry_msgs::Pose2D start_pose2D, end_pose2D, interpolated_pose2D;
     double delta_theta;
@@ -1680,13 +1550,6 @@ bool EBandPlanner::interpolateBubbles(geometry_msgs::PoseStamped start_center, g
 
 bool EBandPlanner::checkOverlap(Bubble bubble1, Bubble bubble2)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // calc (kinematic) Distance between bubbles
     double distance = 0.0;
     if (!calcBubbleDistance(bubble1.center.pose, bubble2.center.pose, distance))
@@ -1709,13 +1572,6 @@ bool EBandPlanner::checkOverlap(Bubble bubble1, Bubble bubble2)
 bool EBandPlanner::calcBubbleDistance(geometry_msgs::Pose start_center_pose, geometry_msgs::Pose end_center_pose,
                                       double& distance)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     geometry_msgs::Pose2D start_pose2D, end_pose2D, diff_pose2D;
 
     // TODO make this in a better way
@@ -1747,13 +1603,6 @@ bool EBandPlanner::calcBubbleDistance(geometry_msgs::Pose start_center_pose, geo
 bool EBandPlanner::calcBubbleDifference(geometry_msgs::Pose start_center_pose, geometry_msgs::Pose end_center_pose,
                                         geometry_msgs::Twist& difference)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     geometry_msgs::Pose2D start_pose2D, end_pose2D, diff_pose2D;
 
     // TODO make this in a better way
@@ -1788,13 +1637,6 @@ bool EBandPlanner::calcBubbleDifference(geometry_msgs::Pose start_center_pose, g
 bool EBandPlanner::calcObstacleKinematicDistance(geometry_msgs::Pose center_pose, double& distance)
 {
     // calculate distance to nearest obstacle [depends kinematic, shape, environment]
-
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
 
     unsigned int cell_x, cell_y;
     unsigned char disc_cost;
@@ -1859,13 +1701,6 @@ bool EBandPlanner::calcObstacleKinematicDistance(geometry_msgs::Pose center_pose
 // type conversions
 bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> plan, std::vector<Bubble>& band)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // create local variables
     double distance = 0.0;
     std::vector<Bubble> tmp_band;
@@ -1920,13 +1755,6 @@ bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> pla
 
 bool EBandPlanner::convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band)
 {
-    // check if plugin initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
-        return false;
-    }
-
     // create local variables
     std::vector<geometry_msgs::PoseStamped> tmp_plan;
 

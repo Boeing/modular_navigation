@@ -30,6 +30,7 @@ enum AddAtPosition
 
 double normalize_angle_positive(const double angle);
 double normalize_angle(const double angle);
+double shortest_angular_distance(const double from, const double to);
 
 /**
  * @brief Converts a frame of type Pose to type Pose2D (mainly -> conversion of orientation from quaternions to euler

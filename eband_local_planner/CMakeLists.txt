@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
     pluginlib
     roscpp
     tf2_ros
+    tf2_geometry_msgs
 )
 
 find_package(Eigen3)
@@ -32,30 +33,24 @@ catkin_package(
         pluginlib
         roscpp
         tf2_ros
+        tf2_geometry_msgs
     INCLUDE_DIRS include
     LIBRARIES ${PROJECT_NAME}
 )
 
 add_library(${PROJECT_NAME}
     include/${PROJECT_NAME}/conversions_and_types.h
-    include/${PROJECT_NAME}/costmap_model.h
     include/${PROJECT_NAME}/${PROJECT_NAME}.h
     include/${PROJECT_NAME}/${PROJECT_NAME}_ros.h
     include/${PROJECT_NAME}/eband_trajectory_controller.h
     include/${PROJECT_NAME}/eband_visualization.h
-    include/${PROJECT_NAME}/goal_functions.h
-    include/${PROJECT_NAME}/line_iterator.h
     include/${PROJECT_NAME}/pid.h
-    include/${PROJECT_NAME}/planar_laser_scan.h
-    include/${PROJECT_NAME}/world_model.h
 
     src/conversions_and_types.cpp
-    src/costmap_model.cpp
     src/${PROJECT_NAME}.cpp
     src/${PROJECT_NAME}_ros.cpp
     src/eband_trajectory_controller.cpp
     src/eband_visualization.cpp
-    src/goal_functions.cpp
     src/pid.cpp
 )
 

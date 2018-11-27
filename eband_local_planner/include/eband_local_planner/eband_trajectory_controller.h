@@ -1,10 +1,10 @@
-// Copyright Boeing 2017
 #ifndef EBAND_LOCAL_PLANNER_EBAND_TRAJECTORY_CONTROLLER_H
 #define EBAND_LOCAL_PLANNER_EBAND_TRAJECTORY_CONTROLLER_H
 
 #include <ros/assert.h>
 #include <ros/ros.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -25,51 +25,52 @@ namespace eband_local_planner
 class EBandTrajectoryCtrl
 {
   public:
-    EBandTrajectoryCtrl();
-    EBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros);
+    EBandTrajectoryCtrl(costmap_2d::Costmap2DROS* costmap_ros, const double max_vel_lin, const double max_vel_th,
+                        const double min_vel_lin, const double min_vel_th, const double min_in_place_vel_th,
+                        const double in_place_trans_vel, const double xy_goal_tolerance,
+                        const double yaw_goal_tolerance, const double tolerance_timeout, const double k_prop,
+                        const double k_damp, const double ctrl_rate, const double max_acceleration,
+                        const double virtual_mass, const double max_translational_acceleration,
+                        const double max_rotational_acceleration, const double rotation_correction_threshold);
     ~EBandTrajectoryCtrl();
 
-    void initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros);
-
-    void setVisualization(boost::shared_ptr<EBandVisualization> target_visual);
+    void setVisualization(std::shared_ptr<EBandVisualization> target_visual);
 
     bool setBand(const std::vector<Bubble>& elastic_band);
 
     bool setOdometry(const nav_msgs::Odometry& odometry);
 
     bool getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_reached);
-    bool getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached);
 
   private:
-    // pointer to external objects (do NOT delete object)
     costmap_2d::Costmap2DROS* costmap_ros_;
-    boost::shared_ptr<EBandVisualization> target_visual_;
+    std::shared_ptr<EBandVisualization> target_visual_;
 
     Pid pid_;
 
     // flags
-    bool initialized_;
     bool band_set_;
     bool visualization_;
 
     // parameters
-    bool differential_drive_hack_;
-    double k_p_, k_nu_, k_int_, k_diff_, ctrl_freq_;
-    double acc_max_, virt_mass_;
-    double max_vel_lin_, max_vel_th_, min_vel_lin_, min_vel_th_;
-    double min_in_place_vel_th_;
-    double in_place_trans_vel_;
-    double tolerance_trans_, tolerance_rot_, tolerance_timeout_;
-    double acc_max_trans_, acc_max_rot_;
-    double rotation_correction_threshold_;
+    const double max_vel_lin_;
+    const double max_vel_th_;
+    const double min_vel_lin_;
+    const double min_vel_th_;
+    const double min_in_place_vel_th_;
+    const double in_place_trans_vel_;
+    const double xy_goal_tolerance_;
+    const double yaw_goal_tolerance_;
+    const double tolerance_timeout_;
+    const double k_prop_;
+    const double k_damp_;
+    const double ctrl_rate_;
+    const double max_acceleration_;
+    const double virtual_mass_;
+    const double max_translational_acceleration_;
+    const double max_rotational_acceleration_;
+    const double rotation_correction_threshold_;
 
-    // diff drive only parameters
-    double bubble_velocity_multiplier_;
-    double rotation_threshold_multiplier_;
-    bool disallow_hysteresis_;
-    bool in_final_goal_turn_;
-
-    // data
     std::vector<Bubble> elastic_band_;
     geometry_msgs::Twist odom_vel_;
     geometry_msgs::Twist last_vel_;
@@ -119,7 +120,7 @@ class EBandTrajectoryCtrl
      * @param band in which the bubble is in
      * @return absolute value of maximum allowed velocity within this bubble
      */
-    double getBubbleTargetVel(const int& target_bub_num, const std::vector<Bubble>& band, geometry_msgs::Twist& VelDir);
+    double getBubbleTargetVel(const int target_bub_num, const std::vector<Bubble>& band, geometry_msgs::Twist& VelDir);
 };
 
 }  // namespace eband_local_planner

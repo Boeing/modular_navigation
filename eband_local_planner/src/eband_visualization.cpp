@@ -6,53 +6,20 @@
 namespace eband_local_planner
 {
 
-EBandVisualization::EBandVisualization() : costmap_ros_(nullptr), initialized_(false), marker_lifetime_(0.5)
-{
-}
-
 EBandVisualization::EBandVisualization(ros::NodeHandle& pn, costmap_2d::Costmap2DROS* costmap_ros)
 {
-    initialize(pn, costmap_ros);
+    pn.param("marker_lifetime", marker_lifetime_, 0.5);
+    one_bubble_pub_ = pn.advertise<visualization_msgs::Marker>("eband_visualization", 1);
+    bubble_pub_ = pn.advertise<visualization_msgs::MarkerArray>("eband_visualization_array", 1);
+    costmap_ros_ = costmap_ros;
 }
 
 EBandVisualization::~EBandVisualization()
 {
 }
 
-void EBandVisualization::initialize(ros::NodeHandle& pn, costmap_2d::Costmap2DROS* costmap_ros)
-{
-    // check if visualization already initialized
-    if (!initialized_)
-    {
-        // read parameters from parameter server
-        pn.param("marker_lifetime", marker_lifetime_, 0.5);
-
-        // advertise topics
-        one_bubble_pub_ = pn.advertise<visualization_msgs::Marker>("eband_visualization", 1);
-        // although we want to publish MarkerArrays we have to advertise Marker topic first -> rviz searchs relative to
-        // this
-        bubble_pub_ = pn.advertise<visualization_msgs::MarkerArray>("eband_visualization_array", 1);
-
-        // copy adress of costmap and Transform Listener (handed over from move_base) -> to get robot shape
-        costmap_ros_ = costmap_ros;
-
-        initialized_ = true;
-    }
-    else
-    {
-        ROS_WARN("Trying to initialize already initialized visualization, doing nothing.");
-    }
-}
-
 void EBandVisualization::publishBand(std::string marker_name_space, std::vector<Bubble> band)
 {
-    // check if visualization was initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
-        return;
-    }
-
     visualization_msgs::MarkerArray eband_msg;
     eband_msg.markers.resize(band.size());
 
@@ -66,25 +33,14 @@ void EBandVisualization::publishBand(std::string marker_name_space, std::vector<
     {
         // convert bubbles in eband to marker msg
         bubbleToMarker(band[i], eband_msg.markers[i], marker_name_space, i, green);
-
-        // convert bubbles in eband to marker msg
-        // bubbleHeadingToMarker(band[i], eband_heading_msg.markers[i], marker_heading_name_space, i, green);
     }
 
     // publish
     bubble_pub_.publish(eband_msg);
-    // bubble_pub_.publish(eband_heading_msg);
 }
 
 void EBandVisualization::publishBubble(std::string marker_name_space, int marker_id, Bubble bubble)
 {
-    // check if visualization was initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
-        return;
-    }
-
     visualization_msgs::Marker bubble_msg;
 
     // convert bubble to marker msg
@@ -96,13 +52,6 @@ void EBandVisualization::publishBubble(std::string marker_name_space, int marker
 
 void EBandVisualization::publishBubble(std::string marker_name_space, int marker_id, Color marker_color, Bubble bubble)
 {
-    // check if visualization was initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
-        return;
-    }
-
     visualization_msgs::Marker bubble_msg;
 
     // convert bubble to marker msg
@@ -116,13 +65,6 @@ void EBandVisualization::publishBubble(std::string marker_name_space, int marker
 void EBandVisualization::publishForceList(std::string marker_name_space,
                                           std::vector<geometry_msgs::WrenchStamped> forces, std::vector<Bubble> band)
 {
-    // check if visualization was initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
-        return;
-    }
-
     visualization_msgs::MarkerArray forces_msg;
     forces_msg.markers.resize(forces.size());
 
@@ -150,13 +92,6 @@ void EBandVisualization::publishForceList(std::string marker_name_space,
 void EBandVisualization::publishForce(std::string marker_name_space, int id, Color marker_color,
                                       geometry_msgs::WrenchStamped force, Bubble bubble)
 {
-    // check if visualization was initialized
-    if (!initialized_)
-    {
-        ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
-        return;
-    }
-
     visualization_msgs::Marker force_msg;
 
     // convert wrenches in force list into marker msg

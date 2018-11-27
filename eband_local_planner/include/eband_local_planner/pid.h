@@ -1,5 +1,5 @@
-#ifndef CONTROL_TOOLBOX__PID_H
-#define CONTROL_TOOLBOX__PID_H
+#ifndef EBAND_LOCAL_PLANNER_PID_H
+#define EBAND_LOCAL_PLANNER_PID_H
 
 #include <control_msgs/PidState.h>
 #include <ros/ros.h>

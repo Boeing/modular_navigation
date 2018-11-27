@@ -1,6 +1,7 @@
 #include <eband_local_planner/conversions_and_types.h>
 
 #include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <string>
 #include <vector>
@@ -19,6 +20,11 @@ double normalize_angle(const double angle)
     if (a > M_PI)
         a -= 2.0 * M_PI;
     return a;
+}
+
+double shortest_angular_distance(const double from, const double to)
+{
+    return normalize_angle(to - from);
 }
 
 void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D)
@@ -126,7 +132,7 @@ bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geo
             const geometry_msgs::PoseStamped& pose = global_plan[i];
 
             tf2::Transform pose_;
-            tf2::convert(pose, pose_);
+            tf2::convert(pose.pose, pose_);
 
             const tf2::Transform transformed_pose_ = transform_ * pose_;
 
