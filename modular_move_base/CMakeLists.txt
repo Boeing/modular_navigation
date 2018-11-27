@@ -1,0 +1,67 @@
+cmake_minimum_required(VERSION 2.8.3)
+project(modular_move_base)
+
+add_definitions(-std=c++11)
+
+find_package(catkin REQUIRED COMPONENTS
+    actionlib
+    cmake_modules
+    costmap_2d
+    dynamic_reconfigure
+    geometry_msgs
+    message_generation
+    move_base_msgs
+    nav_core
+    nav_msgs
+    pluginlib
+    roscpp
+    std_srvs
+    tf
+)
+find_package(Eigen3)
+add_definitions(${EIGEN3_DEFINITIONS})
+
+generate_dynamic_reconfigure_options(
+    cfg/MoveBase.cfg
+)
+
+catkin_package(
+    CATKIN_DEPENDS
+        dynamic_reconfigure
+        geometry_msgs
+        move_base_msgs
+        nav_msgs
+        roscpp
+)
+
+include_directories(
+    include
+)
+
+include_directories(SYSTEM
+    ${catkin_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIRS}
+)
+
+add_executable(${PROJECT_NAME}
+    include/${PROJECT_NAME}/move_base.h
+    src/main.cpp
+    src/move_base.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}
+    ${Boost_LIBRARIES}
+    ${catkin_LIBRARIES}
+)
+
+add_dependencies(${PROJECT_NAME}
+    ${PROJECT_NAME}_gencfg
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS}
+)
+
+install(TARGETS ${PROJECT_NAME}
+    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
