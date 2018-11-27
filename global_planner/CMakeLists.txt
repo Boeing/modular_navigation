@@ -5,7 +5,6 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED
   COMPONENTS
-    angles
     costmap_2d
     dynamic_reconfigure
     geometry_msgs
@@ -18,7 +17,7 @@ find_package(catkin REQUIRED
 )
 
 generate_dynamic_reconfigure_options(
-  cfg/GlobalPlanner.cfg
+    cfg/GlobalPlanner.cfg
 )
 
 catkin_package(
@@ -36,8 +35,8 @@ catkin_package(
 )
 
 include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
+    include
+    ${catkin_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
@@ -59,8 +58,10 @@ install(TARGETS ${PROJECT_NAME}
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  PATTERN ".svn" EXCLUDE)
+    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+    PATTERN ".svn" EXCLUDE
+)
 
 install(FILES bgp_plugin.xml
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)

@@ -7,7 +7,6 @@ find_package(catkin REQUIRED COMPONENTS
     actionlib
     cmake_modules
     costmap_2d
-    dynamic_reconfigure
     geometry_msgs
     message_generation
     move_base_msgs
@@ -21,13 +20,8 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
-generate_dynamic_reconfigure_options(
-    cfg/MoveBase.cfg
-)
-
 catkin_package(
     CATKIN_DEPENDS
-        dynamic_reconfigure
         geometry_msgs
         move_base_msgs
         nav_msgs
@@ -55,7 +49,6 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 add_dependencies(${PROJECT_NAME}
-    ${PROJECT_NAME}_gencfg
     ${${PROJECT_NAME}_EXPORTED_TARGETS}
     ${catkin_EXPORTED_TARGETS}
 )

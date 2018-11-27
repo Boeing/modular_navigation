@@ -196,7 +196,8 @@ bool getGoalPose(const tf::TransformListener& tf, const std::vector<geometry_msg
     return true;
 }
 
-bool stopped(const nav_msgs::Odometry& base_odom, const double& rot_stopped_velocity, const double& trans_stopped_velocity)
+bool stopped(const nav_msgs::Odometry& base_odom, const double& rot_stopped_velocity,
+             const double& trans_stopped_velocity)
 {
     return fabs(base_odom.twist.twist.angular.z) <= rot_stopped_velocity &&
            fabs(base_odom.twist.twist.linear.x) <= trans_stopped_velocity &&
@@ -231,5 +232,4 @@ bool isGoalReached(const tf::TransformListener& tf, const std::vector<geometry_m
 
     return false;
 }
-
 };

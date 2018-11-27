@@ -82,8 +82,9 @@ bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& ori
     // transform global plan to the map frame we are working in
     // this also cuts the plan off (reduces it to local window)
     std::vector<int> start_end_counts(2, static_cast<int>(global_plan_.size()));  // counts from the end() of the plan
-    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_, costmap_ros_->getGlobalFrameID(),
-                                                  transformed_plan_, start_end_counts))
+    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_,
+                                                  costmap_ros_->getGlobalFrameID(), transformed_plan_,
+                                                  start_end_counts))
     {
         // if plan could not be tranformed abort control and local planning
         ROS_WARN("Could not transform the global plan to the frame of the controller");
@@ -157,8 +158,9 @@ bool EBandPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
 
     // transform global plan to the map frame we are working in - careful this also cuts the plan off (reduces it to
     // local window)
-    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_, costmap_ros_->getGlobalFrameID(),
-                                                  transformed_plan_, plan_start_end_counter))
+    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_,
+                                                  costmap_ros_->getGlobalFrameID(), transformed_plan_,
+                                                  plan_start_end_counter))
     {
         // if plan could not be transformed abort control and local planning
         ROS_WARN("Could not transform the global plan to the frame of the controller");

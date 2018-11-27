@@ -43,6 +43,29 @@
 namespace global_planner
 {
 
+namespace
+{
+
+double normalize_angle_positive(const double angle)
+{
+    return fmod(fmod(angle, 2.0 * M_PI) + 2.0 * M_PI, 2.0 * M_PI);
+}
+
+double normalize_angle(const double angle)
+{
+    double a = normalize_angle_positive(angle);
+    if (a > M_PI)
+        a -= 2.0 * M_PI;
+    return a;
+}
+
+double shortest_angular_distance(const double from, const double to)
+{
+    return normalize_angle(to - from);
+}
+
+}
+
 void set_angle(geometry_msgs::PoseStamped* pose, double angle)
 {
     tf2::Quaternion q;
@@ -66,21 +89,21 @@ void OrientationFilter::processPath(const geometry_msgs::PoseStamped& start,
             for (int i = 0; i < n - 1; i++)
             {
                 setAngleBasedOnPositionDerivative(path, i);
-                set_angle(&path[i], angles::normalize_angle(tf2::getYaw(path[i].pose.orientation) + M_PI));
+                set_angle(&path[i], normalize_angle(tf2::getYaw(path[i].pose.orientation) + M_PI));
             }
             break;
         case LEFTWARD:
             for (int i = 0; i < n - 1; i++)
             {
                 setAngleBasedOnPositionDerivative(path, i);
-                set_angle(&path[i], angles::normalize_angle(tf2::getYaw(path[i].pose.orientation) - M_PI_2));
+                set_angle(&path[i], normalize_angle(tf2::getYaw(path[i].pose.orientation) - M_PI_2));
             }
             break;
         case RIGHTWARD:
             for (int i = 0; i < n - 1; i++)
             {
                 setAngleBasedOnPositionDerivative(path, i);
-                set_angle(&path[i], angles::normalize_angle(tf2::getYaw(path[i].pose.orientation) + M_PI_2));
+                set_angle(&path[i], normalize_angle(tf2::getYaw(path[i].pose.orientation) + M_PI_2));
             }
             break;
         case INTERPOLATE:
@@ -98,7 +121,7 @@ void OrientationFilter::processPath(const geometry_msgs::PoseStamped& start,
             while (i > 0)
             {
                 const double new_angle = tf2::getYaw(path[i - 1].pose.orientation);
-                double diff = fabs(angles::shortest_angular_distance(new_angle, last));
+                double diff = fabs(shortest_angular_distance(new_angle, last));
                 if (diff > 0.35)
                     break;
                 else
@@ -127,7 +150,7 @@ void OrientationFilter::interpolate(std::vector<geometry_msgs::PoseStamped>& pat
 {
     const double start_yaw = tf2::getYaw(path[start_index].pose.orientation),
                  end_yaw = tf2::getYaw(path[end_index].pose.orientation);
-    double diff = angles::shortest_angular_distance(start_yaw, end_yaw);
+    double diff = shortest_angular_distance(start_yaw, end_yaw);
     double increment = diff / (end_index - start_index);
     for (int i = start_index; i <= end_index; i++)
     {

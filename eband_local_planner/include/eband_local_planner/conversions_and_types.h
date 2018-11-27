@@ -58,8 +58,7 @@ void Pose2DToPose(geometry_msgs::Pose& pose, const geometry_msgs::Pose2D pose2D)
  * @param transformed_plan Populated with the transformed plan
  * @param number of start and end frame counted from the end of the global plan
  */
-bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer,
-                         const std::vector<geometry_msgs::PoseStamped>& global_plan,
+bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geometry_msgs::PoseStamped>& global_plan,
                          costmap_2d::Costmap2DROS& costmap, const std::string& global_frame,
                          std::vector<geometry_msgs::PoseStamped>& transformed_plan,
                          std::vector<int>& start_end_counts_from_end);

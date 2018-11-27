@@ -1,4 +1,3 @@
-// Copyright Boeing 2017
 #ifndef MOVE_BASE_MOVE_BASE_H
 #define MOVE_BASE_MOVE_BASE_H
 
@@ -24,8 +23,8 @@
 
 #include <nav_msgs/GetPlan.h>
 
-#include <dynamic_reconfigure/server.h>
-#include <modular_move_base/MoveBaseConfig.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <condition_variable>
 #include <mutex>
@@ -61,7 +60,7 @@ template <typename T> T get_param_or_throw(const std::string& param_name)
     throw std::runtime_error("Must specify: " + param_name);
 }
 
-enum MoveBaseState
+enum class MoveBaseState
 {
     PLANNING,
     CONTROLLING,
@@ -127,7 +126,8 @@ class MoveBase
 
     ros::NodeHandle nh_;
 
-    tf::TransformListener tf_;
+    tf2_ros::Buffer tf_buffer_;
+    tf2_ros::TransformListener tf_listener_;
 
     actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> as_;
 
@@ -156,6 +156,7 @@ class MoveBase
     pluginlib::ClassLoader<nav_core::RecoveryBehavior> recovery_loader_;
 
     std::mutex planner_mutex_;
+
     // The following variables should be protected by the planner_mutex_
     std::condition_variable planner_cond_;
     geometry_msgs::PoseStamped planner_goal_;
@@ -165,10 +166,11 @@ class MoveBase
 
     std::thread planner_thread_;
 
-    modular_move_base::MoveBaseConfig config_;
-    boost::recursive_mutex configuration_mutex_;
-    dynamic_reconfigure::Server<modular_move_base::MoveBaseConfig> reconfigure_server_;
-    void reconfigureCallback(modular_move_base::MoveBaseConfig& config, uint32_t level);
+    // Configuration
+    const double planner_frequency_;
+    const double controller_frequency_;
+    const double planner_patience_;
+    const double controller_patience_;
 };
 
 }  // namespace move_base

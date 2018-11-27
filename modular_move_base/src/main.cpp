@@ -1,4 +1,3 @@
-// Copyright Boeing 2017
 #include <modular_move_base/move_base.h>
 
 

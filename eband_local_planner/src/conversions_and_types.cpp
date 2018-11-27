@@ -10,14 +10,14 @@ namespace eband_local_planner
 
 double normalize_angle_positive(const double angle)
 {
-    return fmod(fmod(angle, 2.0*M_PI) + 2.0*M_PI, 2.0*M_PI);
+    return fmod(fmod(angle, 2.0 * M_PI) + 2.0 * M_PI, 2.0 * M_PI);
 }
 
 double normalize_angle(const double angle)
 {
     double a = normalize_angle_positive(angle);
     if (a > M_PI)
-        a -= 2.0 *M_PI;
+        a -= 2.0 * M_PI;
     return a;
 }
 
@@ -71,11 +71,13 @@ bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geo
             return false;
         }
 
-        const geometry_msgs::TransformStamped transform = tf_buffer.lookupTransform(global_frame, ros::Time(), plan_pose.header.frame_id, plan_pose.header.stamp, plan_pose.header.frame_id);
+        const geometry_msgs::TransformStamped transform = tf_buffer.lookupTransform(
+            global_frame, ros::Time(), plan_pose.header.frame_id, plan_pose.header.stamp, plan_pose.header.frame_id);
         tf2::Transform transform_;
         tf2::convert(transform.transform, transform_);
 
-        const geometry_msgs::TransformStamped robot_pose = tf_buffer.lookupTransform(costmap.getBaseFrameID(), plan_pose.header.frame_id, ros::Time(), ros::Duration(1.0));
+        const geometry_msgs::TransformStamped robot_pose = tf_buffer.lookupTransform(
+            costmap.getBaseFrameID(), plan_pose.header.frame_id, ros::Time(), ros::Duration(1.0));
 
         // we'll keep points on the plan that are within the window that we're looking at
         double dist_threshold =

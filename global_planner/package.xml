@@ -16,7 +16,6 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
-  <build_depend>angles</build_depend>
   <build_depend>tf2_geometry_msgs</build_depend>
 
   <depend>costmap_2d</depend>
