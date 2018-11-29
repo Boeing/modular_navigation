@@ -58,7 +58,6 @@ void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, c
     const double min_vel_th = pn.param("min_vel_th", 0.0);
     const double min_in_place_vel_th = pn.param("min_in_place_vel_th", 0.0);
     const double in_place_trans_vel = pn.param("in_place_trans_vel", 0.0);
-    const double tolerance_timeout = pn.param("tolerance_timeout", 0.5);
     const double k_prop = pn.param("k_prop", 4.0);
     const double k_damp = pn.param("k_damp", 3.5);
     const double ctrl_rate = pn.param("ctrl_rate", 10.0);
@@ -70,7 +69,7 @@ void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, c
 
     eband_trj_ctrl_ = std::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(
         costmap_ros_, max_vel_lin, max_vel_th, min_vel_lin, min_vel_th, min_in_place_vel_th, in_place_trans_vel,
-        xy_goal_tolerance_, yaw_goal_tolerance_, tolerance_timeout, k_prop, k_damp, ctrl_rate, max_acceleration,
+        xy_goal_tolerance_, yaw_goal_tolerance_, k_prop, k_damp, ctrl_rate, max_acceleration,
         virtual_mass, max_translational_acceleration, max_rotational_acceleration, rotation_correction_threshold));
 
     eband_visual_ = std::shared_ptr<EBandVisualization>(new EBandVisualization(pn, costmap_ros));

@@ -28,7 +28,7 @@ class EBandTrajectoryCtrl
     EBandTrajectoryCtrl(costmap_2d::Costmap2DROS* costmap_ros, const double max_vel_lin, const double max_vel_th,
                         const double min_vel_lin, const double min_vel_th, const double min_in_place_vel_th,
                         const double in_place_trans_vel, const double xy_goal_tolerance,
-                        const double yaw_goal_tolerance, const double tolerance_timeout, const double k_prop,
+                        const double yaw_goal_tolerance, const double k_prop,
                         const double k_damp, const double ctrl_rate, const double max_acceleration,
                         const double virtual_mass, const double max_translational_acceleration,
                         const double max_rotational_acceleration, const double rotation_correction_threshold);
@@ -61,7 +61,6 @@ class EBandTrajectoryCtrl
     const double in_place_trans_vel_;
     const double xy_goal_tolerance_;
     const double yaw_goal_tolerance_;
-    const double tolerance_timeout_;
     const double k_prop_;
     const double k_damp_;
     const double ctrl_rate_;

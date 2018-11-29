@@ -45,6 +45,8 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <vector>
 
+#include <chrono>
+
 using namespace std;
 
 namespace costmap_2d
@@ -376,17 +378,8 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
     ros::Rate r(frequency);
     while (nh.ok() && !map_update_thread_shutdown_)
     {
-        struct timeval start, end;
-        double start_t, end_t, t_diff;
-        gettimeofday(&start, NULL);
-
         updateMap();
 
-        gettimeofday(&end, NULL);
-        start_t = start.tv_sec + double(start.tv_usec) / 1e6;
-        end_t = end.tv_sec + double(end.tv_usec) / 1e6;
-        t_diff = end_t - start_t;
-        ROS_DEBUG("Map update time: %.9f", t_diff);
         if (publish_cycle.toSec() > 0 && layered_costmap_->isInitialized())
         {
             unsigned int x0, y0, xn, yn;
@@ -396,11 +389,14 @@ void Costmap2DROS::mapUpdateLoop(double frequency)
             ros::Time now = ros::Time::now();
             if (last_publish_ + publish_cycle < now)
             {
+                ROS_INFO("Publishing MAP!");
                 publisher_->publishCostmap();
                 last_publish_ = now;
             }
         }
+
         r.sleep();
+
         // make sure to sleep for the remainder of our cycle time
         if (r.cycleTime() > ros::Duration(1 / frequency))
             ROS_WARN("Map update loop missed its desired rate of %.4fHz... the loop actually took %.4f seconds",
@@ -413,21 +409,23 @@ void Costmap2DROS::updateMap()
     if (!stop_updates_)
     {
         // get global pose
+
         geometry_msgs::PoseStamped pose;
-        if (getRobotPose(pose))
-        {
-            double x = pose.pose.position.x, y = pose.pose.position.y, yaw = tf2::getYaw(pose.pose.orientation);
+        bool success = getRobotPose(pose);
 
-            layered_costmap_->updateMap(x, y, yaw);
+        double x = pose.pose.position.x;
+        double y = pose.pose.position.y;
+        double yaw = tf2::getYaw(pose.pose.orientation);
 
-            geometry_msgs::PolygonStamped footprint;
-            footprint.header.frame_id = global_frame_;
-            footprint.header.stamp = ros::Time::now();
-            transformFootprint(x, y, yaw, padded_footprint_, footprint);
-            footprint_pub_.publish(footprint);
+        layered_costmap_->updateMap(x, y, yaw);
 
-            initialized_ = true;
-        }
+        geometry_msgs::PolygonStamped footprint;
+        footprint.header.frame_id = global_frame_;
+        footprint.header.stamp = ros::Time::now();
+        transformFootprint(x, y, yaw, padded_footprint_, footprint);
+        footprint_pub_.publish(footprint);
+
+        initialized_ = true;
     }
 }
 

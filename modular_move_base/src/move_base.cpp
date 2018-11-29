@@ -16,7 +16,7 @@ namespace move_base
 MoveBase::MoveBase()
     : nh_("~"), tf_listener_(tf_buffer_), as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
       planner_costmap_ros_("global_costmap", tf_buffer_),
-//      controller_costmap_ros_("local_costmap", tf_buffer_),
+      controller_costmap_ros_("local_costmap", tf_buffer_),
       clear_costmaps_service_(nh_.advertiseService("clear_costmaps", &MoveBase::clearCostmapsCallback, this)),
       plan_service_(nh_.advertiseService("plan", &MoveBase::planCallback, this)),
       bgp_loader_("nav_core", "nav_core::BaseGlobalPlanner"), blp_loader_("nav_core", "nav_core::BaseLocalPlanner"),
@@ -51,7 +51,7 @@ MoveBase::MoveBase()
     }
 
     // Pause the local costmap
-//    controller_costmap_ros_.pause();
+    controller_costmap_ros_.pause();
 
     // Create the local planner
     try
@@ -59,7 +59,7 @@ MoveBase::MoveBase()
         ROS_INFO_STREAM("Starting local planner: " << local_planner);
         tc_ = blp_loader_.createInstance(local_planner);
         ROS_INFO_STREAM("Created local planner: " << local_planner);
-        tc_->initialize(blp_loader_.getName(local_planner), &tf_buffer_, &planner_costmap_ros_);
+        tc_->initialize(blp_loader_.getName(local_planner), &tf_buffer_, &controller_costmap_ros_);
     }
     catch (const pluginlib::PluginlibException& ex)
     {
@@ -68,7 +68,7 @@ MoveBase::MoveBase()
 
     // Start actively updating costmaps based on sensor data
     planner_costmap_ros_.start();
-//    controller_costmap_ros_.start();
+    controller_costmap_ros_.start();
 
     // Load recovery behaviors
     if (!loadRecoveryBehaviors(nh_))
@@ -101,7 +101,7 @@ bool MoveBase::clearCostmapsCallback(std_srvs::Empty::Request&, std_srvs::Empty:
 {
     ROS_INFO("Executing clear costmaps service");
     planner_costmap_ros_.resetLayers();
-    // controller_costmap_ros_.resetLayers();
+    controller_costmap_ros_.resetLayers();
     return true;
 }
 
@@ -421,7 +421,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state)
             new_global_plan_ = false;
 
             // TODO was controller
-            boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(planner_costmap_ros_.getCostmap()->getMutex()));
+            boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(controller_costmap_ros_.getCostmap()->getMutex()));
 
             if (!tc_->setPlan(planner_plan_))
             {
@@ -444,7 +444,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state)
     else if (state == MoveBaseState::CONTROLLING)
     {
         // TODO was controller
-        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(planner_costmap_ros_.getCostmap()->getMutex()));
+        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(controller_costmap_ros_.getCostmap()->getMutex()));
 
         if (tc_->isGoalReached())
         {
@@ -472,7 +472,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state)
         }
 
         // TODO was controller
-        if (!planner_costmap_ros_.isCurrent())
+        if (!controller_costmap_ros_.isCurrent())
         {
             ROS_WARN("[%s]:Sensor data is out of date, we're not going to allow commanding of the base for safety",
                      ros::this_node::getName().c_str());
@@ -624,7 +624,7 @@ bool MoveBase::loadRecoveryBehaviors(ros::NodeHandle node)
 
                     // initialize the recovery behavior with its name
                     // TODO was controller costmap
-                    behavior->initialize(behavior_list[i]["name"], &tf_buffer_, &planner_costmap_ros_, &planner_costmap_ros_);
+                    behavior->initialize(behavior_list[i]["name"], &tf_buffer_, &planner_costmap_ros_, &controller_costmap_ros_);
                     recovery_behaviors_.push_back(behavior);
                 }
                 catch (pluginlib::PluginlibException& ex)
