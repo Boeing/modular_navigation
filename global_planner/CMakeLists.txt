@@ -16,6 +16,9 @@ find_package(catkin REQUIRED
     tf2_ros
 )
 
+find_package(Eigen3 REQUIRED)
+add_definitions(${EIGEN3_DEFINITIONS})
+
 generate_dynamic_reconfigure_options(
     cfg/GlobalPlanner.cfg
 )
@@ -32,22 +35,29 @@ catkin_package(
     pluginlib
     roscpp
     tf2_ros
+  DEPENDS
+    EIGEN3
+)
+
+include_directories(SYSTEM
+    ${catkin_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIRS}
 )
 
 include_directories(
     include
-    ${catkin_INCLUDE_DIRS}
 )
 
 add_library(${PROJECT_NAME}
-    src/quadratic_calculator.cpp
-    src/dijkstra.cpp
     src/astar.cpp
-    src/grid_path.cpp
+    src/dijkstra.cpp
     src/gradient_path.cpp
+    src/grid_path.cpp
     src/orientation_filter.cpp
     src/planner_core.cpp
+    src/quadratic_calculator.cpp
 )
+
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 

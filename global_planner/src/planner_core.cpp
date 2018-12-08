@@ -46,6 +46,11 @@
 #include <global_planner/grid_path.h>
 #include <global_planner/quadratic_calculator.h>
 
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/linestring.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+#include <boost/geometry/algorithms/simplify.hpp>
+
 // register this planner as a BaseGlobalPlanner plugin
 PLUGINLIB_EXPORT_CLASS(global_planner::GlobalPlanner, nav_core::BaseGlobalPlanner)
 
@@ -396,17 +401,58 @@ bool GlobalPlanner::getPlanFromPotential(double start_x, double start_y, double 
     plan.clear();
 
     std::vector<std::pair<float, float>> path;
-
     if (!path_maker_->getPath(potential_array_, start_x, start_y, goal_x, goal_y, path))
     {
         ROS_ERROR("NO PATH!");
         return false;
     }
 
-    ros::Time plan_time = ros::Time::now();
-    for (int i = path.size() - 1; i >= 0; i--)
+    //
+    // hack a simplification
+    //
+    typedef boost::geometry::model::d2::point_xy<float> xy;
+
+    boost::geometry::model::linestring<xy> line;
+    for (const auto& item : path)
+        boost::geometry::append(line, xy(item.first, item.second));
+
+    // Simplify it, using distance of 0.5 units
+    boost::geometry::model::linestring<xy> simplified;
+    const double simplify_resolution = 0.2 / costmap_->getResolution();
+    boost::geometry::simplify(line, simplified, simplify_resolution);
+
+    ROS_INFO_STREAM("Path of length: " << path.size() << " simplified to " << simplified.size());
+
+    std::vector<std::pair<float, float>> simplified_path;
+    simplified_path.push_back({simplified.front().x(), simplified.front().y()});
+    for (std::size_t i=1; i<simplified.size(); ++i)
     {
-        std::pair<float, float> point = path[i];
+        // Calculate length of line segment
+        const double distance = boost::geometry::distance(simplified[i], simplified[i-1]);
+
+        const double step_size = 2.0 / costmap_->getResolution();
+        if (distance > step_size)
+        {
+            const unsigned int steps = static_cast<unsigned int>(distance / step_size);
+            ROS_INFO_STREAM("Steps: " << steps << " distance " << distance << " step_size " << step_size);
+            for (std::size_t s=1; s <= steps; ++s)
+            {
+                const float f = static_cast<float>(s) / (steps+1);
+                const float x = simplified[i-1].x() + (simplified[i].x() - simplified[i-1].x()) * f;
+                const float y = simplified[i-1].y() + (simplified[i].y() - simplified[i-1].y()) * f;
+                ROS_INFO_STREAM("Stepping: step=" << s << " position=" << x << " " << y);
+                simplified_path.push_back({x, y});
+            }
+        }
+
+        simplified_path.push_back({simplified[i].x(), simplified[i].y()});
+    }
+
+    ros::Time plan_time = ros::Time::now();
+    for (int i = simplified_path.size() - 1; i >= 0; i--)
+    {
+        std::pair<float, float> point = simplified_path[i];
+
         // convert the plan to world coordinates
         double world_x, world_y;
         mapToWorld(point.first, point.second, world_x, world_y);
@@ -432,9 +478,11 @@ bool GlobalPlanner::getPlanFromPotential(double start_x, double start_y, double 
 
 void GlobalPlanner::publishPotential(float* potential)
 {
-    int nx = costmap_->getSizeInCellsX(), ny = costmap_->getSizeInCellsY();
+    int nx = costmap_->getSizeInCellsX();
+    int ny = costmap_->getSizeInCellsY();
     double resolution = costmap_->getResolution();
     nav_msgs::OccupancyGrid grid;
+
     // Publish Whole Grid
     grid.header.frame_id = frame_id_;
     grid.header.stamp = ros::Time::now();
