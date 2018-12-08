@@ -46,7 +46,11 @@ include_directories(
 )
 
 add_library(rrt_local_planner
+    include/rrt_local_planner/pid.h
+    include/rrt_local_planner/rrt_local_planner.h
+
     src/rrt_local_planner.cpp
+    src/pid.cpp
 )
 target_link_libraries(rrt_local_planner ${catkin_LIBRARIES} ${OMPL_LIBRARIES})
 

@@ -45,6 +45,20 @@ double getYaw(const Eigen::Quaterniond& q)
     return yaw;
 };
 
+bool isDiff(const Eigen::Isometry2d& t1, const Eigen::Isometry2d& t2)
+{
+    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
+    const bool rot = Eigen::Rotation2D<double>((t2.inverse() * t1).rotation()).angle() > 1e-4;
+    return trans || rot;
+}
+
+bool isDiff(const Eigen::Isometry3d& t1, const Eigen::Isometry3d& t2)
+{
+    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
+    const bool rot = Eigen::AngleAxisd((t2.inverse() * t1).rotation()).angle() > 1e-4;
+    return trans || rot;
+}
+
 LocalTrajectory convert(const ompl::geometric::PathGeometric& path)
 {
     LocalTrajectory trajectory;
@@ -52,8 +66,7 @@ LocalTrajectory convert(const ompl::geometric::PathGeometric& path)
     for (unsigned int i=0; i<path.getStateCount(); ++i)
     {
         const ompl::base::State* state = path.getState(i);
-        const auto* compound_state = state->as<ompl::base::CompoundStateSpace::StateType>();
-        const auto* se2state = compound_state->as<ompl::base::SE2StateSpace::StateType>(0);
+        const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
 
         const double x = se2state->getX();
         const double y = se2state->getY();
@@ -79,6 +92,43 @@ LocalTrajectory convert(const ompl::geometric::PathGeometric& path)
 
 }
 
+unsigned char getCost(const costmap_2d::Costmap2D& costmap, const double x, const double y)
+{
+    unsigned int cell_x, cell_y;
+    unsigned char cost;
+    if (!costmap.worldToMap(x, y, cell_x, cell_y))
+    {
+        // probably at the edge of the costmap - this value should be recovered soon
+        cost = 1;
+    }
+    else
+    {
+        // get cost for this cell
+        cost = costmap.getCost(cell_x, cell_y);
+    }
+
+    return cost;
+}
+
+double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y, const double inflation_weight)
+{
+    return getDistanceToCollision(getCost(costmap, x, y), inflation_weight);
+}
+
+double getDistanceToCollision(const unsigned char cost, const double inflation_weight)
+{
+    if (cost >= costmap_2d::LETHAL_OBSTACLE || cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+    {
+        return 0.0;
+    }
+    else
+    {
+        const double c = (cost != costmap_2d::FREE_SPACE && cost != costmap_2d::NO_INFORMATION) ? static_cast<double>(cost) : 1.0;
+        const double factor = static_cast<double>(c) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
+        return -log(factor) / inflation_weight;
+    }
+}
+
 RRTLocalPlanner::RRTLocalPlanner()
     : costmap_ros_(nullptr)
 {
@@ -89,77 +139,202 @@ RRTLocalPlanner::~RRTLocalPlanner()
 
 }
 
-bool RRTLocalPlanner::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
-{
-    std::lock_guard<std::mutex> lock(control_mutex_);
+nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom)
+{  
+    nav_core::Control control;
 
-    if (!control_data_)
+    bool has_global_path = true;
+//    {
+//        std::lock_guard<std::mutex> lock(global_mutex_);
+//        has_global_path = bool(global_path_);
+//    }
+    std::lock_guard<std::mutex> lock(control_mutex_);
+    const bool has_control = bool(control_data_);
+
+    if (!has_global_path)
     {
-        ROS_INFO("No control data!");
-        return true;
+        control.state = nav_core::ControlState::COMPLETE;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
     }
 
-    return true;
+    if (!has_control)
+    {
+        control.state = nav_core::ControlState::PLANNING;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
+    }
 
-//    ROS_INFO("executing...");
+    //
+    // Update tracking state
+    //
+    const ros::SteadyTime last_time_step = control_data_->last_time_step;
+    control_data_->last_time_step = steady_time;
 
     //
-    // Get the current robot pose
+    // Make sure odom is not too old
     //
-    geometry_msgs::PoseStamped robot_pose;
-    costmap_ros_->getRobotPose(robot_pose);
+    const double maximum_odom_time_delay = 0.1;
+    ROS_INFO_STREAM("ros_time: " << ros_time);
+    ROS_INFO_STREAM("odom: " << odom.header.stamp);
+    const double odom_time_delay = (ros_time - odom.header.stamp).toSec();
+    if (odom_time_delay > maximum_odom_time_delay)
+    {
+        ROS_WARN_STREAM("Odometry is too old: delay = " << odom_time_delay);
+        control.state = nav_core::ControlState::FAILED;
+        control.error = nav_core::ControlFailure::BAD_ODOMETRY;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
+    }
 
     //
-    // Find the point where currently executing
+    // Get the current robot pose from odom
     //
-    std::size_t min_i = 0;
-    double euc_distance = std::numeric_limits<double>::max();
+    const Eigen::Quaterniond qt = Eigen::Quaterniond(odom.pose.pose.orientation.w, odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z);
+    const Eigen::Translation3d p = Eigen::Translation3d(odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
+    const Eigen::Isometry3d robot_pose = p * qt;
+
+    //
+    // Find the point currently executing
+    //
+    std::size_t min_i = control_data_->execution_index;
+    double linear_distance = std::numeric_limits<double>::max();
     for (std::size_t i=control_data_->execution_index; i<control_data_->trajectory.states.size(); ++i)
     {
-        const double dx = control_data_->trajectory.states[i].pose.position.x - robot_pose.pose.position.x;
-        const double dy = control_data_->trajectory.states[i].pose.position.y - robot_pose.pose.position.y;
-        const double d = std::sqrt(dx*dx + dy*dy);
+        const geometry_msgs::Pose _pose = control_data_->trajectory.states[i].pose;
+        const Eigen::Vector3d p = Eigen::Vector3d(_pose.position.x, _pose.position.y, _pose.position.z);
+        const double linear_delta = (p - robot_pose.translation()).norm();
 
-        if (d < 0.01)
+        // Waypoint reached
+        if (linear_delta < goal_radius_)
             continue;
 
-        if (d < euc_distance)
+        if (linear_delta < linear_distance)
         {
             min_i = i;
-            euc_distance = d;
+            linear_distance = linear_delta;
         }
     }
     control_data_->execution_index = min_i;
+    assert(control_data_->execution_index > 0);
+    const bool last_waypoint = min_i >= control_data_->trajectory.states.size() - 1;
+    ROS_INFO_STREAM("Tracking point: " << (min_i + 1) << " of " << control_data_->trajectory.states.size());
+
+    //
+    // Determine the tracking error
+    //
+    const auto start_p = control_data_->trajectory.states.at(min_i-1);
+    const auto end_p = control_data_->trajectory.states.at(min_i);
+    const Eigen::Quaterniond start_qt(start_p.pose.orientation.w, start_p.pose.orientation.x, start_p.pose.orientation.y, start_p.pose.orientation.z);
+    const Eigen::Quaterniond end_qt(end_p.pose.orientation.w, end_p.pose.orientation.x, end_p.pose.orientation.y, end_p.pose.orientation.z);
+    const Eigen::Vector3d start = Eigen::Vector3d(start_p.pose.position.x, start_p.pose.position.y, 0);
+    const Eigen::Vector3d end = Eigen::Vector3d(end_p.pose.position.x, end_p.pose.position.y, 0);
+    const Eigen::Vector3d segment = end - start;
+    const Eigen::Vector3d segment_wrtb = robot_pose.rotation().inverse() * segment;
+    const Eigen::ParametrizedLine<double, 3> line = Eigen::ParametrizedLine<double, 3>::Through(start, end);
+    const Eigen::Vector3d point_along_segment = line.projection(robot_pose.translation());
+    const Eigen::Vector3d linear_error = point_along_segment - robot_pose.translation();
+    const Eigen::Vector3d goal_error = end - robot_pose.translation();
+    const Eigen::Vector3d linear_error_wrtb = robot_pose.rotation().inverse() * linear_error;
+    const Eigen::Vector3d goal_error_wrtb = robot_pose.rotation().inverse() * goal_error;
+
+    //
+    // Determine the rotational tracking error
+    //
+    const double segment_rot = getYaw(start_qt.inverse() * end_qt);
+    const double angular_error = getYaw(Eigen::Quaterniond(robot_pose.rotation()).inverse() * end_qt);
 
     //
     // Termination criteria
     //
-    if (min_i >= control_data_->trajectory.states.size() - 1 && euc_distance < 0.02)
+    if (last_waypoint && goal_error.norm() < goal_linear_threshold && angular_error < goal_angular_threshold)
     {
-        ROS_INFO("Trajectory complete!");
+        ROS_INFO_STREAM("linear_error: " << linear_error.transpose());
+        ROS_INFO_STREAM("linear_error.norm(): " << linear_error.norm());
+        ROS_INFO_STREAM("goal_error: " << goal_error.transpose());
+        ROS_INFO_STREAM("goal_error.norm(): " << goal_error.transpose());
+        ROS_INFO_STREAM("angular_error: " << angular_error);
         control_data_->execution_complete = true;
-        return true;
+        control.state = nav_core::ControlState::PLANNING;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
     }
 
-//    ROS_INFO_STREAM("Tracking point: " << min_i << " of " << control_data_->trajectory.states.size());
+    //
+    // Failure conditions
+    //
+    if (linear_error.norm() > max_linear_tracking_error_)
+    {
+        ROS_WARN_STREAM("Exceeded maximum linear tracking error: " << linear_error.norm() << " > " << max_linear_tracking_error_);
+        control.state = nav_core::ControlState::FAILED;
+        control.error = nav_core::ControlFailure::TRACKING_LIMIT_EXCEEDED;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
+    }
+    if (angular_error > max_angular_tracking_error_)
+    {
+        ROS_WARN_STREAM("Exceeded maximum angular tracking error: " << angular_error << " > " << max_angular_tracking_error_);
+        control.state = nav_core::ControlState::FAILED;
+        control.error = nav_core::ControlFailure::TRACKING_LIMIT_EXCEEDED;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
+    }
 
     //
-    // Check the local plan is collision free
+    // Check current position is collision free
     //
-    for (std::size_t i=0; i<control_data_->trajectory.states.size(); ++i)
+    const unsigned char cost = getCost(*costmap_ros_->getCostmap(), robot_pose.translation().x(), robot_pose.translation().y());
+    if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+    {
+        ROS_WARN_STREAM("Robot in collision!");
+        control.state = nav_core::ControlState::EMERGENCY_BRAKING;
+        goal_x_pid_.reset();
+        goal_y_pid_.reset();
+        tracking_x_pid_.reset();
+        tracking_y_pid_.reset();
+        rotation_pid_.reset();
+        return control;
+    }
+
+    //
+    // Check the remaining trajectory is collision free
+    //
+    const double minimum_distance_to_collision = 0.25;
+    double accum_distance = 0.0;
+    for (std::size_t i=control_data_->execution_index; i<control_data_->trajectory.states.size(); ++i)
     {
         const geometry_msgs::Pose& p = control_data_->trajectory.states[i].pose;
+        const geometry_msgs::Pose& prev_p = control_data_->trajectory.states[i-1].pose;
 
-        unsigned int cell_x, cell_y;
-        unsigned char cost;
-        if (!costmap_ros_->getCostmap()->worldToMap(p.position.x, p.position.y, cell_x, cell_y))
-        {
-            cost = 1;
-        }
-        else
-        {
-            cost = costmap_ros_->getCostmap()->getCost(cell_x, cell_y);
-        }
+        const double dx = prev_p.position.x - p.position.x;
+        const double dy = prev_p.position.y - p.position.y;
+        accum_distance += std::sqrt(dx*dx + dy*dy);
+
+        const unsigned char cost = getCost(*costmap_ros_->getCostmap(), p.position.x, p.position.y);
 
         //
         // Execute evasive action if in collision
@@ -167,77 +342,225 @@ bool RRTLocalPlanner::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
         if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
         {
             ROS_WARN_STREAM("Collision at point: " << i << " of " << control_data_->trajectory.states.size());
-            return true;
+            if (accum_distance < minimum_distance_to_collision)
+            {
+                ROS_WARN_STREAM("Imminent collision in " << accum_distance << "m");
+                goal_x_pid_.reset();
+                goal_y_pid_.reset();
+                tracking_x_pid_.reset();
+                tracking_y_pid_.reset();
+                rotation_pid_.reset();
+                control.state = nav_core::ControlState::EMERGENCY_BRAKING;
+                return control;
+            }
         }
     }
 
-    const auto start_p = control_data_->trajectory.states[min_i-1];
-    const auto end_p = control_data_->trajectory.states[min_i];
+    double time_step = steady_time.toSec() - last_time_step.toSec();
+    if (time_step < 0)
+        time_step = std::numeric_limits<double>::min();
+    ROS_INFO_STREAM("time_step: " << time_step);
 
-    const Eigen::Vector3d x = Eigen::Vector3d(robot_pose.pose.position.x, robot_pose.pose.position.y, 0);
-    const Eigen::Vector3d start = Eigen::Vector3d(start_p.pose.position.x, start_p.pose.position.y, 0);
-    const Eigen::Vector3d end = Eigen::Vector3d(end_p.pose.position.x, end_p.pose.position.y, 0);
+    //
+    // Determine target speed (based on cost of goal and current cost)
+    //
+    const unsigned char target_cost = getCost(*costmap_ros_->getCostmap(), end_p.pose.position.x, end_p.pose.position.y);
+    const double speed_factor = std::max(0.2, (static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE - std::max(cost, target_cost)) / static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE)));
 
-    const Eigen::Quaterniond x_qt(robot_pose.pose.orientation.w, robot_pose.pose.orientation.x, robot_pose.pose.orientation.y, robot_pose.pose.orientation.z);
-    const Eigen::Quaterniond end_qt(end_p.pose.orientation.w, end_p.pose.orientation.x, end_p.pose.orientation.y, end_p.pose.orientation.z);
+    const double w_time = std::abs(segment_rot / (max_velocity_w_ / 2.0));
+    const double x_time = std::abs(segment_wrtb[0] / max_velocity_x_);
+    const double y_time = std::abs(segment_wrtb[1] / max_velocity_y_);
+    const double max_time = std::max(w_time, std::max(x_time, y_time));
 
-    Eigen::ParametrizedLine<double, 3> line = Eigen::ParametrizedLine<double, 3>::Through(start, end);
+    ROS_INFO_STREAM("w_time: " << w_time);
+    ROS_INFO_STREAM("x_time: " << x_time);
+    ROS_INFO_STREAM("y_time: " << y_time);
+    ROS_INFO_STREAM("max_time: " << max_time);
 
-    const Eigen::Vector3d point_along_segment = line.projection(x);
-    const Eigen::Vector3d error_vector = point_along_segment - x;
+    const double speed_x = max_velocity_x_ * x_time / max_time;
+    const double speed_y = max_velocity_y_ * y_time / max_time;
+    // const double speed_w = max_velocity_w_ * w_time / max_time;
 
-    const double control_p_gain = 2;
-    const double speed = 0.1;
-    const Eigen::Vector3d target_velocity = speed * line.direction();
-
-//    ROS_INFO_STREAM("target_velocity: " << target_velocity.transpose());
-
-    const Eigen::Vector3d segment_vel = x_qt.inverse() * (target_velocity + error_vector * control_p_gain);
-
-    const double e_theta = getYaw(x_qt.inverse() * end_qt);
-
-    ROS_INFO_STREAM("e_x: " << error_vector[0]);
-    ROS_INFO_STREAM("e_y: " << error_vector[1]);
-    ROS_INFO_STREAM("e_w: " << e_theta);
-
-    if (error_vector.norm() > 0.1)
+    //
+    // Slow down at end
+    //
+    const double slow_distance = 0.2;
+    double slow_factor = 1.0;
+    if (accum_distance < 0.2)
     {
-        ROS_WARN_STREAM("Tracking error exceeds limit!");
-        return false;
+        slow_factor *= std::max(0.2, (accum_distance / slow_distance));
     }
 
-    // compute PID
-    cmd_vel.linear.x = segment_vel[0];
-    cmd_vel.linear.y = segment_vel[1];
-    cmd_vel.angular.z = e_theta * control_p_gain;
+    ROS_INFO_STREAM("speed_factor: " << speed_factor);
+    ROS_INFO_STREAM("slow_factor: " << slow_factor);
 
-//    ROS_INFO_STREAM("v_x: " << cmd_vel.linear.x);
-//    ROS_INFO_STREAM("v_y: " << cmd_vel.linear.y);
-//    ROS_INFO_STREAM("v_w: " << cmd_vel.angular.z);
+    ROS_INFO_STREAM("segment_rot: " << segment_rot);
+    ROS_INFO_STREAM("segment_wrtb: " << segment_wrtb.transpose());
 
-    return true;
-}
+    ROS_INFO_STREAM("angular_error: " << angular_error);
+    ROS_INFO_STREAM("goal_error_wrtb: " << goal_error_wrtb.transpose());
+    ROS_INFO_STREAM("linear_error_wrtb: " << linear_error_wrtb.transpose());
 
-bool RRTLocalPlanner::isGoalReached()
-{
-    std::lock_guard<std::mutex> lock(global_mutex_);
-    return !bool(global_path_);
+    //
+    // If we are within the goal radius then control on absolute error
+    // If we are outside the goal radius then control on tracking error + segment velocity
+    //
+    double vx = 0;
+    double vy = 0;
+    if (goal_error_wrtb.norm() < goal_radius_)
+    {
+        ROS_INFO("TRACKING TO GOAL");
+
+        vx = goal_x_pid_.compute(goal_error_wrtb[0], time_step);
+        vy = goal_y_pid_.compute(goal_error_wrtb[1], time_step);
+    }
+    else
+    {
+        ROS_INFO_STREAM("TRACKING ALONG LINE");
+
+        vx = tracking_x_pid_.compute(linear_error_wrtb[0], time_step);
+        vy = tracking_y_pid_.compute(linear_error_wrtb[1], time_step);
+
+        Eigen::Vector3d goal_dir_wrtb = robot_pose.rotation().inverse() * (end - robot_pose.translation());
+        goal_dir_wrtb.normalize();
+
+        ROS_INFO_STREAM("goal_dir_wrtb: " << goal_dir_wrtb.transpose());
+
+        ROS_INFO_STREAM("speed_x: " << speed_x);
+        ROS_INFO_STREAM("speed_y: " << speed_y);
+
+        const double goal_x = goal_dir_wrtb[0] * speed_x * speed_factor * slow_factor;
+        const double goal_y = goal_dir_wrtb[1] * speed_y * speed_factor * slow_factor;
+
+        ROS_INFO_STREAM("PID X: " << vx);
+        ROS_INFO_STREAM("PID Y: " << vy);
+
+        ROS_INFO_STREAM("GOAL X: " << goal_x);
+        ROS_INFO_STREAM("GOAL Y: " << goal_y);
+
+        vx += goal_x;
+        vy += goal_y;
+
+        ROS_INFO("after PID");
+        ROS_INFO_STREAM("vx: " << vx);
+        ROS_INFO_STREAM("vy: " << vy);
+    }
+
+    ROS_INFO_STREAM("previous v");
+    ROS_INFO_STREAM("old_vx: " << odom.twist.twist.linear.x);
+    ROS_INFO_STREAM("old_vy: " << odom.twist.twist.linear.y);
+
+    const double d_vx = vx - odom.twist.twist.linear.x;
+    const double d_vy = vy - odom.twist.twist.linear.y;
+
+    double acc_factor_x = 1.0;
+    if (std::abs(d_vx) > max_acceleration_x_ && std::signbit(odom.twist.twist.linear.x) == std::signbit(d_vx))
+    {
+        ROS_WARN_STREAM("Limiting maximum acceleration in X: " << d_vx << " > " << max_acceleration_x_);
+        acc_factor_x = std::abs(d_vx / max_acceleration_x_);
+    }
+
+    double acc_factor_y = 1.0;
+    if (std::abs(d_vy) > max_acceleration_y_ && std::signbit(odom.twist.twist.linear.y) == std::signbit(d_vy))
+    {
+        ROS_WARN_STREAM("Limiting maximum acceleration in Y: " << d_vy << " > " << max_acceleration_y_);
+        acc_factor_y = std::abs(d_vy / max_acceleration_y_);
+    }
+
+    const double acc_factor = std::max(acc_factor_x, acc_factor_y);
+    vx = odom.twist.twist.linear.x + d_vx / acc_factor;
+    vy = odom.twist.twist.linear.y + d_vy / acc_factor;
+
+    ROS_INFO_STREAM("after acceleration limiting: " << acc_factor);
+    ROS_INFO_STREAM("vx: " << vx);
+    ROS_INFO_STREAM("vy: " << vy);
+
+    double velocity_factor_x = 1.0;
+    if (std::abs(vx) > max_velocity_x_)
+    {
+        ROS_WARN_STREAM("Velocity in X exceeds limit: " << vx << " > " << max_velocity_x_);
+        velocity_factor_x = std::abs(vx / max_velocity_x_);
+    }
+
+    double velocity_factor_y = 1.0;
+    if (std::abs(vy) > max_velocity_y_)
+    {
+        ROS_WARN_STREAM("Velocity in Y exceeds limit: " << vy << " > " << max_velocity_y_);
+        velocity_factor_y = std::abs(vy / max_velocity_y_);
+    }
+
+    const double velocity_factor = std::max(velocity_factor_x, velocity_factor_y);
+    vx /= velocity_factor;
+    vy /= velocity_factor;
+
+    ROS_INFO_STREAM("after velocity limiting: " << velocity_factor);
+    ROS_INFO_STREAM("vx: " << vx);
+    ROS_INFO_STREAM("vy: " << vy);
+
+    double vw = rotation_pid_.compute(angular_error, time_step);
+    double d_vw = vw - odom.twist.twist.angular.z;
+
+    double acc_factor_w = 1.0;
+    if (std::abs(d_vw) > max_acceleration_w_)
+    {
+        ROS_WARN_STREAM("Limiting maximum acceleration in W: " << d_vw << " > " << max_acceleration_w_);
+        acc_factor_w = std::abs(d_vw / max_acceleration_w_);
+    }
+
+    vw = odom.twist.twist.angular.z + d_vw / acc_factor;
+
+    double velocity_factor_w = 1.0;
+    if (std::abs(vw) > max_velocity_w_)
+    {
+        ROS_WARN_STREAM("Velocity in W exceeds limit: " << vw << " > " << max_velocity_w_);
+        velocity_factor_w = std::abs(vw / max_velocity_w_);
+    }
+
+    vw /= velocity_factor_w;
+
+    control.cmd_vel.linear.x = vx;
+    control.cmd_vel.linear.y = vy;
+    control.cmd_vel.angular.z = vw;
+
+    ROS_INFO_STREAM("v_x: " << control.cmd_vel.linear.x);
+    ROS_INFO_STREAM("v_y: " << control.cmd_vel.linear.y);
+    ROS_INFO_STREAM("v_w: " << control.cmd_vel.angular.z);
+
+    control.state = nav_core::ControlState::RUNNING;
+    return control;
 }
 
 bool RRTLocalPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& plan)
 {
     std::lock_guard<std::mutex> lock(global_mutex_);
-
-    if (global_path_)
-        return true;
+    std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
 
     global_path_ = std::unique_ptr<GlobalPath>(new GlobalPath());
     global_path_->path = plan;
     global_path_->execution_index = 0;
 
     // Remove the last planned trajectory (forcing a re-plan)
-    std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
     trajectory_result_.reset(nullptr);
+
+    return true;
+}
+
+bool RRTLocalPlanner::clearPlan()
+{
+    {
+        std::lock_guard<std::mutex> lock(global_mutex_);
+        global_path_.reset(nullptr);
+    }
+
+    {
+        std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
+        trajectory_result_.reset(nullptr);
+    }
+
+    {
+        std::lock_guard<std::mutex> c_lock(control_mutex_);
+        control_data_.reset(nullptr);
+    }
 
     return true;
 }
@@ -247,8 +570,12 @@ void RRTLocalPlanner::initialize(std::string name, tf2_ros::Buffer* tf, costmap_
     tf_buffer_ = tf;
     costmap_ros_ = costmap_ros;
 
-    ros::NodeHandle nh;
-    odom_sub_ = nh.subscribe<nav_msgs::Odometry>("odom", 1, &RRTLocalPlanner::odomCallback, this);
+    // Assert the costmap is in odom
+    const std::string local_frame = costmap_ros_->getGlobalFrameID();
+    if (local_frame != "odom")
+    {
+        throw std::runtime_error("Local costmap must be in odom frame for robust trajectory control");
+    }
 
     rrt_viz_.reset(new rviz_visual_tools::RvizVisualTools(costmap_ros_->getGlobalFrameID(), name + "/rrt"));
     trajectory_viz_.reset(new rviz_visual_tools::RvizVisualTools(costmap_ros_->getGlobalFrameID(), name + "/trajectory"));
@@ -257,39 +584,18 @@ void RRTLocalPlanner::initialize(std::string name, tf2_ros::Buffer* tf, costmap_
     // Setup OMPL
     //
     se2_space_ = ompl::base::StateSpacePtr(new ompl::base::SE2StateSpace());
-    velocity_space_ = ompl::base::StateSpacePtr(new ompl::base::RealVectorStateSpace(3));
-    space_ = ompl::base::StateSpacePtr(se2_space_ + velocity_space_);
-    cspace_ = ompl::control::ControlSpacePtr(new ompl::control::RealVectorControlSpace(space_, 3));
-
-    ompl::base::RealVectorBounds velocity_bounds(3);
-    velocity_bounds.setLow(0, -0.1);  // velocity x control (acceleration)
-    velocity_bounds.setHigh(0, 0.2);
-    velocity_bounds.setLow(1, -0.1);  // velocity y control (acceleration)
-    velocity_bounds.setHigh(1, 0.2);
-    velocity_bounds.setLow(2, -0.1);  // theta control (acceleration)
-    velocity_bounds.setHigh(2, 0.1);
-    velocity_space_->as<ompl::base::RealVectorStateSpace>()->setBounds(velocity_bounds);
-
-    ompl::base::RealVectorBounds cbounds(3);
-    cbounds.setLow(0, -0.1);  // velocity x control (acceleration)
-    cbounds.setHigh(0, 0.2);
-    cbounds.setLow(1, -0.1);  // velocity y control (acceleration)
-    cbounds.setHigh(1, 0.2);
-    cbounds.setLow(2, -0.1);  // theta control (acceleration)
-    cbounds.setHigh(2, 0.1);
-    cspace_->as<ompl::control::RealVectorControlSpace>()->setBounds(cbounds);
-
-    // Create space information:
-    si_ = ompl::control::SpaceInformationPtr(new ompl::control::SpaceInformation(space_, cspace_));
-    si_->setStatePropagator(boost::bind(&RRTLocalPlanner::propagate, this, _1, _2, _3, _4));
-    si_->setStateValidityChecker(boost::bind(&RRTLocalPlanner::isStateValid, this, si_.get(), _1));
+    se2_space_->setLongestValidSegmentFraction(0.005);
+    si_ = ompl::base::SpaceInformationPtr(new ompl::base::SpaceInformation(se2_space_));
+    si_->setStateValidityChecker(std::make_shared<ValidityChecker>(si_, costmap_ros_->getCostmap(), costmap_weight_));
 
     // Optimize criteria
-    ompl::base::OptimizationObjectivePtr cost_objective(new CostMapObjective(*this, si_));
+    ompl::base::OptimizationObjectivePtr cost_objective(new CostMapObjective(si_, costmap_ros_->getCostmap()));
     ompl::base::OptimizationObjectivePtr length_objective(new ompl::base::PathLengthOptimizationObjective(si_));
     ompl::base::MultiOptimizationObjective* objective = new ompl::base::MultiOptimizationObjective(si_);
+    // Highest cost is 252 so you would have 252 per m
     objective->addObjective(cost_objective, 1.0);
-    //objective->addObjective(length_objective, 1.0);
+    // Highest cost would be 1 per m
+    objective->addObjective(length_objective, 50.0);
     objective_ = ompl::base::OptimizationObjectivePtr(objective);
 
     planning_thread_ = std::thread(&RRTLocalPlanner::trajectoryPlanningThread, this);
@@ -298,14 +604,12 @@ void RRTLocalPlanner::initialize(std::string name, tf2_ros::Buffer* tf, costmap_
 
 TrajectoryPlanResult RRTLocalPlanner::planLocalTrajectory(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const double threshold)
 {
-    ROS_INFO("planLocalTrajectory...");
-
-    ROS_INFO_STREAM("start: " << start.translation().transpose());
-    ROS_INFO_STREAM("goal: " << goal.translation().transpose());
-    ROS_INFO_STREAM("threshold: " << threshold);
-
     const double search_window = std::min(costmap_ros_->getCostmap()->getSizeInCellsX() * costmap_ros_->getCostmap()->getResolution(),
                                           costmap_ros_->getCostmap()->getSizeInCellsY() * costmap_ros_->getCostmap()->getResolution()) / 2.0;
+
+    TrajectoryPlanResult result;
+    result.start = start;
+    result.goal = goal;
 
     //
     // Update XY sample bounds
@@ -318,21 +622,15 @@ TrajectoryPlanResult RRTLocalPlanner::planLocalTrajectory(const Eigen::Isometry2
     se2_space_->as<ompl::base::SE2StateSpace>()->setBounds(bounds);
 
     // Define problem
-    ompl::base::ScopedState<> ompl_start(space_);
+    ompl::base::ScopedState<> ompl_start(se2_space_);
     ompl_start[0] = start.translation().x();
     ompl_start[1] = start.translation().y();
     ompl_start[2] = Eigen::Rotation2D<double>(start.rotation()).angle();
-    ompl_start[3] = 0;  // Speed X
-    ompl_start[4] = 0;  // Speed Y
-    ompl_start[5] = 0;  // Speed W
 
-    ompl::base::ScopedState<> ompl_goal(space_);
+    ompl::base::ScopedState<> ompl_goal(se2_space_);
     ompl_goal[0] = goal.translation().x();
     ompl_goal[1] = goal.translation().y();
     ompl_goal[2] = Eigen::Rotation2D<double>(goal.rotation()).angle();
-    ompl_goal[3] = 0;  // Speed X
-    ompl_goal[4] = 0;  // Speed Y
-    ompl_goal[5] = 0;  // Speed W
 
     ompl::base::ProblemDefinitionPtr pdef(new ompl::base::ProblemDefinition(si_));
     pdef->setOptimizationObjective(objective_);
@@ -343,167 +641,53 @@ TrajectoryPlanResult RRTLocalPlanner::planLocalTrajectory(const Eigen::Isometry2
     ROS_INFO("Problem defined, running planner");
     auto rrt = new ompl::geometric::RRTstar(si_);
     rrt->setGoalBias(0.1);
-    rrt->setRange(0.05);
+    rrt->setRange(0.1);
 
-    ompl::base::PlannerPtr planner(rrt);
-    planner->setProblemDefinition(pdef);
-    planner->setup();
-    ompl::base::PlannerStatus solved = planner->solve(0.1);
+    result.planner = ompl::base::PlannerPtr(rrt);
+    result.planner->setProblemDefinition(pdef);
+    result.planner->setup();
 
-    TrajectoryPlanResult result;
+    ompl::base::PlannerStatus solved;
+
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*costmap_ros_->getCostmap()->getMutex());
+
+    solved = result.planner->solve(0.1);
 
     result.pd = std::unique_ptr<ompl::base::PlannerData>(new ompl::base::PlannerData(si_));
-    planner->getPlannerData(*result.pd);
+    result.planner->getPlannerData(*result.pd);
 
     visualisePlannerData(*result.pd);
 
-    if (solved)
+    if (ompl::base::PlannerStatus::StatusType(solved) == ompl::base::PlannerStatus::EXACT_SOLUTION)
     {
-        ROS_INFO("Planning successful");
+        result.success = true;
+        // result.cost = pdef->getSolutionPath()->cost(pdef->getOptimizationObjective()).value();
+        result.length = pdef->getSolutionPath()->length();
+
+        ROS_INFO_STREAM(result.planner->getName()
+                     << " found a solution of length " << result.length
+                     << " with an optimization objective value of " << result.cost);
 
         ompl::base::PathPtr path_ptr = pdef->getSolutionPath();
         ompl::geometric::PathGeometric result_path = static_cast<ompl::geometric::PathGeometric&>(*path_ptr);
 
-//        ompl::geometric::PathSimplifier simplifier(si_);
-//        simplifier.smoothBSpline(result_path, 5, 0.01);
+        ompl::geometric::PathSimplifier simplifier(si_);
+        // simplifier.smoothBSpline(result_path, 5, 0.005);
+        simplifier.simplify(result_path, 0.1);
+        result_path.interpolate();
+
+        result.cost = result_path.cost(pdef->getOptimizationObjective()).value();
 
         result.trajectory = std::unique_ptr<ompl::geometric::PathGeometric>(new ompl::geometric::PathGeometric(result_path));
     }
     else
     {
-        ROS_INFO("Planning failed!");
+        result.success = false;
+        result.cost = 0;
+        result.length = 0;
     }
 
     return result;
-}
-
-unsigned char RRTLocalPlanner::stateCost(const ompl::base::State* state)
-{
-    const ompl::base::CompoundStateSpace::StateType* compound_state = state->as<ompl::base::CompoundStateSpace::StateType>();
-    const ompl::base::SE2StateSpace::StateType* se2state = compound_state->as<ompl::base::SE2StateSpace::StateType>(0);
-
-    const double x = se2state->getX();
-    const double y = se2state->getY();
-
-    unsigned int cell_x, cell_y;
-    unsigned char cost;
-    if (!costmap_ros_->getCostmap()->worldToMap(x, y, cell_x, cell_y))
-    {
-        // probably at the edge of the costmap - this value should be recovered soon
-        cost = 1;
-    }
-    else
-    {
-        // get cost for this cell
-        cost = costmap_ros_->getCostmap()->getCost(cell_x, cell_y);
-    }
-
-    return cost;
-}
-
-bool RRTLocalPlanner::isStateValid(const ompl::control::SpaceInformation* si, const ompl::base::State* state)
-{
-    if (!si->satisfiesBounds(state))
-    {
-        return false;
-    }
-
-    // Get the cost of the footprint at the current location:
-    unsigned char cost = stateCost(state);
-
-    // Too high cost:
-    if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-    {
-        return false;
-    }
-
-    // TODO check local costmap bounds
-/*
-    const ompl::base::CompoundStateSpace::StateType* compound_state = state->as<ompl::base::CompoundStateSpace::StateType>();
-    const ompl::base::RealVectorStateSpace::StateType* v_state = compound_state->as<ompl::base::RealVectorStateSpace::StateType>(1);
-
-    const double velocity_x = (*v_state)[0];
-    const double velocity_y = (*v_state)[1];
-
-    const double euc_vel = std::sqrt(velocity_x*velocity_x + velocity_y+velocity_y);
-
-    // Velocity stopping distance check...
-    const double distance_to_collision = costToDistance(cost);
-
-    // Must stop within 1 second
-    if (distance_to_collision < euc_vel)
-    {
-        ROS_WARN_STREAM("Failed stopping condition check");
-        return false;
-    }
-*/
-    return true;
-}
-
-double RRTLocalPlanner::costToDistance(const unsigned char cost) const
-{
-    if (cost >= costmap_2d::LETHAL_OBSTACLE || cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-    {
-        return 0.0;
-    }
-    else
-    {
-        const double c = (cost != costmap_2d::FREE_SPACE && cost != costmap_2d::NO_INFORMATION) ? static_cast<double>(cost) : 1.0;
-        const double factor = static_cast<double>(c) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
-        return -log(factor) / costmap_weight_;
-    }
-}
-
-void RRTLocalPlanner::propagate(const ompl::base::State* start, const ompl::control::Control* control, const double duration, ompl::base::State* result)
-{
-    const ompl::base::CompoundStateSpace::StateType* compound_state = start->as<ompl::base::CompoundStateSpace::StateType>();
-    const ompl::base::SE2StateSpace::StateType* se2state = compound_state->as<ompl::base::SE2StateSpace::StateType>(0);
-    const ompl::base::RealVectorStateSpace::StateType* v_state = compound_state->as<ompl::base::RealVectorStateSpace::StateType>(1);
-
-    // Get the values:
-    const double x = se2state->getX();
-    const double y = se2state->getY();
-    const double theta = se2state->getYaw();
-
-    const double velocity_x = (*v_state)[0];
-    const double velocity_y = (*v_state)[1];
-    const double velocity_w = (*v_state)[2];
-
-    // scale acceleration base on costmap
-    const unsigned char cost = stateCost(start);
-    const double distance_to_collision = costToDistance(cost);
-    const double acc_factor = std::min(distance_to_collision*distance_to_collision, 1.0);
-
-    const double* ctrl = control->as<ompl::control::RealVectorControlSpace::ControlType>()->values;
-    const double acc_x = ctrl[0]; //  * acc_factor;
-    const double acc_y = ctrl[1]; //  * acc_factor;
-    const double acc_w = ctrl[2]; //  * acc_factor;
-
-    const double x_n = x + velocity_x * duration;
-    const double y_n = y + velocity_y * duration;
-    const double theta_n = theta + velocity_w * duration;
-
-    const double velocity_x_n = velocity_x + acc_x*duration;
-    const double velocity_y_n = velocity_y + acc_y*duration;
-    const double velocity_w_n = velocity_w + acc_w*duration;
-
-    // Store new state in result
-    ompl::base::CompoundStateSpace::StateType* res_compound_state = result->as<ompl::base::CompoundStateSpace::StateType>();
-    ompl::base::SE2StateSpace::StateType* res_se2state = res_compound_state->as<ompl::base::SE2StateSpace::StateType>(0);
-    ompl::base::RealVectorStateSpace::StateType* res_v_state = res_compound_state->as<ompl::base::RealVectorStateSpace::StateType>(1);
-
-    // Set values:
-    res_se2state->setX(x_n);
-    res_se2state->setY(y_n);
-    res_se2state->setYaw(theta_n);
-    (*res_v_state)[0] = velocity_x_n;
-    (*res_v_state)[1] = velocity_y_n;
-    (*res_v_state)[2] = velocity_w_n;
-
-    // Make sure angle is (-pi,pi]:
-    const ompl::base::SO2StateSpace* SO2 = se2_space_->as<ompl::base::SE2StateSpace>()->as<ompl::base::SO2StateSpace>(1);
-    ompl::base::SO2StateSpace::StateType* so2 = res_se2state->as<ompl::base::SO2StateSpace::StateType>(1);
-    SO2->enforceBounds(so2);
 }
 
 void RRTLocalPlanner::visualisePlannerData(const ompl::base::PlannerData& pd)
@@ -517,9 +701,7 @@ void RRTLocalPlanner::visualisePlannerData(const ompl::base::PlannerData& pd)
     {
         const ompl::base::PlannerDataVertex& v = pd.getVertex(vertex_id);
         const ompl::base::State* state = v.getState();
-
-        const auto* compound_state = state->as<ompl::base::CompoundStateSpace::StateType>();
-        const auto* se2state = compound_state->as<ompl::base::SE2StateSpace::StateType>(0);
+        const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
 
         const double x = se2state->getX();
         const double y = se2state->getY();
@@ -567,9 +749,7 @@ void RRTLocalPlanner::visualisePathGeometric(const ompl::geometric::PathGeometri
     for (unsigned int i=0; i<path.getStateCount(); ++i)
     {
         const ompl::base::State* state = path.getState(i);
-
-        const auto* compound_state = state->as<ompl::base::CompoundStateSpace::StateType>();
-        const auto* se2state = compound_state->as<ompl::base::SE2StateSpace::StateType>(0);
+        const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
 
         const double x = se2state->getX();
         const double y = se2state->getY();
@@ -593,7 +773,7 @@ void RRTLocalPlanner::visualisePathGeometric(const ompl::geometric::PathGeometri
         trajectory_viz_->publishLine(poses[i].translation(), poses[i+1].translation(), color, scale);
     }
     if (!poses.empty())
-        rrt_viz_->publishAxis(poses.back(), scale);
+        trajectory_viz_->publishAxis(poses.back(), scale);
 
     trajectory_viz_->trigger();
 }
@@ -601,189 +781,227 @@ void RRTLocalPlanner::visualisePathGeometric(const ompl::geometric::PathGeometri
 void RRTLocalPlanner::updateTrajectory(const TrajectoryPlanResult& result)
 {
     std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
+    std::lock_guard<std::mutex> c_lock(control_mutex_);
+
     trajectory_result_ = std::unique_ptr<TrajectoryPlanResult>(new TrajectoryPlanResult(result));
     visualisePathGeometric(*trajectory_result_->trajectory);
 
-    // TODO transform into odom frame
-    std::lock_guard<std::mutex> c_lock(control_mutex_);
     control_data_ = std::unique_ptr<ControlData>(new ControlData());
     control_data_->trajectory = convert(*result.trajectory);
-    control_data_->execution_index = 0;
+    control_data_->execution_index = 1;
     control_data_->execution_complete = false;
+    tracking_x_pid_.reset();
+    tracking_y_pid_.reset();
 }
 
-double RRTLocalPlanner::remainingTrajectoryCost()
+double RRTLocalPlanner::getRemainingTrajectoryCost()
 {
+    // TODO double mutex deadlocks are here
+    ROS_INFO("getRemainingTrajectoryCost costmap_ros_");
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*costmap_ros_->getCostmap()->getMutex());
+    ROS_INFO("getRemainingTrajectoryCost trajectory_mutex_");
     std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
+    ROS_INFO("getRemainingTrajectoryCost control_mutex_");
     std::lock_guard<std::mutex> c_lock(control_mutex_);
 
     if (!trajectory_result_ || !control_data_)
-        return 0.0;
+        return std::numeric_limits<double>::max();
 
     ompl::geometric::PathGeometric trajectory = *trajectory_result_->trajectory;
-    trajectory.keepAfter(trajectory.getState(static_cast<unsigned int>(control_data_->execution_index)));
+    const unsigned int i = std::max(1U, static_cast<unsigned int>(control_data_->execution_index)) - 1;
+    trajectory.keepAfter(trajectory.getState(i));
+
+    ROS_INFO("getRemainingTrajectoryCost DONE!");
+    if (!trajectory.check())
+        return std::numeric_limits<double>::max();
 
     return trajectory.cost(objective_).value();
 }
 
+PlannerState RRTLocalPlanner::getPlannerState()
+{
+    std::lock_guard<std::mutex> lock(global_mutex_);
+
+    PlannerState planner_state;
+    planner_state.path_exists = false;
+    planner_state.path_waypoint_changed = false;
+    planner_state.path_last_waypoint = false;
+    planner_state.global_to_local_changed = true;
+
+    if (!global_path_)
+    {
+        ROS_INFO("No global path");
+        return planner_state;
+    }
+
+    // Check if empty
+    if (global_path_->path.empty())
+    {
+        global_path_.reset(nullptr);
+        return planner_state;
+    }
+
+    planner_state.path_exists = true;
+
+    const std::string robot_frame = costmap_ros_->getBaseFrameID();
+    const std::string local_frame = costmap_ros_->getGlobalFrameID();
+    const ros::Time now = ros::Time::now();
+
+    //
+    // Get the current robot pose
+    //
+    try
+    {
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(local_frame, robot_frame, now, ros::Duration(0.1));
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z);
+        const Eigen::Translation3d p = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z);
+        planner_state.robot_pose = p * qt;
+    }
+    catch (const tf2::TransformException& e)
+    {
+        ROS_WARN_STREAM("Failed to get robot position: " << e.what());
+        return planner_state;
+    }
+
+    // Get the global costmap to local costmap transform
+    try
+    {
+        const std::string global_frame = global_path_->path.front().header.frame_id;
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame, local_frame, now, ros::Duration(0.1));
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z);
+        const Eigen::Translation3d p = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z);
+        planner_state.global_to_local = p * qt;
+    }
+    catch (const tf2::TransformException& e)
+    {
+        ROS_WARN_STREAM("Failed to get global->local costmap transform: " << e.what());
+        return planner_state;
+    }
+
+    // Check if the map->odom transform has changed
+    {
+        std::lock_guard<std::mutex> lock(trajectory_mutex_);
+        if (trajectory_result_)
+        {
+            planner_state.global_to_local_changed = isDiff(planner_state.global_to_local, trajectory_result_->global_to_local);
+        }
+    }
+
+    // Iterate the execution index
+    const std::size_t remaining_waypoints = global_path_->path.size() - global_path_->execution_index;
+    std::vector<double> distances(remaining_waypoints);
+    for (std::size_t i=0; i<remaining_waypoints; ++i)
+    {
+        const std::size_t offset = global_path_->execution_index + i;
+        const geometry_msgs::Pose _pose = global_path_->path[offset].pose;
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(_pose.orientation.w, _pose.orientation.x, _pose.orientation.y, _pose.orientation.z);
+        const Eigen::Translation3d p = Eigen::Translation3d(_pose.position.x, _pose.position.y, _pose.position.z);
+        const Eigen::Isometry3d pose = p * qt;
+        const Eigen::Isometry3d transformed_pose = planner_state.global_to_local * pose;
+        const Eigen::Vector3d d = transformed_pose.translation() - planner_state.robot_pose.translation();
+        distances.at(i) = d.norm();
+    }
+    std::size_t min_i = static_cast<std::size_t>(std::distance(distances.begin(), std::min_element(distances.begin(), distances.end())));
+
+    // If not at end of path lookahead to the next waypoint preemptively
+    const double lookahead_distance = 0.5;
+    if (min_i < remaining_waypoints - 1 && distances[min_i] < lookahead_distance)
+    {
+        min_i++;
+    }
+
+    const std::size_t target_waypoint = global_path_->execution_index + min_i;
+
+    planner_state.path_waypoint_changed = !bool(global_path_->execution_index == target_waypoint);
+    global_path_->execution_index = target_waypoint;
+    planner_state.path_last_waypoint = bool(global_path_->execution_index >= global_path_->path.size() - 1);
+
+    // Check for completion
+    if (planner_state.path_last_waypoint)
+    {
+        std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
+        std::lock_guard<std::mutex> c_lock(control_mutex_);
+        if (control_data_ && control_data_->execution_complete)
+        {
+            ROS_INFO("Global path complete");
+            global_path_.reset(nullptr);
+            trajectory_result_.reset(nullptr);
+            control_data_.reset(nullptr);
+            planner_state.path_exists = false;
+            return planner_state;
+        }
+    }
+
+    ROS_INFO_STREAM("Targeting waypoint: " << global_path_->execution_index + 1 << " of " << global_path_->path.size());
+
+    // Get goal in the local costmap frame
+    {
+        const geometry_msgs::Pose _pose = global_path_->path[global_path_->execution_index].pose;
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(_pose.orientation.w, _pose.orientation.x, _pose.orientation.y, _pose.orientation.z);
+        const Eigen::Translation3d p = Eigen::Translation3d(_pose.position.x, _pose.position.y, _pose.position.z);
+        const Eigen::Isometry3d pose = p * qt;
+        planner_state.goal = planner_state.global_to_local * pose;
+    }
+
+    planner_state.stard_2d = Eigen::Translation2d(planner_state.robot_pose.translation().x(), planner_state.robot_pose.translation().y())
+            * Eigen::Rotation2D<double>(getYaw(Eigen::Quaterniond(planner_state.robot_pose.rotation())));
+    planner_state.goal_2d = Eigen::Translation2d(planner_state.goal.translation().x(), planner_state.goal.translation().y())
+            * Eigen::Rotation2D<double>(getYaw(Eigen::Quaterniond(planner_state.goal.rotation())));
+
+    return planner_state;
+}
+
 void RRTLocalPlanner::trajectoryPlanningThread()
 {
+    ros::Rate rate(10);
     while (ros::ok())
     {
-        const std::string robot_frame = costmap_ros_->getBaseFrameID();
-        const std::string local_frame = costmap_ros_->getGlobalFrameID();
-
-        //
-        // Get the current robot pose
-        //
-        Eigen::Isometry3d robot_pose;
-        try
-        {
-            const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(local_frame, robot_frame, ros::Time::now(), ros::Duration(0.1));
-            const Eigen::Quaterniond qt = Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z);
-            const Eigen::Translation3d p = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z);
-            robot_pose = p * qt;
-        }
-        catch (const tf2::TransformException& e)
-        {
-            ROS_WARN_STREAM("Failed to get robot position: " << e.what());
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            continue;
-        }
-
         //
         // Get the global path goal
         //
-        bool setpoint_same = false;
-        bool last_waypoint = false;
-        Eigen::Isometry3d goal;
+        const PlannerState planner_state = getPlannerState();
+
+        if (planner_state.path_exists)
         {
-            std::lock_guard<std::mutex> lock(global_mutex_);
+            //
+            // Run the trajectory planner
+            //
+            const double threshold = planner_state.path_last_waypoint ? 0.001 : 0.2;
+            TrajectoryPlanResult result = planLocalTrajectory(planner_state.stard_2d, planner_state.goal_2d, threshold);
+            result.global_to_local = planner_state.global_to_local;
+            result.global_waypoint = ;
+            result.global_index = ;
 
-            if (!global_path_)
+            //
+            // Get the new global path goal (after time taken to plan)
+            //
+            const PlannerState new_planner_state = getPlannerState();
+
+            if (result.success && new_planner_state.path_exists)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
-                continue;
-            }
-
-            // Check if empty
-            if (global_path_->path.empty())
-            {
-                global_path_.reset(nullptr);
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
-                continue;
-            }
-
-            // Get the global costmap to local costmap transform
-            Eigen::Isometry3d global_to_local;
-            try
-            {
-                const std::string global_frame = global_path_->path.front().header.frame_id;
-                const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame, local_frame, ros::Time::now(), ros::Duration(0.1));
-                const Eigen::Quaterniond qt = Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z);
-                const Eigen::Translation3d p = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z);
-                global_to_local = p * qt;
-            }
-            catch (const tf2::TransformException& e)
-            {
-                ROS_WARN_STREAM("Failed to get global->local costmap transform: " << e.what());
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-                continue;
-            }
-
-            // Iterate the execution index
-            const std::size_t remaining_waypoints = global_path_->path.size() - global_path_->execution_index;
-            std::vector<double> distances(remaining_waypoints);
-            for (std::size_t i=global_path_->execution_index; i<global_path_->path.size(); ++i)
-            {
-                const geometry_msgs::Pose _pose = global_path_->path[i].pose;
-                const Eigen::Quaterniond qt = Eigen::Quaterniond(_pose.orientation.w, _pose.orientation.x, _pose.orientation.y, _pose.orientation.z);
-                const Eigen::Translation3d p = Eigen::Translation3d(_pose.position.x, _pose.position.y, _pose.position.z);
-                const Eigen::Isometry3d pose = p * qt;
-                const Eigen::Isometry3d transformed_pose = global_to_local * pose;
-                const Eigen::Vector3d d = transformed_pose.translation() - robot_pose.translation();
-                distances[i] = d.norm();
-            }
-            std::size_t min_i = global_path_->execution_index + static_cast<std::size_t>(std::distance(distances.begin(), std::min_element(distances.begin(), distances.end())));
-
-            // If not at end of path lookahead to the next waypoint preemptively
-            const double lookahead_distance = 0.5;
-            if (min_i < global_path_->path.size() - 1 && distances[min_i] < lookahead_distance)
-                min_i++;
-
-            setpoint_same = bool(global_path_->execution_index == min_i);
-            global_path_->execution_index = min_i;
-            last_waypoint = bool(global_path_->execution_index >= global_path_->path.size() - 1);
-
-            // Check for completion
-            if (last_waypoint)
-            {
-                std::lock_guard<std::mutex> c_lock(control_mutex_);
-                if (control_data_ && control_data_->execution_complete)
+                // Compare with current trajectory
+                if (!planner_state.path_waypoint_changed && !planner_state.global_to_local_changed)
                 {
-                    global_path_.reset(nullptr);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-                    continue;
+                    const bool goal_changed = !isDiff(new_planner_state.goal_2d, planner_state.goal_2d);
+
+                    const double current_cost = getRemainingTrajectoryCost();
+                    ROS_INFO_STREAM("current_cost: " << current_cost << " new_cost: " << result.cost);
+                    // at least a 10% cost saving
+                    if (result.cost * 1.10 < current_cost)
+                    {
+                        ROS_INFO("Updating trajectory");
+                        updateTrajectory(result);
+                    }
                 }
-            }
-
-            ROS_INFO_STREAM("Targeting " << global_path_->execution_index << " of " << global_path_->path.size());
-
-            // Get goal in the local costmap frame
-            const geometry_msgs::Pose _pose = global_path_->path[global_path_->execution_index].pose;
-            const Eigen::Quaterniond qt = Eigen::Quaterniond(_pose.orientation.w, _pose.orientation.x, _pose.orientation.y, _pose.orientation.z);
-            const Eigen::Translation3d p = Eigen::Translation3d(_pose.position.x, _pose.position.y, _pose.position.z);
-            const Eigen::Isometry3d pose = p * qt;
-            goal = global_to_local * pose;
-        }
-
-        //
-        // Run the trajectory planner
-        //
-        const Eigen::Isometry2d stard_2d = Eigen::Translation2d(robot_pose.translation().x(), robot_pose.translation().y())
-                * Eigen::Rotation2D<double>(getYaw(Eigen::Quaterniond(robot_pose.rotation())));
-        const Eigen::Isometry2d goal_2d = Eigen::Translation2d(goal.translation().x(), goal.translation().y())
-                * Eigen::Rotation2D<double>(getYaw(Eigen::Quaterniond(goal.rotation())));
-        const double threshold = last_waypoint ? 0.02 : 0.1;
-        TrajectoryPlanResult result = planLocalTrajectory(stard_2d, goal_2d, 0.01);
-
-        if (result.success)
-        {
-            // Compare with current trajectory
-            if (setpoint_same)
-            {
-                const double current_cost = remainingTrajectoryCost();
-                const double new_cost = result.trajectory->cost(objective_).value();  // TODO this has segfaulted
-
-                ROS_INFO_STREAM("current_cost: " << current_cost << " new_cost: " << new_cost);
-                if (new_cost < current_cost)
+                else
                 {
-                    ROS_INFO("Updating trajectory");
                     updateTrajectory(result);
                 }
             }
-            else
-            {
-                updateTrajectory(result);
-            }
         }
-        else
-        {
-            ROS_WARN_STREAM("Failed to get trajectory");
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+
+        rate.sleep();
     }
-}
-
-void RRTLocalPlanner::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
-{
-    // lock Callback while reading data from topic
-    std::lock_guard<std::mutex> lock(odom_mutex_);
-
-    // get odometry and write it to member variable (we assume that the odometry is published in the frame of the base)
-    base_odom_.twist.twist.linear.x = msg->twist.twist.linear.x;
-    base_odom_.twist.twist.linear.y = msg->twist.twist.linear.y;
-    base_odom_.twist.twist.angular.z = msg->twist.twist.angular.z;
 }
 
 }  // end namespace global_planner
