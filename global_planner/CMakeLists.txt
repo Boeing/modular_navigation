@@ -16,6 +16,8 @@ find_package(catkin REQUIRED
     tf2_ros
 )
 
+find_package(OpenCV 3 REQUIRED)
+
 find_package(Eigen3 REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
@@ -37,7 +39,9 @@ catkin_package(
     tf2_ros
   DEPENDS
     EIGEN3
+    OpenCV
 )
+
 
 include_directories(SYSTEM
     ${catkin_INCLUDE_DIRS}
@@ -59,7 +63,7 @@ add_library(${PROJECT_NAME}
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
