@@ -39,6 +39,7 @@ catkin_package(
 )
 
 add_library(${PROJECT_NAME}
+    include/${PROJECT_NAME}/astar.h
     include/${PROJECT_NAME}/conversions_and_types.h
     include/${PROJECT_NAME}/${PROJECT_NAME}.h
     include/${PROJECT_NAME}/${PROJECT_NAME}_ros.h
@@ -46,6 +47,7 @@ add_library(${PROJECT_NAME}
     include/${PROJECT_NAME}/eband_visualization.h
     include/${PROJECT_NAME}/pid.h
 
+    src/astar.cpp
     src/conversions_and_types.cpp
     src/${PROJECT_NAME}.cpp
     src/${PROJECT_NAME}_ros.cpp

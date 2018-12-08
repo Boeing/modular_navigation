@@ -83,11 +83,11 @@ bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geo
         tf2::convert(transform.transform, transform_);
 
         const geometry_msgs::TransformStamped robot_pose = tf_buffer.lookupTransform(
-            costmap.getBaseFrameID(), plan_pose.header.frame_id, ros::Time(), ros::Duration(1.0));
+            plan_pose.header.frame_id, costmap.getBaseFrameID(), ros::Time(), ros::Duration(1.0));
 
         // we'll keep points on the plan that are within the window that we're looking at
-        double dist_threshold =
-            std::max(costmap.getCostmap()->getSizeInMetersX() / 2.0, costmap.getCostmap()->getSizeInMetersY() / 2.0);
+        double dist_threshold = 2.0;  // std::max(costmap.getCostmap()->getSizeInMetersX() / 2.0,
+                                      // costmap.getCostmap()->getSizeInMetersY() / 2.0);
 
         unsigned int i = 0;
         double sq_dist_threshold = dist_threshold * dist_threshold;

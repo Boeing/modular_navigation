@@ -1,7 +1,14 @@
 #include <eband_local_planner/eband_local_planner.h>
 
+#include <eband_local_planner/astar.h>
+
 #include <string>
 #include <vector>
+
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/linestring.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+#include <boost/geometry/algorithms/simplify.hpp>
 
 namespace eband_local_planner
 {
@@ -52,8 +59,100 @@ bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global
         return false;
     }
 
+    /*
+    ROS_INFO("Building ASTAR");
+    PathFinder astar;
+    astar.setWorldData(costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY(), costmap_->getCharMap(), 253);
+
+    int start_cell_x;
+    int start_cell_y;
+    costmap_->worldToMapNoBounds(global_plan.front().pose.position.x, global_plan.front().pose.position.y, start_cell_x, start_cell_y);
+
+    int end_cell_x;
+    int end_cell_y;
+    costmap_->worldToMapNoBounds(global_plan.back().pose.position.x, global_plan.back().pose.position.y, end_cell_x, end_cell_y);
+
+    ROS_INFO_STREAM("From: " << start_cell_x << " " << start_cell_y);
+    ROS_INFO_STREAM("To:   " << end_cell_x << " " << end_cell_y);
+
+    ROS_INFO("Running ASTAR");
+    CoordinateList local_path = astar.findPath(Coord2D(start_cell_x, start_cell_y), Coord2D(end_cell_x, end_cell_y));
+    ROS_INFO("Running ASTAR done");
+
+    std::vector<Bubble> astar_bubbles;
+    for (const Coord2D& coord : local_path)
+    {
+        Bubble b;
+        b.center.header.frame_id = global_plan.front().header.frame_id;
+        b.expansion = 0.01;
+        costmap_->mapToWorld(coord.x, coord.y, b.center.pose.position.x, b.center.pose.position.y);
+        astar_bubbles.push_back(b);
+    }
+
+    // display result
+    eband_visual_->publishBand("astar", astar_bubbles);
+
+    std::vector<std::pair<float, float>> simplified_path;
+    {
+        typedef boost::geometry::model::d2::point_xy<float> xy;
+
+        boost::geometry::model::linestring<xy> line;
+        for (const Coord2D& coord : local_path)
+            boost::geometry::append(line, xy(coord.x, coord.y));
+
+        boost::geometry::model::linestring<xy> simplified;
+        const double simplify_resolution = costmap_->getResolution() * 4;
+        boost::geometry::simplify(line, simplified, simplify_resolution);
+
+        ROS_INFO_STREAM("Path of length: " << local_path.size() << " simplified to " << simplified.size());
+
+        simplified_path.push_back({simplified.front().x(), simplified.front().y()});
+        for (std::size_t i=1; i<simplified.size(); ++i)
+        {
+            // Calculate length of line segment
+            const double distance = boost::geometry::distance(simplified[i], simplified[i-1]);
+
+            const double step_size = 0.1 / costmap_->getResolution();
+            if (distance > step_size)
+            {
+                const unsigned int steps = static_cast<unsigned int>(distance / step_size);
+                ROS_INFO_STREAM("Steps: " << steps << " distance " << distance << " step_size " << step_size);
+                for (std::size_t s=1; s <= steps; ++s)
+                {
+                    const float f = static_cast<float>(s) / (steps+1);
+                    const float x = simplified[i-1].x() + (simplified[i].x() - simplified[i-1].x()) * f;
+                    const float y = simplified[i-1].y() + (simplified[i].y() - simplified[i-1].y()) * f;
+                    ROS_INFO_STREAM("Stepping: step=" << s << " position=" << x << " " << y);
+                    simplified_path.push_back({x, y});
+                }
+            }
+
+            simplified_path.push_back({simplified[i].x(), simplified[i].y()});
+        }
+    }
+
+    std::vector<Bubble> simp_astar_bubbles;
+    for (const auto& coord : simplified_path)
+    {
+        Bubble b;
+        b.center.header.frame_id = global_plan.front().header.frame_id;
+        b.expansion = 0.01;
+        costmap_->mapToWorld(coord.first, coord.second, b.center.pose.position.x, b.center.pose.position.y);
+        simp_astar_bubbles.push_back(b);
+    }
+
+    ROS_INFO("show simplified");
+    std::cin.get();
+
+    // display result
+    eband_visual_->publishBand("simp_astar", simp_astar_bubbles);
+
+    ROS_INFO("show simplified done");
+    std::cin.get();
+    */
+
     // convert frames in path into bubbles in band -> sets center of bubbles and calculates expansion
-    ROS_DEBUG("Converting Plan to Band");
+    ROS_INFO("Converting Plan to Band");
     if (!convertPlanToBand(global_plan_, elastic_band_))
     {
         ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for "
@@ -62,15 +161,18 @@ bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global
         return false;
     }
 
+    // display result
+    eband_visual_->publishBand("bubbles", elastic_band_);
+
     // close gaps and remove redundant bubbles
-    ROS_DEBUG("Refining Band");
+    ROS_INFO("Refining Band");
     if (!refineBand(elastic_band_))
     {
         ROS_WARN("Band is broken. Could not close gaps in converted path. Path not set. Global re-planning needed");
         return false;
     }
 
-    ROS_DEBUG("Refinement done - Band set.");
+    ROS_INFO("Refinement done - Band set.");
     return true;
 }
 
@@ -256,14 +358,14 @@ bool EBandPlanner::optimizeBand()
     }
 
     // call optimization with member elastic_band_
-    ROS_DEBUG("Starting optimization of band");
+    ROS_INFO_STREAM("Starting optimization of band of size: " << elastic_band_.size());
     if (!optimizeBand(elastic_band_))
     {
         ROS_DEBUG("Aborting Optimization. Changes discarded.");
         return false;
     }
 
-    ROS_DEBUG("Elastic Band - Optimization successfull!");
+    ROS_INFO("Elastic Band - Optimization successfull!");
     return true;
 }
 
@@ -282,14 +384,7 @@ bool EBandPlanner::optimizeBand(std::vector<Bubble>& band)
     for (std::size_t i = 0; i < band.size(); i++)
     {
         // update Size of Bubbles in band by calculating Dist to nearest Obstacle [depends kinematic, environment]
-        if (!calcObstacleKinematicDistance(band.at(i).center.pose, distance))
-        {
-            ROS_DEBUG("Optimization (Elastic Band) - Calculation of Distance failed. Frame %d of %lu Probably outside "
-                      "map coordinates.",
-                      i, band.size());
-            return false;
-        }
-
+        distance = calcObstacleKinematicDistance(band.at(i).center.pose);
         if (distance == 0.0)
         {
             // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
@@ -367,12 +462,11 @@ bool EBandPlanner::refineBand(std::vector<Bubble>& band)
     success = removeAndFill(tmp_band, start_iter, end_iter);
 
     if (!success)
-        ROS_DEBUG("Band is broken. Could not close gaps.");
+    {
+        ROS_INFO("Band is broken. Could not close gaps.");
+    }
     else
     {
-#ifdef DEBUG_EBAND_
-        ROS_DEBUG("Recursive filling and removing DONE");
-#endif
         band = tmp_band;
     }
 
@@ -472,6 +566,8 @@ bool EBandPlanner::removeAndFill(std::vector<Bubble>& band, std::vector<Bubble>:
         ROS_ASSERT(end_iter < band.end());  // "<" because .end() points _behind_ last element of vector
         ROS_ASSERT((start_iter < tmp_iter) && (tmp_iter < end_iter));
 
+        // TODO if the number of bubbles exceeds a limit exit early
+        // not need to add more bubbles than we can process
 
         // o.k. we are done with left hand interval now do the same for the right hand intervall
         // but first get relative position of start and tmp iter
@@ -581,28 +677,46 @@ bool EBandPlanner::fillGap(std::vector<Bubble>& band, std::vector<Bubble>::itera
 #endif
 
     // calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic, environment]
-    if (!calcObstacleKinematicDistance(interpolated_center.pose, distance))
-    {
-        // pose probably outside map coordinates
-        start_num = std::distance(band.begin(), start_iter);
-        end_num = std::distance(band.begin(), end_iter);
-        ROS_DEBUG(
-            "Calculation of Distance failed for interpolated bubble - failed to fill gap between bubble %d and %d.",
-            start_num, end_num);
-        return false;
-    }
+    distance = calcObstacleKinematicDistance(interpolated_center.pose);
 
-    if (distance <= tiny_bubble_expansion_)
+    if (distance <= 0)  // tiny_bubble_distance_)
     {
         // band broken! frame must not be immediately in collision -> otherwise calculation of gradient will later be
         // invalid
         start_num = std::distance(band.begin(), start_iter);
         end_num = std::distance(band.begin(), end_iter);
-        ROS_DEBUG("Interpolated Bubble in Collision - failed to fill gap between bubble %d and %d.", start_num,
-                  end_num);
-        // TODO this means only that there is an obstacle on the direct interconnection between the bubbles - think
-        // about repair or rescue strategies -
+        ROS_WARN("Interpolated Bubble in Collision - failed to fill gap between bubble %d and %d.", start_num, end_num);
+
         return false;
+        /*
+        // TODO sample normally along line but focus in center?
+        ROS_INFO_STREAM("Collision start: " << start_iter->center.pose.position.x << " "
+                                            << start_iter->center.pose.position.y << " "
+                                            << start_iter->center.pose.position.z);
+        ROS_INFO_STREAM("Collision end: " << start_iter->center.pose.position.x << " "
+                                          << end_iter->center.pose.position.y << " "
+                                          << end_iter->center.pose.position.z);
+
+        ROS_INFO_STREAM("Start distance: " << calcObstacleKinematicDistance(start_iter->center.pose));
+        ROS_INFO_STREAM("End distance: " << calcObstacleKinematicDistance(end_iter->center.pose));
+
+        Bubble start = *start_iter;
+        Bubble end = *end_iter;
+        start.expansion = 0.02;
+        end.expansion = 0.02;
+        eband_visual_->publishBubble("bubble_hypo", 8888, eband_visual_->red, start);
+        eband_visual_->publishBubble("bubble_hypo", 9999, eband_visual_->red, end);
+
+        std::cin.get();
+
+        // TODO this means only that there is an obstacle on the direct interconnection between the bubbles
+        // think about repair or rescue strategie
+        if (!movePoseOutOfCollision(interpolated_center, 1.0))
+        {
+            ROS_WARN("Tried to move interpolated pose out of collision but exhausted search radius");
+            return false;
+        }
+        */
     }
 
 #ifdef DEBUG_EBAND_
@@ -894,21 +1008,8 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
 
     // check validity of moved bubble
 
-    // recalc expansion of bubble -> calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic,
-    // environment]
-    if (!calcObstacleKinematicDistance(new_bubble_pose, distance))
-    {
-        ROS_DEBUG("Calculation of Distance failed. Frame %d of %lu Probably outside map. Discarding Changes",
-                  bubble_num, band.size());
-
-#ifdef DEBUG_EBAND_
-        if (visualization_)
-            eband_visual_->publishBubble("bubble_hypo", bubble_num, eband_visual_->red, new_bubble);
-#endif
-
-        // this bubble must not be changed, but band is still valid -> continue with other bubbles
-        return true;
-    }
+    // recalc expansion of bubble -> calc Size of Bubbles by calculating Dist to nearest Obstacle
+    distance = calcObstacleKinematicDistance(new_bubble_pose);
 
     if (distance <= tiny_bubble_expansion_)
     {
@@ -1079,10 +1180,8 @@ bool EBandPlanner::moveApproximateEquilibrium(const int& bubble_num, const std::
 
     // check validity of moved bubble
 
-    // recalc expansion of bubble -> calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic,
-    // environment]
-    if (!calcObstacleKinematicDistance(new_bubble.center.pose, distance))
-        return false;
+    // recalc expansion of bubble -> calc Size of Bubbles by calculating Dist to nearest Obstacle
+    distance = calcObstacleKinematicDistance(new_bubble.center.pose);
 
     // we wont be able to calculate forces later on
     if (distance == 0.0)
@@ -1314,26 +1413,15 @@ bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geomet
     // calculate delta-poses (on upper edge of bubble) for x-direction
     edge = curr_bubble.center.pose;
     edge.position.x = edge.position.x + curr_bubble.expansion;
+
     // get expansion on bubble at this point
-    if (!calcObstacleKinematicDistance(edge, distance1))
-    {
-        ROS_DEBUG(
-            "Bubble %d probably at edge of map - cannot retrieve distance information to calculate external forces",
-            bubble_num);
-        // we cannot calculate external forces for this bubble - but still continue for the other bubbles
-        return true;
-    }
+    distance1 = calcObstacleKinematicDistance(edge);
+
     // calculate delta-poses (on lower edge of bubble) for x-direction
     edge.position.x = edge.position.x - 2.0 * curr_bubble.expansion;
+
     // get expansion on bubble at this point
-    if (!calcObstacleKinematicDistance(edge, distance2))
-    {
-        ROS_DEBUG(
-            "Bubble %d probably at edge of map - cannot retrieve distance information to calculate external forces",
-            bubble_num);
-        // we cannot calculate external forces for this bubble - but still continue for the other bubbles
-        return true;
-    }
+    distance2 = calcObstacleKinematicDistance(edge);
 
     // calculate difference-quotient (approx. of derivative) in x-direction
     if (curr_bubble.expansion <= tiny_bubble_expansion_)
@@ -1346,6 +1434,7 @@ bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geomet
     }
     else
         wrench.force.x = -external_force_gain_ * (distance2 - distance1) / (2.0 * curr_bubble.expansion);
+
     // TODO above equations skip term to make forces continuous at end of influence region - test to add corresponding
     // term
 
@@ -1354,26 +1443,13 @@ bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geomet
     edge.position.y = edge.position.y + curr_bubble.expansion;
 
     // get expansion on bubble at this point
-    if (!calcObstacleKinematicDistance(edge, distance1))
-    {
-        ROS_DEBUG(
-            "Bubble %d probably at edge of map - cannot retrieve distance information to calculate external forces",
-            bubble_num);
-        // we cannot calculate external forces for this bubble - but still continue for the other bubbles
-        return true;
-    }
+    distance1 = calcObstacleKinematicDistance(edge);
+
     // calculate delta-poses (on lower edge of bubble) for x-direction
     edge.position.y = edge.position.y - 2.0 * curr_bubble.expansion;
 
     // get expansion on bubble at this point
-    if (!calcObstacleKinematicDistance(edge, distance2))
-    {
-        ROS_DEBUG(
-            "Bubble %d probably at edge of map - cannot retrieve distance information to calculate external forces",
-            bubble_num);
-        // we cannot calculate external forces for this bubble - but still continue for the other bubbles
-        return true;
-    }
+    distance2 = calcObstacleKinematicDistance(edge);
 
     // calculate difference-quotient (approx. of derivative) in x-direction
     if (curr_bubble.expansion <= tiny_bubble_expansion_)
@@ -1401,29 +1477,17 @@ bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geomet
     edge_pose2D.theta = edge_pose2D.theta + (curr_bubble.expansion / getCircumscribedRadius(*costmap_ros_));
     edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
     PoseToPose2D(edge, edge_pose2D);
+
     // get expansion on bubble at this point
-    if (!calcObstacleKinematicDistance(edge, distance1))
-    {
-        ROS_DEBUG(
-            "Bubble %d probably at edge of map - cannot retrieve distance information to calculate external forces",
-            bubble_num);
-        // we cannot calculate external forces for this bubble - but still continue for the other bubbles
-        return true;
-    }
+    distance1 = calcObstacleKinematicDistance(edge);
+
     // calculate delta-poses (on lower edge of bubble) for x-direction
     edge_pose2D.theta = edge_pose2D.theta - 2.0 * (curr_bubble.expansion / getCircumscribedRadius(*costmap_ros_));
     edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
     PoseToPose2D(edge, edge_pose2D);
 
     // get expansion on bubble at this point
-    if (!calcObstacleKinematicDistance(edge, distance2))
-    {
-        ROS_DEBUG(
-            "Bubble %d probably at edge of map - cannot retrieve distance information to calculate external forces",
-            bubble_num);
-        // we cannot calculate external forces for this bubble - but still continue for the other bubbles
-        return true;
-    }
+    distance2 = calcObstacleKinematicDistance(edge);
 
     // calculate difference-quotient (approx. of derivative) in x-direction
     if (curr_bubble.expansion <= tiny_bubble_expansion_)
@@ -1633,14 +1697,12 @@ bool EBandPlanner::calcBubbleDifference(geometry_msgs::Pose start_center_pose, g
     return true;
 }
 
-
-bool EBandPlanner::calcObstacleKinematicDistance(geometry_msgs::Pose center_pose, double& distance)
+double EBandPlanner::calcObstacleKinematicDistance(const geometry_msgs::Pose& center_pose) const
 {
     // calculate distance to nearest obstacle [depends kinematic, shape, environment]
 
     unsigned int cell_x, cell_y;
     unsigned char disc_cost;
-    double weight = costmap_weight_;
 
     // read distance to nearest obstacle directly from costmap
     // (does not take into account shape and kinematic properties)
@@ -1656,53 +1718,222 @@ bool EBandPlanner::calcObstacleKinematicDistance(geometry_msgs::Pose center_pose
         disc_cost = costmap_->getCost(cell_x, cell_y);
     }
 
-    // calculate distance to nearest obstacel from this cost (see costmap_2d in wiki for details)
+    // TODO what?
+    // Why don't we actually calculate our own distance map rather than weirdly reverse engineering it from inflation
+    // ans - because we would need to save the distance map when we calculate inflation (the costmap should do this...)
 
-    // For reference: here comes an excerpt of the cost calculation within the costmap function
-    /*if(distance == 0)
-      cost = LETHAL_OBSTACLE;
-      else if(distance <= cell_inscribed_radius_)
-      cost = INSCRIBED_INFLATED_OBSTACLE;
-      else {
-    //make sure cost falls off by Euclidean distance
-    double euclidean_distance = distance * resolution_;
-    double factor = exp(-1.0 * weight_ * (euclidean_distance - inscribed_radius_));
-    cost = (unsigned char) ((INSCRIBED_INFLATED_OBSTACLE - 1) * factor);
-    }*/
+    return costToDistance(disc_cost);
+}
 
-    if (disc_cost >= costmap_2d::LETHAL_OBSTACLE)
+double EBandPlanner::costToDistance(const unsigned char cost) const
+{
+    if (cost >= costmap_2d::LETHAL_OBSTACLE || cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
     {
-        // pose is inside an obstacle - very bad
-        distance = 0.0;
-    }
-    else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-    {
-        // footprint is definitely inside an obstacle - still bad
-        distance = 0.0;
+        return 0.0;
     }
     else
     {
-        if (disc_cost == 0)
+        if (cost == 0 || cost == 255)
         {
-            disc_cost = 1;  // lowest non freespace cost
+            const double factor = 1.0 / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
+            return -log(factor) / costmap_weight_;
         }
-        else if (disc_cost == 255)
+        else
         {
-            // unknown space, we should never be here
-            disc_cost = 1;
+            const double factor = static_cast<double>(cost) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
+            return -log(factor) / costmap_weight_;
         }
-        double factor = (static_cast<double>(disc_cost)) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
-        distance = -log(factor) / weight;
     }
-
-    return true;
 }
 
-// type conversions
+bool EBandPlanner::movePoseOutOfCollision(geometry_msgs::PoseStamped& pose, const double search_distance)
+{
+    unsigned int step = 1;
+
+    int cell_x, cell_y;
+    costmap_->worldToMapNoBounds(pose.pose.position.x, pose.pose.position.y, cell_x, cell_y);
+
+    // Move perpendicular to the pose
+    Eigen::Quaterniond qt = Eigen::Quaterniond(pose.pose.orientation.w, pose.pose.orientation.x,
+                                               pose.pose.orientation.y, pose.pose.orientation.z);
+    // const double yaw = qt.matrix().eulerAngles(2, 1, 0)[0];
+    Eigen::Vector3d dir = qt * Eigen::Vector3d::UnitY();
+    dir[2] = 0;
+    dir.normalize();
+    while (step * costmap_->getResolution() < search_distance)
+    {
+        ROS_INFO_STREAM("Step: " << step << " direction: " << dir.transpose());
+
+        const int cells[2][2] = {
+            {cell_x + static_cast<int>(step * dir[0]), cell_y + static_cast<int>(step * dir[1])},
+            {cell_x - static_cast<int>(step * dir[0]), cell_y - static_cast<int>(step * dir[1])},
+        };
+
+        for (unsigned e = 0; e < 2; ++e)
+        {
+            if (cells[e][0] >= 0 && cells[e][0] < static_cast<int>(costmap_->getSizeInCellsX()) && cells[e][1] >= 0 &&
+                cells[e][1] < static_cast<int>(costmap_->getSizeInCellsY()))
+            {
+                Bubble viz;
+                viz.center.header = pose.header;
+                viz.expansion = 0.01;
+                costmap_->mapToWorld(cells[e][0], cells[e][1], viz.center.pose.position.x, viz.center.pose.position.y);
+                eband_visual_->publishBubble("bubble_hypo", 99 + 10 * step + e, eband_visual_->blue, viz);
+
+                const unsigned int _cell_x = static_cast<unsigned int>(cells[e][0]);
+                const unsigned int _cell_y = static_cast<unsigned int>(cells[e][1]);
+                const unsigned char cost = costmap_->getCost(_cell_x, _cell_y);
+                const double distance = costToDistance(cost);
+                if (distance >= tiny_bubble_expansion_)
+                {
+                    ROS_INFO_STREAM("Moved pose to safety from: " << pose.pose.position.x << " "
+                                                                  << pose.pose.position.y);
+                    costmap_->mapToWorld(_cell_x, _cell_y, pose.pose.position.x, pose.pose.position.y);
+                    ROS_INFO_STREAM("to: " << pose.pose.position.x << " " << pose.pose.position.y);
+                    ROS_INFO_STREAM("distance: " << distance);
+                    return true;
+                }
+            }
+        }
+
+        step++;
+    }
+
+    /*
+    while (step*costmap_->getResolution() < search_distance)
+    {
+        const int edge_length = static_cast<int>(step * 2 + 1);
+        for (int i=-edge_length/2; i <= edge_length; ++i)
+        {
+            const int cells[4][2] = {
+                {cell_x + i, cell_y - edge_length / 2},
+                {cell_x + i, cell_y + edge_length / 2},
+                {cell_x - edge_length / 2, cell_y + i},
+                {cell_x + edge_length / 2, cell_y + i},
+            };
+
+            for (unsigned e=0; e<4; ++e)
+            {
+                if (cells[e][0] >= 0 && cells[e][0] < static_cast<int>(costmap_->getSizeInCellsX())
+                        && cells[e][1] >= 0 && cells[e][1] < static_cast<int>(costmap_->getSizeInCellsY()))
+                {
+                    const unsigned int _cell_x = static_cast<unsigned int>(cells[e][0]);
+                    const unsigned int _cell_y = static_cast<unsigned int>(cells[e][1]);
+                    const unsigned char cost = costmap_->getCost(_cell_x, _cell_y);
+                    const double distance = costToDistance(cost);
+                    if (distance > 0.1) // tiny_bubble_expansion_ * 2)
+                    {
+                        ROS_INFO_STREAM("Moved pose to safety from: " << pose.pose.position.x << " " <<
+    pose.pose.position.y); costmap_->mapToWorld(_cell_x, _cell_y, pose.pose.position.x, pose.pose.position.y);
+                        ROS_INFO_STREAM("to: " << pose.pose.position.x << " " << pose.pose.position.y);
+                        ROS_INFO_STREAM("distance: " << distance);
+                        return true;
+                    }
+                }
+            }
+        }
+        step++;
+    }
+    */
+
+    return false;
+}
+
+bool EBandPlanner::moveBubbleOutOfCollision(Bubble& bubble, const double search_distance)
+{
+    unsigned int step = 1;
+
+    int cell_x, cell_y;
+    costmap_->worldToMapNoBounds(bubble.center.pose.position.x, bubble.center.pose.position.y, cell_x, cell_y);
+
+    // Move perpendicular to the pose
+    Eigen::Quaterniond qt = Eigen::Quaterniond(bubble.center.pose.orientation.w, bubble.center.pose.orientation.x,
+                                               bubble.center.pose.orientation.y, bubble.center.pose.orientation.z);
+    // const double yaw = qt.matrix().eulerAngles(2, 1, 0)[0];
+    Eigen::Vector3d dir = qt * Eigen::Vector3d::UnitY();
+    dir[2] = 0;
+    dir.normalize();
+    while (step * costmap_->getResolution() < search_distance)
+    {
+        const int cells[2][2] = {
+            {cell_x + static_cast<int>(step * dir[0]), cell_y + static_cast<int>(step * dir[1])},
+            {cell_x - static_cast<int>(step * dir[0]), cell_y - static_cast<int>(step * dir[1])},
+        };
+
+        for (unsigned e = 0; e < 2; ++e)
+        {
+            if (cells[e][0] >= 0 && cells[e][0] < static_cast<int>(costmap_->getSizeInCellsX()) && cells[e][1] >= 0 &&
+                cells[e][1] < static_cast<int>(costmap_->getSizeInCellsY()))
+            {
+
+                Bubble viz = bubble;
+                viz.expansion = 0.01;
+                costmap_->mapToWorld(cells[e][0], cells[e][1], viz.center.pose.position.x, viz.center.pose.position.y);
+                eband_visual_->publishBubble("bubble_hypo", 99 + 10 * step + e, eband_visual_->red, viz);
+
+                const unsigned int _cell_x = static_cast<unsigned int>(cells[e][0]);
+                const unsigned int _cell_y = static_cast<unsigned int>(cells[e][1]);
+                const unsigned char cost = costmap_->getCost(_cell_x, _cell_y);
+                const double distance = costToDistance(cost);
+                if (distance >= tiny_bubble_expansion_)
+                {
+                    ROS_INFO_STREAM("Moved bubble to safety from: " << bubble.center.pose.position.x << " "
+                                                                    << bubble.center.pose.position.y);
+                    costmap_->mapToWorld(_cell_x, _cell_y, bubble.center.pose.position.x,
+                                         bubble.center.pose.position.y);
+                    ROS_INFO_STREAM("to: " << bubble.center.pose.position.x << " " << bubble.center.pose.position.y);
+                    ROS_INFO_STREAM("distance: " << distance);
+                    return true;
+                }
+            }
+        }
+
+        step++;
+    }
+
+    // Move in all directions from the pose
+    /*
+    while (step*costmap_->getResolution() < search_distance)
+    {
+        const int edge_length = static_cast<int>(step * 2 + 1);
+        for (int i=-edge_length/2; i <= edge_length; ++i)
+        {
+            const int cells[4][2] = {
+                {cell_x + i, cell_y - edge_length / 2},
+                {cell_x + i, cell_y + edge_length / 2},
+                {cell_x - edge_length / 2, cell_y + i},
+                {cell_x + edge_length / 2, cell_y + i},
+            };
+
+            for (unsigned e=0; e<4; ++e)
+            {
+                if (cells[e][0] >= 0 && cells[e][0] < static_cast<int>(costmap_->getSizeInCellsX())
+                        && cells[e][1] >= 0 && cells[e][1] < static_cast<int>(costmap_->getSizeInCellsY()))
+                {
+                    const unsigned int _cell_x = static_cast<unsigned int>(cells[e][0]);
+                    const unsigned int _cell_y = static_cast<unsigned int>(cells[e][1]);
+                    const unsigned char cost = costmap_->getCost(_cell_x, _cell_y);
+                    const double distance = costToDistance(cost);
+                    if (distance > tiny_bubble_expansion_ * 10)
+                    {
+                        ROS_INFO_STREAM("Moved bubble to safety from: " << bubble.center.pose.position.x << " " <<
+    bubble.center.pose.position.y); costmap_->mapToWorld(_cell_x, _cell_y, bubble.center.pose.position.x,
+    bubble.center.pose.position.y); ROS_INFO_STREAM("to: " << bubble.center.pose.position.x << " " <<
+    bubble.center.pose.position.y); ROS_INFO_STREAM("distance: " << distance); return true;
+                    }
+                }
+            }
+        }
+        step++;
+    }
+    */
+
+    return false;
+}
+
 bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> plan, std::vector<Bubble>& band)
 {
     // create local variables
-    double distance = 0.0;
     std::vector<Bubble> tmp_band;
 
     ROS_DEBUG("Copying plan to band - Conversion started: %lu frames to convert.", plan.size());
@@ -1714,21 +1945,13 @@ bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> pla
     tmp_band.resize(plan.size());
     for (std::size_t i = 0; i < plan.size(); i++)
     {
-#ifdef DEBUG_EBAND_
-        ROS_DEBUG("Checking Frame %d of %lu", i, plan.size());
-#endif
-
         // set poses in plan as centers of bubbles
         tmp_band[i].center = plan[i];
 
         // calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic, environment]
-        if (!calcObstacleKinematicDistance(tmp_band[i].center.pose, distance))
-        {
-            // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
-            ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %lu outside map",
-                     i, plan.size());
-            return false;
-        }
+        const double distance = calcObstacleKinematicDistance(tmp_band[i].center.pose);
+
+        // TODO - collect all of the in-collision bubbles in a row and replace them with one moved
 
         if (distance <= 0.0)
         {
@@ -1736,10 +1959,17 @@ bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> pla
             ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %lu  in "
                      "collision. Plan invalid",
                      i, plan.size());
-            // TODO if frame in collision try to repair band instead of aborting everything
-            return false;
-        }
 
+            //            Bubble viz = tmp_band[i];
+            //            viz.expansion = 0.01;
+            //            eband_visual_->publishBubble("bubble_hypo", 99, eband_visual_->red, viz);
+
+            if (!moveBubbleOutOfCollision(tmp_band[i], 1.0))
+            {
+                ROS_WARN("Tried to move bubble out of collision but exhausted search radius");
+                return false;
+            }
+        }
 
         // assign to expansion of bubble
         tmp_band[i].expansion = distance;
@@ -1751,7 +1981,6 @@ bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> pla
     ROS_DEBUG("Successfully converted plan to band");
     return true;
 }
-
 
 bool EBandPlanner::convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band)
 {

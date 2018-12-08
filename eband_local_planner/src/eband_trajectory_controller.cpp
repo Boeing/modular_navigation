@@ -13,17 +13,16 @@ EBandTrajectoryCtrl::EBandTrajectoryCtrl(costmap_2d::Costmap2DROS* costmap_ros, 
                                          const double max_vel_th, const double min_vel_lin, const double min_vel_th,
                                          const double min_in_place_vel_th, const double in_place_trans_vel,
                                          const double xy_goal_tolerance, const double yaw_goal_tolerance,
-                                         const double k_prop, const double k_damp,
-                                         const double ctrl_rate, const double max_acceleration,
-                                         const double virtual_mass, const double max_translational_acceleration,
+                                         const double k_prop, const double k_damp, const double ctrl_rate,
+                                         const double max_acceleration, const double virtual_mass,
+                                         const double max_translational_acceleration,
                                          const double max_rotational_acceleration,
                                          const double rotation_correction_threshold)
     : costmap_ros_(costmap_ros), band_set_(false), visualization_(false), max_vel_lin_(max_vel_lin),
       max_vel_th_(max_vel_th), min_vel_lin_(min_vel_lin), min_vel_th_(min_vel_th),
       min_in_place_vel_th_(min_in_place_vel_th), in_place_trans_vel_(in_place_trans_vel),
-      xy_goal_tolerance_(xy_goal_tolerance), yaw_goal_tolerance_(yaw_goal_tolerance),
-      k_prop_(k_prop), k_damp_(k_damp), ctrl_rate_(ctrl_rate),
-      max_acceleration_(max_acceleration), virtual_mass_(virtual_mass),
+      xy_goal_tolerance_(xy_goal_tolerance), yaw_goal_tolerance_(yaw_goal_tolerance), k_prop_(k_prop), k_damp_(k_damp),
+      ctrl_rate_(ctrl_rate), max_acceleration_(max_acceleration), virtual_mass_(virtual_mass),
       max_translational_acceleration_(max_translational_acceleration),
       max_rotational_acceleration_(max_rotational_acceleration),
       rotation_correction_threshold_(rotation_correction_threshold)
@@ -121,7 +120,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
 
     // get difference and distance between bubbles in odometry frame
     double bubble_distance, ang_pseudo_dist;
-    bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center.pose, elastic_band_.at(1).center.pose, ref_frame_band_);
+    bubble_diff =
+        getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center.pose, elastic_band_.at(1).center.pose, ref_frame_band_);
     ang_pseudo_dist = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
                            (bubble_diff.linear.y * bubble_diff.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));

@@ -8,7 +8,7 @@ namespace eband_local_planner
 
 EBandVisualization::EBandVisualization(ros::NodeHandle& pn, costmap_2d::Costmap2DROS* costmap_ros)
 {
-    pn.param("marker_lifetime", marker_lifetime_, 0.5);
+    pn.param("marker_lifetime", marker_lifetime_, 100.0);  // 0.5);
     one_bubble_pub_ = pn.advertise<visualization_msgs::Marker>("eband_visualization", 1);
     bubble_pub_ = pn.advertise<visualization_msgs::MarkerArray>("eband_visualization_array", 1);
     costmap_ros_ = costmap_ros;

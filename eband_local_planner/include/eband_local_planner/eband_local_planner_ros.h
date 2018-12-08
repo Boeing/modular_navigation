@@ -33,27 +33,21 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
 {
   public:
     EBandPlannerROS();
-    ~EBandPlannerROS();
+    virtual ~EBandPlannerROS() override;
 
-    void initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros);
+    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom) override;
 
-    bool setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan);
+    virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
+    virtual bool clearPlan() override;
 
-    bool computeVelocityCommands(geometry_msgs::Twist& cmd_vel);
-
-    bool isGoalReached();
+    virtual void initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros) override;
 
   private:
     costmap_2d::Costmap2DROS* costmap_ros_;
     tf2_ros::Buffer* tf_buffer_;
 
-    double yaw_goal_tolerance_;
-    double xy_goal_tolerance_;
-
     ros::Publisher plan_pub_;
-    ros::Subscriber odom_sub_;
 
-    nav_msgs::Odometry base_odom_;
     std::vector<geometry_msgs::PoseStamped> global_plan_;
     std::vector<geometry_msgs::PoseStamped> transformed_plan_;
     std::vector<int> plan_start_end_counter_;
@@ -63,9 +57,6 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
     std::shared_ptr<EBandTrajectoryCtrl> eband_trj_ctrl_;
 
     bool goal_reached_;
-
-    std::mutex odom_mutex_;
-    void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
 };
 
 }  // namespace eband_local_planner

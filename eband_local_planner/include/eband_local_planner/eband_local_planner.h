@@ -1,7 +1,7 @@
 #ifndef EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
 #define EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
 
-//  #define DEBUG_EBAND_
+// #define DEBUG_EBAND_
 
 #include <ros/assert.h>
 #include <ros/ros.h>
@@ -222,7 +222,7 @@ class EBandPlanner
      * @param reference to distance variable
      * @return True if successfully calculated distance false otherwise
      */
-    bool calcObstacleKinematicDistance(geometry_msgs::Pose center_pose, double& distance);
+    double calcObstacleKinematicDistance(const geometry_msgs::Pose& center_pose) const;
 
     /**
      * @brief Calculates all forces for a certain bubble at a specific position in the band [depends kinematic]
@@ -262,6 +262,11 @@ class EBandPlanner
      * @return true if forces were calculated successfully
      */
     bool suppressTangentialForces(int bubble_num, std::vector<Bubble> band, geometry_msgs::WrenchStamped& forces);
+
+    double costToDistance(const unsigned char cost) const;
+
+    bool moveBubbleOutOfCollision(Bubble& bubble, const double search_distance);
+    bool movePoseOutOfCollision(geometry_msgs::PoseStamped& pose, const double search_distance);
 
     /**
      * @brief This converts a plan from a sequence of stamped poses into a band, a sequence of bubbles. Therefore it
