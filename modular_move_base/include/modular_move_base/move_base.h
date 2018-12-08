@@ -13,6 +13,8 @@
 #include <nav_core/base_local_planner.h>
 #include <nav_core/recovery_behavior.h>
 
+#include <nav_msgs/Odometry.h>
+
 #include <geometry_msgs/PoseStamped.h>
 
 #include <costmap_2d/costmap_2d.h>
@@ -120,13 +122,13 @@ class MoveBase
     void planThread();
 
     void executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal);
-    MoveBaseState executeState(const MoveBaseState state);
+    MoveBaseState executeState(const MoveBaseState state, const ros::SteadyTime& steady_time, const ros::Time& ros_time);
 
     bool loadRecoveryBehaviors(ros::NodeHandle node);
 
     ros::NodeHandle nh_;
 
-    tf2_ros::Buffer tf_buffer_;
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     tf2_ros::TransformListener tf_listener_;
 
     actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> as_;
@@ -134,8 +136,8 @@ class MoveBase
     boost::shared_ptr<nav_core::BaseGlobalPlanner> planner_;
     boost::shared_ptr<nav_core::BaseLocalPlanner> tc_;
 
-    costmap_2d::Costmap2DROS planner_costmap_ros_;
-    costmap_2d::Costmap2DROS controller_costmap_ros_;
+    std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap_;
+    std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
 
     std::vector<boost::shared_ptr<nav_core::RecoveryBehavior>> recovery_behaviors_;
     unsigned int recovery_index_;
@@ -149,7 +151,6 @@ class MoveBase
     ros::ServiceServer plan_service_;
 
     ros::Time last_valid_plan_;
-    ros::Time last_valid_control_;
 
     pluginlib::ClassLoader<nav_core::BaseGlobalPlanner> bgp_loader_;
     pluginlib::ClassLoader<nav_core::BaseLocalPlanner> blp_loader_;
@@ -171,6 +172,11 @@ class MoveBase
     const double controller_frequency_;
     const double planner_patience_;
     const double controller_patience_;
+
+    nav_msgs::Odometry base_odom_;
+    std::mutex odom_mutex_;
+    ros::Subscriber odom_sub_;
+    void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
 };
 
 }  // namespace move_base
