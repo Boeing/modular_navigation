@@ -40,6 +40,7 @@ class GlobalPlanner : public nav_core::BaseGlobalPlanner
                             std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap) override;
 
     nav_core::PlanResult makePlan(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& goal) override;
+    virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) override;
 
   private:
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;

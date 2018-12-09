@@ -12,11 +12,8 @@ namespace nav_core
 
 enum class ControlState
 {
-    PLANNING,
-
     RUNNING,
     EMERGENCY_BRAKING,
-
     COMPLETE,
     FAILED
 };

@@ -488,13 +488,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
             control = tc_->computeControl(steady_time, ros_time, base_odom_);
         }
 
-        if (control.state == nav_core::ControlState::PLANNING)
-        {
-            ROS_INFO_STREAM("ControlState == PLANNING");
-            publishZeroVelocity();
-            return MoveBaseState::CONTROLLING;
-        }
-        else if (control.state == nav_core::ControlState::RUNNING)
+        if (control.state == nav_core::ControlState::RUNNING)
         {
             ROS_INFO_STREAM("ControlState == RUNNING");
             vel_pub_.publish(control.cmd_vel);

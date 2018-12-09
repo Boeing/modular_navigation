@@ -148,7 +148,7 @@ class Costmap2DROS
      * @brief  Returns the global frame of the costmap
      * @return The global frame of the costmap
      */
-    std::string getGlobalFrameID()
+    std::string getGlobalFrameID() const
     {
         return global_frame_;
     }
@@ -157,7 +157,7 @@ class Costmap2DROS
      * @brief  Returns the local frame of the costmap
      * @return The local frame of the costmap
      */
-    std::string getBaseFrameID()
+    std::string getBaseFrameID() const
     {
         return robot_base_frame_;
     }

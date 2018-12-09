@@ -20,6 +20,7 @@ class BaseGlobalPlanner
 {
   public:
     virtual PlanResult makePlan(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& goal) = 0;
+    virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) = 0;
 
     virtual void initialize(std::string name,
                             std::shared_ptr<tf2_ros::Buffer> tf_buffer,

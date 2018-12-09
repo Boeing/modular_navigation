@@ -308,6 +308,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
     currbub_maxvel_abs = getBubbleTargetVel(curr_bub_num, elastic_band_, currbub_maxvel_dir);
 
     // if neccessarry scale desired vel to stay lower than currbub_maxvel_abs
+    // TODO getCircumscribedRadius is nuts (because the footprint is a circle)
     ang_pseudo_dist = desired_velocity.angular.z * getCircumscribedRadius(*costmap_ros_);
     desvel_abs = sqrt((desired_velocity.linear.x * desired_velocity.linear.x) +
                       (desired_velocity.linear.y * desired_velocity.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));
@@ -330,6 +331,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
         scale_des_vel = max_vel_lin_ / desvel_abs_trans;
         desired_velocity.linear.x *= scale_des_vel;
         desired_velocity.linear.y *= scale_des_vel;
+
+        // TODO this is independent??? shoudn't have to do this
         // to make sure we are staying inside the bubble also scale rotation
         desired_velocity.angular.z *= scale_des_vel;
     }
@@ -339,6 +342,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
     {
         scale_des_vel = max_vel_th_ / fabs(desired_velocity.angular.z);
         desired_velocity.angular.z *= scale_des_vel;
+
+        // TODO this is independent??? shoudn't have to do this
         // to make sure we are staying inside the bubble also scale translation
         desired_velocity.linear.x *= scale_des_vel;
         desired_velocity.linear.y *= scale_des_vel;
@@ -443,7 +448,6 @@ double EBandTrajectoryCtrl::getBubbleTargetVel(const int target_bub_num, const s
     if (target_bub_num >= (static_cast<int>(band.size()) - 1))
         return 0.0;
 
-
     // otherwise check for max_vel calculated from current bubble size
     double v_max_curr_bub, v_max_next_bub;
     double bubble_distance, angle_to_pseudo_vel, delta_vel_max;
@@ -478,7 +482,6 @@ double EBandTrajectoryCtrl::getBubbleTargetVel(const int target_bub_num, const s
     // if velocity at next bubble bigger (or equal) than our velocity - we are on the safe side
     if (v_max_next_bub >= v_max_curr_bub)
         return v_max_curr_bub;
-
 
     // otherwise max. allowed vel is next vel + plus possible reduction on the way between the bubble-centers
     delta_vel_max = sqrt(2 * bubble_distance * max_acceleration_);

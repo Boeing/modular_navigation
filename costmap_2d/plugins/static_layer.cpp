@@ -125,10 +125,10 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
             const float y_max_m = static_cast<float>((i+1) * resolution_);
 
             const unsigned int _x_min = static_cast<unsigned int>(x_min_m / new_map->info.resolution);
-            const unsigned int _x_max = static_cast<unsigned int>(x_max_m / new_map->info.resolution);
+            const unsigned int _x_max = std::min(static_cast<unsigned int>(x_max_m / new_map->info.resolution), new_map->info.width - 1);
 
             const unsigned int _y_min = static_cast<unsigned int>(y_min_m / new_map->info.resolution);
-            const unsigned int _y_max = static_cast<unsigned int>(y_max_m / new_map->info.resolution);
+            const unsigned int _y_max = std::min(static_cast<unsigned int>(y_max_m / new_map->info.resolution), new_map->info.height - 1);
 
             unsigned char value = 0;
             for (unsigned int _i = _y_min; _i <= _y_max; ++_i)
@@ -191,17 +191,11 @@ void StaticLayer::updateBounds(double robot_x, double robot_y, double robot_yaw,
     *max_x = std::max(wx, *max_x);
     *max_y = std::max(wy, *max_y);
 
-    ROS_INFO("finished");
-    ROS_INFO_STREAM("x: " << *min_x << "->" << *max_x);
-    ROS_INFO_STREAM("y: " << *min_y << "->" << *max_y);
-
     has_updated_data_ = false;
 }
 
 void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
 {
-    ROS_INFO("updating");
-
     if (!map_received_)
         return;
 
@@ -209,13 +203,10 @@ void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int
 
     if (!layered_costmap_->isRolling())
     {
-        ROS_INFO_STREAM("actually updating: " << min_i << "->" << max_i << " " << min_j << "->" << max_j);
-        // if not rolling, the layered costmap (master_grid) has same coordinates as this layer
-//        if (!use_maximum_)
-
-        updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
-//        else
-//            updateWithMax(master_grid, min_i, min_j, max_i, max_j);
+        if (!use_maximum_)
+            updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
+        else
+            updateWithMax(master_grid, min_i, min_j, max_i, max_j);
     }
     else
     {
@@ -259,8 +250,6 @@ void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int
             }
         }
     }
-
-    ROS_INFO("done");
 }
 
 }  // namespace costmap_2d

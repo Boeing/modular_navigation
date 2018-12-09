@@ -367,9 +367,15 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     return result;
 }
 
+double GlobalPlanner::cost(const std::vector<geometry_msgs::PoseStamped>& plan)
+{
+    return 0.0;
+}
+
 void GlobalPlanner::publishPlan(const std::vector<geometry_msgs::PoseStamped>& path)
 {
-    assert (!path.empty());
+    if (path.empty())
+        return;
     nav_msgs::Path gui_path;
     gui_path.header = path.front().header;
     gui_path.poses = path;
