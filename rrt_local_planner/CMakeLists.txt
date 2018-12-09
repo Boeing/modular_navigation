@@ -3,17 +3,15 @@ project(rrt_local_planner)
 
 add_compile_options(-std=c++11)
 
-find_package(catkin REQUIRED
-  COMPONENTS
+find_package(catkin REQUIRED COMPONENTS
     costmap_2d
     geometry_msgs
     nav_core
-    navfn
     nav_msgs
     pluginlib
     roscpp
-    tf2_ros
     rviz_visual_tools
+    tf2_ros
 )
 
 find_package(Eigen3)
@@ -22,18 +20,19 @@ add_definitions(${EIGEN3_DEFINITIONS})
 find_package(OMPL REQUIRED)
 
 catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES rrt_local_planner
-  CATKIN_DEPENDS
-    costmap_2d
-    geometry_msgs
-    nav_core
-    navfn
-    nav_msgs
-    pluginlib
-    roscpp
-    tf2_ros
-    rviz_visual_tools
+    INCLUDE_DIRS
+        include
+    LIBRARIES
+        ${PROJECT_NAME}
+    CATKIN_DEPENDS
+        costmap_2d
+        geometry_msgs
+        nav_core
+        nav_msgs
+        pluginlib
+        roscpp
+        rviz_visual_tools
+        tf2_ros
 )
 
 include_directories(SYSTEM
@@ -45,16 +44,18 @@ include_directories(
     include
 )
 
-add_library(rrt_local_planner
-    include/rrt_local_planner/pid.h
-    include/rrt_local_planner/rrt_local_planner.h
-
-    src/rrt_local_planner.cpp
+add_library(${PROJECT_NAME}
+    include/${PROJECT_NAME}/pid.h
+    include/${PROJECT_NAME}/${PROJECT_NAME}.h
     src/pid.cpp
+    src/${PROJECT_NAME}.cpp
 )
-target_link_libraries(rrt_local_planner ${catkin_LIBRARIES} ${OMPL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+    ${OMPL_LIBRARIES}
+)
 
-install(TARGETS rrt_local_planner
+install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -65,6 +66,6 @@ install(DIRECTORY include/${PROJECT_NAME}/
     FILES_MATCHING PATTERN "*.h"
 )
 
-install(FILES rrt_local_planner_plugin.xml
+install(FILES plugin.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

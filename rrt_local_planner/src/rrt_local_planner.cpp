@@ -171,7 +171,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
 
     if (!has_control)
     {
-        control.state = nav_core::ControlState::PLANNING;
+        control.state = nav_core::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -278,7 +278,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
         ROS_INFO_STREAM("goal_error.norm(): " << goal_error.transpose());
         ROS_INFO_STREAM("angular_error: " << angular_error);
         control_data_->execution_complete = true;
-        control.state = nav_core::ControlState::PLANNING;
+        control.state = nav_core::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -1001,8 +1001,6 @@ void RRTLocalPlanner::trajectoryPlanningThread()
             const double threshold = planner_state.path_last_waypoint ? 0.001 : 0.2;
             TrajectoryPlanResult result = planLocalTrajectory(planner_state.stard_2d, planner_state.goal_2d, threshold);
             result.global_to_local = planner_state.global_to_local;
-            result.global_waypoint = ;
-            result.global_index = ;
 
             //
             // Get the new global path goal (after time taken to plan)
