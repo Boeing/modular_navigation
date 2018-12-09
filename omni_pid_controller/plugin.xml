@@ -1,0 +1,7 @@
+<library path="lib/libomni_pid_controller">
+  <class name="omni_pid_controller/OmniPIDController" type="omni_pid_controller::OmniPIDController" base_class_type="nav_core::BaseLocalPlanner">
+    <description>
+      RRT Local Planner
+    </description>
+  </class>
+</library>
