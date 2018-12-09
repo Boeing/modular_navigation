@@ -1,26 +1,11 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format2.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="2">
     <name>costmap_2d</name>
     <version>1.16.2</version>
-    <description>
-        This package provides an implementation of a 2D costmap that takes in sensor
-        data from the world, builds a 2D or 3D occupancy grid of the data (depending
-        on whether a voxel based implementation is used), and inflates costs in a
-        2D costmap based on the occupancy grid and a user specified inflation radius.
-        This package also provides support for map_server based initialization of a
-        costmap, rolling window based costmaps, and parameter based subscription to
-        and configuration of sensor topics.
-    </description>
-    <author>Eitan Marder-Eppstein</author>
-    <author>David V. Lu!!</author>
-    <author>Dave Hershberger</author>
-    <author>contradict@gmail.com</author>
-    <maintainer email="davidvlu@gmail.com">David V. Lu!!</maintainer>
-    <maintainer email="mfergs7@gmail.com">Michael Ferguson</maintainer>
-    <maintainer email="ahoy@fetchrobotics.com">Aaron Hoy</maintainer>
-    <license>BSD</license>
-    <url>http://wiki.ros.org/costmap_2d</url>
+    <description>Fork of costmap_2d</description>
+    <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
+    <author>Boeing</author>
+    <license>Boeing Proprietary</license>
 
     <buildtool_depend>catkin</buildtool_depend>
 
@@ -37,7 +22,6 @@
     <depend>nav_msgs</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
-    <depend>rostest</depend>
     <depend>sensor_msgs</depend>
     <depend>std_msgs</depend>
     <depend>tf2</depend>
@@ -47,6 +31,7 @@
 
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>rosconsole</exec_depend>
+
     <test_depend>map_server</test_depend>
     <test_depend>rosbag</test_depend>
     <test_depend>rostest</test_depend>
