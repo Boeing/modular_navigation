@@ -59,13 +59,8 @@ cppcheck:
 test:
   stage: test
   image: ${CI_IMAGE}
-  services:
-    - name: mongo:3.6.2
-      alias: mongo
   variables:
       GIT_STRATEGY: none
-      MONGO_HOST: mongo
-      MONGO_PORT: 27017
   before_script:
     - cd /root/ros
   script:

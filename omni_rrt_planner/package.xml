@@ -3,7 +3,6 @@
     <name>omni_rrt_planner</name>
     <version>0.1.0</version>
     <description>omni_rrt_planner</description>
-
     <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
