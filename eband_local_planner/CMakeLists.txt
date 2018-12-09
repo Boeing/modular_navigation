@@ -10,8 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
     nav_msgs
     pluginlib
     roscpp
-    tf2_ros
     tf2_geometry_msgs
+    tf2_ros
 )
 
 find_package(Eigen3)
@@ -32,8 +32,8 @@ catkin_package(
         nav_msgs
         pluginlib
         roscpp
-        tf2_ros
         tf2_geometry_msgs
+        tf2_ros
     INCLUDE_DIRS include
     LIBRARIES ${PROJECT_NAME}
 )
