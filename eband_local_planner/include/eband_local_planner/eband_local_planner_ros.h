@@ -35,12 +35,14 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
     EBandPlannerROS();
     virtual ~EBandPlannerROS() override;
 
-    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom) override;
+    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                             const nav_msgs::Odometry& odom) override;
 
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
     virtual bool clearPlan() override;
 
-    virtual void initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros) override;
+    virtual void initialize(std::string name, tf2_ros::Buffer* tf_buffer,
+                            costmap_2d::Costmap2DROS* costmap_ros) override;
 
   private:
     costmap_2d::Costmap2DROS* costmap_ros_;

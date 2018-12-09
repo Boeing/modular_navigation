@@ -9,15 +9,15 @@
 
 #include <Eigen/Geometry>
 
-#include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 
 #include <atomic>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
-#include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 
 #include <ros/ros.h>
 
@@ -43,7 +43,8 @@ struct ControlData
 };
 
 unsigned char getCost(const costmap_2d::Costmap2D& costmap, const double x, const double y);
-double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y, const double inflation_weight);
+double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y,
+                              const double inflation_weight);
 double getDistanceToCollision(const unsigned char cost, const double inflation_weight);
 
 class OmniPIDController : public nav_core::BaseLocalPlanner
@@ -55,7 +56,8 @@ class OmniPIDController : public nav_core::BaseLocalPlanner
     //
     // BaseLocalPlanner
     //
-    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom) override;
+    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                             const nav_msgs::Odometry& odom) override;
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
     virtual bool clearPlan() override;
     virtual void initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros) override;
@@ -95,7 +97,6 @@ class OmniPIDController : public nav_core::BaseLocalPlanner
 
     const double costmap_weight_ = 2.0;
 };
-
 }
 
 #endif

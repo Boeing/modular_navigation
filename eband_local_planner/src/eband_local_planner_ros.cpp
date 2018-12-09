@@ -13,9 +13,7 @@ PLUGINLIB_DECLARE_CLASS(eband_local_planner, EBandPlannerROS, eband_local_planne
 namespace eband_local_planner
 {
 
-EBandPlannerROS::EBandPlannerROS()
-    : costmap_ros_(nullptr), tf_buffer_(nullptr),
-      goal_reached_(false)
+EBandPlannerROS::EBandPlannerROS() : costmap_ros_(nullptr), tf_buffer_(nullptr), goal_reached_(false)
 {
 }
 
@@ -81,7 +79,8 @@ void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, c
     ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom)
+nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                                  const nav_msgs::Odometry& odom)
 {
     // instantiate local variables
     geometry_msgs::PoseStamped global_pose_msg;

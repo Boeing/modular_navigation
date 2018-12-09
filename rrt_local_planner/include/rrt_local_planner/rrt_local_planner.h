@@ -9,18 +9,18 @@
 
 #include <Eigen/Geometry>
 
-#include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <thread>
-#include <memory>
 
 #include <nav_msgs/GetPlan.h>
-#include <nav_msgs/Path.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
 
 #include <ros/ros.h>
 
@@ -90,7 +90,7 @@ struct PlannerState
     geometry_msgs::PoseStamped global_waypoint;
     std::size_t global_index;
 
-    Eigen::Isometry3d goal;  // in local_frame
+    Eigen::Isometry3d goal;        // in local_frame
     Eigen::Isometry3d robot_pose;  // in local_frame
     Eigen::Isometry3d global_to_local;
 
@@ -105,7 +105,8 @@ struct GlobalPath
 };
 
 unsigned char getCost(const costmap_2d::Costmap2D& costmap, const double x, const double y);
-double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y, const double inflation_weight);
+double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y,
+                              const double inflation_weight);
 double getDistanceToCollision(const unsigned char cost, const double inflation_weight);
 
 class RRTLocalPlanner : public nav_core::BaseLocalPlanner
@@ -117,12 +118,14 @@ class RRTLocalPlanner : public nav_core::BaseLocalPlanner
     //
     // BaseLocalPlanner
     //
-    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom) override;
+    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                             const nav_msgs::Odometry& odom) override;
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
     virtual bool clearPlan() override;
     virtual void initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros) override;
 
-    TrajectoryPlanResult planLocalTrajectory(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const double threshold);
+    TrajectoryPlanResult planLocalTrajectory(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal,
+                                             const double threshold);
 
     // Visualisation
     void visualisePlannerData(const ompl::base::PlannerData& pd);
@@ -193,44 +196,42 @@ class RRTLocalPlanner : public nav_core::BaseLocalPlanner
 };
 
 class ValidityChecker : public ompl::base::StateValidityChecker
- {
- public:
-     ValidityChecker(const ompl::base::SpaceInformationPtr& si, const costmap_2d::Costmap2D* costmap, const double inflation_weight) :
-         ompl::base::StateValidityChecker(si),
-         costmap_(costmap),
-         inflation_weight_(inflation_weight)
-     {
-     }
+{
+  public:
+    ValidityChecker(const ompl::base::SpaceInformationPtr& si, const costmap_2d::Costmap2D* costmap,
+                    const double inflation_weight)
+        : ompl::base::StateValidityChecker(si), costmap_(costmap), inflation_weight_(inflation_weight)
+    {
+    }
 
-     bool isValid(const ompl::base::State* state) const override
-     {
-         return clearance(state) > 0.0;
-     }
+    bool isValid(const ompl::base::State* state) const override
+    {
+        return clearance(state) > 0.0;
+    }
 
-     double clearance(const ompl::base::State* state) const override
-     {
-         return getDistanceToCollision(cost(state), inflation_weight_);
-     }
+    double clearance(const ompl::base::State* state) const override
+    {
+        return getDistanceToCollision(cost(state), inflation_weight_);
+    }
 
-     unsigned char cost(const ompl::base::State* state) const
-     {
-         const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
-         const double x = se2state->getX();
-         const double y = se2state->getY();
-         return getCost(*costmap_, x, y);
-     }
+    unsigned char cost(const ompl::base::State* state) const
+    {
+        const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
+        const double x = se2state->getX();
+        const double y = se2state->getY();
+        return getCost(*costmap_, x, y);
+    }
 
   private:
-     const costmap_2d::Costmap2D* costmap_;
-     const double inflation_weight_;
- };
+    const costmap_2d::Costmap2D* costmap_;
+    const double inflation_weight_;
+};
 
 class CostMapObjective : public ompl::base::StateCostIntegralObjective
 {
   public:
     CostMapObjective(const ompl::base::SpaceInformationPtr& si, const costmap_2d::Costmap2D* costmap)
-        : ompl::base::StateCostIntegralObjective(si, true),
-          costmap_(costmap)
+        : ompl::base::StateCostIntegralObjective(si, true), costmap_(costmap)
     {
     }
 
@@ -250,7 +251,6 @@ class CostMapObjective : public ompl::base::StateCostIntegralObjective
   private:
     const costmap_2d::Costmap2D* costmap_;
 };
-
 }
 
 #endif

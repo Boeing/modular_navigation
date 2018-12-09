@@ -27,7 +27,6 @@ double shortest_angular_distance(const double from, const double to)
 {
     return normalize_angle(to - from);
 }
-
 }
 
 void set_angle(geometry_msgs::PoseStamped* pose, double angle)
@@ -122,5 +121,4 @@ void OrientationFilter::interpolate(std::vector<geometry_msgs::PoseStamped>& pat
         set_angle(&path[i], angle);
     }
 }
-
 };

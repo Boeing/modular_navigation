@@ -1,5 +1,5 @@
-#include <omni_pid_controller/pid.h>
 #include <boost/algorithm/clamp.hpp>
+#include <omni_pid_controller/pid.h>
 
 #include <ros/console.h>
 
@@ -7,11 +7,7 @@ namespace omni_pid_controller
 {
 
 PID::PID(double p, double i, double d, double i_min, double i_max, bool antiwindup)
-    : gains_({p, i, d, i_min, i_max, antiwindup}),
-      p_error_last_(0.0),
-      p_error_(0.0),
-      i_error_(0.0),
-      d_error_(0.0),
+    : gains_({p, i, d, i_min, i_max, antiwindup}), p_error_last_(0.0), p_error_(0.0), i_error_(0.0), d_error_(0.0),
       cmd_(0.0)
 {
 }
@@ -27,7 +23,7 @@ void PID::reset()
 
 double PID::compute(const double error, const double duration)
 {
-    assert (duration > 0);
+    assert(duration > 0);
 
     double error_dot = d_error_;
 
@@ -79,5 +75,4 @@ double PID::compute(const double error, const double duration)
 
     return cmd_;
 }
-
 }

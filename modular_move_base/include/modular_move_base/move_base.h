@@ -122,7 +122,8 @@ class MoveBase
     void planThread();
 
     void executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal);
-    MoveBaseState executeState(const MoveBaseState state, const ros::SteadyTime& steady_time, const ros::Time& ros_time);
+    MoveBaseState executeState(const MoveBaseState state, const ros::SteadyTime& steady_time,
+                               const ros::Time& ros_time);
 
     bool loadRecoveryBehaviors(ros::NodeHandle node);
 

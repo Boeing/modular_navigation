@@ -133,10 +133,10 @@ CoordinateList PathFinder::findPath(Coord2D startPos, Coord2D goalPos)
             }
 
             // Code temporary removed.
-             float factor = static_cast<float>(newCell.world) + 200.0f;
-             float new_cost = currentCell.cost_G + factor; // (_direction_cost[i] * factor);
+            float factor = static_cast<float>(newCell.world) + 200.0f;
+            float new_cost = currentCell.cost_G + factor;  // (_direction_cost[i] * factor);
 
-//            const float new_cost = currentCell.cost_G + _direction_cost[i];
+            //            const float new_cost = currentCell.cost_G + _direction_cost[i];
 
             if (new_cost < newCell.cost_G)
             {

@@ -36,12 +36,12 @@
  *         David V. Lu!!
  *********************************************************************/
 #include <algorithm>
+#include <chrono>
 #include <costmap_2d/footprint.h>
 #include <costmap_2d/layered_costmap.h>
 #include <cstdio>
 #include <string>
 #include <vector>
-#include <chrono>
 
 using std::vector;
 
@@ -106,13 +106,15 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
         double prev_maxx = maxx_;
         double prev_maxy = maxy_;
 
-//        const auto t0 = std::chrono::steady_clock::now();
+        //        const auto t0 = std::chrono::steady_clock::now();
 
         (*plugin)->updateBounds(robot_x, robot_y, robot_yaw, &minx_, &miny_, &maxx_, &maxy_);
 
-//        ROS_INFO_STREAM("updateBounds: "
-//                        << (*plugin)->getName()
-//                        << " took " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        //        ROS_INFO_STREAM("updateBounds: "
+        //                        << (*plugin)->getName()
+        //                        << " took " <<
+        //                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now()
+        //                        - t0).count());
 
         if (minx_ > prev_minx || miny_ > prev_miny || maxx_ < prev_maxx || maxy_ < prev_maxy)
         {
@@ -141,13 +143,15 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
     costmap_.resetMap(x0, y0, xn, yn);
     for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins_.begin(); plugin != plugins_.end(); ++plugin)
     {
-//        const auto t0 = std::chrono::steady_clock::now();
+        //        const auto t0 = std::chrono::steady_clock::now();
 
         (*plugin)->updateCosts(costmap_, x0, y0, xn, yn);
 
-//        ROS_INFO_STREAM("updateCosts: "
-//                        << (*plugin)->getName()
-//                        << " took " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        //        ROS_INFO_STREAM("updateCosts: "
+        //                        << (*plugin)->getName()
+        //                        << " took " <<
+        //                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now()
+        //                        - t0).count());
     }
 
     bx0_ = x0;

@@ -1,8 +1,8 @@
 #ifndef GLOBAL_PLANNER_EXPANDER_H
 #define GLOBAL_PLANNER_EXPANDER_H
 
-#include <memory>
 #include <global_planner/potential_calculator.h>
+#include <memory>
 
 #define POT_HIGH 1.0e10  // unassigned cell potential
 

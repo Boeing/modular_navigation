@@ -6,9 +6,9 @@
 #include <vector>
 
 #include <boost/geometry.hpp>
+#include <boost/geometry/algorithms/simplify.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/algorithms/simplify.hpp>
 
 namespace eband_local_planner
 {
@@ -66,11 +66,13 @@ bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global
 
     int start_cell_x;
     int start_cell_y;
-    costmap_->worldToMapNoBounds(global_plan.front().pose.position.x, global_plan.front().pose.position.y, start_cell_x, start_cell_y);
+    costmap_->worldToMapNoBounds(global_plan.front().pose.position.x, global_plan.front().pose.position.y, start_cell_x,
+    start_cell_y);
 
     int end_cell_x;
     int end_cell_y;
-    costmap_->worldToMapNoBounds(global_plan.back().pose.position.x, global_plan.back().pose.position.y, end_cell_x, end_cell_y);
+    costmap_->worldToMapNoBounds(global_plan.back().pose.position.x, global_plan.back().pose.position.y, end_cell_x,
+    end_cell_y);
 
     ROS_INFO_STREAM("From: " << start_cell_x << " " << start_cell_y);
     ROS_INFO_STREAM("To:   " << end_cell_x << " " << end_cell_y);

@@ -22,10 +22,7 @@ namespace global_planner
 {
 
 GlobalPlanner::GlobalPlanner()
-  : tf_buffer_(nullptr),
-    global_costmap_(nullptr),
-    local_costmap_(nullptr),
-    allow_unknown_(true)
+    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), allow_unknown_(true)
 {
 }
 
@@ -33,10 +30,9 @@ GlobalPlanner::~GlobalPlanner()
 {
 }
 
-void GlobalPlanner::initialize(std::string name,
-                            std::shared_ptr<tf2_ros::Buffer> tf_buffer,
-                            std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
-                            std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap)
+void GlobalPlanner::initialize(std::string name, std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+                               std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
+                               std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap)
 {
     tf_buffer_ = tf_buffer;
     global_costmap_ = global_costmap;
@@ -82,8 +78,7 @@ void GlobalPlanner::initialize(std::string name,
     private_nh.param("publish_scale", publish_scale_, 100);
 
     dsrv_ = std::unique_ptr<dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>>(
-        new dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>(private_nh)
-    );
+        new dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>(private_nh));
     dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>::CallbackType cb =
         boost::bind(&GlobalPlanner::reconfigureCB, this, _1, _2);
     dsrv_->setCallback(cb);
@@ -126,7 +121,8 @@ bool GlobalPlanner::worldToMap(double wx, double wy, double& mx, double& my)
 }
 */
 
-nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& goal)
+nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& start,
+                                             const geometry_msgs::PoseStamped& goal)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -196,25 +192,25 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     const double mm_origin_y = g_origin_y;
     const double mm_resolution = l_resolution;
 
-//    ROS_INFO_STREAM("scale: " << scale);
+    //    ROS_INFO_STREAM("scale: " << scale);
 
-//    ROS_INFO_STREAM("l_x_size: " << l_x_size);
-//    ROS_INFO_STREAM("l_y_size: " << l_y_size);
-//    ROS_INFO_STREAM("l_resolution: " << l_resolution);
-//    ROS_INFO_STREAM("l_origin_x: " << l_origin_x);
-//    ROS_INFO_STREAM("l_origin_y: " << l_origin_y);
+    //    ROS_INFO_STREAM("l_x_size: " << l_x_size);
+    //    ROS_INFO_STREAM("l_y_size: " << l_y_size);
+    //    ROS_INFO_STREAM("l_resolution: " << l_resolution);
+    //    ROS_INFO_STREAM("l_origin_x: " << l_origin_x);
+    //    ROS_INFO_STREAM("l_origin_y: " << l_origin_y);
 
-//    ROS_INFO_STREAM("g_x_size: " << g_x_size);
-//    ROS_INFO_STREAM("g_y_size: " << g_y_size);
-//    ROS_INFO_STREAM("g_resolution: " << g_resolution);
-//    ROS_INFO_STREAM("g_origin_x: " << g_origin_x);
-//    ROS_INFO_STREAM("g_origin_y: " << g_origin_y);
+    //    ROS_INFO_STREAM("g_x_size: " << g_x_size);
+    //    ROS_INFO_STREAM("g_y_size: " << g_y_size);
+    //    ROS_INFO_STREAM("g_resolution: " << g_resolution);
+    //    ROS_INFO_STREAM("g_origin_x: " << g_origin_x);
+    //    ROS_INFO_STREAM("g_origin_y: " << g_origin_y);
 
-//    ROS_INFO_STREAM("mm_size_x: " << mm_size_x);
-//    ROS_INFO_STREAM("mm_size_y: " << mm_size_y);
-//    ROS_INFO_STREAM("mm_resolution: " << mm_resolution);
-//    ROS_INFO_STREAM("mm_origin_x: " << mm_origin_x);
-//    ROS_INFO_STREAM("mm_origin_y: " << mm_origin_y);
+    //    ROS_INFO_STREAM("mm_size_x: " << mm_size_x);
+    //    ROS_INFO_STREAM("mm_size_y: " << mm_size_y);
+    //    ROS_INFO_STREAM("mm_resolution: " << mm_resolution);
+    //    ROS_INFO_STREAM("mm_origin_x: " << mm_origin_x);
+    //    ROS_INFO_STREAM("mm_origin_y: " << mm_origin_y);
 
     //
     // Copy the global costmap data but resize to match the local costmap resolution
@@ -224,19 +220,20 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     cv::Mat global_costmap(g_y_size, g_x_size, CV_8UC1, global_costmap_->getCostmap()->getCharMap());
     cv::resize(global_costmap, merged_costmap, cv::Size(mm_size_y, mm_size_x), 0, 0, cv::INTER_LINEAR);
 
-//    ROS_INFO_STREAM("merged_costmap: " << merged_costmap.size);
+    //    ROS_INFO_STREAM("merged_costmap: " << merged_costmap.size);
 
     //
     // Super impose the local costmap data
     //
     int merged_local_x = (l_origin_x - mm_origin_x) / mm_resolution;
     int merged_local_y = (l_origin_y - mm_origin_y) / mm_resolution;
-    local_costmap.copyTo(merged_costmap(cv::Rect(merged_local_x, merged_local_y, local_costmap.cols, local_costmap.rows)));
+    local_costmap.copyTo(
+        merged_costmap(cv::Rect(merged_local_x, merged_local_y, local_costmap.cols, local_costmap.rows)));
     outlineMap(merged_costmap.data, mm_size_x, mm_size_y, costmap_2d::LETHAL_OBSTACLE);
 
-//    cv::imwrite("/home/boeing/local.png", local_costmap);
-//    cv::imwrite("/home/boeing/global.png", global_costmap);
-//    cv::imwrite("/home/boeing/merged.png", merged_costmap);
+    //    cv::imwrite("/home/boeing/local.png", local_costmap);
+    //    cv::imwrite("/home/boeing/global.png", global_costmap);
+    //    cv::imwrite("/home/boeing/merged.png", merged_costmap);
 
     //
     // Calculate start and end map coordinates
@@ -246,11 +243,11 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     const double goal_x = (goal.pose.position.x - mm_origin_x) / mm_resolution - 0.5;
     const double goal_y = (goal.pose.position.y - mm_origin_y) / mm_resolution - 0.5;
 
-//    ROS_INFO_STREAM("START: " << start.pose.position.x << " " << start.pose.position.y);
-//    ROS_INFO_STREAM("GOAL: " << goal.pose.position.x << " " << goal.pose.position.y);
+    //    ROS_INFO_STREAM("START: " << start.pose.position.x << " " << start.pose.position.y);
+    //    ROS_INFO_STREAM("GOAL: " << goal.pose.position.x << " " << goal.pose.position.y);
 
-//    ROS_INFO_STREAM("START: " << start_x << " " << start_y);
-//    ROS_INFO_STREAM("GOAL: " << goal_x << " " << goal_y);
+    //    ROS_INFO_STREAM("START: " << start_x << " " << start_y);
+    //    ROS_INFO_STREAM("GOAL: " << goal_x << " " << goal_y);
 
     if (start_x < 0 || start_x > mm_size_x || start_y < 0 || start_y > mm_size_y)
     {
@@ -274,12 +271,8 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
 
     std::vector<float> potential_array(mm_size_x * mm_size_y);
 
-    bool found_legal = planner_->calculatePotentials(
-                merged_costmap.data,
-                start_x, start_y,
-                goal_x, goal_y,
-                mm_size_x * mm_size_y * 2,
-                &potential_array[0]);
+    bool found_legal = planner_->calculatePotentials(merged_costmap.data, start_x, start_y, goal_x, goal_y,
+                                                     mm_size_x * mm_size_y * 2, &potential_array[0]);
 
     if (publish_potential_)
     {

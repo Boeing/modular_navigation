@@ -10,7 +10,8 @@
 
 #include <ompl/geometric/PathSimplifier.h>
 
-PLUGINLIB_DECLARE_CLASS(omni_pid_controller, OmniPIDController, omni_pid_controller::OmniPIDController, nav_core::BaseLocalPlanner)
+PLUGINLIB_DECLARE_CLASS(omni_pid_controller, OmniPIDController, omni_pid_controller::OmniPIDController,
+                        nav_core::BaseLocalPlanner)
 
 namespace omni_pid_controller
 {
@@ -33,14 +34,20 @@ double getYaw(const Eigen::Quaterniond& q)
     sqw = q.w() * q.w();
 
     // Cases derived from https://orbitalstation.wordpress.com/tag/quaternion/
-    double sarg = -2 * (q.x()*q.z() - q.w()*q.y()) / (sqx + sqy + sqz + sqw); /* normalization added from urdfom_headers */
+    double sarg =
+        -2 * (q.x() * q.z() - q.w() * q.y()) / (sqx + sqy + sqz + sqw); /* normalization added from urdfom_headers */
 
-    if (sarg <= -0.99999) {
-        yaw   = -2 * atan2(q.y(), q.x());
-    } else if (sarg >= 0.99999) {
-        yaw   = 2 * atan2(q.y(), q.x());
-    } else {
-        yaw   = atan2(2 * (q.x()*q.y() + q.w()*q.z()), sqw + sqx - sqy - sqz);
+    if (sarg <= -0.99999)
+    {
+        yaw = -2 * atan2(q.y(), q.x());
+    }
+    else if (sarg >= 0.99999)
+    {
+        yaw = 2 * atan2(q.y(), q.x());
+    }
+    else
+    {
+        yaw = atan2(2 * (q.x() * q.y() + q.w() * q.z()), sqw + sqx - sqy - sqz);
     }
     return yaw;
 };
@@ -58,7 +65,6 @@ bool isDiff(const Eigen::Isometry3d& t1, const Eigen::Isometry3d& t2)
     const bool rot = Eigen::AngleAxisd((t2.inverse() * t1).rotation()).angle() > 1e-4;
     return trans || rot;
 }
-
 }
 
 unsigned char getCost(const costmap_2d::Costmap2D& costmap, const double x, const double y)
@@ -79,7 +85,8 @@ unsigned char getCost(const costmap_2d::Costmap2D& costmap, const double x, cons
     return cost;
 }
 
-double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y, const double inflation_weight)
+double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double x, const double y,
+                              const double inflation_weight)
 {
     return getDistanceToCollision(getCost(costmap, x, y), inflation_weight);
 }
@@ -92,24 +99,24 @@ double getDistanceToCollision(const unsigned char cost, const double inflation_w
     }
     else
     {
-        const double c = (cost != costmap_2d::FREE_SPACE && cost != costmap_2d::NO_INFORMATION) ? static_cast<double>(cost) : 1.0;
+        const double c =
+            (cost != costmap_2d::FREE_SPACE && cost != costmap_2d::NO_INFORMATION) ? static_cast<double>(cost) : 1.0;
         const double factor = static_cast<double>(c) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
         return -log(factor) / inflation_weight;
     }
 }
 
-OmniPIDController::OmniPIDController()
-    : costmap_ros_(nullptr)
+OmniPIDController::OmniPIDController() : costmap_ros_(nullptr)
 {
 }
 
 OmniPIDController::~OmniPIDController()
 {
-
 }
 
-nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom)
-{  
+nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                                    const nav_msgs::Odometry& odom)
+{
     nav_core::Control control;
 
     std::lock_guard<std::mutex> lock(control_mutex_);
@@ -139,9 +146,12 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     try
     {
         const std::string global_frame = control_data_->global_path.front().header.frame_id;
-        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame, local_frame, ros_time, ros::Duration(0.10));
-        const Eigen::Quaterniond qt = Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z);
-        const Eigen::Translation3d p = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z);
+        const geometry_msgs::TransformStamped tr =
+            tf_buffer_->lookupTransform(global_frame, local_frame, ros_time, ros::Duration(0.10));
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x,
+                                                         tr.transform.rotation.y, tr.transform.rotation.z);
+        const Eigen::Translation3d p =
+            Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z);
         control_data_->global_to_local = p * qt;
     }
     catch (const tf2::TransformException& e)
@@ -162,8 +172,10 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     control_data_->local_trajectory.clear();
     for (const geometry_msgs::PoseStamped& _pose : control_data_->global_path)
     {
-        const Eigen::Quaterniond qt = Eigen::Quaterniond(_pose.pose.orientation.w, _pose.pose.orientation.x, _pose.pose.orientation.y, _pose.pose.orientation.z);
-        const Eigen::Translation3d p = Eigen::Translation3d(_pose.pose.position.x, _pose.pose.position.y, _pose.pose.position.z);
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(_pose.pose.orientation.w, _pose.pose.orientation.x,
+                                                         _pose.pose.orientation.y, _pose.pose.orientation.z);
+        const Eigen::Translation3d p =
+            Eigen::Translation3d(_pose.pose.position.x, _pose.pose.position.y, _pose.pose.position.z);
         const Eigen::Isometry3d pose = p * qt;
         const Eigen::Isometry3d transformed_pose = control_data_->global_to_local * pose;
         control_data_->local_trajectory.push_back(transformed_pose);
@@ -192,8 +204,10 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     // Get the current robot pose from odom
     //
-    const Eigen::Quaterniond qt = Eigen::Quaterniond(odom.pose.pose.orientation.w, odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z);
-    const Eigen::Translation3d p = Eigen::Translation3d(odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
+    const Eigen::Quaterniond qt = Eigen::Quaterniond(odom.pose.pose.orientation.w, odom.pose.pose.orientation.x,
+                                                     odom.pose.pose.orientation.y, odom.pose.pose.orientation.z);
+    const Eigen::Translation3d p =
+        Eigen::Translation3d(odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z);
     const Eigen::Isometry3d robot_pose = p * qt;
 
     //
@@ -201,7 +215,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     std::size_t min_i = control_data_->execution_index;
     double linear_distance = std::numeric_limits<double>::max();
-    for (std::size_t i=control_data_->execution_index; i<control_data_->local_trajectory.size(); ++i)
+    for (std::size_t i = control_data_->execution_index; i < control_data_->local_trajectory.size(); ++i)
     {
         const Eigen::Isometry3d _pose = control_data_->local_trajectory[i];
         const double linear_delta = (_pose.translation() - robot_pose.translation()).norm();
@@ -224,11 +238,12 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     // Determine the tracking error
     //
-    const Eigen::Isometry3d start_p = control_data_->local_trajectory.at(min_i-1);
+    const Eigen::Isometry3d start_p = control_data_->local_trajectory.at(min_i - 1);
     const Eigen::Isometry3d end_p = control_data_->local_trajectory.at(min_i);
     const Eigen::Vector3d segment = end_p.translation() - start_p.translation();
     const Eigen::Vector3d segment_wrtb = robot_pose.rotation().inverse() * segment;
-    const Eigen::ParametrizedLine<double, 3> line = Eigen::ParametrizedLine<double, 3>::Through(start_p.translation(), end_p.translation());
+    const Eigen::ParametrizedLine<double, 3> line =
+        Eigen::ParametrizedLine<double, 3>::Through(start_p.translation(), end_p.translation());
     const Eigen::Vector3d point_along_segment = line.projection(robot_pose.translation());
     const Eigen::Vector3d linear_error = point_along_segment - robot_pose.translation();
     const Eigen::Vector3d goal_error = end_p.translation() - robot_pose.translation();
@@ -238,8 +253,10 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     // Determine the rotational tracking error
     //
-    const double segment_rot = getYaw(Eigen::Quaterniond(start_p.rotation()).inverse() * Eigen::Quaterniond(end_p.rotation()));
-    const double angular_error = getYaw(Eigen::Quaterniond(robot_pose.rotation()).inverse() * Eigen::Quaterniond(end_p.rotation()));
+    const double segment_rot =
+        getYaw(Eigen::Quaterniond(start_p.rotation()).inverse() * Eigen::Quaterniond(end_p.rotation()));
+    const double angular_error =
+        getYaw(Eigen::Quaterniond(robot_pose.rotation()).inverse() * Eigen::Quaterniond(end_p.rotation()));
 
     //
     // Termination criteria
@@ -265,7 +282,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     if (linear_error.norm() > max_linear_tracking_error_)
     {
-        ROS_WARN_STREAM("Exceeded maximum linear tracking error: " << linear_error.norm() << " > " << max_linear_tracking_error_);
+        ROS_WARN_STREAM("Exceeded maximum linear tracking error: " << linear_error.norm() << " > "
+                                                                   << max_linear_tracking_error_);
         control.state = nav_core::ControlState::FAILED;
         control.error = nav_core::ControlFailure::TRACKING_LIMIT_EXCEEDED;
         goal_x_pid_.reset();
@@ -279,7 +297,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     // Check current position is collision free
     //
-    const unsigned char cost = getCost(*costmap_ros_->getCostmap(), robot_pose.translation().x(), robot_pose.translation().y());
+    const unsigned char cost =
+        getCost(*costmap_ros_->getCostmap(), robot_pose.translation().x(), robot_pose.translation().y());
     if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
     {
         ROS_WARN_STREAM("Robot in collision!");
@@ -297,10 +316,10 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     const double minimum_distance_to_collision = 0.25;
     double accum_distance = 0.0;
-    for (std::size_t i=control_data_->execution_index; i<control_data_->local_trajectory.size(); ++i)
+    for (std::size_t i = control_data_->execution_index; i < control_data_->local_trajectory.size(); ++i)
     {
         const Eigen::Isometry3d& p = control_data_->local_trajectory[i];
-        const Eigen::Isometry3d& prev_p = control_data_->local_trajectory[i-1];
+        const Eigen::Isometry3d& prev_p = control_data_->local_trajectory[i - 1];
 
         accum_distance += (p.translation() - prev_p.translation()).norm();
 
@@ -334,8 +353,11 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     //
     // Determine target speed (based on cost of goal and current cost)
     //
-    const unsigned char target_cost = getCost(*costmap_ros_->getCostmap(), end_p.translation().x(), end_p.translation().y());
-    const double speed_factor = std::max(0.2, (static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE - std::max(cost, target_cost)) / static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE)));
+    const unsigned char target_cost =
+        getCost(*costmap_ros_->getCostmap(), end_p.translation().x(), end_p.translation().y());
+    const double speed_factor =
+        std::max(0.2, (static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE - std::max(cost, target_cost)) /
+                       static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE)));
 
     const double w_time = std::abs(segment_rot / (max_velocity_w_ / 2.0));
     const double x_time = std::abs(segment_wrtb[0] / max_velocity_x_);
@@ -391,7 +413,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
         vx = tracking_x_pid_.compute(linear_error_wrtb[0], time_step);
         vy = tracking_y_pid_.compute(linear_error_wrtb[1], time_step);
 
-        Eigen::Vector3d goal_dir_wrtb = robot_pose.rotation().inverse() * (end_p.translation() - robot_pose.translation());
+        Eigen::Vector3d goal_dir_wrtb =
+            robot_pose.rotation().inverse() * (end_p.translation() - robot_pose.translation());
         goal_dir_wrtb.normalize();
 
         ROS_INFO_STREAM("goal_dir_wrtb: " << goal_dir_wrtb.transpose());
@@ -418,7 +441,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
 
     if (angular_error > max_angular_tracking_error_)
     {
-        ROS_WARN_STREAM("Exceeded maximum angular tracking error: " << angular_error << " > " << max_angular_tracking_error_);
+        ROS_WARN_STREAM("Exceeded maximum angular tracking error: " << angular_error << " > "
+                                                                    << max_angular_tracking_error_);
         vx = 0;
         vy = 0;
     }
@@ -543,5 +567,4 @@ void OmniPIDController::initialize(std::string name, tf2_ros::Buffer* tf, costma
         throw std::runtime_error("Local costmap must be in odom frame for robust trajectory control");
     }
 }
-
 }

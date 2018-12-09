@@ -14,9 +14,7 @@ namespace move_base
 {
 
 MoveBase::MoveBase()
-    : nh_("~"),
-      tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
-      tf_listener_(*tf_buffer_),
+    : nh_("~"), tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
       as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
 
       global_costmap_(std::make_shared<costmap_2d::Costmap2DROS>("global_costmap", *tf_buffer_)),
@@ -230,7 +228,8 @@ bool MoveBase::goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg
     }
     catch (const tf2::TransformException& ex)
     {
-        ROS_WARN_STREAM("Failed to transform the goal pose from " << goal_pose_msg.header.frame_id << " to " << global_frame << " - " << ex.what());
+        ROS_WARN_STREAM("Failed to transform the goal pose from " << goal_pose_msg.header.frame_id << " to "
+                                                                  << global_frame << " - " << ex.what());
         return false;
     }
 
@@ -299,7 +298,8 @@ void MoveBase::planThread()
         // Setup sleep notify
         {
             std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-            if (state_ != MoveBaseState::GOAL_COMPLETE && state_ != MoveBaseState::GOAL_FAILED && planner_frequency_ > 0)
+            if (state_ != MoveBaseState::GOAL_COMPLETE && state_ != MoveBaseState::GOAL_FAILED &&
+                planner_frequency_ > 0)
             {
                 ros::Duration sleep_time = (start_time + ros::Duration(1.0 / planner_frequency_)) - ros::Time::now();
                 if (sleep_time > ros::Duration(0.0))
@@ -402,7 +402,8 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
 
         if (rate.cycleTime() > ros::Duration(1 / controller_frequency_) && state_ == MoveBaseState::CONTROLLING)
         {
-            ROS_WARN("Control loop missed desired rate of %.4fHz... took %.4f seconds", controller_frequency_, rate.cycleTime().toSec());
+            ROS_WARN("Control loop missed desired rate of %.4fHz... took %.4f seconds", controller_frequency_,
+                     rate.cycleTime().toSec());
         }
     }
 
@@ -411,7 +412,8 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
     return;
 }
 
-MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::SteadyTime& steady_time, const ros::Time& ros_time)
+MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::SteadyTime& steady_time,
+                                     const ros::Time& ros_time)
 {
     ROS_INFO_STREAM("Executing state: " << state);
 
@@ -515,7 +517,8 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
         }
         else
         {
-            throw std::runtime_error("Unknown nav_core::ControlState: " + std::to_string(static_cast<int>(control.state)));
+            throw std::runtime_error("Unknown nav_core::ControlState: " +
+                                     std::to_string(static_cast<int>(control.state)));
         }
     }
     else if (state == MoveBaseState::RECOVERING)
@@ -624,12 +627,14 @@ bool MoveBase::loadRecoveryBehaviors(ros::NodeHandle node)
                     // shouldn't be possible, but it won't hurt to check
                     if (behavior.get() == nullptr)
                     {
-                        ROS_ERROR("The ClassLoader returned a null pointer without throwing an exception. This should not happen");
+                        ROS_ERROR("The ClassLoader returned a null pointer without throwing an exception. This should "
+                                  "not happen");
                         return false;
                     }
 
                     // initialize the recovery behavior with its name
-                    behavior->initialize(behavior_list[i]["name"], tf_buffer_.get(), global_costmap_.get(), local_costmap_.get());
+                    behavior->initialize(behavior_list[i]["name"], tf_buffer_.get(), global_costmap_.get(),
+                                         local_costmap_.get());
                     recovery_behaviors_.push_back(behavior);
                 }
                 catch (const pluginlib::PluginlibException& ex)

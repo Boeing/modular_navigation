@@ -1,8 +1,8 @@
 #ifndef _TRACEBACK_H
 #define _TRACEBACK_H
 
-#include <vector>
 #include <memory>
+#include <vector>
 
 #include <global_planner/potential_calculator.h>
 

@@ -1,6 +1,6 @@
+#include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_math.h>
 #include <costmap_2d/static_layer.h>
-#include <costmap_2d/cost_values.h>
 
 #include <pluginlib/class_list_macros.h>
 #include <tf2/convert.h>
@@ -65,22 +65,22 @@ unsigned char StaticLayer::interpretValue(unsigned char value) const
 {
     // check if the static value is above the unknown or lethal thresholds
     if (track_unknown_space_ && value == unknown_cost_value_)
-        return 225; // NO_INFORMATION;
+        return 225;  // NO_INFORMATION;
     else if (!track_unknown_space_ && value == unknown_cost_value_)
-        return 0; // FREE_SPACE;
+        return 0;  // FREE_SPACE;
     else if (value >= lethal_threshold_)
-        return 254; // LETHAL_OBSTACLE;
+        return 254;  // LETHAL_OBSTACLE;
     else if (trinary_costmap_)
-        return 0 ; //FREE_SPACE;
+        return 0;  // FREE_SPACE;
 
     const double scale = static_cast<double>(value) / lethal_threshold_;
-    return static_cast<unsigned char>(scale * 254); // LETHAL_OBSTACLE);
+    return static_cast<unsigned char>(scale * 254);  // LETHAL_OBSTACLE);
 }
 
 void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
 {
-    ROS_INFO_STREAM("Received costmap of size=" <<  new_map->info.width << "x" << new_map->info.height
-                    << " resolution=" << new_map->info.resolution);
+    ROS_INFO_STREAM("Received costmap of size=" << new_map->info.width << "x" << new_map->info.height
+                                                << " resolution=" << new_map->info.resolution);
 
     // We want to keep the resolution provided in configuration
     // But we need to increase the size of the costmap data to fit the map
@@ -91,7 +91,7 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     const unsigned int size_x = static_cast<unsigned int>(size_x_m / resolution_);
     const unsigned int size_y = static_cast<unsigned int>(size_y_m / resolution_);
 
-    ROS_INFO_STREAM("Resizing costmap to size=" <<  size_x << "x" << size_y << " resolution=" << resolution_);
+    ROS_INFO_STREAM("Resizing costmap to size=" << size_x << "x" << size_y << " resolution=" << resolution_);
 
     //
     // If rolling then don't resize the master grid
@@ -106,7 +106,8 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     //
     else
     {
-        layered_costmap_->resizeMap(size_x, size_y, resolution_, new_map->info.origin.position.x, new_map->info.origin.position.y, true);
+        layered_costmap_->resizeMap(size_x, size_y, resolution_, new_map->info.origin.position.x,
+                                    new_map->info.origin.position.y, true);
     }
 
     //
@@ -119,16 +120,18 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
         for (unsigned int j = 0; j < size_x; ++j)
         {
             const float x_min_m = static_cast<float>(j * resolution_);
-            const float x_max_m = static_cast<float>((j+1) * resolution_);
+            const float x_max_m = static_cast<float>((j + 1) * resolution_);
 
             const float y_min_m = static_cast<float>(i * resolution_);
-            const float y_max_m = static_cast<float>((i+1) * resolution_);
+            const float y_max_m = static_cast<float>((i + 1) * resolution_);
 
             const unsigned int _x_min = static_cast<unsigned int>(x_min_m / new_map->info.resolution);
-            const unsigned int _x_max = std::min(static_cast<unsigned int>(x_max_m / new_map->info.resolution), new_map->info.width - 1);
+            const unsigned int _x_max =
+                std::min(static_cast<unsigned int>(x_max_m / new_map->info.resolution), new_map->info.width - 1);
 
             const unsigned int _y_min = static_cast<unsigned int>(y_min_m / new_map->info.resolution);
-            const unsigned int _y_max = std::min(static_cast<unsigned int>(y_max_m / new_map->info.resolution), new_map->info.height - 1);
+            const unsigned int _y_max =
+                std::min(static_cast<unsigned int>(y_max_m / new_map->info.resolution), new_map->info.height - 1);
 
             unsigned char value = 0;
             for (unsigned int _i = _y_min; _i <= _y_max; ++_i)

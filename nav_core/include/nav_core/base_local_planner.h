@@ -36,7 +36,8 @@ struct Control
 class BaseLocalPlanner
 {
   public:
-    virtual Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time, const nav_msgs::Odometry& odom) = 0;
+    virtual Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                   const nav_msgs::Odometry& odom) = 0;
 
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) = 0;
     virtual bool clearPlan() = 0;
