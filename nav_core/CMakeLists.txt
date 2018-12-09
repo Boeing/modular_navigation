@@ -3,26 +3,26 @@ project(nav_core)
 
 add_definitions(-std=c++11)
 
-find_package(catkin REQUIRED
-        COMPONENTS
-            std_msgs
-            geometry_msgs
-            tf2_ros
-            costmap_2d
-        )
+find_package(catkin REQUIRED COMPONENTS
+    costmap_2d
+    geometry_msgs
+    std_msgs
+    tf2_ros
+)
 
 catkin_package(
     INCLUDE_DIRS
         include
     CATKIN_DEPENDS
-            std_msgs
-            geometry_msgs
-            tf2_ros
-            costmap_2d
+        costmap_2d
+        geometry_msgs
+        std_msgs
+        tf2_ros
 )
 
 
 install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.h"
-  PATTERN ".svn" EXCLUDE)
+    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+    FILES_MATCHING PATTERN "*.h"
+    PATTERN ".svn" EXCLUDE
+)
