@@ -3,37 +3,34 @@ project(omni_pid_controller)
 
 add_compile_options(-std=c++11)
 
-find_package(catkin REQUIRED
-  COMPONENTS
+find_package(catkin REQUIRED COMPONENTS
     costmap_2d
     geometry_msgs
     nav_core
-    navfn
     nav_msgs
     pluginlib
     roscpp
-    tf2_ros
     rviz_visual_tools
+    tf2_ros
 )
 
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
-find_package(OMPL REQUIRED)
-
 catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES rrt_local_planner
-  CATKIN_DEPENDS
-    costmap_2d
-    geometry_msgs
-    nav_core
-    navfn
-    nav_msgs
-    pluginlib
-    roscpp
-    tf2_ros
-    rviz_visual_tools
+    INCLUDE_DIRS
+        include
+    LIBRARIES
+        ${PROJECT_NAME}
+    CATKIN_DEPENDS
+        costmap_2d
+        geometry_msgs
+        nav_core
+        nav_msgs
+        pluginlib
+        roscpp
+        rviz_visual_tools
+        tf2_ros
 )
 
 include_directories(SYSTEM
@@ -45,16 +42,17 @@ include_directories(
     include
 )
 
-add_library(omni_pid_controller
-    include/omni_pid_controller/pid.h
-    include/omni_pid_controller/omni_pid_controller.h
-
-    src/omni_pid_controller.cpp
+add_library(${PROJECT_NAME}
+    include/${PROJECT_NAME}/${PROJECT_NAME}.h
+    include/${PROJECT_NAME}/pid.h
+    src/${PROJECT_NAME}.cpp
     src/pid.cpp
 )
-target_link_libraries(omni_pid_controller ${catkin_LIBRARIES} ${OMPL_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}
+    ${catkin_LIBRARIES}
+)
 
-install(TARGETS omni_pid_controller
+install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
