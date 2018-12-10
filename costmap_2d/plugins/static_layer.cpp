@@ -197,7 +197,7 @@ void StaticLayer::updateBounds(double, double, double, double* min_x, double* mi
     has_updated_data_ = false;
 }
 
-void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i, unsigned int max_j)
 {
     if (!map_received_)
         return;

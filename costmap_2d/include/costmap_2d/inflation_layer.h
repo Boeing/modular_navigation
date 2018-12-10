@@ -85,9 +85,11 @@ class InflationLayer : public Layer
     }
 
     virtual void onInitialize();
+    virtual void activate(){}
+    virtual void deactivate(){}
     virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
                               double* max_x, double* max_y);
-    virtual void updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j);
+    virtual void updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned  int min_j, unsigned  int max_i, unsigned  int max_j);
     virtual bool isDiscretized()
     {
         return true;
@@ -182,6 +184,8 @@ class InflationLayer : public Layer
     unsigned int cached_cell_inflation_radius_;
     std::map<double, std::vector<CellData>> inflation_cells_;
 
+    dynamic_reconfigure::Server<costmap_2d::InflationPluginConfig>* dsrv_;
+
     bool* seen_;
     unsigned int seen_size_;
 
@@ -189,7 +193,6 @@ class InflationLayer : public Layer
     double** cached_distances_;
     double last_min_x_, last_min_y_, last_max_x_, last_max_y_;
 
-    dynamic_reconfigure::Server<costmap_2d::InflationPluginConfig>* dsrv_;
     void reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t level);
 
     bool need_reinflation_;  ///< Indicates that the entire costmap should be reinflated next time around.
