@@ -247,7 +247,10 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_
         eband_visual_->publishBand("bubbles", current_band);
     }
 
-    result.state = nav_core::ControlState::RUNNING;
+    if (goal_reached_)
+        result.state = nav_core::ControlState::COMPLETE;
+    else
+        result.state = nav_core::ControlState::RUNNING;
     return result;
 }
 
