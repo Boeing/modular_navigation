@@ -410,10 +410,12 @@ void Costmap2DROS::updateMap()
         // get global pose
 
         geometry_msgs::PoseStamped pose;
-        if(!getRobotPose(pose)){
+        if (!getRobotPose(pose))
+        {
             ROS_WARN_THROTTLE(1.0, "Could not get robot pose, cancelling map update");
         }
-        else{
+        else
+        {
             double x = pose.pose.position.x;
             double y = pose.pose.position.y;
             double yaw = tf2::getYaw(pose.pose.orientation);

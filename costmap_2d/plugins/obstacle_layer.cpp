@@ -420,7 +420,8 @@ void ObstacleLayer::updateFootprint(double robot_x, double robot_y, double robot
     }
 }
 
-void ObstacleLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i, unsigned int max_j)
+void ObstacleLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
+                                unsigned int max_i, unsigned int max_j)
 {
     if (!enabled_)
         return;

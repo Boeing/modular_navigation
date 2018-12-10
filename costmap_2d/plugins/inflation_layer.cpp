@@ -90,7 +90,7 @@ void InflationLayer::onInitialize()
     matchSize();
 }
 
-void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t )
+void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t)
 {
     setInflationParameters(config.inflation_radius, config.cost_scaling_factor);
 
@@ -117,8 +117,7 @@ void InflationLayer::matchSize()
     seen_ = new bool[seen_size_];
 }
 
-void InflationLayer::updateBounds(double, double, double, double* min_x, double* min_y,
-                                  double* max_x, double* max_y)
+void InflationLayer::updateBounds(double, double, double, double* min_x, double* min_y, double* max_x, double* max_y)
 {
     if (need_reinflation_)
     {
@@ -164,7 +163,8 @@ void InflationLayer::onFootprintChanged()
               layered_costmap_->getFootprint().size(), inscribed_radius_, inflation_radius_);
 }
 
-void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i, unsigned int max_j)
+void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
+                                 unsigned int max_i, unsigned int max_j)
 {
     boost::unique_lock<boost::recursive_mutex> lock(*inflation_access_);
     if (!enabled_ || (cell_inflation_radius_ == 0))

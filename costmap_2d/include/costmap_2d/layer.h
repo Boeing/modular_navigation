@@ -68,7 +68,8 @@ class Layer
      * @brief Actually update the underlying costmap, only within the bounds
      *        calculated during UpdateBounds().
      */
-    virtual void updateCosts(Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i, unsigned int max_j) = 0;
+    virtual void updateCosts(Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i,
+                             unsigned int max_j) = 0;
 
     /** @brief Stop publishers. */
     virtual void deactivate() = 0;
