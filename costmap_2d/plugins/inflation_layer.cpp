@@ -90,7 +90,7 @@ void InflationLayer::onInitialize()
     matchSize();
 }
 
-void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t level)
+void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t )
 {
     setInflationParameters(config.inflation_radius, config.cost_scaling_factor);
 
@@ -117,7 +117,7 @@ void InflationLayer::matchSize()
     seen_ = new bool[seen_size_];
 }
 
-void InflationLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
+void InflationLayer::updateBounds(double, double, double, double* min_x, double* min_y,
                                   double* max_x, double* max_y)
 {
     if (need_reinflation_)

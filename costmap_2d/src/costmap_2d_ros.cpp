@@ -258,7 +258,7 @@ void Costmap2DROS::resetOldParameters(ros::NodeHandle& nh)
     nh.setParam("plugins", super_array);
 }
 
-void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t level)
+void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t)
 {
     transform_tolerance_ = config.transform_tolerance;
     if (map_update_thread_ != NULL)
@@ -341,7 +341,7 @@ void Costmap2DROS::setUnpaddedRobotFootprint(const std::vector<geometry_msgs::Po
     layered_costmap_->setFootprint(padded_footprint_);
 }
 
-void Costmap2DROS::movementCB(const ros::TimerEvent& event)
+void Costmap2DROS::movementCB(const ros::TimerEvent&)
 {
     // don't allow configuration to happen while this check occurs
     // boost::recursive_mutex::scoped_lock mcl(configuration_mutex_);
@@ -410,21 +410,24 @@ void Costmap2DROS::updateMap()
         // get global pose
 
         geometry_msgs::PoseStamped pose;
-        bool success = getRobotPose(pose);
+        if(!getRobotPose(pose)){
+            ROS_WARN_THROTTLE(1.0, "Could not get robot pose, cancelling reconfiguration");
+        }
+        else{
+            double x = pose.pose.position.x;
+            double y = pose.pose.position.y;
+            double yaw = tf2::getYaw(pose.pose.orientation);
 
-        double x = pose.pose.position.x;
-        double y = pose.pose.position.y;
-        double yaw = tf2::getYaw(pose.pose.orientation);
+            layered_costmap_->updateMap(x, y, yaw);
 
-        layered_costmap_->updateMap(x, y, yaw);
+            geometry_msgs::PolygonStamped footprint;
+            footprint.header.frame_id = global_frame_;
+            footprint.header.stamp = ros::Time::now();
+            transformFootprint(x, y, yaw, padded_footprint_, footprint);
+            footprint_pub_.publish(footprint);
 
-        geometry_msgs::PolygonStamped footprint;
-        footprint.header.frame_id = global_frame_;
-        footprint.header.stamp = ros::Time::now();
-        transformFootprint(x, y, yaw, padded_footprint_, footprint);
-        footprint_pub_.publish(footprint);
-
-        initialized_ = true;
+            initialized_ = true;
+        }
     }
 }
 

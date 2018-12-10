@@ -183,7 +183,7 @@ class InflationLayer : public Layer
     std::map<double, std::vector<CellData>> inflation_cells_;
 
     bool* seen_;
-    int seen_size_;
+    unsigned int seen_size_;
 
     unsigned char** cached_costs_;
     double** cached_distances_;

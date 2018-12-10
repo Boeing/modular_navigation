@@ -82,6 +82,8 @@ class VoxelLayer : public ObstacleLayer
 
 
   protected:
+    virtual void onFootprintChanged(){}
+
     virtual void setupDynamicReconfigure(ros::NodeHandle& nh);
 
     virtual void resetMaps();

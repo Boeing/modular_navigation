@@ -78,7 +78,7 @@ VoxelLayer::~VoxelLayer()
         delete voxel_dsrv_;
 }
 
-void VoxelLayer::reconfigureCB(costmap_2d::VoxelPluginConfig& config, uint32_t level)
+void VoxelLayer::reconfigureCB(costmap_2d::VoxelPluginConfig& config, uint32_t)
 {
     enabled_ = config.enabled;
     footprint_clearing_enabled_ = config.footprint_clearing_enabled;
@@ -153,7 +153,7 @@ void VoxelLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, 
         sensor_msgs::PointCloud2ConstIterator<float> iter_y(cloud, "y");
         sensor_msgs::PointCloud2ConstIterator<float> iter_z(cloud, "z");
 
-        for (unsigned int i = 0; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
+        for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
         {
             // if the obstacle is too high or too far away from the robot we won't add it
             if (*iter_z > max_obstacle_height_)

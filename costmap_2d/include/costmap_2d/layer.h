@@ -62,35 +62,23 @@ class Layer
      * by Lu et. Al, IROS 2014.
      */
     virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y)
-    {
-    }
+                              double* max_x, double* max_y) = 0;
 
     /**
      * @brief Actually update the underlying costmap, only within the bounds
      *        calculated during UpdateBounds().
      */
-    virtual void updateCosts(Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
-    {
-    }
+    virtual void updateCosts(Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j) = 0;
 
     /** @brief Stop publishers. */
-    virtual void deactivate()
-    {
-    }
+    virtual void deactivate() = 0;
 
     /** @brief Restart publishers if they've been stopped. */
-    virtual void activate()
-    {
-    }
+    virtual void activate() = 0;
 
-    virtual void reset()
-    {
-    }
+    virtual void reset() = 0;
 
-    virtual ~Layer()
-    {
-    }
+    virtual ~Layer() = 0;
 
     /**
      * @brief Check to make sure all the data in the layer is up to date.
@@ -108,10 +96,7 @@ class Layer
     }
 
     /** @brief Implement this to make this layer match the size of the parent costmap. */
-    virtual void matchSize()
-    {
-    }
-
+    virtual void matchSize() = 0;
     std::string getName() const
     {
         return name_;
@@ -123,18 +108,14 @@ class Layer
     /** @brief LayeredCostmap calls this whenever the footprint there
      * changes (via LayeredCostmap::setFootprint()).  Override to be
      * notified of changes to the robot's footprint. */
-    virtual void onFootprintChanged()
-    {
-    }
+    virtual void onFootprintChanged() = 0;
 
   protected:
     /** @brief This is called at the end of initialize().  Override to
      * implement subclass-specific initialization.
      *
      * tf_, name_, and layered_costmap_ will all be set already when this is called. */
-    virtual void onInitialize()
-    {
-    }
+    virtual void onInitialize() = 0;
 
     LayeredCostmap* layered_costmap_;
     bool current_;

@@ -29,6 +29,9 @@ class StaticLayer : public CostmapLayer
 
     virtual void matchSize();
 
+  protected:
+    virtual void onFootprintChanged(){}
+
   private:
     void incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map);
 

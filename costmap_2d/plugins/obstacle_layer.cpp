@@ -232,7 +232,7 @@ ObstacleLayer::~ObstacleLayer()
     if (dsrv_)
         delete dsrv_;
 }
-void ObstacleLayer::reconfigureCB(costmap_2d::ObstaclePluginConfig& config, uint32_t level)
+void ObstacleLayer::reconfigureCB(costmap_2d::ObstaclePluginConfig& config, uint32_t)
 {
     enabled_ = config.enabled;
     footprint_clearing_enabled_ = config.footprint_clearing_enabled;
