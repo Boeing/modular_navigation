@@ -1404,7 +1404,7 @@ bool EBandPlanner::calcInternalForces(int bubble_num, std::vector<Bubble> band, 
     return true;
 }
 
-bool EBandPlanner::calcExternalForces(int bubble_num, Bubble curr_bubble, geometry_msgs::WrenchStamped& forces)
+bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::WrenchStamped& forces)
 {
     // init tmp variables
     double distance1, distance2;

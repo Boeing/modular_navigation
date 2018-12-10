@@ -28,6 +28,7 @@
   <depend>tf2_ros</depend>
   <depend>eigen</depend>
   <depend>opencv3</depend>
+  <depend>cv_bridge</depend>
 
   <export>
       <nav_core plugin="${prefix}/bgp_plugin.xml" />
