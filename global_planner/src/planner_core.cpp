@@ -84,7 +84,7 @@ void GlobalPlanner::initialize(std::string name, std::shared_ptr<tf2_ros::Buffer
     dsrv_->setCallback(cb);
 }
 
-void GlobalPlanner::reconfigureCB(global_planner::GlobalPlannerConfig& config, uint32_t level)
+void GlobalPlanner::reconfigureCB(global_planner::GlobalPlannerConfig& config, uint32_t)
 {
     planner_->setLethalCost(config.lethal_cost);
     path_maker_->setLethalCost(config.lethal_cost);
@@ -98,8 +98,9 @@ void GlobalPlanner::reconfigureCB(global_planner::GlobalPlannerConfig& config, u
 /*
 void GlobalPlanner::mapToWorld(double mx, double my, double& wx, double& wy)
 {
-    wx = costmap_->getOriginX() + (mx + convert_offset_) * costmap_->getResolution();
-    wy = costmap_->getOriginY() + (my + convert_offset_) * costmap_->getResolution();
+    wx = costmap_->getOriginX() + (mx + convert_offset_) *
+costmap_->getResolution(); wy = costmap_->getOriginY() + (my + convert_offset_)
+* costmap_->getResolution();
 }
 
 bool GlobalPlanner::worldToMap(double wx, double wy, double& mx, double& my)
@@ -149,7 +150,8 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
 
     //
     // Copy the local costmap data
-    // We can't spend too much time doing this because the local planner needs access to it
+    // We can't spend too much time doing this because the local planner needs
+    // access to it
     //
     cv::Mat local_costmap;
     std::vector<unsigned char> local_costmap_data;
@@ -213,7 +215,8 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     //    ROS_INFO_STREAM("mm_origin_y: " << mm_origin_y);
 
     //
-    // Copy the global costmap data but resize to match the local costmap resolution
+    // Copy the global costmap data but resize to match the local costmap
+    // resolution
     //
     cv::Mat merged_costmap;
     std::vector<unsigned char> merged_costmap_data;
@@ -243,8 +246,9 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     const double goal_x = (goal.pose.position.x - mm_origin_x) / mm_resolution - 0.5;
     const double goal_y = (goal.pose.position.y - mm_origin_y) / mm_resolution - 0.5;
 
-    //    ROS_INFO_STREAM("START: " << start.pose.position.x << " " << start.pose.position.y);
-    //    ROS_INFO_STREAM("GOAL: " << goal.pose.position.x << " " << goal.pose.position.y);
+    //    ROS_INFO_STREAM("START: " << start.pose.position.x << " " <<
+    //    start.pose.position.y); ROS_INFO_STREAM("GOAL: " << goal.pose.position.x
+    //    << " " << goal.pose.position.y);
 
     //    ROS_INFO_STREAM("START: " << start_x << " " << start_y);
     //    ROS_INFO_STREAM("GOAL: " << goal_x << " " << goal_y);
@@ -263,7 +267,8 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
         return result;
     }
 
-    // TODO clear the starting / end cell within the costmap because we know it can't be an obstacle
+    // TODO clear the starting / end cell within the costmap because we know it
+    // can't be an obstacle
 
     p_calc_->setSize(mm_size_x, mm_size_y);
     planner_->setSize(mm_size_x, mm_size_y);
@@ -360,7 +365,7 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     return result;
 }
 
-double GlobalPlanner::cost(const std::vector<geometry_msgs::PoseStamped>& plan)
+double GlobalPlanner::cost(const std::vector<geometry_msgs::PoseStamped>&)
 {
     return 0.0;
 }

@@ -52,20 +52,7 @@ double getYaw(const Eigen::Quaterniond& q)
     return yaw;
 };
 
-bool isDiff(const Eigen::Isometry2d& t1, const Eigen::Isometry2d& t2)
-{
-    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
-    const bool rot = Eigen::Rotation2D<double>((t2.inverse() * t1).rotation()).angle() > 1e-4;
-    return trans || rot;
-}
-
-bool isDiff(const Eigen::Isometry3d& t1, const Eigen::Isometry3d& t2)
-{
-    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
-    const bool rot = Eigen::AngleAxisd((t2.inverse() * t1).rotation()).angle() > 1e-4;
-    return trans || rot;
-}
-}
+}  // namespace
 
 unsigned char getCost(const costmap_2d::Costmap2D& costmap, const double x, const double y)
 {
@@ -395,7 +382,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
 
     //
     // If we are within the goal radius then control on absolute error
-    // If we are outside the goal radius then control on tracking error + segment velocity
+    // If we are outside the goal radius then control on tracking error + segment
+    // velocity
     //
     double vx = 0;
     double vy = 0;
@@ -501,11 +489,9 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     double vw = rotation_pid_.compute(angular_error, time_step);
     double d_vw = vw - odom.twist.twist.angular.z;
 
-    double acc_factor_w = 1.0;
     if (std::abs(d_vw) > max_acceleration_w_)
     {
         ROS_WARN_STREAM("Limiting maximum acceleration in W: " << d_vw << " > " << max_acceleration_w_);
-        acc_factor_w = std::abs(d_vw / max_acceleration_w_);
     }
 
     vw = odom.twist.twist.angular.z + d_vw / acc_factor;
@@ -555,7 +541,7 @@ bool OmniPIDController::clearPlan()
     return true;
 }
 
-void OmniPIDController::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
+void OmniPIDController::initialize(std::string, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
 {
     tf_buffer_ = tf;
     costmap_ros_ = costmap_ros;
@@ -567,4 +553,4 @@ void OmniPIDController::initialize(std::string name, tf2_ros::Buffer* tf, costma
         throw std::runtime_error("Local costmap must be in odom frame for robust trajectory control");
     }
 }
-}
+}  // namespace omni_pid_controller

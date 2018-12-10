@@ -97,6 +97,6 @@ class OmniPIDController : public nav_core::BaseLocalPlanner
 
     const double costmap_weight_ = 2.0;
 };
-}
+}  // namespace omni_pid_controller
 
 #endif

@@ -175,9 +175,10 @@ bool GradientPath::getPath(float* potential, double start_x, double start_y, dou
             float y = (1.0 - dy) * y1 + dy * y2;  // interpolated y
 
             // show gradients
-            ROS_DEBUG("[Path] %0.2f,%0.2f  %0.2f,%0.2f  %0.2f,%0.2f  %0.2f,%0.2f; final x=%.3f, y=%.3f\n", gradx_[stc],
-                      grady_[stc], gradx_[stc + 1], grady_[stc + 1], gradx_[stcnx], grady_[stcnx], gradx_[stcnx + 1],
-                      grady_[stcnx + 1], x, y);
+            ROS_DEBUG("[Path] %0.2f,%0.2f  %0.2f,%0.2f  %0.2f,%0.2f  %0.2f,%0.2f; "
+                      "final x=%.3f, y=%.3f\n",
+                      gradx_[stc], grady_[stc], gradx_[stc + 1], grady_[stc + 1], gradx_[stcnx], grady_[stcnx],
+                      gradx_[stcnx + 1], grady_[stcnx + 1], x, y);
 
             // check for zero gradient, failed
             if (x == 0.0 && y == 0.0)
@@ -215,7 +216,8 @@ bool GradientPath::getPath(float* potential, double start_x, double start_y, dou
         }
 
         // printf("[Path] Pot: %0.1f  grad: %0.1f,%0.1f  pos: %0.1f,%0.1f\n",
-        //         potential[stc], dx, dy, path[npath-1].first, path[npath-1].second);
+        //         potential[stc], dx, dy, path[npath-1].first,
+        //         path[npath-1].second);
     }
 
     return false;

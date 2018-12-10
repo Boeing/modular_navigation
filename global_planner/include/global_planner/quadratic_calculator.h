@@ -53,6 +53,5 @@ class QuadraticCalculator : public PotentialCalculator
     float calculatePotential(float* potential, unsigned char cost, int n, float prev_potential);
 };
 
-
 }  // end namespace global_planner
 #endif

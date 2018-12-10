@@ -2,7 +2,7 @@
 
 namespace global_planner
 {
-float QuadraticCalculator::calculatePotential(float* potential, unsigned char cost, int n, float prev_potential)
+float QuadraticCalculator::calculatePotential(float* potential, unsigned char cost, int n, float)
 {
     // get neighbors
     float u, d, l, r;
@@ -46,4 +46,4 @@ float QuadraticCalculator::calculatePotential(float* potential, unsigned char co
         return ta + hf * v;
     }
 }
-}
+}  // namespace global_planner
