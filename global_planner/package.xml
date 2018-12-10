@@ -27,6 +27,7 @@
   <depend>roscpp</depend>
   <depend>tf2_ros</depend>
   <depend>eigen</depend>
+  <depend>opencv3</depend>
 
   <export>
       <nav_core plugin="${prefix}/bgp_plugin.xml" />
