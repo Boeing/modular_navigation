@@ -411,7 +411,7 @@ void Costmap2DROS::updateMap()
 
         geometry_msgs::PoseStamped pose;
         if(!getRobotPose(pose)){
-            ROS_WARN_THROTTLE(1.0, "Could not get robot pose, cancelling reconfiguration");
+            ROS_WARN_THROTTLE(1.0, "Could not get robot pose, cancelling map update");
         }
         else{
             double x = pose.pose.position.x;
