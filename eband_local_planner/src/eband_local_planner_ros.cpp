@@ -79,7 +79,7 @@ void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, c
     ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const ros::Time&,
                                                   const nav_msgs::Odometry& odom)
 {
     // instantiate local variables
