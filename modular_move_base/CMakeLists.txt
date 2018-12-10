@@ -20,9 +20,20 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
+add_service_files(FILES
+    Plan.srv
+)
+
+generate_messages(
+    DEPENDENCIES
+        geometry_msgs
+        nav_msgs
+)
+
 catkin_package(
     CATKIN_DEPENDS
         geometry_msgs
+        message_runtime
         move_base_msgs
         nav_msgs
         roscpp

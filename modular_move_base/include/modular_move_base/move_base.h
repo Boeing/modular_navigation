@@ -23,7 +23,7 @@
 #include <pluginlib/class_loader.h>
 #include <std_srvs/Empty.h>
 
-#include <nav_msgs/GetPlan.h>
+#include <modular_move_base/Plan.h>
 
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -110,11 +110,9 @@ class MoveBase
 
   private:
     bool clearCostmapsCallback(std_srvs::Empty::Request& req, std_srvs::Empty::Response& res);
-    bool planCallback(nav_msgs::GetPlan::Request& req, nav_msgs::GetPlan::Response& res);
+    bool planCallback(modular_move_base::Plan::Request& req, modular_move_base::Plan::Response& res);
 
     void publishZeroVelocity();
-
-    bool makePlan(const geometry_msgs::PoseStamped& goal, std::vector<geometry_msgs::PoseStamped>& plan);
 
     bool goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg, geometry_msgs::PoseStamped& global_goal);
 
