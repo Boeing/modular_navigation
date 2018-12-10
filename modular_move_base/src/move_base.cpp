@@ -13,6 +13,37 @@
 namespace move_base
 {
 
+namespace
+{
+
+double getYaw(const double w, const double x, const double y, const double z)
+{
+    double yaw;
+
+    const double sqw = w * w;
+    const double sqx = x * x;
+    const double sqy = y * y;
+    const double sqz = z * z;
+
+    // Cases derived from https://orbitalstation.wordpress.com/tag/quaternion/
+    double sarg = -2 * (x * z - w * y) / (sqx + sqy + sqz + sqw); /* normalization added from urdfom_headers */
+
+    if (sarg <= -0.99999)
+    {
+        yaw = -2 * atan2(y, x);
+    }
+    else if (sarg >= 0.99999)
+    {
+        yaw = 2 * atan2(y, x);
+    }
+    else
+    {
+        yaw = atan2(2 * (x * y + w * z), sqw + sqx - sqy - sqz);
+    }
+    return yaw;
+};
+}
+
 MoveBase::MoveBase()
     : nh_("~"), tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
       as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
@@ -112,7 +143,7 @@ bool MoveBase::clearCostmapsCallback(std_srvs::Empty::Request&, std_srvs::Empty:
 
 bool MoveBase::planCallback(modular_move_base::Plan::Request& req, modular_move_base::Plan::Response& res)
 {
-    ROS_INFO("Executing plan service");
+    ROS_INFO("Executing Plan service");
 
     geometry_msgs::PoseStamped goal;
     if (!goalToGlobalFrame(req.goal, goal))
@@ -154,6 +185,7 @@ bool MoveBase::planCallback(modular_move_base::Plan::Request& req, modular_move_
         res.success = false;
     }
 
+    ROS_INFO("Plan service complete");
     return true;
 }
 
@@ -182,6 +214,11 @@ bool MoveBase::goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg
                                                                   << global_frame << " - " << ex.what());
         return false;
     }
+
+    const double yaw = getYaw(global_goal.pose.orientation.w, global_goal.pose.orientation.x,
+                              global_goal.pose.orientation.y, global_goal.pose.orientation.z);
+    ROS_INFO_STREAM("Goal: x: " << global_goal.pose.position.x << " y: " << global_goal.pose.position.y
+                                << " yaw: " << yaw);
 
     return true;
 }
