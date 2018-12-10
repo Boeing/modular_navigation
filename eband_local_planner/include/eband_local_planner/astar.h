@@ -126,8 +126,8 @@ class Heuristic
 
 inline bool PathFinder::detectCollision(Coord2D coordinates)
 {
-    return (coordinates.x < 0 || coordinates.x >= _world_width || coordinates.y < 0 || coordinates.y >= _world_height ||
-            cell(coordinates).world >= _obstacle_threshold);
+    return (coordinates.x < 0 || coordinates.x >= (int)_world_width || coordinates.y < 0 ||
+            coordinates.y >= (int)_world_height || cell(coordinates).world >= _obstacle_threshold);
 }
 
 
