@@ -95,33 +95,6 @@ void GlobalPlanner::reconfigureCB(global_planner::GlobalPlannerConfig& config, u
     orientation_filter_->setWindowSize(config.orientation_window_size);
 }
 
-/*
-void GlobalPlanner::mapToWorld(double mx, double my, double& wx, double& wy)
-{
-    wx = costmap_->getOriginX() + (mx + convert_offset_) *
-costmap_->getResolution(); wy = costmap_->getOriginY() + (my + convert_offset_)
-* costmap_->getResolution();
-}
-
-bool GlobalPlanner::worldToMap(double wx, double wy, double& mx, double& my)
-{
-    double origin_x = costmap_->getOriginX();
-    double origin_y = costmap_->getOriginY();
-    double resolution = costmap_->getResolution();
-
-    if (wx < origin_x || wy < origin_y)
-        return false;
-
-    mx = (wx - origin_x) / resolution - convert_offset_;
-    my = (wy - origin_y) / resolution - convert_offset_;
-
-    if (mx < costmap_->getSizeInCellsX() && my < costmap_->getSizeInCellsY())
-        return true;
-
-    return false;
-}
-*/
-
 nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& start,
                                              const geometry_msgs::PoseStamped& goal)
 {
@@ -321,6 +294,8 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
 
     if (found_legal)
     {
+        ROS_INFO("Found a plan");
+
         // extract the plan
         std::vector<std::pair<float, float>> path;
         if (!path_maker_->getPath(&potential_array[0], start_x, start_y, goal_x, goal_y, path))
@@ -349,19 +324,21 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
         geometry_msgs::PoseStamped goal_copy = goal;
         goal_copy.header.stamp = now;
         result.plan.push_back(goal_copy);
+
+        // add orientations if needed
+        orientation_filter_->processPath(result.plan);
+
+        // publish the plan for visualization purposes
+        publishPlan(result.plan);
+
+        result.success = true;
     }
     else
     {
-        ROS_ERROR("Failed to get a plan.");
+        ROS_ERROR("Failed to get a plan");
+        result.success = false;
     }
 
-    // add orientations if needed
-    orientation_filter_->processPath(start, result.plan);
-
-    // publish the plan for visualization purposes
-    publishPlan(result.plan);
-
-    result.success = true;
     return result;
 }
 
