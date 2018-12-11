@@ -50,7 +50,7 @@ bool GradientPath::getPath(float* potential, double start_x, double start_y, dou
         // check if near goal
         double nx = stc % xs_ + dx, ny = stc / xs_ + dy;
 
-        if (fabs(nx - start_x) < .5 && fabs(ny - start_y) < .5)
+        if (fabs(nx - start_x) < 1 && fabs(ny - start_y) < 1)
         {
             current.first = start_x;
             current.second = start_y;

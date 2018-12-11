@@ -13,6 +13,37 @@
 namespace move_base
 {
 
+namespace
+{
+
+double getYaw(const double w, const double x, const double y, const double z)
+{
+    double yaw;
+
+    const double sqw = w * w;
+    const double sqx = x * x;
+    const double sqy = y * y;
+    const double sqz = z * z;
+
+    // Cases derived from https://orbitalstation.wordpress.com/tag/quaternion/
+    double sarg = -2 * (x * z - w * y) / (sqx + sqy + sqz + sqw); /* normalization added from urdfom_headers */
+
+    if (sarg <= -0.99999)
+    {
+        yaw = -2 * atan2(y, x);
+    }
+    else if (sarg >= 0.99999)
+    {
+        yaw = 2 * atan2(y, x);
+    }
+    else
+    {
+        yaw = atan2(2 * (x * y + w * z), sqw + sqx - sqy - sqz);
+    }
+    return yaw;
+};
+}
+
 MoveBase::MoveBase()
     : nh_("~"), tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
       as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
@@ -21,7 +52,6 @@ MoveBase::MoveBase()
       local_costmap_(std::make_shared<costmap_2d::Costmap2DROS>("local_costmap", *tf_buffer_)),
 
       clear_costmaps_service_(nh_.advertiseService("clear_costmaps", &MoveBase::clearCostmapsCallback, this)),
-      plan_service_(nh_.advertiseService("plan", &MoveBase::planCallback, this)),
       bgp_loader_("nav_core", "nav_core::BaseGlobalPlanner"), blp_loader_("nav_core", "nav_core::BaseLocalPlanner"),
       recovery_loader_("nav_core", "nav_core::RecoveryBehavior"), new_global_plan_(false),
       planner_frequency_(get_param_with_default_warn("~planner_frequency", 0.2)),
@@ -87,6 +117,8 @@ MoveBase::MoveBase()
 
     planner_thread_ = std::thread(&MoveBase::planThread, this);
 
+    plan_service_ = nh_.advertiseService("plan", &MoveBase::planCallback, this);
+
     ROS_INFO("Successfully started");
 }
 
@@ -109,32 +141,14 @@ bool MoveBase::clearCostmapsCallback(std_srvs::Empty::Request&, std_srvs::Empty:
     return true;
 }
 
-bool MoveBase::planCallback(nav_msgs::GetPlan::Request& req, nav_msgs::GetPlan::Response& res)
+bool MoveBase::planCallback(modular_move_base::Plan::Request& req, modular_move_base::Plan::Response& res)
 {
-    ROS_INFO("Executing plan service");
-
-    if (!global_costmap_->getLayeredCostmap())
-    {
-        ROS_WARN("Failed to plan, the layered costmap was null");
-        return true;
-    }
-
-    if (!global_costmap_->getLayeredCostmap()->isInitialized())
-    {
-        ROS_WARN("Failed to plan, got the layered costmap, but it was not initialised");
-        return true;
-    }
+    ROS_INFO("Executing Plan service");
 
     geometry_msgs::PoseStamped goal;
     if (!goalToGlobalFrame(req.goal, goal))
     {
         ROS_WARN("Failed to transform goal into global frame");
-        return true;
-    }
-
-    if (!global_costmap_->getLayeredCostmap()->isInitialized())
-    {
-        ROS_WARN("Failed to plan");
         return true;
     }
 
@@ -159,10 +173,19 @@ bool MoveBase::planCallback(nav_msgs::GetPlan::Request& req, nav_msgs::GetPlan::
 
     // Run planner
     const nav_core::PlanResult result = planner_->makePlan(start, goal);
+    if (result.success)
+    {
+        ROS_INFO_STREAM("Global plan found with length: " << result.plan.size() << " and cost: " << result.cost);
+        res.plan.poses = result.plan;
+        res.plan.header.frame_id = global_costmap_->getGlobalFrameID();
+        res.success = true;
+    }
+    else
+    {
+        res.success = false;
+    }
 
-    res.plan.poses = result.plan;
-    res.plan.header.frame_id = global_costmap_->getGlobalFrameID();
-
+    ROS_INFO("Plan service complete");
     return true;
 }
 
@@ -173,47 +196,6 @@ void MoveBase::publishZeroVelocity()
     cmd_vel.linear.y = 0.0;
     cmd_vel.angular.z = 0.0;
     vel_pub_.publish(cmd_vel);
-}
-
-bool MoveBase::makePlan(const geometry_msgs::PoseStamped& goal, std::vector<geometry_msgs::PoseStamped>& plan)
-{
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_->getCostmap()->getMutex()));
-
-    plan.clear();
-
-    if (!global_costmap_->getLayeredCostmap())
-    {
-        ROS_WARN("Failed to plan, the layered costmap was null");
-        return false;
-    }
-
-    if (!global_costmap_->getLayeredCostmap()->isInitialized())
-    {
-        ROS_WARN("Failed to plan, got the layered costmap, but it was not initialised");
-        return false;
-    }
-
-    // Get the starting pose of the robot
-    geometry_msgs::PoseStamped start;
-    if (!global_costmap_->getRobotPose(start))
-    {
-        ROS_WARN("Unable to get starting pose of robot, unable to create global plan");
-        return false;
-    }
-
-    // If the planner fails or returns a zero length plan, planning failed
-    const nav_core::PlanResult result = planner_->makePlan(start, goal);
-    if (!result.success || result.plan.empty())
-    {
-        ROS_WARN_STREAM("Failed to plan to (" << goal.pose.position.x << ", " << goal.pose.position.y << ")");
-        return false;
-    }
-
-    plan = result.plan;
-
-    ROS_INFO_STREAM("Global plan found with length: " << plan.size());
-
-    return true;
 }
 
 bool MoveBase::goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg,
@@ -232,6 +214,11 @@ bool MoveBase::goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg
                                                                   << global_frame << " - " << ex.what());
         return false;
     }
+
+    const double yaw = getYaw(global_goal.pose.orientation.w, global_goal.pose.orientation.x,
+                              global_goal.pose.orientation.y, global_goal.pose.orientation.z);
+    ROS_INFO_STREAM("Goal: x: " << global_goal.pose.position.x << " y: " << global_goal.pose.position.y
+                                << " yaw: " << yaw);
 
     return true;
 }
@@ -277,21 +264,32 @@ void MoveBase::planThread()
         ROS_INFO("Planning");
 
         // Run planner
-        std::vector<geometry_msgs::PoseStamped> plan;
-        if (makePlan(goal, plan))
         {
-            if (!plan.empty())
-            {
-                ROS_INFO_STREAM("Successfully Planned");
+            boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_->getCostmap()->getMutex()));
 
-                std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-                planner_plan_ = plan;
-                last_valid_plan_ = ros::Time::now();
-                new_global_plan_ = true;
+            // Get the starting pose of the robot
+            geometry_msgs::PoseStamped start;
+            if (global_costmap_->getRobotPose(start))
+            {
+                // If the planner fails or returns a zero length plan, planning failed
+                const nav_core::PlanResult result = planner_->makePlan(start, goal);
+                if (result.success && !result.plan.empty())
+                {
+                    ROS_INFO_STREAM("Global plan found with length: " << result.plan.size()
+                                                                      << " and cost: " << result.cost);
+                    std::lock_guard<std::mutex> planning_lock(planner_mutex_);
+                    planner_plan_ = result.plan;
+                    last_valid_plan_ = ros::Time::now();
+                    new_global_plan_ = true;
+                }
+                else
+                {
+                    ROS_WARN("Failed to plan");
+                }
             }
             else
             {
-                ROS_WARN("Returned plan is empty");
+                ROS_WARN("Unable to get starting pose of robot, unable to create global plan");
             }
         }
 
