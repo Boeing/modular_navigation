@@ -6,6 +6,7 @@ add_definitions(-std=c++11)
 find_package(catkin REQUIRED
   COMPONENTS
     costmap_2d
+    cv_bridge
     dynamic_reconfigure
     geometry_msgs
     nav_core
@@ -26,10 +27,13 @@ generate_dynamic_reconfigure_options(
 )
 
 catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES ${PROJECT_NAME}
+  INCLUDE_DIRS
+      include
+  LIBRARIES
+      ${PROJECT_NAME}
   CATKIN_DEPENDS
     costmap_2d
+    cv_bridge
     dynamic_reconfigure
     geometry_msgs
     nav_core

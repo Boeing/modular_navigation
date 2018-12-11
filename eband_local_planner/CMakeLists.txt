@@ -4,6 +4,8 @@ project(eband_local_planner)
 add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
+    control_msgs
+    control_toolbox
     costmap_2d
     geometry_msgs
     nav_core
@@ -26,6 +28,8 @@ include_directories(SYSTEM
 
 catkin_package(
     CATKIN_DEPENDS
+        control_msgs
+        control_toolbox
         costmap_2d
         geometry_msgs
         nav_core
