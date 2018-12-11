@@ -9,6 +9,9 @@
 
     <buildtool_depend>catkin</buildtool_depend>
 
+    <build_depend>control_msgs</build_depend>
+    <build_depend>control_toolbox</build_depend>
+
     <depend>control_msgs</depend>
     <depend>control_toolbox</depend>
     <depend>costmap_2d</depend>
