@@ -1,42 +1,6 @@
-/*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2008, 2013, Willow Garage, Inc.
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Eitan Marder-Eppstein
- *         David V. Lu!!
- *********************************************************************/
 #ifndef COSTMAP_2D_COSTMAP_2D_PUBLISHER_H_
 #define COSTMAP_2D_COSTMAP_2D_PUBLISHER_H_
+
 #include <costmap_2d/costmap_2d.h>
 #include <map_msgs/OccupancyGridUpdate.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -44,6 +8,7 @@
 
 namespace costmap_2d
 {
+
 /**
  * @class Costmap2DPublisher
  * @brief A tool to periodically publish visualization data from a Costmap2D
@@ -95,14 +60,24 @@ class Costmap2DPublisher
     ros::NodeHandle* node;
     Costmap2D* costmap_;
     std::string global_frame_;
-    unsigned int x0_, xn_, y0_, yn_;
-    double saved_origin_x_, saved_origin_y_;
+
+    unsigned int x0_;
+    unsigned int xn_;
+    unsigned int y0_;
+    unsigned int yn_;
+
+    double saved_origin_x_;
+    double saved_origin_y_;
+
     bool active_;
     bool always_send_full_costmap_;
+
     ros::Publisher costmap_pub_;
     ros::Publisher costmap_update_pub_;
     nav_msgs::OccupancyGrid grid_;
+
     static char* cost_translation_table_;  ///< Translate from 0-255 values in costmap to -1 to 100 values in message.
 };
-}  // namespace costmap_2d
-#endif  // COSTMAP_2D_COSTMAP_2D_PUBLISHER_H
+}
+
+#endif

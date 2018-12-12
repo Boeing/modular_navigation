@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <boost/thread.hpp>
+
 #include <costmap_2d/costmap_math.h>
 #include <costmap_2d/footprint.h>
-#include <costmap_2d/inflation_layer.h>
+#include <costmap_2d/plugins/inflation_layer.h>
+
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(costmap_2d::InflationLayer, costmap_2d::Layer)
@@ -126,8 +128,8 @@ void InflationLayer::onFootprintChanged()
               layered_costmap_->getFootprint().size(), inscribed_radius_, inflation_radius_);
 }
 
-void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
-                                 unsigned int max_i, unsigned int max_j)
+void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i,
+                                 unsigned int max_j)
 {
     boost::unique_lock<boost::recursive_mutex> lock(*inflation_access_);
     if (!enabled_ || (cell_inflation_radius_ == 0))
@@ -139,7 +141,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned in
     unsigned char* master_array = master_grid.getCharMap();
     unsigned int size_x = master_grid.getSizeInCellsX(), size_y = master_grid.getSizeInCellsY();
 
-    if (seen_ == NULL)
+    if (seen_ == nullptr)
     {
         ROS_WARN("InflationLayer::updateCosts(): seen_ array is NULL");
         seen_size_ = size_x * size_y;

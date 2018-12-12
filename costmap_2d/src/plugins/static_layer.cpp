@@ -1,8 +1,9 @@
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_math.h>
-#include <costmap_2d/static_layer.h>
+#include <costmap_2d/plugins/static_layer.h>
 
 #include <pluginlib/class_list_macros.h>
+
 #include <tf2/convert.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 

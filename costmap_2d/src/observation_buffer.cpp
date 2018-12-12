@@ -61,7 +61,7 @@ ObservationBuffer::~ObservationBuffer()
 {
 }
 
-bool ObservationBuffer::setGlobalFrame(const std::string new_global_frame)
+bool ObservationBuffer::setGlobalFrame(const std::string& new_global_frame)
 {
     ros::Time transform_time = ros::Time::now();
     std::string tf_error;

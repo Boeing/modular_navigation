@@ -89,7 +89,7 @@ class ObservationBuffer
      * @param new_global_frame The name of the new global frame.
      * @return True if the operation succeeds, false otherwise
      */
-    bool setGlobalFrame(const std::string new_global_frame);
+    bool setGlobalFrame(const std::string& new_global_frame);
 
     /**
      * @brief  Transforms a PointCloud to the global frame and buffers it

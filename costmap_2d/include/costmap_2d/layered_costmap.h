@@ -79,14 +79,6 @@ class LayeredCostmap
     void resizeMap(unsigned int size_x, unsigned int size_y, double resolution, double origin_x, double origin_y,
                    bool size_locked = false);
 
-    void getUpdatedBounds(double& minx, double& miny, double& maxx, double& maxy)
-    {
-        minx = minx_;
-        miny = miny_;
-        maxx = maxx_;
-        maxy = maxy_;
-    }
-
     bool isCurrent();
 
     Costmap2D* getCostmap()
@@ -170,8 +162,11 @@ class LayeredCostmap
     bool rolling_window_;  /// < @brief Whether or not the costmap should roll with the robot
 
     bool current_;
-    double minx_, miny_, maxx_, maxy_;
-    unsigned int bx0_, bxn_, by0_, byn_;
+
+    unsigned int bx0_;
+    unsigned int bxn_;
+    unsigned int by0_;
+    unsigned int byn_;
 
     std::vector<boost::shared_ptr<Layer>> plugins_;
 

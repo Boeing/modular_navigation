@@ -40,31 +40,32 @@ class InflationLayer : public Layer
   public:
     InflationLayer();
 
-    virtual ~InflationLayer()
+    virtual ~InflationLayer() override
     {
         deleteKernels();
         if (dsrv_)
             delete dsrv_;
     }
 
-    virtual void onInitialize();
-    virtual void activate()
-    {
-    }
-    virtual void deactivate()
-    {
-    }
-    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y);
-    virtual void updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
-                             unsigned int max_i, unsigned int max_j);
-    virtual bool isDiscretized()
-    {
-        return true;
-    }
-    virtual void matchSize();
+    virtual void onInitialize() override;
 
-    virtual void reset()
+    virtual void activate() override
+    {
+    }
+
+    virtual void deactivate() override
+    {
+    }
+
+    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
+                              double* max_x, double* max_y) override;
+
+    virtual void updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
+                             unsigned int max_i, unsigned int max_j) override;
+
+    virtual void matchSize() override;
+
+    virtual void reset() override
     {
         onInitialize();
     }
@@ -72,7 +73,7 @@ class InflationLayer : public Layer
     /** @brief  Given a distance, compute a cost.
      * @param  distance The distance from an obstacle in cells
      * @return A cost value for the distance */
-    virtual inline unsigned char computeCost(double distance) const
+    inline unsigned char computeCost(double distance) const
     {
         unsigned char cost = 0;
         if (distance == 0)

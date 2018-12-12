@@ -1,40 +1,3 @@
-/*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2008, 2013, Willow Garage, Inc.
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Eitan Marder-Eppstein
- *         David V. Lu!!
- *********************************************************************/
 #ifndef COSTMAP_2D_COSTMAP_2D_H_
 #define COSTMAP_2D_COSTMAP_2D_H_
 
@@ -46,191 +9,66 @@
 namespace costmap_2d
 {
 
-// convenient for storing x/y point pairs
 struct MapLocation
 {
     unsigned int x;
     unsigned int y;
 };
 
-/**
- * @class Costmap2D
- * @brief A 2D costmap provides a mapping between points in the world and their associated "costs".
- */
 class Costmap2D
 {
     friend class CostmapTester;  // Need this for gtest to work correctly
   public:
-    /**
-     * @brief  Constructor for a costmap
-     * @param  cells_size_x The x size of the map in cells
-     * @param  cells_size_y The y size of the map in cells
-     * @param  resolution The resolution of the map in meters/cell
-     * @param  origin_x The x origin of the map
-     * @param  origin_y The y origin of the map
-     * @param  default_value Default Value
-     */
     Costmap2D(unsigned int cells_size_x, unsigned int cells_size_y, double resolution, double origin_x, double origin_y,
               unsigned char default_value = 0);
 
-    /**
-     * @brief  Copy constructor for a costmap, creates a copy efficiently
-     * @param map The costmap to copy
-     */
     Costmap2D(const Costmap2D& map);
 
-    /**
-     * @brief  Overloaded assignment operator
-     * @param  map The costmap to copy
-     * @return A reference to the map after the copy has finished
-     */
     Costmap2D& operator=(const Costmap2D& map);
 
-    /**
-     * @brief  Turn this costmap into a copy of a window of a costmap passed in
-     * @param  map The costmap to copy
-     * @param win_origin_x The x origin (lower left corner) for the window to copy, in meters
-     * @param win_origin_y The y origin (lower left corner) for the window to copy, in meters
-     * @param win_size_x The x size of the window, in meters
-     * @param win_size_y The y size of the window, in meters
-     */
     bool copyCostmapWindow(const Costmap2D& map, double win_origin_x, double win_origin_y, double win_size_x,
                            double win_size_y);
 
-    /**
-     * @brief  Default constructor
-     */
     Costmap2D();
-
-    /**
-     * @brief  Destructor
-     */
     virtual ~Costmap2D();
 
-    /**
-     * @brief  Get the cost of a cell in the costmap
-     * @param mx The x coordinate of the cell
-     * @param my The y coordinate of the cell
-     * @return The cost of the cell
-     */
     unsigned char getCost(unsigned int mx, unsigned int my) const;
 
-    /**
-     * @brief  Set the cost of a cell in the costmap
-     * @param mx The x coordinate of the cell
-     * @param my The y coordinate of the cell
-     * @param cost The cost to set the cell to
-     */
     void setCost(unsigned int mx, unsigned int my, unsigned char cost);
 
-    /**
-     * @brief  Convert from map coordinates to world coordinates
-     * @param  mx The x map coordinate
-     * @param  my The y map coordinate
-     * @param  wx Will be set to the associated world x coordinate
-     * @param  wy Will be set to the associated world y coordinate
-     */
     void mapToWorld(unsigned int mx, unsigned int my, double& wx, double& wy) const;
 
-    /**
-     * @brief  Convert from world coordinates to map coordinates
-     * @param  wx The x world coordinate
-     * @param  wy The y world coordinate
-     * @param  mx Will be set to the associated map x coordinate
-     * @param  my Will be set to the associated map y coordinate
-     * @return True if the conversion was successful (legal bounds) false otherwise
-     */
     bool worldToMap(double wx, double wy, unsigned int& mx, unsigned int& my) const;
 
-    /**
-     * @brief  Convert from world coordinates to map coordinates without checking for legal bounds
-     * @param  wx The x world coordinate
-     * @param  wy The y world coordinate
-     * @param  mx Will be set to the associated map x coordinate
-     * @param  my Will be set to the associated map y coordinate
-     * @note   The returned map coordinates <b>are not guaranteed to lie within the map.</b>
-     */
     void worldToMapNoBounds(double wx, double wy, int& mx, int& my) const;
 
-    /**
-     * @brief  Convert from world coordinates to map coordinates, constraining results to legal bounds.
-     * @param  wx The x world coordinate
-     * @param  wy The y world coordinate
-     * @param  mx Will be set to the associated map x coordinate
-     * @param  my Will be set to the associated map y coordinate
-     * @note   The returned map coordinates are guaranteed to lie within the map.
-     */
     void worldToMapEnforceBounds(double wx, double wy, int& mx, int& my) const;
 
-    /**
-     * @brief  Given two map coordinates... compute the associated index
-     * @param mx The x coordinate
-     * @param my The y coordinate
-     * @return The associated index
-     */
     inline unsigned int getIndex(unsigned int mx, unsigned int my) const
     {
         return my * size_x_ + mx;
     }
 
-    /**
-     * @brief  Given an index... compute the associated map coordinates
-     * @param  index The index
-     * @param  mx Will be set to the x coordinate
-     * @param  my Will be set to the y coordinate
-     */
     inline void indexToCells(unsigned int index, unsigned int& mx, unsigned int& my) const
     {
         my = index / size_x_;
         mx = index - (my * size_x_);
     }
 
-    /**
-     * @brief  Will return a pointer to the underlying unsigned char array used as the costmap
-     * @return A pointer to the underlying unsigned char array storing cost values
-     */
     unsigned char* getCharMap() const;
 
-    /**
-     * @brief  Accessor for the x size of the costmap in cells
-     * @return The x size of the costmap
-     */
     unsigned int getSizeInCellsX() const;
 
-    /**
-     * @brief  Accessor for the y size of the costmap in cells
-     * @return The y size of the costmap
-     */
     unsigned int getSizeInCellsY() const;
 
-    /**
-     * @brief  Accessor for the x size of the costmap in meters
-     * @return The x size of the costmap (returns the centerpoint of the last legal cell in the map)
-     */
     double getSizeInMetersX() const;
 
-    /**
-     * @brief  Accessor for the y size of the costmap in meters
-     * @return The y size of the costmap (returns the centerpoint of the last legal cell in the map)
-     */
     double getSizeInMetersY() const;
 
-    /**
-     * @brief  Accessor for the x origin of the costmap
-     * @return The x origin of the costmap
-     */
     double getOriginX() const;
 
-    /**
-     * @brief  Accessor for the y origin of the costmap
-     * @return The y origin of the costmap
-     */
     double getOriginY() const;
 
-    /**
-     * @brief  Accessor for the resolution of the costmap
-     * @return The resolution of the costmap
-     */
     double getResolution() const;
 
     void setDefaultValue(unsigned char c)
@@ -282,11 +120,6 @@ class Costmap2D
 
     void resetMap(unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn);
 
-    /**
-     * @brief  Given distance in the world... convert it to cells
-     * @param  world_dist The world distance
-     * @return The equivalent cell distance
-     */
     unsigned int cellDistance(double world_dist);
 
     // Provide a typedef to ease future code maintenance

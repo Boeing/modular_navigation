@@ -1,44 +1,7 @@
-/*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2008, 2013, Willow Garage, Inc.
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Eitan Marder-Eppstein
- *         David V. Lu!!
- *********************************************************************/
-#include <algorithm>
-#include <chrono>
 #include <costmap_2d/footprint.h>
 #include <costmap_2d/layered_costmap.h>
+
+#include <algorithm>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -49,9 +12,8 @@ namespace costmap_2d
 {
 
 LayeredCostmap::LayeredCostmap(std::string global_frame, bool rolling_window, bool track_unknown)
-    : costmap_(), global_frame_(global_frame), rolling_window_(rolling_window), current_(false), minx_(0.0), miny_(0.0),
-      maxx_(0.0), maxy_(0.0), bx0_(0), bxn_(0), by0_(0), byn_(0), initialized_(false), size_locked_(false),
-      circumscribed_radius_(1.0), inscribed_radius_(0.1)
+    : costmap_(), global_frame_(global_frame), rolling_window_(rolling_window), current_(false), bx0_(0), bxn_(0),
+      by0_(0), byn_(0), initialized_(false), size_locked_(false), circumscribed_radius_(1.0), inscribed_radius_(0.1)
 {
     if (track_unknown)
         costmap_.setDefaultValue(255);
@@ -61,10 +23,6 @@ LayeredCostmap::LayeredCostmap(std::string global_frame, bool rolling_window, bo
 
 LayeredCostmap::~LayeredCostmap()
 {
-    while (plugins_.size() > 0)
-    {
-        plugins_.pop_back();
-    }
 }
 
 void LayeredCostmap::resizeMap(unsigned int size_x, unsigned int size_y, double resolution, double origin_x,
@@ -81,11 +39,8 @@ void LayeredCostmap::resizeMap(unsigned int size_x, unsigned int size_y, double 
 
 void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
 {
-    // Lock for the remainder of this function, some plugins (e.g. VoxelLayer)
-    // implement thread unsafe updateBounds() functions.
     boost::unique_lock<Costmap2D::mutex_t> lock(*(costmap_.getMutex()));
 
-    // if we're using a rolling buffer costmap... we need to update the origin using the robot's position
     if (rolling_window_)
     {
         double new_origin_x = robot_x - costmap_.getSizeInMetersX() / 2;
@@ -96,68 +51,61 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
     if (plugins_.size() == 0)
         return;
 
-    minx_ = miny_ = 1e30;
-    maxx_ = maxy_ = -1e30;
+    double minx = std::numeric_limits<double>::max();
+    double miny = std::numeric_limits<double>::max();
+    double maxx = std::numeric_limits<double>::min();
+    double maxy = std::numeric_limits<double>::min();
 
     for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins_.begin(); plugin != plugins_.end(); ++plugin)
     {
-        double prev_minx = minx_;
-        double prev_miny = miny_;
-        double prev_maxx = maxx_;
-        double prev_maxy = maxy_;
+        double prev_minx = minx;
+        double prev_miny = miny;
+        double prev_maxx = maxx;
+        double prev_maxy = maxy;
 
-        //        const auto t0 = std::chrono::steady_clock::now();
+        (*plugin)->updateBounds(robot_x, robot_y, robot_yaw, &minx, &miny, &maxx, &maxy);
 
-        (*plugin)->updateBounds(robot_x, robot_y, robot_yaw, &minx_, &miny_, &maxx_, &maxy_);
+        assert(minx <= maxx);
+        assert(miny <= maxy);
 
-        //        ROS_INFO_STREAM("updateBounds: "
-        //                        << (*plugin)->getName()
-        //                        << " took " <<
-        //                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now()
-        //                        - t0).count());
-
-        if (minx_ > prev_minx || miny_ > prev_miny || maxx_ < prev_maxx || maxy_ < prev_maxy)
+        if (minx > prev_minx || miny > prev_miny || maxx < prev_maxx || maxy < prev_maxy)
         {
             ROS_WARN_THROTTLE(1.0,
                               "Illegal bounds change, was [tl: (%f, %f), br: (%f, %f)], but "
                               "is now [tl: (%f, %f), br: (%f, %f)]. The offending layer is %s",
-                              prev_minx, prev_miny, prev_maxx, prev_maxy, minx_, miny_, maxx_, maxy_,
+                              prev_minx, prev_miny, prev_maxx, prev_maxy, minx, miny, maxx, maxy,
                               (*plugin)->getName().c_str());
         }
     }
 
-    int x0, xn, y0, yn;
-    costmap_.worldToMapEnforceBounds(minx_, miny_, x0, y0);
-    costmap_.worldToMapEnforceBounds(maxx_, maxy_, xn, yn);
+    int x0;
+    int xn;
+    int y0;
+    int yn;
+    costmap_.worldToMapNoBounds(minx, miny, x0, y0);
+    costmap_.worldToMapNoBounds(maxx, maxy, xn, yn);
 
-    x0 = std::max(0, x0);
-    xn = std::min(int(costmap_.getSizeInCellsX()), xn + 1);
-    y0 = std::max(0, y0);
-    yn = std::min(int(costmap_.getSizeInCellsY()), yn + 1);
+    const unsigned int u_x0 = static_cast<unsigned int>(std::max(0, x0));
+    const unsigned int u_xn = static_cast<unsigned int>(std::min(int(costmap_.getSizeInCellsX()), xn + 1));
+    const unsigned int u_y0 = static_cast<unsigned int>(std::max(0, y0));
+    const unsigned int u_yn = static_cast<unsigned int>(std::min(int(costmap_.getSizeInCellsY()), yn + 1));
 
-    ROS_DEBUG("Updating area x: [%d, %d] y: [%d, %d]", x0, xn, y0, yn);
+    ROS_DEBUG("Updating area x: [%d, %d] y: [%d, %d]", u_x0, u_xn, u_y0, u_yn);
 
     if (xn < x0 || yn < y0)
         return;
 
-    costmap_.resetMap(x0, y0, xn, yn);
+    costmap_.resetMap(u_x0, u_y0, u_xn, u_yn);
+
     for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins_.begin(); plugin != plugins_.end(); ++plugin)
     {
-        //        const auto t0 = std::chrono::steady_clock::now();
-
-        (*plugin)->updateCosts(costmap_, x0, y0, xn, yn);
-
-        //        ROS_INFO_STREAM("updateCosts: "
-        //                        << (*plugin)->getName()
-        //                        << " took " <<
-        //                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now()
-        //                        - t0).count());
+        (*plugin)->updateCosts(costmap_, u_x0, u_y0, u_xn, u_yn);
     }
 
-    bx0_ = x0;
-    bxn_ = xn;
-    by0_ = y0;
-    byn_ = yn;
+    bx0_ = u_x0;
+    bxn_ = u_xn;
+    by0_ = u_y0;
+    byn_ = u_yn;
 
     initialized_ = true;
 }
