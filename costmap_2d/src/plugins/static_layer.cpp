@@ -1,8 +1,9 @@
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_math.h>
-#include <costmap_2d/static_layer.h>
+#include <costmap_2d/plugins/static_layer.h>
 
 #include <pluginlib/class_list_macros.h>
+
 #include <tf2/convert.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
@@ -79,8 +80,8 @@ unsigned char StaticLayer::interpretValue(unsigned char value) const
 
 void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
 {
-    ROS_INFO_STREAM("Received costmap of size=" << new_map->info.width << "x" << new_map->info.height
-                                                << " resolution=" << new_map->info.resolution);
+    ROS_INFO_STREAM("Received occupancy grid of size=" << new_map->info.width << "x" << new_map->info.height
+                                                       << " resolution=" << new_map->info.resolution);
 
     // We want to keep the resolution provided in configuration
     // But we need to increase the size of the costmap data to fit the map
@@ -88,17 +89,20 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     const double size_x_m = static_cast<double>(new_map->info.width * new_map->info.resolution);
     const double size_y_m = static_cast<double>(new_map->info.height * new_map->info.resolution);
 
-    const unsigned int size_x = static_cast<unsigned int>(size_x_m / resolution_);
-    const unsigned int size_y = static_cast<unsigned int>(size_y_m / resolution_);
+    const double resolution =
+        layered_costmap_->isRolling() ? layered_costmap_->getCostmap()->getResolution() : resolution_;
 
-    ROS_INFO_STREAM("Resizing costmap to size=" << size_x << "x" << size_y << " resolution=" << resolution_);
+    const unsigned int size_x = static_cast<unsigned int>(size_x_m / resolution);
+    const unsigned int size_y = static_cast<unsigned int>(size_y_m / resolution);
+
+    ROS_INFO_STREAM("Resizing costmap to size=" << size_x << "x" << size_y << " resolution=" << resolution);
 
     //
     // If rolling then don't resize the master grid
     //
     if (layered_costmap_->isRolling())
     {
-        resizeMap(size_x, size_y, resolution_, new_map->info.origin.position.x, new_map->info.origin.position.y);
+        resizeMap(size_x, size_y, resolution, new_map->info.origin.position.x, new_map->info.origin.position.y);
     }
     //
     // If not rolling then resize the master grid
@@ -106,7 +110,7 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     //
     else
     {
-        layered_costmap_->resizeMap(size_x, size_y, resolution_, new_map->info.origin.position.x,
+        layered_costmap_->resizeMap(size_x, size_y, resolution, new_map->info.origin.position.x,
                                     new_map->info.origin.position.y, true);
     }
 
@@ -169,8 +173,7 @@ void StaticLayer::reset()
     onInitialize();
 }
 
-void StaticLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                               double* max_x, double* max_y)
+void StaticLayer::updateBounds(double, double, double, double* min_x, double* min_y, double* max_x, double* max_y)
 {
     if (!layered_costmap_->isRolling())
     {
@@ -197,7 +200,8 @@ void StaticLayer::updateBounds(double robot_x, double robot_y, double robot_yaw,
     has_updated_data_ = false;
 }
 
-void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
+                              unsigned int max_i, unsigned int max_j)
 {
     if (!map_received_)
         return;

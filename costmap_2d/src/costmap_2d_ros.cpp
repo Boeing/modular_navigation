@@ -1,40 +1,3 @@
-/*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2008, 2013, Willow Garage, Inc.
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Eitan Marder-Eppstein
- *         David V. Lu!!
- *********************************************************************/
 #include <algorithm>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/layered_costmap.h>
@@ -65,9 +28,9 @@ void move_parameter(ros::NodeHandle& old_h, ros::NodeHandle& new_h, std::string 
 }
 
 Costmap2DROS::Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf)
-    : layered_costmap_(NULL), name_(name), tf_(tf), transform_tolerance_(0.3), map_update_thread_shutdown_(false),
-      stop_updates_(false), initialized_(true), stopped_(false), robot_stopped_(false), map_update_thread_(NULL),
-      last_publish_(0), plugin_loader_("costmap_2d", "costmap_2d::Layer"), publisher_(NULL), dsrv_(NULL),
+    : layered_costmap_(nullptr), name_(name), tf_(tf), transform_tolerance_(0.3), map_update_thread_shutdown_(false),
+      stop_updates_(false), initialized_(true), stopped_(false), robot_stopped_(false), map_update_thread_(nullptr),
+      last_publish_(0), plugin_loader_("costmap_2d", "costmap_2d::Layer"), publisher_(nullptr), dsrv_(nullptr),
       footprint_padding_(0.0)
 {
     // Initialize old pose with something
@@ -82,6 +45,7 @@ Costmap2DROS::Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf)
 
     ros::Time last_error = ros::Time::now();
     std::string tf_error;
+
     // we need to make sure that the transform between the robot base frame and the global frame is available
     while (ros::ok() && !tf_.canTransform(global_frame_, robot_base_frame_, ros::Time(), ros::Duration(0.1), &tf_error))
     {
@@ -173,12 +137,12 @@ void Costmap2DROS::setUnpaddedRobotFootprintPolygon(const geometry_msgs::Polygon
 Costmap2DROS::~Costmap2DROS()
 {
     map_update_thread_shutdown_ = true;
-    if (map_update_thread_ != NULL)
+    if (map_update_thread_ != nullptr)
     {
         map_update_thread_->join();
         delete map_update_thread_;
     }
-    if (publisher_ != NULL)
+    if (publisher_ != nullptr)
         delete publisher_;
 
     delete layered_costmap_;
@@ -258,10 +222,10 @@ void Costmap2DROS::resetOldParameters(ros::NodeHandle& nh)
     nh.setParam("plugins", super_array);
 }
 
-void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t level)
+void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t)
 {
     transform_tolerance_ = config.transform_tolerance;
-    if (map_update_thread_ != NULL)
+    if (map_update_thread_ != nullptr)
     {
         map_update_thread_shutdown_ = true;
         map_update_thread_->join();
@@ -341,7 +305,7 @@ void Costmap2DROS::setUnpaddedRobotFootprint(const std::vector<geometry_msgs::Po
     layered_costmap_->setFootprint(padded_footprint_);
 }
 
-void Costmap2DROS::movementCB(const ros::TimerEvent& event)
+void Costmap2DROS::movementCB(const ros::TimerEvent&)
 {
     // don't allow configuration to happen while this check occurs
     // boost::recursive_mutex::scoped_lock mcl(configuration_mutex_);
@@ -408,23 +372,27 @@ void Costmap2DROS::updateMap()
     if (!stop_updates_)
     {
         // get global pose
-
         geometry_msgs::PoseStamped pose;
-        bool success = getRobotPose(pose);
+        if (!getRobotPose(pose))
+        {
+            ROS_WARN_THROTTLE(1.0, "Could not get robot pose, cancelling map update");
+        }
+        else
+        {
+            const double x = pose.pose.position.x;
+            const double y = pose.pose.position.y;
+            const double yaw = tf2::getYaw(pose.pose.orientation);
 
-        double x = pose.pose.position.x;
-        double y = pose.pose.position.y;
-        double yaw = tf2::getYaw(pose.pose.orientation);
+            layered_costmap_->updateMap(x, y, yaw);
 
-        layered_costmap_->updateMap(x, y, yaw);
+            geometry_msgs::PolygonStamped footprint;
+            footprint.header.frame_id = global_frame_;
+            footprint.header.stamp = ros::Time::now();
+            transformFootprint(x, y, yaw, padded_footprint_, footprint);
+            footprint_pub_.publish(footprint);
 
-        geometry_msgs::PolygonStamped footprint;
-        footprint.header.frame_id = global_frame_;
-        footprint.header.stamp = ros::Time::now();
-        transformFootprint(x, y, yaw, padded_footprint_, footprint);
-        footprint_pub_.publish(footprint);
-
-        initialized_ = true;
+            initialized_ = true;
+        }
     }
 }
 

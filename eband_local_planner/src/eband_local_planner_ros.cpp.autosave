@@ -122,9 +122,6 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
     {
         // if plan could not be transformed abort control and local planning
         ROS_WARN("Could not transform the global plan to the frame of the controller");
-
-        ROS_INFO_STREAM("global_plan_.size(): " << global_plan_.size());
-        ROS_INFO_STREAM("transformed_plan_.size(): " << transformed_plan_.size());
         result.state = nav_core::ControlState::FAILED;
         return result;
     }
@@ -134,8 +131,6 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
     {
         // if global plan passed in is empty... we won't do anything
         ROS_WARN("Transformed plan is empty. Aborting local planner!");
-        ROS_INFO_STREAM("global_plan_.size(): " << global_plan_.size());
-        ROS_INFO_STREAM("transformed_plan_.size(): " << transformed_plan_.size());
         result.state = nav_core::ControlState::FAILED;
         return result;
     }
@@ -275,8 +270,6 @@ bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& ori
     {
         // if global plan passed in is empty... we won't do anything
         ROS_WARN("Transformed plan is empty. Aborting local planner!");
-        ROS_INFO_STREAM("global_plan_.size(): " << global_plan_.size());
-        ROS_INFO_STREAM("transformed_plan_.size(): " << transformed_plan_.size());
         return false;
     }
 

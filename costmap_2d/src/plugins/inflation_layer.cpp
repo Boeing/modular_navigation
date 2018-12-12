@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <boost/thread.hpp>
+
 #include <costmap_2d/costmap_math.h>
 #include <costmap_2d/footprint.h>
-#include <costmap_2d/inflation_layer.h>
+#include <costmap_2d/plugins/inflation_layer.h>
+
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(costmap_2d::InflationLayer, costmap_2d::Layer)
@@ -38,7 +40,7 @@ void InflationLayer::onInitialize()
         dynamic_reconfigure::Server<costmap_2d::InflationPluginConfig>::CallbackType cb =
             boost::bind(&InflationLayer::reconfigureCB, this, _1, _2);
 
-        if (dsrv_ != NULL)
+        if (dsrv_ != nullptr)
         {
             dsrv_->clearCallback();
             dsrv_->setCallback(cb);
@@ -53,7 +55,7 @@ void InflationLayer::onInitialize()
     matchSize();
 }
 
-void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t level)
+void InflationLayer::reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t)
 {
     setInflationParameters(config.inflation_radius, config.cost_scaling_factor);
 
@@ -80,8 +82,7 @@ void InflationLayer::matchSize()
     seen_ = new bool[seen_size_];
 }
 
-void InflationLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                                  double* max_x, double* max_y)
+void InflationLayer::updateBounds(double, double, double, double* min_x, double* min_y, double* max_x, double* max_y)
 {
     if (need_reinflation_)
     {
@@ -89,17 +90,16 @@ void InflationLayer::updateBounds(double robot_x, double robot_y, double robot_y
         last_min_y_ = *min_y;
         last_max_x_ = *max_x;
         last_max_y_ = *max_y;
-        // For some reason when I make these -<double>::max() it does not
-        // work with Costmap2D::worldToMapEnforceBounds(), so I'm using
-        // -<float>::max() instead.
-        *min_x = -std::numeric_limits<float>::max();
-        *min_y = -std::numeric_limits<float>::max();
-        *max_x = std::numeric_limits<float>::max();
-        *max_y = std::numeric_limits<float>::max();
+        *min_x = -std::numeric_limits<double>::max();
+        *min_y = -std::numeric_limits<double>::max();
+        *max_x = std::numeric_limits<double>::max();
+        *max_y = std::numeric_limits<double>::max();
         need_reinflation_ = false;
     }
     else
     {
+        // Only increase the area to update costs of inflation
+
         double tmp_min_x = last_min_x_;
         double tmp_min_y = last_min_y_;
         double tmp_max_x = last_max_x_;
@@ -127,7 +127,8 @@ void InflationLayer::onFootprintChanged()
               layered_costmap_->getFootprint().size(), inscribed_radius_, inflation_radius_);
 }
 
-void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, unsigned int min_j, unsigned int max_i,
+                                 unsigned int max_j)
 {
     boost::unique_lock<boost::recursive_mutex> lock(*inflation_access_);
     if (!enabled_ || (cell_inflation_radius_ == 0))
@@ -139,7 +140,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
     unsigned char* master_array = master_grid.getCharMap();
     unsigned int size_x = master_grid.getSizeInCellsX(), size_y = master_grid.getSizeInCellsY();
 
-    if (seen_ == NULL)
+    if (seen_ == nullptr)
     {
         ROS_WARN("InflationLayer::updateCosts(): seen_ array is NULL");
         seen_size_ = size_x * size_y;
@@ -158,24 +159,19 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
     // box min_i...max_j, by the amount cell_inflation_radius_.  Cells
     // up to that distance outside the box can still influence the costs
     // stored in cells inside the box.
-    min_i -= cell_inflation_radius_;
-    min_j -= cell_inflation_radius_;
-    max_i += cell_inflation_radius_;
-    max_j += cell_inflation_radius_;
-
-    min_i = std::max(0, min_i);
-    min_j = std::max(0, min_j);
-    max_i = std::min(int(size_x), max_i);
-    max_j = std::min(int(size_y), max_j);
+    min_i = u_int(std::max<int>(0, int(min_i) - cell_inflation_radius_));
+    min_j = u_int(std::max<int>(0, int(min_j) - cell_inflation_radius_));
+    max_i = u_int(std::min<int>(int(size_x), int(max_i) + cell_inflation_radius_));
+    max_j = u_int(std::min<int>(int(size_y), int(max_j) + cell_inflation_radius_));
 
     // Inflation list; we append cells to visit in a list associated with its distance to the nearest obstacle
     // We use a map<distance, list> to emulate the priority queue used before, with a notable performance boost
 
     // Start with lethal obstacles: by definition distance is 0.0
     std::vector<CellData>& obs_bin = inflation_cells_[0.0];
-    for (int j = min_j; j < max_j; j++)
+    for (unsigned int j = min_j; j < max_j; j++)
     {
-        for (int i = min_i; i < max_i; i++)
+        for (unsigned int i = min_i; i < max_i; i++)
         {
             int index = master_grid.getIndex(i, j);
             unsigned char cost = master_array[index];
@@ -191,7 +187,7 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
     std::map<double, std::vector<CellData>>::iterator bin;
     for (bin = inflation_cells_.begin(); bin != inflation_cells_.end(); ++bin)
     {
-        for (int i = 0; i < bin->second.size(); ++i)
+        for (unsigned int i = 0; i < bin->second.size(); ++i)
         {
             // process all cells at distance dist_bin.first
             const CellData& cell = bin->second[i];
@@ -244,8 +240,8 @@ void InflationLayer::updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, 
  * @param  src_x The x index of the obstacle point inflation started at
  * @param  src_y The y index of the obstacle point inflation started at
  */
-inline void InflationLayer::enqueue(unsigned int index, unsigned int mx, unsigned int my, unsigned int src_x,
-                                    unsigned int src_y)
+inline void InflationLayer::enqueue(const unsigned int index, const unsigned int mx, const unsigned int my,
+                                    const unsigned int src_x, const unsigned int src_y)
 {
     if (!seen_[index])
     {
@@ -299,7 +295,7 @@ void InflationLayer::computeCaches()
 
 void InflationLayer::deleteKernels()
 {
-    if (cached_distances_ != NULL)
+    if (cached_distances_ != nullptr)
     {
         for (unsigned int i = 0; i <= cached_cell_inflation_radius_ + 1; ++i)
         {
@@ -308,10 +304,10 @@ void InflationLayer::deleteKernels()
         }
         if (cached_distances_)
             delete[] cached_distances_;
-        cached_distances_ = NULL;
+        cached_distances_ = nullptr;
     }
 
-    if (cached_costs_ != NULL)
+    if (cached_costs_ != nullptr)
     {
         for (unsigned int i = 0; i <= cached_cell_inflation_radius_ + 1; ++i)
         {
@@ -319,11 +315,11 @@ void InflationLayer::deleteKernels()
                 delete[] cached_costs_[i];
         }
         delete[] cached_costs_;
-        cached_costs_ = NULL;
+        cached_costs_ = nullptr;
     }
 }
 
-void InflationLayer::setInflationParameters(double inflation_radius, double cost_scaling_factor)
+void InflationLayer::setInflationParameters(const double inflation_radius, const double cost_scaling_factor)
 {
     if (weight_ != cost_scaling_factor || inflation_radius_ != inflation_radius)
     {

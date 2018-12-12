@@ -17,17 +17,23 @@ class StaticLayer : public CostmapLayer
 {
   public:
     StaticLayer();
-    virtual ~StaticLayer();
-    virtual void onInitialize();
-    virtual void activate();
-    virtual void deactivate();
-    virtual void reset();
+    virtual ~StaticLayer() override;
+    virtual void onInitialize() override;
+    virtual void activate() override;
+    virtual void deactivate() override;
+    virtual void reset() override;
 
     virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y);
-    virtual void updateCosts(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j);
+                              double* max_x, double* max_y) override;
+    virtual void updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
+                             unsigned int max_i, unsigned int max_j) override;
 
-    virtual void matchSize();
+    virtual void matchSize() override;
+
+  protected:
+    virtual void onFootprintChanged() override
+    {
+    }
 
   private:
     void incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map);

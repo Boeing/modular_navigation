@@ -52,13 +52,6 @@ double getYaw(const Eigen::Quaterniond& q)
     return yaw;
 };
 
-bool isDiff(const Eigen::Isometry2d& t1, const Eigen::Isometry2d& t2)
-{
-    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
-    const bool rot = Eigen::Rotation2D<double>((t2.inverse() * t1).rotation()).angle() > 1e-4;
-    return trans || rot;
-}
-
 bool isDiff(const Eigen::Isometry3d& t1, const Eigen::Isometry3d& t2)
 {
     const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
@@ -517,11 +510,9 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
     double vw = rotation_pid_.compute(angular_error, time_step);
     double d_vw = vw - odom.twist.twist.angular.z;
 
-    double acc_factor_w = 1.0;
     if (std::abs(d_vw) > max_acceleration_w_)
     {
         ROS_WARN_STREAM("Limiting maximum acceleration in W: " << d_vw << " > " << max_acceleration_w_);
-        acc_factor_w = std::abs(d_vw / max_acceleration_w_);
     }
 
     vw = odom.twist.twist.angular.z + d_vw / acc_factor;
@@ -1012,8 +1003,6 @@ void RRTLocalPlanner::trajectoryPlanningThread()
                 // Compare with current trajectory
                 if (!planner_state.path_waypoint_changed && !planner_state.global_to_local_changed)
                 {
-                    const bool goal_changed = !isDiff(new_planner_state.goal_2d, planner_state.goal_2d);
-
                     const double current_cost = getRemainingTrajectoryCost();
                     ROS_INFO_STREAM("current_cost: " << current_cost << " new_cost: " << result.cost);
                     // at least a 10% cost saving

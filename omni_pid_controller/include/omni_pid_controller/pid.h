@@ -35,6 +35,6 @@ class PID
     double d_error_;
     double cmd_;
 };
-}
+}  // namespace omni_pid_controller
 
 #endif

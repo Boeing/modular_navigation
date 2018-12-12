@@ -251,7 +251,6 @@ void Pid::dynamicReconfigCallback(control_toolbox::ParametersConfig& config, uin
 
 double Pid::computeCommand(double error, ros::Duration dt)
 {
-
     if (dt == ros::Duration(0.0) || std::isnan(error) || std::isinf(error))
         return 0.0;
 
@@ -355,9 +354,6 @@ double Pid::getCurrentCmd()
 
 void Pid::getCurrentPIDErrors(double* pe, double* ie, double* de)
 {
-    // Get the gain parameters from the realtime buffer
-    Gains gains = *gains_buffer_.readFromRT();
-
     *pe = p_error_;
     *ie = i_error_;
     *de = d_error_;

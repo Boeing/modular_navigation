@@ -102,23 +102,22 @@ add_library(${PROJECT_NAME}
 )
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}
-  ${Boost_LIBRARIES}
-  ${catkin_LIBRARIES}
+    ${Boost_LIBRARIES}
+    ${catkin_LIBRARIES}
 )
 
 add_library(layers
-  plugins/inflation_layer.cpp
-  plugins/obstacle_layer.cpp
-  plugins/static_layer.cpp
-  plugins/voxel_layer.cpp
-  src/observation_buffer.cpp
+  src/plugins/inflation_layer.cpp
+  src/plugins/obstacle_layer.cpp
+  src/plugins/static_layer.cpp
+  src/plugins/voxel_layer.cpp
 )
 add_dependencies(layers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(layers
     ${PROJECT_NAME}
 )
 
-add_executable(${PROJECT_NAME}_markers src/${PROJECT_NAME}_markers.cpp)
+add_executable(${PROJECT_NAME}_markers src/nodes/${PROJECT_NAME}_markers.cpp)
 add_dependencies(${PROJECT_NAME}_markers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_markers
     ${PROJECT_NAME}
@@ -126,7 +125,7 @@ target_link_libraries(${PROJECT_NAME}_markers
     ${catkin_LIBRARIES}
 )
 
-add_executable(${PROJECT_NAME}_cloud src/${PROJECT_NAME}_cloud.cpp)
+add_executable(${PROJECT_NAME}_cloud src/nodes/${PROJECT_NAME}_cloud.cpp)
 add_dependencies(${PROJECT_NAME}_cloud ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_cloud
     ${PROJECT_NAME}
@@ -134,7 +133,7 @@ target_link_libraries(${PROJECT_NAME}_cloud
     ${catkin_LIBRARIES}
 )
 
-add_executable(${PROJECT_NAME}_node src/${PROJECT_NAME}_node.cpp)
+add_executable(${PROJECT_NAME}_node src/nodes/${PROJECT_NAME}_node.cpp)
 add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_node
     ${PROJECT_NAME}
@@ -142,7 +141,6 @@ target_link_libraries(${PROJECT_NAME}_node
     ${catkin_LIBRARIES}
 )
 
-## Configure Tests
 if(CATKIN_ENABLE_TESTING)
   # Find package test dependencies
   find_package(rostest REQUIRED)

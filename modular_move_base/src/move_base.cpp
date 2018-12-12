@@ -217,8 +217,8 @@ bool MoveBase::goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg
 
     const double yaw = getYaw(global_goal.pose.orientation.w, global_goal.pose.orientation.x,
                               global_goal.pose.orientation.y, global_goal.pose.orientation.z);
-    ROS_INFO_STREAM("Goal: x: " << global_goal.pose.position.x << " y: " << global_goal.pose.position.y
-                                << " yaw: " << yaw);
+    ROS_DEBUG_STREAM("Goal: x: " << global_goal.pose.position.x << " y: " << global_goal.pose.position.y
+                                 << " yaw: " << yaw);
 
     return true;
 }
@@ -228,7 +228,7 @@ void MoveBase::wakePlanner(const ros::TimerEvent&)
     std::lock_guard<std::mutex> planning_lock(planner_mutex_);
     if (state_ != MoveBaseState::GOAL_COMPLETE && state_ != MoveBaseState::GOAL_FAILED)
     {
-        ROS_INFO_STREAM("Requesting planner: state=" << toString(state_));
+        ROS_DEBUG_STREAM("Requesting planner: state=" << toString(state_));
         planner_cond_.notify_one();
     }
 }
@@ -261,7 +261,7 @@ void MoveBase::planThread()
 
         ros::Time start_time = ros::Time::now();
 
-        ROS_INFO("Planning");
+        ROS_DEBUG("Planning");
 
         // Run planner
         {
@@ -374,7 +374,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
             std::lock_guard<std::mutex> planning_lock(planner_mutex_);
             if (state_ != new_state)
             {
-                ROS_INFO_STREAM("Transitioning from " << toString(state_) << " to " << toString(new_state));
+                ROS_DEBUG_STREAM("Transitioning from " << toString(state_) << " to " << toString(new_state));
                 state_ = new_state;
             }
 
@@ -413,7 +413,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
 MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::SteadyTime& steady_time,
                                      const ros::Time& ros_time)
 {
-    ROS_INFO_STREAM("Executing state: " << state);
+    ROS_DEBUG_STREAM("Executing state: " << state);
 
     if (state == MoveBaseState::PLANNING)
     {
@@ -460,7 +460,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
             std::unique_lock<std::mutex> lock(planner_mutex_);
             if (new_global_plan_)
             {
-                ROS_INFO("Got a new plan");
+                ROS_DEBUG("Got a new plan");
                 new_global_plan_ = false;
 
                 if (!tc_->setPlan(planner_plan_))
@@ -490,26 +490,24 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
 
         if (control.state == nav_core::ControlState::RUNNING)
         {
-            ROS_INFO_STREAM("ControlState == RUNNING");
             vel_pub_.publish(control.cmd_vel);
             recovery_index_ = 0;
             return MoveBaseState::CONTROLLING;
         }
         else if (control.state == nav_core::ControlState::EMERGENCY_BRAKING)
         {
-            ROS_INFO_STREAM("ControlState == EMERGENCY_BRAKING");
+            ROS_WARN_STREAM("ControlState == EMERGENCY_BRAKING");
             publishZeroVelocity();
             return MoveBaseState::CONTROLLING;
         }
         else if (control.state == nav_core::ControlState::COMPLETE)
         {
-            ROS_INFO_STREAM("ControlState == COMPLETE");
             publishZeroVelocity();
             return MoveBaseState::GOAL_COMPLETE;
         }
         else if (control.state == nav_core::ControlState::FAILED)
         {
-            ROS_INFO_STREAM("ControlState == FAILED");
+            ROS_WARN_STREAM("ControlState == FAILED");
             publishZeroVelocity();
             return MoveBaseState::RECOVERING;
         }

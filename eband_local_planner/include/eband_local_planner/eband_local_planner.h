@@ -266,7 +266,6 @@ class EBandPlanner
     double costToDistance(const unsigned char cost) const;
 
     bool moveBubbleOutOfCollision(Bubble& bubble, const double search_distance);
-    bool movePoseOutOfCollision(geometry_msgs::PoseStamped& pose, const double search_distance);
 
     /**
      * @brief This converts a plan from a sequence of stamped poses into a band, a sequence of bubbles. Therefore it

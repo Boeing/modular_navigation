@@ -48,15 +48,15 @@ struct Cell
     double z;
     voxel_grid::VoxelStatus status;
 };
-typedef std::vector<Cell> V_Cell;
 
 float g_colors_r[] = {0.0f, 0.0f, 1.0f};
 float g_colors_g[] = {0.0f, 0.0f, 0.0f};
 float g_colors_b[] = {0.0f, 1.0f, 0.0f};
 float g_colors_a[] = {0.0f, 0.5f, 1.0f};
 
-V_Cell g_marked;
-V_Cell g_unknown;
+std::vector<Cell> g_marked;
+std::vector<Cell> g_unknown;
+
 void voxelCallback(const ros::Publisher& pub_marked, const ros::Publisher& pub_unknown,
                    const costmap_2d::VoxelGridConstPtr& grid)
 {

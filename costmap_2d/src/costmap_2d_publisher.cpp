@@ -46,8 +46,8 @@ char* Costmap2DPublisher::cost_translation_table_ = NULL;
 
 Costmap2DPublisher::Costmap2DPublisher(ros::NodeHandle* ros_node, Costmap2D* costmap, std::string global_frame,
                                        std::string topic_name, bool always_send_full_costmap)
-    : node(ros_node), costmap_(costmap), global_frame_(global_frame), active_(false),
-      always_send_full_costmap_(always_send_full_costmap)
+    : node(ros_node), costmap_(costmap), global_frame_(global_frame), x0_(0), xn_(0), y0_(0), yn_(0),
+      saved_origin_x_(0), saved_origin_y_(0), active_(false), always_send_full_costmap_(always_send_full_costmap)
 {
     costmap_pub_ = ros_node->advertise<nav_msgs::OccupancyGrid>(
         topic_name, 1, boost::bind(&Costmap2DPublisher::onNewSubscription, this, _1));

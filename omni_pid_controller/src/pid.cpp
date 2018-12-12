@@ -75,4 +75,4 @@ double PID::compute(const double error, const double duration)
 
     return cmd_;
 }
-}
+}  // namespace omni_pid_controller

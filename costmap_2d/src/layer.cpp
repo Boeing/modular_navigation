@@ -32,7 +32,7 @@
 namespace costmap_2d
 {
 
-Layer::Layer() : layered_costmap_(NULL), current_(false), enabled_(false), name_(), tf_(NULL)
+Layer::Layer() : layered_costmap_(NULL), current_(false), enabled_(false), name_(), tf_(nullptr)
 {
 }
 

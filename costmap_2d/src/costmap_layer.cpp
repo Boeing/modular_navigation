@@ -43,7 +43,8 @@ void CostmapLayer::useExtraBounds(double* min_x, double* min_y, double* max_x, d
     has_extra_bounds_ = false;
 }
 
-void CostmapLayer::updateWithMax(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+void CostmapLayer::updateWithMax(costmap_2d::Costmap2D& master_grid, const unsigned int min_i, const unsigned int min_j,
+                                 const unsigned int max_i, const unsigned int max_j)
 {
     if (!enabled_)
         return;
@@ -51,10 +52,10 @@ void CostmapLayer::updateWithMax(costmap_2d::Costmap2D& master_grid, int min_i, 
     unsigned char* master_array = master_grid.getCharMap();
     unsigned int span = master_grid.getSizeInCellsX();
 
-    for (int j = min_j; j < max_j; j++)
+    for (unsigned int j = min_j; j < max_j; j++)
     {
         unsigned int it = j * span + min_i;
-        for (int i = min_i; i < max_i; i++)
+        for (unsigned int i = min_i; i < max_i; i++)
         {
             if (costmap_[it] == NO_INFORMATION)
             {
@@ -70,18 +71,19 @@ void CostmapLayer::updateWithMax(costmap_2d::Costmap2D& master_grid, int min_i, 
     }
 }
 
-void CostmapLayer::updateWithTrueOverwrite(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i,
-                                           int max_j)
+void CostmapLayer::updateWithTrueOverwrite(costmap_2d::Costmap2D& master_grid, const unsigned int min_i,
+                                           const unsigned int min_j, const unsigned int max_i, const unsigned int max_j)
 {
     if (!enabled_)
         return;
+
     unsigned char* master = master_grid.getCharMap();
     unsigned int span = master_grid.getSizeInCellsX();
 
-    for (int j = min_j; j < max_j; j++)
+    for (unsigned int j = min_j; j < max_j; j++)
     {
         unsigned int it = span * j + min_i;
-        for (int i = min_i; i < max_i; i++)
+        for (unsigned int i = min_i; i < max_i; i++)
         {
             master[it] = costmap_[it];
             it++;
@@ -89,17 +91,19 @@ void CostmapLayer::updateWithTrueOverwrite(costmap_2d::Costmap2D& master_grid, i
     }
 }
 
-void CostmapLayer::updateWithOverwrite(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+void CostmapLayer::updateWithOverwrite(costmap_2d::Costmap2D& master_grid, const unsigned int min_i,
+                                       const unsigned int min_j, const unsigned int max_i, const unsigned int max_j)
 {
     if (!enabled_)
         return;
+
     unsigned char* master = master_grid.getCharMap();
     unsigned int span = master_grid.getSizeInCellsX();
 
-    for (int j = min_j; j < max_j; j++)
+    for (unsigned int j = min_j; j < max_j; j++)
     {
         unsigned int it = span * j + min_i;
-        for (int i = min_i; i < max_i; i++)
+        for (unsigned int i = min_i; i < max_i; i++)
         {
             if (costmap_[it] != NO_INFORMATION)
                 master[it] = costmap_[it];
@@ -108,17 +112,19 @@ void CostmapLayer::updateWithOverwrite(costmap_2d::Costmap2D& master_grid, int m
     }
 }
 
-void CostmapLayer::updateWithAddition(costmap_2d::Costmap2D& master_grid, int min_i, int min_j, int max_i, int max_j)
+void CostmapLayer::updateWithAddition(costmap_2d::Costmap2D& master_grid, const unsigned int min_i,
+                                      const unsigned int min_j, const unsigned int max_i, const unsigned int max_j)
 {
     if (!enabled_)
         return;
+
     unsigned char* master_array = master_grid.getCharMap();
     unsigned int span = master_grid.getSizeInCellsX();
 
-    for (int j = min_j; j < max_j; j++)
+    for (unsigned int j = min_j; j < max_j; j++)
     {
         unsigned int it = j * span + min_i;
-        for (int i = min_i; i < max_i; i++)
+        for (unsigned int i = min_i; i < max_i; i++)
         {
             if (costmap_[it] == NO_INFORMATION)
             {
@@ -126,16 +132,16 @@ void CostmapLayer::updateWithAddition(costmap_2d::Costmap2D& master_grid, int mi
                 continue;
             }
 
-            unsigned char old_cost = master_array[it];
+            const unsigned char old_cost = master_array[it];
             if (old_cost == NO_INFORMATION)
+            {
                 master_array[it] = costmap_[it];
+            }
             else
             {
-                int sum = old_cost + costmap_[it];
-                if (sum >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-                    master_array[it] = costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1;
-                else
-                    master_array[it] = sum;
+                const unsigned char sum =
+                    std::max<unsigned char>(old_cost + costmap_[it], costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+                master_array[it] = sum;
             }
             it++;
         }

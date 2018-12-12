@@ -51,20 +51,6 @@ double getYaw(const Eigen::Quaterniond& q)
     return yaw;
 };
 
-bool isDiff(const Eigen::Isometry2d& t1, const Eigen::Isometry2d& t2)
-{
-    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
-    const bool rot = Eigen::Rotation2D<double>((t2.inverse() * t1).rotation()).angle() > 1e-4;
-    return trans || rot;
-}
-
-bool isDiff(const Eigen::Isometry3d& t1, const Eigen::Isometry3d& t2)
-{
-    const bool trans = (t1.translation() - t2.translation()).norm() > 1e-4;
-    const bool rot = Eigen::AngleAxisd((t2.inverse() * t1).rotation()).angle() > 1e-4;
-    return trans || rot;
-}
-
 std::vector<geometry_msgs::PoseStamped> convert(const ompl::geometric::PathGeometric& path, const std::string& frame_id)
 {
     std::vector<geometry_msgs::PoseStamped> trajectory;
@@ -280,7 +266,7 @@ nav_core::PlanResult OmniRRTPlanner::makePlan(const geometry_msgs::PoseStamped& 
     return result;
 }
 
-double OmniRRTPlanner::cost(const std::vector<geometry_msgs::PoseStamped>& plan)
+double OmniRRTPlanner::cost(const std::vector<geometry_msgs::PoseStamped>&)
 {
     //    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*costmap_ros_->getCostmap()->getMutex());
     //    std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
