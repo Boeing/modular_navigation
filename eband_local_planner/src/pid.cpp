@@ -251,7 +251,6 @@ void Pid::dynamicReconfigCallback(control_toolbox::ParametersConfig& config, uin
 
 double Pid::computeCommand(double error, ros::Duration dt)
 {
-
     if (dt == ros::Duration(0.0) || std::isnan(error) || std::isinf(error))
         return 0.0;
 

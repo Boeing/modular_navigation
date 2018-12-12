@@ -53,8 +53,8 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
 
     double minx = std::numeric_limits<double>::max();
     double miny = std::numeric_limits<double>::max();
-    double maxx = std::numeric_limits<double>::min();
-    double maxy = std::numeric_limits<double>::min();
+    double maxx = -std::numeric_limits<double>::max();
+    double maxy = -std::numeric_limits<double>::max();
 
     for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins_.begin(); plugin != plugins_.end(); ++plugin)
     {
@@ -64,9 +64,6 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
         double prev_maxy = maxy;
 
         (*plugin)->updateBounds(robot_x, robot_y, robot_yaw, &minx, &miny, &maxx, &maxy);
-
-        assert(minx <= maxx);
-        assert(miny <= maxy);
 
         if (minx > prev_minx || miny > prev_miny || maxx < prev_maxx || maxy < prev_maxy)
         {
@@ -85,16 +82,17 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
     costmap_.worldToMapNoBounds(minx, miny, x0, y0);
     costmap_.worldToMapNoBounds(maxx, maxy, xn, yn);
 
-    const unsigned int u_x0 = static_cast<unsigned int>(std::max(0, x0));
-    const unsigned int u_xn = static_cast<unsigned int>(std::min(int(costmap_.getSizeInCellsX()), xn + 1));
-    const unsigned int u_y0 = static_cast<unsigned int>(std::max(0, y0));
-    const unsigned int u_yn = static_cast<unsigned int>(std::min(int(costmap_.getSizeInCellsY()), yn + 1));
-
-    ROS_DEBUG("Updating area x: [%d, %d] y: [%d, %d]", u_x0, u_xn, u_y0, u_yn);
-
     if (xn < x0 || yn < y0)
         return;
 
+    const unsigned int u_x0 = static_cast<unsigned int>(std::max(0, std::min(x0, int(costmap_.getSizeInCellsX()) - 1)));
+    const unsigned int u_xn = static_cast<unsigned int>(std::min(int(costmap_.getSizeInCellsX()), std::max(xn, 0) + 1));
+    const unsigned int u_y0 = static_cast<unsigned int>(std::max(0, std::min(y0, int(costmap_.getSizeInCellsY()) - 1)));
+    const unsigned int u_yn = static_cast<unsigned int>(std::min(int(costmap_.getSizeInCellsY()), std::max(yn, 0) + 1));
+
+    ROS_DEBUG_STREAM("Updating area " << u_x0 << " => " << u_xn << " " << u_y0 << " -> " << u_yn);
+
+    // Reset only the section to be updated
     costmap_.resetMap(u_x0, u_y0, u_xn, u_yn);
 
     for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins_.begin(); plugin != plugins_.end(); ++plugin)

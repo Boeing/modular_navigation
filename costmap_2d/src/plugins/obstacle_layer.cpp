@@ -253,7 +253,7 @@ void ObstacleLayer::laserScanValidInfCallback(const sensor_msgs::LaserScanConstP
     {
         projector_.transformLaserScanToPointCloud(message.header.frame_id, message, cloud, *tf_);
     }
-    catch (tf2::TransformException& ex)
+    catch (const tf2::TransformException& ex)
     {
         ROS_WARN("High fidelity enabled, but TF returned a transform exception to frame %s: %s", global_frame_.c_str(),
                  ex.what());
@@ -297,18 +297,21 @@ void ObstacleLayer::updateBounds(double robot_x, double robot_y, double robot_ya
 {
     if (rolling_window_)
         updateOrigin(robot_x - getSizeInMetersX() / 2, robot_y - getSizeInMetersY() / 2);
+
     if (!enabled_)
         return;
+
     useExtraBounds(min_x, min_y, max_x, max_y);
 
     bool current = true;
-    std::vector<Observation> observations, clearing_observations;
+    std::vector<Observation> observations;
+    std::vector<Observation> clearing_observations;
 
     // get the marking observations
-    current = current && getMarkingObservations(observations);
+    current &= getMarkingObservations(observations);
 
     // get the clearing observations
-    current = current && getClearingObservations(clearing_observations);
+    current &= getClearingObservations(clearing_observations);
 
     // update the global current status
     current_ = current;
@@ -376,6 +379,7 @@ void ObstacleLayer::updateFootprint(double robot_x, double robot_y, double robot
 {
     if (!footprint_clearing_enabled_)
         return;
+
     transformFootprint(robot_x, robot_y, robot_yaw, getFootprint(), transformed_footprint_);
 
     for (unsigned int i = 0; i < transformed_footprint_.size(); i++)
@@ -443,7 +447,6 @@ bool ObstacleLayer::getMarkingObservations(std::vector<Observation>& marking_obs
 bool ObstacleLayer::getClearingObservations(std::vector<Observation>& clearing_observations) const
 {
     bool current = true;
-    // get the clearing observations
     for (unsigned int i = 0; i < clearing_buffers_.size(); ++i)
     {
         clearing_buffers_[i]->lock();
@@ -459,8 +462,8 @@ bool ObstacleLayer::getClearingObservations(std::vector<Observation>& clearing_o
 void ObstacleLayer::raytraceFreespace(const Observation& clearing_observation, double* min_x, double* min_y,
                                       double* max_x, double* max_y)
 {
-    double ox = clearing_observation.origin_.x;
-    double oy = clearing_observation.origin_.y;
+    const double ox = clearing_observation.origin_.x;
+    const double oy = clearing_observation.origin_.y;
     const sensor_msgs::PointCloud2& cloud = *(clearing_observation.cloud_);
 
     // get the map coordinates of the origin of the sensor
@@ -475,10 +478,10 @@ void ObstacleLayer::raytraceFreespace(const Observation& clearing_observation, d
     }
 
     // we can pre-compute the enpoints of the map outside of the inner loop... we'll need these later
-    double origin_x = origin_x_, origin_y = origin_y_;
-    double map_end_x = origin_x + size_x_ * resolution_;
-    double map_end_y = origin_y + size_y_ * resolution_;
-
+    const double origin_x = origin_x_;
+    const double origin_y = origin_y_;
+    const double map_end_x = origin_x + size_x_ * resolution_;
+    const double map_end_y = origin_y + size_y_ * resolution_;
 
     touch(ox, oy, min_x, min_y, max_x, max_y);
 
@@ -533,6 +536,7 @@ void ObstacleLayer::raytraceFreespace(const Observation& clearing_observation, d
 
         unsigned int cell_raytrace_range = cellDistance(clearing_observation.raytrace_range_);
         MarkCell marker(costmap_, FREE_SPACE);
+
         // and finally... we can execute our trace to clear obstacles along that line
         raytraceLine(marker, x0, y0, x1, y1, cell_raytrace_range);
 

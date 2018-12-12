@@ -40,7 +40,7 @@ void InflationLayer::onInitialize()
         dynamic_reconfigure::Server<costmap_2d::InflationPluginConfig>::CallbackType cb =
             boost::bind(&InflationLayer::reconfigureCB, this, _1, _2);
 
-        if (dsrv_ != NULL)
+        if (dsrv_ != nullptr)
         {
             dsrv_->clearCallback();
             dsrv_->setCallback(cb);
@@ -90,17 +90,16 @@ void InflationLayer::updateBounds(double, double, double, double* min_x, double*
         last_min_y_ = *min_y;
         last_max_x_ = *max_x;
         last_max_y_ = *max_y;
-        // For some reason when I make these -<double>::max() it does not
-        // work with Costmap2D::worldToMapEnforceBounds(), so I'm using
-        // -<float>::max() instead.
-        *min_x = -std::numeric_limits<float>::max();
-        *min_y = -std::numeric_limits<float>::max();
-        *max_x = std::numeric_limits<float>::max();
-        *max_y = std::numeric_limits<float>::max();
+        *min_x = -std::numeric_limits<double>::max();
+        *min_y = -std::numeric_limits<double>::max();
+        *max_x = std::numeric_limits<double>::max();
+        *max_y = std::numeric_limits<double>::max();
         need_reinflation_ = false;
     }
     else
     {
+        // Only increase the area to update costs of inflation
+
         double tmp_min_x = last_min_x_;
         double tmp_min_y = last_min_y_;
         double tmp_max_x = last_max_x_;

@@ -80,8 +80,8 @@ unsigned char StaticLayer::interpretValue(unsigned char value) const
 
 void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
 {
-    ROS_INFO_STREAM("Received costmap of size=" << new_map->info.width << "x" << new_map->info.height
-                                                << " resolution=" << new_map->info.resolution);
+    ROS_INFO_STREAM("Received occupancy grid of size=" << new_map->info.width << "x" << new_map->info.height
+                                                       << " resolution=" << new_map->info.resolution);
 
     // We want to keep the resolution provided in configuration
     // But we need to increase the size of the costmap data to fit the map
@@ -89,17 +89,20 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     const double size_x_m = static_cast<double>(new_map->info.width * new_map->info.resolution);
     const double size_y_m = static_cast<double>(new_map->info.height * new_map->info.resolution);
 
-    const unsigned int size_x = static_cast<unsigned int>(size_x_m / resolution_);
-    const unsigned int size_y = static_cast<unsigned int>(size_y_m / resolution_);
+    const double resolution =
+        layered_costmap_->isRolling() ? layered_costmap_->getCostmap()->getResolution() : resolution_;
 
-    ROS_INFO_STREAM("Resizing costmap to size=" << size_x << "x" << size_y << " resolution=" << resolution_);
+    const unsigned int size_x = static_cast<unsigned int>(size_x_m / resolution);
+    const unsigned int size_y = static_cast<unsigned int>(size_y_m / resolution);
+
+    ROS_INFO_STREAM("Resizing costmap to size=" << size_x << "x" << size_y << " resolution=" << resolution);
 
     //
     // If rolling then don't resize the master grid
     //
     if (layered_costmap_->isRolling())
     {
-        resizeMap(size_x, size_y, resolution_, new_map->info.origin.position.x, new_map->info.origin.position.y);
+        resizeMap(size_x, size_y, resolution, new_map->info.origin.position.x, new_map->info.origin.position.y);
     }
     //
     // If not rolling then resize the master grid
@@ -107,7 +110,7 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     //
     else
     {
-        layered_costmap_->resizeMap(size_x, size_y, resolution_, new_map->info.origin.position.x,
+        layered_costmap_->resizeMap(size_x, size_y, resolution, new_map->info.origin.position.x,
                                     new_map->info.origin.position.y, true);
     }
 

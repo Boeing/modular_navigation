@@ -133,7 +133,8 @@ class ObstacleLayer : public CostmapLayer
         clearing_buffers_;  ///< @brief Used to store observation buffers used for clearing obstacles
 
     // Used only for testing purposes
-    std::vector<costmap_2d::Observation> static_clearing_observations_, static_marking_observations_;
+    std::vector<costmap_2d::Observation> static_clearing_observations_;
+    std::vector<costmap_2d::Observation> static_marking_observations_;
 
     bool rolling_window_;
     dynamic_reconfigure::Server<costmap_2d::ObstaclePluginConfig>* dsrv_;

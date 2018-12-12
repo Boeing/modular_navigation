@@ -161,7 +161,11 @@ class InflationLayer : public Layer
 
     unsigned char** cached_costs_;
     double** cached_distances_;
-    double last_min_x_, last_min_y_, last_max_x_, last_max_y_;
+
+    double last_min_x_;
+    double last_min_y_;
+    double last_max_x_;
+    double last_max_y_;
 
     void reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t level);
 

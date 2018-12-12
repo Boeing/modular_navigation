@@ -10,6 +10,11 @@
 
 #include <pluginlib/class_list_macros.h>
 
+#include <boost/geometry.hpp>
+#include <boost/geometry/algorithms/simplify.hpp>
+#include <boost/geometry/geometries/linestring.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+
 #include <global_planner/astar.h>
 #include <global_planner/dijkstra.h>
 #include <global_planner/gradient_path.h>
@@ -123,8 +128,7 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
 
     //
     // Copy the local costmap data
-    // We can't spend too much time doing this because the local planner needs
-    // access to it
+    // We can't spend too much time doing this because the local planner needs access to it
     //
     cv::Mat local_costmap;
     std::vector<unsigned char> local_costmap_data;
@@ -188,13 +192,12 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     //    ROS_INFO_STREAM("mm_origin_y: " << mm_origin_y);
 
     //
-    // Copy the global costmap data but resize to match the local costmap
-    // resolution
+    // Copy the global costmap data but resize to match the local costmap resolution
     //
     cv::Mat merged_costmap;
     std::vector<unsigned char> merged_costmap_data;
     cv::Mat global_costmap(g_y_size, g_x_size, CV_8UC1, global_costmap_->getCostmap()->getCharMap());
-    cv::resize(global_costmap, merged_costmap, cv::Size(mm_size_y, mm_size_x), 0, 0, cv::INTER_LINEAR);
+    cv::resize(global_costmap, merged_costmap, cv::Size(mm_size_x, mm_size_y), 0, 0, cv::INTER_LINEAR);
 
     //    ROS_INFO_STREAM("merged_costmap: " << merged_costmap.size);
 
@@ -305,15 +308,46 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
             return result;
         }
 
-        for (int i = path.size() - 1; i >= 0; i--)
+        std::vector<std::pair<float, float>> simplified_path;
         {
-            std::pair<float, float> point = path[i];
+            typedef boost::geometry::model::d2::point_xy<float> xy;
 
+            boost::geometry::model::linestring<xy> line;
+            for (const auto& coord : path)
+                boost::geometry::append(line, xy(coord.first, coord.second));
+
+            boost::geometry::model::linestring<xy> simplified;
+            const double step_size = 0.1 / mm_resolution;
+            boost::geometry::simplify(line, simplified, step_size);
+
+            ROS_DEBUG_STREAM("Path of length: " << path.size() << " simplified to " << simplified.size());
+
+            simplified_path.push_back({simplified.front().x(), simplified.front().y()});
+            for (std::size_t i = 1; i < simplified.size(); ++i)
+            {
+                const double distance = boost::geometry::distance(simplified[i], simplified[i - 1]);
+                if (distance > step_size)
+                {
+                    const unsigned int steps = static_cast<unsigned int>(distance / step_size);
+                    for (std::size_t s = 1; s <= steps; ++s)
+                    {
+                        const float f = static_cast<float>(s) / (steps + 1);
+                        const float x = simplified[i - 1].x() + (simplified[i].x() - simplified[i - 1].x()) * f;
+                        const float y = simplified[i - 1].y() + (simplified[i].y() - simplified[i - 1].y()) * f;
+                        simplified_path.push_back({x, y});
+                    }
+                }
+                simplified_path.push_back({simplified[i].x(), simplified[i].y()});
+            }
+        }
+
+        for (auto r_it = simplified_path.crbegin(); r_it != simplified_path.crend(); ++r_it)
+        {
             geometry_msgs::PoseStamped pose;
             pose.header.stamp = now;
             pose.header.frame_id = global_frame;
-            pose.pose.position.x = mm_origin_x + (point.first + 0.5) * mm_resolution;
-            pose.pose.position.y = mm_origin_y + (point.second + 0.5) * mm_resolution;
+            pose.pose.position.x = mm_origin_x + (r_it->first + 0.5) * mm_resolution;
+            pose.pose.position.y = mm_origin_y + (r_it->second + 0.5) * mm_resolution;
             pose.pose.position.z = 0.0;
             pose.pose.orientation.x = 0.0;
             pose.pose.orientation.y = 0.0;
