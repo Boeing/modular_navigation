@@ -241,8 +241,8 @@ void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, uns
  * @param  src_x The x index of the obstacle point inflation started at
  * @param  src_y The y index of the obstacle point inflation started at
  */
-inline void InflationLayer::enqueue(unsigned int index, unsigned int mx, unsigned int my, unsigned int src_x,
-                                    unsigned int src_y)
+inline void InflationLayer::enqueue(const unsigned int index, const unsigned int mx, const unsigned int my,
+                                    const unsigned int src_x, const unsigned int src_y)
 {
     if (!seen_[index])
     {
@@ -296,7 +296,7 @@ void InflationLayer::computeCaches()
 
 void InflationLayer::deleteKernels()
 {
-    if (cached_distances_ != NULL)
+    if (cached_distances_ != nullptr)
     {
         for (unsigned int i = 0; i <= cached_cell_inflation_radius_ + 1; ++i)
         {
@@ -305,10 +305,10 @@ void InflationLayer::deleteKernels()
         }
         if (cached_distances_)
             delete[] cached_distances_;
-        cached_distances_ = NULL;
+        cached_distances_ = nullptr;
     }
 
-    if (cached_costs_ != NULL)
+    if (cached_costs_ != nullptr)
     {
         for (unsigned int i = 0; i <= cached_cell_inflation_radius_ + 1; ++i)
         {
@@ -316,11 +316,11 @@ void InflationLayer::deleteKernels()
                 delete[] cached_costs_[i];
         }
         delete[] cached_costs_;
-        cached_costs_ = NULL;
+        cached_costs_ = nullptr;
     }
 }
 
-void InflationLayer::setInflationParameters(double inflation_radius, double cost_scaling_factor)
+void InflationLayer::setInflationParameters(const double inflation_radius, const double cost_scaling_factor)
 {
     if (weight_ != cost_scaling_factor || inflation_radius_ != inflation_radius)
     {

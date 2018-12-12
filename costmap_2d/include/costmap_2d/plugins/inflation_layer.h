@@ -26,7 +26,7 @@ class CellData
      * @param  sy The y coordinate of the closest obstacle cell in the costmap
      * @return
      */
-    CellData(double i, unsigned int x, unsigned int y, unsigned int sx, unsigned int sy)
+    CellData(const double i, const unsigned int x, const unsigned int y, const unsigned int sx, const unsigned int sy)
         : index_(i), x_(x), y_(y), src_x_(sx), src_y_(sy)
     {
     }
@@ -73,7 +73,7 @@ class InflationLayer : public Layer
     /** @brief  Given a distance, compute a cost.
      * @param  distance The distance from an obstacle in cells
      * @return A cost value for the distance */
-    inline unsigned char computeCost(double distance) const
+    inline unsigned char computeCost(const double distance) const
     {
         unsigned char cost = 0;
         if (distance == 0)
@@ -95,7 +95,7 @@ class InflationLayer : public Layer
      * @param inflation_radius The new inflation radius
      * @param cost_scaling_factor The new weight
      */
-    void setInflationParameters(double inflation_radius, double cost_scaling_factor);
+    void setInflationParameters(const double inflation_radius, const double cost_scaling_factor);
 
   protected:
     virtual void onFootprintChanged();
@@ -116,7 +116,7 @@ class InflationLayer : public Layer
      * @param src_y The y coordinate of the source cell
      * @return
      */
-    inline double distanceLookup(int mx, int my, int src_x, int src_y)
+    inline double distanceLookup(const int mx, const int my, const int src_x, const int src_y)
     {
         unsigned int dx = abs(mx - src_x);
         unsigned int dy = abs(my - src_y);
@@ -131,7 +131,7 @@ class InflationLayer : public Layer
      * @param src_y The y coordinate of the source cell
      * @return
      */
-    inline unsigned char costLookup(int mx, int my, int src_x, int src_y)
+    inline unsigned char costLookup(const int mx, const int my, const int src_x, const int src_y)
     {
         unsigned int dx = abs(mx - src_x);
         unsigned int dy = abs(my - src_y);
@@ -140,14 +140,15 @@ class InflationLayer : public Layer
 
     void computeCaches();
     void deleteKernels();
-    void inflate_area(int min_i, int min_j, int max_i, int max_j, unsigned char* master_grid);
+    void inflate_area(const int min_i, const int min_j, const int max_i, const int max_j, unsigned char* master_grid);
 
-    unsigned int cellDistance(double world_dist)
+    unsigned int cellDistance(const double world_dist)
     {
         return layered_costmap_->getCostmap()->cellDistance(world_dist);
     }
 
-    inline void enqueue(unsigned int index, unsigned int mx, unsigned int my, unsigned int src_x, unsigned int src_y);
+    inline void enqueue(const unsigned int index, const unsigned int mx, const unsigned int my,
+                        const unsigned int src_x, const unsigned int src_y);
 
     unsigned int cell_inflation_radius_;
     unsigned int cached_cell_inflation_radius_;
