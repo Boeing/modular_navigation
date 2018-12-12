@@ -27,7 +27,8 @@ class OrientationFilter
     virtual void processPath(std::vector<geometry_msgs::PoseStamped>& path);
 
     void setAngleBasedOnPositionDerivative(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t index);
-    void interpolate(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t start_index, const std::size_t end_index);
+    void interpolate(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t start_index,
+                     const std::size_t end_index);
 
     void setMode(OrientationMode new_mode)
     {

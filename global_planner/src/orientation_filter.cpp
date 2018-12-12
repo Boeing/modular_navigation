@@ -34,7 +34,6 @@ void set_angle(geometry_msgs::PoseStamped* pose, double angle)
     q.setRPY(0, 0, angle);
     tf2::convert(q, pose->pose.orientation);
 }
-
 }
 
 void OrientationFilter::processPath(std::vector<geometry_msgs::PoseStamped>& path)
@@ -117,9 +116,10 @@ void OrientationFilter::processPath(std::vector<geometry_msgs::PoseStamped>& pat
     }
 }
 
-void OrientationFilter::setAngleBasedOnPositionDerivative(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t index)
+void OrientationFilter::setAngleBasedOnPositionDerivative(std::vector<geometry_msgs::PoseStamped>& path,
+                                                          const std::size_t index)
 {
-    assert (index < path.size());
+    assert(index < path.size());
 
     const std::size_t index0 = index > window_size_ ? index - window_size_ : 0UL;
     const std::size_t index1 = std::min(path.size() - 1, index + window_size_);
@@ -133,11 +133,12 @@ void OrientationFilter::setAngleBasedOnPositionDerivative(std::vector<geometry_m
     set_angle(&path[index], angle);
 }
 
-void OrientationFilter::interpolate(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t start_index, const std::size_t end_index)
+void OrientationFilter::interpolate(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t start_index,
+                                    const std::size_t end_index)
 {
-    assert (start_index < path.size());
-    assert (end_index < path.size());
-    assert (start_index < end_index);
+    assert(start_index < path.size());
+    assert(end_index < path.size());
+    assert(start_index < end_index);
 
     const double start_yaw = tf2::getYaw(path[start_index].pose.orientation);
     const double end_yaw = tf2::getYaw(path[end_index].pose.orientation);
@@ -152,5 +153,4 @@ void OrientationFilter::interpolate(std::vector<geometry_msgs::PoseStamped>& pat
         set_angle(&path[i], angle);
     }
 }
-
 };

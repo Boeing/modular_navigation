@@ -43,8 +43,8 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
 
     if (rolling_window_)
     {
-        double new_origin_x = robot_x - costmap_.getSizeInMetersX() / 2;
-        double new_origin_y = robot_y - costmap_.getSizeInMetersY() / 2;
+        const double new_origin_x = robot_x - costmap_.getSizeInMetersX() / 2;
+        const double new_origin_y = robot_y - costmap_.getSizeInMetersY() / 2;
         costmap_.updateOrigin(new_origin_x, new_origin_y);
     }
 
