@@ -35,10 +35,10 @@
 #include <map>
 
 #include <costmap_2d/costmap_2d.h>
-#include <costmap_2d/inflation_layer.h>
 #include <costmap_2d/layered_costmap.h>
 #include <costmap_2d/observation_buffer.h>
-#include <costmap_2d/obstacle_layer.h>
+#include <costmap_2d/plugins/inflation_layer.h>
+#include <costmap_2d/plugins/obstacle_layer.h>
 #include <costmap_2d/testing_helper.h>
 #include <gtest/gtest.h>
 
