@@ -1,10 +1,10 @@
-#include <angles/angles.h>
-#include <global_planner/orientation_filter.h>
+#include <astar_planner/orientation_filter.h>
+
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-namespace global_planner
+namespace astar_planner
 {
 
 namespace
@@ -153,4 +153,4 @@ void OrientationFilter::interpolate(std::vector<geometry_msgs::PoseStamped>& pat
         set_angle(&path[i], angle);
     }
 }
-};
+}
