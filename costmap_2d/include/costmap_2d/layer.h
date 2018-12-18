@@ -42,7 +42,7 @@ class Layer
 
     virtual void reset() = 0;
 
-    virtual ~Layer() = 0;
+    virtual ~Layer(){};
 
     /**
      * @brief Check to make sure all the data in the layer is up to date.
