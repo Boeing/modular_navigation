@@ -1,9 +1,12 @@
-#include <global_planner/planner_core.h>
+#include <astar_planner/astar.h>
+#include <astar_planner/plugin.h>
 
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+
+#include <chrono>
 
 #include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_2d.h>
@@ -15,29 +18,23 @@
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
 
-#include <global_planner/astar.h>
-#include <global_planner/dijkstra.h>
-#include <global_planner/gradient_path.h>
-#include <global_planner/grid_path.h>
-#include <global_planner/quadratic_calculator.h>
+PLUGINLIB_EXPORT_CLASS(astar_planner::AStarPlanner, nav_core::BaseGlobalPlanner)
 
-PLUGINLIB_EXPORT_CLASS(global_planner::GlobalPlanner, nav_core::BaseGlobalPlanner)
-
-namespace global_planner
+namespace astar_planner
 {
 
-GlobalPlanner::GlobalPlanner()
-    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), allow_unknown_(true)
+AStarPlanner::AStarPlanner()
+    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), publish_potential_(true)
 {
 }
 
-GlobalPlanner::~GlobalPlanner()
+AStarPlanner::~AStarPlanner()
 {
 }
 
-void GlobalPlanner::initialize(std::string name, std::shared_ptr<tf2_ros::Buffer> tf_buffer,
-                               std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
-                               std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap)
+void AStarPlanner::initialize(std::string name, std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+                              std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
+                              std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap)
 {
     tf_buffer_ = tf_buffer;
     global_costmap_ = global_costmap;
@@ -45,72 +42,26 @@ void GlobalPlanner::initialize(std::string name, std::shared_ptr<tf2_ros::Buffer
 
     ros::NodeHandle private_nh("~/" + name);
 
-    const unsigned int cx = global_costmap->getCostmap()->getSizeInCellsX();
-    const unsigned int cy = global_costmap->getCostmap()->getSizeInCellsY();
-
-    bool use_quadratic;
-    private_nh.param("use_quadratic", use_quadratic, true);
-    if (use_quadratic)
-        p_calc_ = std::make_shared<QuadraticCalculator>(cx, cy);
-    else
-        p_calc_ = std::make_shared<PotentialCalculator>(cx, cy);
-
-    bool use_dijkstra;
-    private_nh.param("use_dijkstra", use_dijkstra, true);
-    if (use_dijkstra)
-    {
-        auto de = std::make_shared<DijkstraExpansion>(p_calc_, cx, cy);
-        de->setPreciseStart(true);
-        planner_ = de;
-    }
-    else
-        planner_ = std::make_shared<AStarExpansion>(p_calc_, cx, cy);
-
-    bool use_grid_path;
-    private_nh.param("use_grid_path", use_grid_path, false);
-    if (use_grid_path)
-        path_maker_ = std::make_shared<GridPath>(p_calc_);
-    else
-        path_maker_ = std::make_shared<GradientPath>(p_calc_);
-
-    orientation_filter_ = std::make_shared<OrientationFilter>();
+    orientation_filter_.setMode(1);
+    orientation_filter_.setWindowSize(1);
 
     plan_pub_ = private_nh.advertise<nav_msgs::Path>("plan", 1);
     potential_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("potential", 1);
-
-    private_nh.param("allow_unknown", allow_unknown_, true);
-    planner_->setHasUnknown(allow_unknown_);
-    private_nh.param("publish_scale", publish_scale_, 100);
-
-    dsrv_ = std::unique_ptr<dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>>(
-        new dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>(private_nh));
-    dynamic_reconfigure::Server<global_planner::GlobalPlannerConfig>::CallbackType cb =
-        boost::bind(&GlobalPlanner::reconfigureCB, this, _1, _2);
-    dsrv_->setCallback(cb);
 }
 
-void GlobalPlanner::reconfigureCB(global_planner::GlobalPlannerConfig& config, uint32_t)
-{
-    planner_->setLethalCost(config.lethal_cost);
-    path_maker_->setLethalCost(config.lethal_cost);
-    planner_->setNeutralCost(config.neutral_cost);
-    planner_->setFactor(config.cost_factor);
-    publish_potential_ = config.publish_potential;
-    orientation_filter_->setMode(config.orientation_mode);
-    orientation_filter_->setWindowSize(config.orientation_window_size);
-}
-
-nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& start,
-                                             const geometry_msgs::PoseStamped& goal)
+nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& start,
+                                            const geometry_msgs::PoseStamped& goal)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
     nav_core::PlanResult result;
 
-    const std::string robot_frame = local_costmap_->getBaseFrameID();
-    const std::string local_frame = local_costmap_->getGlobalFrameID();
+    // const std::string robot_frame = local_costmap_->getBaseFrameID();
+    // const std::string local_frame = local_costmap_->getGlobalFrameID();
     const std::string global_frame = global_costmap_->getGlobalFrameID();
     const ros::Time now = ros::Time::now();
+
+    // TODO transform local frame to global frame when super imposing map
 
     if (goal.header.frame_id != global_frame)
     {
@@ -171,35 +122,30 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     const double mm_origin_y = g_origin_y;
     const double mm_resolution = l_resolution;
 
-    //    ROS_INFO_STREAM("scale: " << scale);
+    ROS_DEBUG_STREAM("l_x_size: " << l_x_size);
+    ROS_DEBUG_STREAM("l_y_size: " << l_y_size);
+    ROS_DEBUG_STREAM("l_resolution: " << l_resolution);
+    ROS_DEBUG_STREAM("l_origin_x: " << l_origin_x);
+    ROS_DEBUG_STREAM("l_origin_y: " << l_origin_y);
 
-    //    ROS_INFO_STREAM("l_x_size: " << l_x_size);
-    //    ROS_INFO_STREAM("l_y_size: " << l_y_size);
-    //    ROS_INFO_STREAM("l_resolution: " << l_resolution);
-    //    ROS_INFO_STREAM("l_origin_x: " << l_origin_x);
-    //    ROS_INFO_STREAM("l_origin_y: " << l_origin_y);
+    ROS_DEBUG_STREAM("g_x_size: " << g_x_size);
+    ROS_DEBUG_STREAM("g_y_size: " << g_y_size);
+    ROS_DEBUG_STREAM("g_resolution: " << g_resolution);
+    ROS_DEBUG_STREAM("g_origin_x: " << g_origin_x);
+    ROS_DEBUG_STREAM("g_origin_y: " << g_origin_y);
 
-    //    ROS_INFO_STREAM("g_x_size: " << g_x_size);
-    //    ROS_INFO_STREAM("g_y_size: " << g_y_size);
-    //    ROS_INFO_STREAM("g_resolution: " << g_resolution);
-    //    ROS_INFO_STREAM("g_origin_x: " << g_origin_x);
-    //    ROS_INFO_STREAM("g_origin_y: " << g_origin_y);
-
-    //    ROS_INFO_STREAM("mm_size_x: " << mm_size_x);
-    //    ROS_INFO_STREAM("mm_size_y: " << mm_size_y);
-    //    ROS_INFO_STREAM("mm_resolution: " << mm_resolution);
-    //    ROS_INFO_STREAM("mm_origin_x: " << mm_origin_x);
-    //    ROS_INFO_STREAM("mm_origin_y: " << mm_origin_y);
+    ROS_DEBUG_STREAM("mm_size_x: " << mm_size_x);
+    ROS_DEBUG_STREAM("mm_size_y: " << mm_size_y);
+    ROS_DEBUG_STREAM("mm_resolution: " << mm_resolution);
+    ROS_DEBUG_STREAM("mm_origin_x: " << mm_origin_x);
+    ROS_DEBUG_STREAM("mm_origin_y: " << mm_origin_y);
 
     //
     // Copy the global costmap data but resize to match the local costmap resolution
     //
     cv::Mat merged_costmap;
-    std::vector<unsigned char> merged_costmap_data;
     cv::Mat global_costmap(g_y_size, g_x_size, CV_8UC1, global_costmap_->getCostmap()->getCharMap());
     cv::resize(global_costmap, merged_costmap, cv::Size(mm_size_x, mm_size_y), 0, 0, cv::INTER_LINEAR);
-
-    //    ROS_INFO_STREAM("merged_costmap: " << merged_costmap.size);
 
     //
     // Super impose the local costmap data
@@ -222,12 +168,10 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     const double goal_x = (goal.pose.position.x - mm_origin_x) / mm_resolution - 0.5;
     const double goal_y = (goal.pose.position.y - mm_origin_y) / mm_resolution - 0.5;
 
-    //    ROS_INFO_STREAM("START: " << start.pose.position.x << " " <<
-    //    start.pose.position.y); ROS_INFO_STREAM("GOAL: " << goal.pose.position.x
-    //    << " " << goal.pose.position.y);
-
-    //    ROS_INFO_STREAM("START: " << start_x << " " << start_y);
-    //    ROS_INFO_STREAM("GOAL: " << goal_x << " " << goal_y);
+    ROS_DEBUG_STREAM("START: " << start.pose.position.x << " " << start.pose.position.y << " -> " << start_x << " "
+                               << start_y);
+    ROS_DEBUG_STREAM("GOAL: " << goal.pose.position.x << " " << goal.pose.position.y << " -> " << goal_x << " "
+                              << goal_y);
 
     if (start_x < 0 || start_x > mm_size_x || start_y < 0 || start_y > mm_size_y)
     {
@@ -243,17 +187,20 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
         return result;
     }
 
-    // TODO clear the starting / end cell within the costmap because we know it
-    // can't be an obstacle
+    const uint8_t obstacle_threshold = 253;
+    const double neutral_cost = 10.0;
+    PathFinder astar(mm_size_x, mm_size_y, merged_costmap.data, obstacle_threshold, neutral_cost);
 
-    p_calc_->setSize(mm_size_x, mm_size_y);
-    planner_->setSize(mm_size_x, mm_size_y);
-    path_maker_->setSize(mm_size_x, mm_size_y);
+    const Coord2D start_coord(static_cast<int>(start_x), static_cast<int>(start_y));
+    const Coord2D goal_coord(static_cast<int>(goal_x), static_cast<int>(goal_y));
 
-    std::vector<float> potential_array(mm_size_x * mm_size_y);
+    const auto t0 = std::chrono::steady_clock::now();
 
-    bool found_legal = planner_->calculatePotentials(merged_costmap.data, start_x, start_y, goal_x, goal_y,
-                                                     mm_size_x * mm_size_y * 2, &potential_array[0]);
+    PathResult astar_result = astar.findPath(start_coord, goal_coord);
+
+    ROS_INFO_STREAM(
+        "A-STAR took "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
     if (publish_potential_)
     {
@@ -270,57 +217,48 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
 
         grid.data.resize(mm_size_x * mm_size_y);
 
-        float max = 0.0;
+        double max = 0.0;
         for (unsigned int i = 0; i < grid.data.size(); i++)
         {
-            const float p = potential_array[i];
-            if (p < POT_HIGH)
+            const double p = astar.gridMap()[i].cost;
+            if (p > max)
             {
-                if (p > max)
-                {
-                    max = p;
-                }
+                max = p;
             }
         }
 
         for (unsigned int i = 0; i < grid.data.size(); i++)
         {
-            if (potential_array[i] >= POT_HIGH)
+            if (astar.gridMap()[i].cost >= std::numeric_limits<double>::max())
             {
                 grid.data[i] = -1;
             }
             else
-                grid.data[i] = potential_array[i] * publish_scale_ / max;
+            {
+                grid.data[i] = static_cast<char>(astar.gridMap()[i].cost * 100.0 / max);
+            }
         }
         potential_pub_.publish(grid);
     }
 
-    if (found_legal)
+    if (astar_result.success)
     {
         ROS_INFO("Found a plan");
-
-        // extract the plan
-        std::vector<std::pair<float, float>> path;
-        if (!path_maker_->getPath(&potential_array[0], start_x, start_y, goal_x, goal_y, path))
+        std::vector<std::pair<double, double>> simplified_path;
         {
-            ROS_ERROR("NO PATH!");
-            result.success = false;
-            return result;
-        }
-
-        std::vector<std::pair<float, float>> simplified_path;
-        {
-            typedef boost::geometry::model::d2::point_xy<float> xy;
+            typedef boost::geometry::model::d2::point_xy<double> xy;
 
             boost::geometry::model::linestring<xy> line;
-            for (const auto& coord : path)
-                boost::geometry::append(line, xy(coord.first, coord.second));
+            boost::geometry::append(line, xy(goal_x, goal_y));
+            for (const Coord2D& coord : astar_result.path)
+                boost::geometry::append(line, xy(coord.x, coord.y));
+            boost::geometry::append(line, xy(start_x, start_y));
 
             boost::geometry::model::linestring<xy> simplified;
-            const double step_size = 0.1 / mm_resolution;
+            const double step_size = 0.04 / mm_resolution;
             boost::geometry::simplify(line, simplified, step_size);
 
-            ROS_DEBUG_STREAM("Path of length: " << path.size() << " simplified to " << simplified.size());
+            ROS_DEBUG_STREAM("Path of length: " << line.size() << " simplified to " << simplified.size());
 
             simplified_path.push_back({simplified.front().x(), simplified.front().y()});
             for (std::size_t i = 1; i < simplified.size(); ++i)
@@ -331,9 +269,9 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
                     const unsigned int steps = static_cast<unsigned int>(distance / step_size);
                     for (std::size_t s = 1; s <= steps; ++s)
                     {
-                        const float f = static_cast<float>(s) / (steps + 1);
-                        const float x = simplified[i - 1].x() + (simplified[i].x() - simplified[i - 1].x()) * f;
-                        const float y = simplified[i - 1].y() + (simplified[i].y() - simplified[i - 1].y()) * f;
+                        const double f = static_cast<double>(s) / (steps + 1);
+                        const double x = simplified[i - 1].x() + (simplified[i].x() - simplified[i - 1].x()) * f;
+                        const double y = simplified[i - 1].y() + (simplified[i].y() - simplified[i - 1].y()) * f;
                         simplified_path.push_back({x, y});
                     }
                 }
@@ -360,11 +298,18 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
         result.plan.push_back(goal_copy);
 
         // add orientations if needed
-        orientation_filter_->processPath(result.plan);
+        orientation_filter_.processPath(result.plan);
 
         // publish the plan for visualization purposes
-        publishPlan(result.plan);
+        if (!result.plan.empty())
+        {
+            nav_msgs::Path gui_path;
+            gui_path.header = result.plan.front().header;
+            gui_path.poses = result.plan;
+            plan_pub_.publish(gui_path);
+        }
 
+        result.cost = astar_result.cost;
         result.success = true;
     }
     else
@@ -376,22 +321,12 @@ nav_core::PlanResult GlobalPlanner::makePlan(const geometry_msgs::PoseStamped& s
     return result;
 }
 
-double GlobalPlanner::cost(const std::vector<geometry_msgs::PoseStamped>&)
+double AStarPlanner::cost(const std::vector<geometry_msgs::PoseStamped>&)
 {
     return 0.0;
 }
 
-void GlobalPlanner::publishPlan(const std::vector<geometry_msgs::PoseStamped>& path)
-{
-    if (path.empty())
-        return;
-    nav_msgs::Path gui_path;
-    gui_path.header = path.front().header;
-    gui_path.poses = path;
-    plan_pub_.publish(gui_path);
-}
-
-void GlobalPlanner::outlineMap(unsigned char* costarr, int nx, int ny, unsigned char value)
+void AStarPlanner::outlineMap(unsigned char* costarr, int nx, int ny, unsigned char value)
 {
     unsigned char* pc = costarr;
     for (int i = 0; i < nx; i++)
@@ -406,5 +341,4 @@ void GlobalPlanner::outlineMap(unsigned char* costarr, int nx, int ny, unsigned 
     for (int i = 0; i < ny; i++, pc += nx)
         *pc = value;
 }
-
-}  // end namespace global_planner
+}

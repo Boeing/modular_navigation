@@ -1,9 +1,9 @@
-#ifndef GLOBAL_PLANNER_ORIENTATION_FILTER_H
-#define GLOBAL_PLANNER_ORIENTATION_FILTER_H
+#ifndef ASTAR_PLANNER_ORIENTATION_FILTER_H
+#define ASTAR_PLANNER_ORIENTATION_FILTER_H
 
 #include <nav_msgs/Path.h>
 
-namespace global_planner
+namespace astar_planner
 {
 
 enum OrientationMode
@@ -20,7 +20,7 @@ enum OrientationMode
 class OrientationFilter
 {
   public:
-    OrientationFilter() : omode_(NONE)
+    OrientationFilter() : omode_(NONE), window_size_(1)
     {
     }
 
@@ -48,6 +48,6 @@ class OrientationFilter
     OrientationMode omode_;
     std::size_t window_size_;
 };
+}
 
-}  // end namespace global_planner
 #endif

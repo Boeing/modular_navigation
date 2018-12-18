@@ -1,0 +1,7 @@
+<library path="lib/libastar_planner">
+  <class name="astar_planner/AStarPlanner" type="astar_planner::AStarPlanner" base_class_type="nav_core::BaseGlobalPlanner">
+    <description>
+      A simple implementation of astar
+    </description>
+  </class>
+</library>

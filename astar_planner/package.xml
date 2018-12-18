@@ -1,29 +1,26 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>global_planner</name>
-    <version>1.16.2</version>
-    <description>Fork of global_planner</description>
+    <name>astar_planner</name>
+    <version>0.1.0</version>
+    <description>astar_planner</description>
     <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
 
     <buildtool_depend>catkin</buildtool_depend>
 
-    <build_depend>tf2_geometry_msgs</build_depend>
-
     <depend>costmap_2d</depend>
-    <depend>dynamic_reconfigure</depend>
+    <depend>cv_bridge</depend>
+    <depend>eigen</depend>
     <depend>geometry_msgs</depend>
     <depend>nav_core</depend>
     <depend>nav_msgs</depend>
+    <depend>opencv3</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
     <depend>tf2_ros</depend>
-    <depend>eigen</depend>
-    <depend>opencv3</depend>
-    <depend>cv_bridge</depend>
 
     <export>
-        <nav_core plugin="${prefix}/bgp_plugin.xml"/>
+        <nav_core plugin="${prefix}/plugin.xml"/>
     </export>
 </package>
