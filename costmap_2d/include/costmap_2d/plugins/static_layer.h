@@ -36,6 +36,7 @@ class StaticLayer : public CostmapLayer
     }
 
   private:
+    // cppcheck-suppress unusedPrivateFunction
     void incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map);
 
     unsigned char interpretValue(unsigned char value) const;

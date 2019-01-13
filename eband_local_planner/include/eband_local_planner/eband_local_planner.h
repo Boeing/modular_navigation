@@ -29,7 +29,7 @@ namespace eband_local_planner
 class EBandPlanner
 {
   public:
-    EBandPlanner(costmap_2d::Costmap2DROS* costmap_ros, const int num_optim_iterations,
+    EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap, const int num_optim_iterations,
                  const double internal_force_gain, const double external_force_gain, const double tiny_bubble_distance,
                  const double tiny_bubble_expansion, const double min_bubble_overlap,
                  const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
@@ -85,7 +85,7 @@ class EBandPlanner
     bool optimizeBand(std::vector<Bubble>& band);
 
   private:
-    costmap_2d::Costmap2DROS* costmap_ros_;
+    const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
 
     // parameters
     const int num_optim_iterations_;      // maximal number of iteration steps during optimization of band
@@ -284,7 +284,6 @@ class EBandPlanner
      */
     bool convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band);
 };
+}
 
-}  // namespace eband_local_planner
-
-#endif  // EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
+#endif

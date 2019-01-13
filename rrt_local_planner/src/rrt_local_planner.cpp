@@ -130,7 +130,7 @@ double getDistanceToCollision(const unsigned char cost, const double inflation_w
     }
 }
 
-RRTLocalPlanner::RRTLocalPlanner() : costmap_ros_(nullptr)
+RRTLocalPlanner::RRTLocalPlanner() : tf_buffer_(nullptr), costmap_ros_(nullptr)
 {
 }
 
@@ -573,10 +573,11 @@ bool RRTLocalPlanner::clearPlan()
     return true;
 }
 
-void RRTLocalPlanner::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
+void RRTLocalPlanner::initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                                 const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap)
 {
-    tf_buffer_ = tf;
-    costmap_ros_ = costmap_ros;
+    tf_buffer_ = tf_buffer.get();
+    costmap_ros_ = local_costmap.get();
 
     // Assert the costmap is in odom
     const std::string local_frame = costmap_ros_->getGlobalFrameID();
@@ -673,7 +674,7 @@ TrajectoryPlanResult RRTLocalPlanner::planLocalTrajectory(const Eigen::Isometry2
     if (ompl::base::PlannerStatus::StatusType(solved) == ompl::base::PlannerStatus::EXACT_SOLUTION)
     {
         result.success = true;
-        // result.cost = pdef->getSolutionPath()->cost(pdef->getOptimizationObjective()).value();
+        result.cost = pdef->getSolutionPath()->cost(pdef->getOptimizationObjective()).value();
         result.length = pdef->getSolutionPath()->length();
 
         ROS_INFO_STREAM(result.planner->getName() << " found a solution of length " << result.length

@@ -169,7 +169,7 @@ class InflationLayer : public Layer
 
     void reconfigureCB(costmap_2d::InflationPluginConfig& config, uint32_t level);
 
-    bool need_reinflation_;  ///< Indicates that the entire costmap should be reinflated next time around.
+    bool need_reinflation_;
 };
 
 }  // namespace costmap_2d

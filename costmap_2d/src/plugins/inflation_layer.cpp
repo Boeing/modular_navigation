@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <boost/thread.hpp>
 
+#include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_math.h>
 #include <costmap_2d/footprint.h>
 #include <costmap_2d/plugins/inflation_layer.h>
@@ -9,18 +10,16 @@
 
 PLUGINLIB_EXPORT_CLASS(costmap_2d::InflationLayer, costmap_2d::Layer)
 
-using costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
-using costmap_2d::LETHAL_OBSTACLE;
-using costmap_2d::NO_INFORMATION;
-
 namespace costmap_2d
 {
 
 InflationLayer::InflationLayer()
-    : inflation_radius_(0), weight_(0), inflate_unknown_(false), cell_inflation_radius_(0),
-      cached_cell_inflation_radius_(0), dsrv_(NULL), seen_(NULL), cached_costs_(NULL), cached_distances_(NULL),
+    : resolution_(1), inflation_radius_(0), inscribed_radius_(0), weight_(0), inflate_unknown_(false),
+      cell_inflation_radius_(0), cached_cell_inflation_radius_(0), inflation_cells_({}), dsrv_(nullptr), seen_(nullptr),
+      seen_size_(0), cached_costs_(nullptr), cached_distances_(nullptr),
       last_min_x_(-std::numeric_limits<float>::max()), last_min_y_(-std::numeric_limits<float>::max()),
-      last_max_x_(std::numeric_limits<float>::max()), last_max_y_(std::numeric_limits<float>::max())
+      last_max_x_(std::numeric_limits<float>::max()), last_max_y_(std::numeric_limits<float>::max()),
+      need_reinflation_(false)
 {
     inflation_access_ = new boost::recursive_mutex();
 }
@@ -175,7 +174,7 @@ void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, uns
         {
             int index = master_grid.getIndex(i, j);
             unsigned char cost = master_array[index];
-            if (cost == LETHAL_OBSTACLE)
+            if (cost == costmap_2d::LETHAL_OBSTACLE)
             {
                 obs_bin.push_back(CellData(index, i, j, i, j));
             }
@@ -210,8 +209,9 @@ void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, uns
             // assign the cost associated with the distance from an obstacle to the cell
             unsigned char cost = costLookup(mx, my, sx, sy);
             unsigned char old_cost = master_array[index];
-            if (old_cost == NO_INFORMATION &&
-                (inflate_unknown_ ? (cost > FREE_SPACE) : (cost >= INSCRIBED_INFLATED_OBSTACLE)))
+            if (old_cost == costmap_2d::NO_INFORMATION &&
+                (inflate_unknown_ ? (cost > costmap_2d::FREE_SPACE)
+                                  : (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)))
                 master_array[index] = cost;
             else
                 master_array[index] = std::max(old_cost, cost);

@@ -1,39 +1,3 @@
-/*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2008, Willow Garage, Inc.
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of the Willow Garage nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Eitan Marder-Eppstein
- *********************************************************************/
 #ifndef VOXEL_GRID_VOXEL_GRID_H
 #define VOXEL_GRID_VOXEL_GRID_H
 
@@ -73,6 +37,8 @@ class VoxelGrid
      * @param size_z The z size of the grid, only sizes <= 16 are supported
      */
     VoxelGrid(unsigned int size_x, unsigned int size_y, unsigned int size_z);
+
+    VoxelGrid(const VoxelGrid&) = delete;
 
     ~VoxelGrid();
 
@@ -155,7 +121,7 @@ class VoxelGrid
         // make sure the number of bits in each is below our thesholds
         if (bitsBelowThreshold(unknown_bits, 1) && bitsBelowThreshold(marked_bits, 1))
         {
-            costmap[index] = 0;
+            costmap_[index] = 0;
         }
     }
 
@@ -212,6 +178,7 @@ class VoxelGrid
                        unsigned int max_length = UINT_MAX);
     void clearVoxelLine(double x0, double y0, double z0, double x1, double y1, double z1,
                         unsigned int max_length = UINT_MAX);
+
     void clearVoxelLineInMap(double x0, double y0, double z0, double x1, double y1, double z1, unsigned char* map_2d,
                              unsigned int unknown_threshold, unsigned int mark_threshold, unsigned char free_cost = 0,
                              unsigned char unknown_cost = 255, unsigned int max_length = UINT_MAX);
@@ -324,14 +291,14 @@ class VoxelGrid
 
     unsigned int size_x_, size_y_, size_z_;
     uint32_t* data_;
-    unsigned char* costmap;
+    unsigned char* costmap_;
 
     // Aren't functors so much fun... used to recreate the Bresenham macro Eric wrote in the original version, but in
     // "proper" c++
     class MarkVoxel
     {
       public:
-        MarkVoxel(uint32_t* data) : data_(data)
+        explicit MarkVoxel(uint32_t* data) : data_(data)
         {
         }
         inline void operator()(unsigned int offset, unsigned int z_mask)
@@ -346,7 +313,7 @@ class VoxelGrid
     class ClearVoxel
     {
       public:
-        ClearVoxel(uint32_t* data) : data_(data)
+        explicit ClearVoxel(uint32_t* data) : data_(data)
         {
         }
         inline void operator()(unsigned int offset, unsigned int z_mask)
@@ -416,7 +383,7 @@ class VoxelGrid
     class GridOffset
     {
       public:
-        GridOffset(unsigned int& offset) : offset_(offset)
+        explicit GridOffset(unsigned int& offset) : offset_(offset)
         {
         }
         inline void operator()(int offset_val)
@@ -431,7 +398,7 @@ class VoxelGrid
     class ZOffset
     {
       public:
-        ZOffset(unsigned int& z_mask) : z_mask_(z_mask)
+        explicit ZOffset(unsigned int& z_mask) : z_mask_(z_mask)
         {
         }
         inline void operator()(int offset_val)
@@ -443,7 +410,6 @@ class VoxelGrid
         unsigned int& z_mask_;
     };
 };
+}
 
-}  // namespace voxel_grid
-
-#endif  // VOXEL_GRID_VOXEL_GRID_H
+#endif

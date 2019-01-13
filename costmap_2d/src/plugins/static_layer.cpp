@@ -9,14 +9,12 @@
 
 PLUGINLIB_EXPORT_CLASS(costmap_2d::StaticLayer, costmap_2d::Layer)
 
-using costmap_2d::FREE_SPACE;
-using costmap_2d::LETHAL_OBSTACLE;
-using costmap_2d::NO_INFORMATION;
-
 namespace costmap_2d
 {
 
 StaticLayer::StaticLayer()
+    : map_received_(false), has_updated_data_(false), track_unknown_space_(false), use_maximum_(false),
+      trinary_costmap_(false), lethal_threshold_(0), unknown_cost_value_(0)
 {
 }
 

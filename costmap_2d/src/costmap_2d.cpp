@@ -65,6 +65,7 @@ void Costmap2D::resetMap(unsigned int x0, unsigned int y0, unsigned int xn, unsi
         memset(costmap_ + y, default_value_, len * sizeof(unsigned char));
 }
 
+// cppcheck-suppress unusedFunction
 bool Costmap2D::copyCostmapWindow(const Costmap2D& map, double win_origin_x, double win_origin_y, double win_size_x,
                                   double win_size_y)
 {
@@ -190,6 +191,7 @@ void Costmap2D::worldToMapNoBounds(double wx, double wy, int& mx, int& my) const
     my = (int)((wy - origin_y_) / resolution_);
 }
 
+// cppcheck-suppress unusedFunction
 void Costmap2D::worldToMapEnforceBounds(double wx, double wy, int& mx, int& my) const
 {
     // Here we avoid doing any math to wx,wy before comparing them to
@@ -424,6 +426,7 @@ double Costmap2D::getResolution() const
     return resolution_;
 }
 
+// cppcheck-suppress unusedFunction
 bool Costmap2D::saveMap(std::string file_name)
 {
     FILE* fp = fopen(file_name.c_str(), "w");
@@ -433,7 +436,7 @@ bool Costmap2D::saveMap(std::string file_name)
         return false;
     }
 
-    fprintf(fp, "P2\n%u\n%u\n%u\n", size_x_, size_y_, 0xff);
+    fprintf(fp, "P2\n%u\n%u\n%u\n", size_x_, size_y_, static_cast<unsigned int>(0xff));
     for (unsigned int iy = 0; iy < size_y_; iy++)
     {
         for (unsigned int ix = 0; ix < size_x_; ix++)
@@ -446,5 +449,4 @@ bool Costmap2D::saveMap(std::string file_name)
     fclose(fp);
     return true;
 }
-
-}  // namespace costmap_2d
+}

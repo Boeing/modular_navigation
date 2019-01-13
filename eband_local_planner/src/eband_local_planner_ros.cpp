@@ -13,7 +13,7 @@ PLUGINLIB_DECLARE_CLASS(eband_local_planner, EBandPlannerROS, eband_local_planne
 namespace eband_local_planner
 {
 
-EBandPlannerROS::EBandPlannerROS() : costmap_ros_(nullptr), tf_buffer_(nullptr), goal_reached_(false)
+EBandPlannerROS::EBandPlannerROS() : tf_buffer_(nullptr), local_costmap_(nullptr), goal_reached_(false)
 {
 }
 
@@ -21,10 +21,11 @@ EBandPlannerROS::~EBandPlannerROS()
 {
 }
 
-void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros)
+void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                                 const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap)
 {
-    costmap_ros_ = costmap_ros;
     tf_buffer_ = tf_buffer;
+    local_costmap_ = local_costmap;
 
     ros::NodeHandle gn;
     ros::NodeHandle pn("~/" + name);
@@ -46,7 +47,7 @@ void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, c
     ROS_INFO_STREAM("tiny_bubble_expansion: " << tiny_bubble_expansion);
 
     eband_ = std::shared_ptr<EBandPlanner>(new EBandPlanner(
-        costmap_ros_, num_optim_iterations, internal_force_gain, external_force_gain, tiny_bubble_distance,
+        local_costmap_, num_optim_iterations, internal_force_gain, external_force_gain, tiny_bubble_distance,
         tiny_bubble_expansion, min_bubble_overlap, equilibrium_max_recursion_depth, equilibrium_relative_overshoot,
         significant_force, costmap_weight));
 
@@ -68,11 +69,11 @@ void EBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf_buffer, c
     const double rotation_correction_threshold = pn.param("rotation_correction_threshold", 0.5);
 
     eband_trj_ctrl_ = std::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(
-        costmap_ros_, max_vel_lin, max_vel_th, min_vel_lin, min_vel_th, min_in_place_vel_th, in_place_trans_vel,
+        local_costmap_, max_vel_lin, max_vel_th, min_vel_lin, min_vel_th, min_in_place_vel_th, in_place_trans_vel,
         xy_goal_tolerance, yaw_goal_tolerance, k_prop, k_damp, ctrl_rate, max_acceleration, virtual_mass,
         max_translational_acceleration, max_rotational_acceleration, rotation_correction_threshold));
 
-    eband_visual_ = std::shared_ptr<EBandVisualization>(new EBandVisualization(pn, costmap_ros));
+    eband_visual_ = std::shared_ptr<EBandVisualization>(new EBandVisualization(pn, local_costmap_));
     eband_->setVisualization(eband_visual_);
     eband_trj_ctrl_->setVisualization(eband_visual_);
 
@@ -90,7 +91,7 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
 
     // get current robot position
     ROS_DEBUG("Reading current robot Position from costmap and appending it to elastic band.");
-    if (!costmap_ros_->getRobotPose(global_pose_msg))
+    if (!local_costmap_->getRobotPose(global_pose_msg))
     {
         ROS_WARN("Could not retrieve up to date robot pose from costmap for local planning.");
         result.state = nav_core::ControlState::FAILED;
@@ -116,8 +117,8 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
 
     // transform global plan to the map frame we are working in - careful this also cuts the plan off (reduces it to
     // local window)
-    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_,
-                                                  costmap_ros_->getGlobalFrameID(), transformed_plan_,
+    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *local_costmap_,
+                                                  local_costmap_->getGlobalFrameID(), transformed_plan_,
                                                   plan_start_end_counter))
     {
         // if plan could not be transformed abort control and local planning
@@ -261,8 +262,8 @@ bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& ori
 
     // transform global plan to the map frame we are working in this also cuts the plan off (reduces it to local window)
     std::vector<int> start_end_counts(2, static_cast<int>(global_plan_.size()));  // counts from the end() of the plan
-    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *costmap_ros_,
-                                                  costmap_ros_->getGlobalFrameID(), transformed_plan_,
+    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *local_costmap_,
+                                                  local_costmap_->getGlobalFrameID(), transformed_plan_,
                                                   start_end_counts))
     {
         // if plan could not be tranformed abort control and local planning

@@ -18,6 +18,7 @@ void CostmapLayer::matchSize()
               master->getOriginY());
 }
 
+// cppcheck-suppress unusedFunction
 void CostmapLayer::addExtraBounds(double mx0, double my0, double mx1, double my1)
 {
     extra_min_x_ = std::min(mx0, extra_min_x_);
@@ -112,6 +113,7 @@ void CostmapLayer::updateWithOverwrite(costmap_2d::Costmap2D& master_grid, const
     }
 }
 
+// cppcheck-suppress unusedFunction
 void CostmapLayer::updateWithAddition(costmap_2d::Costmap2D& master_grid, const unsigned int min_i,
                                       const unsigned int min_j, const unsigned int max_i, const unsigned int max_j)
 {

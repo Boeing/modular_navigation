@@ -2,9 +2,13 @@
 #define NAV_CORE_BASE_LOCAL_PLANNER_H
 
 #include <costmap_2d/costmap_2d_ros.h>
+#include <memory>
+
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
+
 #include <nav_msgs/Odometry.h>
+
 #include <tf2_ros/buffer.h>
 
 namespace nav_core
@@ -42,7 +46,8 @@ class BaseLocalPlanner
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) = 0;
     virtual bool clearPlan() = 0;
 
-    virtual void initialize(std::string name, tf2_ros::Buffer* tf_buffer, costmap_2d::Costmap2DROS* costmap_ros) = 0;
+    virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                            const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap) = 0;
 
     virtual ~BaseLocalPlanner()
     {
@@ -53,6 +58,6 @@ class BaseLocalPlanner
     {
     }
 };
-};  // namespace nav_core
+}
 
-#endif  // NAV_CORE_BASE_LOCAL_PLANNER_H
+#endif

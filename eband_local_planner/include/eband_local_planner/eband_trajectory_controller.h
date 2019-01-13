@@ -25,13 +25,13 @@ namespace eband_local_planner
 class EBandTrajectoryCtrl
 {
   public:
-    EBandTrajectoryCtrl(costmap_2d::Costmap2DROS* costmap_ros, const double max_vel_lin, const double max_vel_th,
-                        const double min_vel_lin, const double min_vel_th, const double min_in_place_vel_th,
-                        const double in_place_trans_vel, const double xy_goal_tolerance,
-                        const double yaw_goal_tolerance, const double k_prop, const double k_damp,
-                        const double ctrl_rate, const double max_acceleration, const double virtual_mass,
-                        const double max_translational_acceleration, const double max_rotational_acceleration,
-                        const double rotation_correction_threshold);
+    EBandTrajectoryCtrl(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap, const double max_vel_lin,
+                        const double max_vel_th, const double min_vel_lin, const double min_vel_th,
+                        const double min_in_place_vel_th, const double in_place_trans_vel,
+                        const double xy_goal_tolerance, const double yaw_goal_tolerance, const double k_prop,
+                        const double k_damp, const double ctrl_rate, const double max_acceleration,
+                        const double virtual_mass, const double max_translational_acceleration,
+                        const double max_rotational_acceleration, const double rotation_correction_threshold);
     ~EBandTrajectoryCtrl();
 
     void setVisualization(std::shared_ptr<EBandVisualization> target_visual);
@@ -43,10 +43,11 @@ class EBandTrajectoryCtrl
     bool getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_reached);
 
   private:
-    costmap_2d::Costmap2DROS* costmap_ros_;
+    const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
+
     std::shared_ptr<EBandVisualization> target_visual_;
 
-    Pid pid_;
+    PID pid_;
 
     // flags
     bool band_set_;
@@ -90,9 +91,6 @@ class EBandTrajectoryCtrl
     geometry_msgs::Twist getFrame1ToFrame2InRefFrame(const geometry_msgs::Pose& frame1,
                                                      const geometry_msgs::Pose& frame2,
                                                      const geometry_msgs::Pose& ref_frame);
-    geometry_msgs::Twist getFrame1ToFrame2InRefFrameNew(const geometry_msgs::Pose& frame1,
-                                                        const geometry_msgs::Pose& frame2,
-                                                        const geometry_msgs::Pose& ref_frame);
 
     /**
      * @param Transforms twist into a given reference frame

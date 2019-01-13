@@ -11,18 +11,18 @@
 namespace eband_local_planner
 {
 
-EBandPlanner::EBandPlanner(costmap_2d::Costmap2DROS* costmap_ros, const int num_optim_iterations,
-                           const double internal_force_gain, const double external_force_gain,
-                           const double tiny_bubble_distance, const double tiny_bubble_expansion,
-                           const double min_bubble_overlap, const int equilibrium_max_recursion_depth,
-                           const double equilibrium_relative_overshoot, const double significant_force,
-                           const double costmap_weight)
-    : costmap_ros_(costmap_ros), num_optim_iterations_(num_optim_iterations), internal_force_gain_(internal_force_gain),
-      external_force_gain_(external_force_gain), tiny_bubble_distance_(tiny_bubble_distance),
-      tiny_bubble_expansion_(tiny_bubble_expansion), min_bubble_overlap_(min_bubble_overlap),
-      max_recursion_depth_approx_equi_(equilibrium_max_recursion_depth),
+EBandPlanner::EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap,
+                           const int num_optim_iterations, const double internal_force_gain,
+                           const double external_force_gain, const double tiny_bubble_distance,
+                           const double tiny_bubble_expansion, const double min_bubble_overlap,
+                           const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
+                           const double significant_force, const double costmap_weight)
+    : local_costmap_(local_costmap), num_optim_iterations_(num_optim_iterations),
+      internal_force_gain_(internal_force_gain), external_force_gain_(external_force_gain),
+      tiny_bubble_distance_(tiny_bubble_distance), tiny_bubble_expansion_(tiny_bubble_expansion),
+      min_bubble_overlap_(min_bubble_overlap), max_recursion_depth_approx_equi_(equilibrium_max_recursion_depth),
       equilibrium_relative_overshoot_(equilibrium_relative_overshoot), significant_force_(significant_force),
-      costmap_weight_(costmap_weight), visualization_(false), costmap_(costmap_ros_->getCostmap())
+      costmap_weight_(costmap_weight), visualization_(false), costmap_(local_costmap_->getCostmap())
 {
 }
 
@@ -50,10 +50,10 @@ bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global
     global_plan_ = global_plan;
 
     // check whether plan and costmap are in the same frame
-    if (global_plan.front().header.frame_id != costmap_ros_->getGlobalFrameID())
+    if (global_plan.front().header.frame_id != local_costmap_->getGlobalFrameID())
     {
         ROS_ERROR("Elastic Band expects plan for optimization in the %s frame, the plan was sent in the %s frame.",
-                  costmap_ros_->getGlobalFrameID().c_str(), global_plan.front().header.frame_id.c_str());
+                  local_costmap_->getGlobalFrameID().c_str(), global_plan.front().header.frame_id.c_str());
         return false;
     }
 
@@ -129,11 +129,11 @@ bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan
     }
 
     // check whether plan and costmap are in the same frame
-    if (plan_to_add.at(0).header.frame_id != costmap_ros_->getGlobalFrameID())
+    if (plan_to_add.at(0).header.frame_id != local_costmap_->getGlobalFrameID())
     {
         ROS_ERROR(
             "Elastic Band expects robot pose for optimization in the %s frame, the pose was sent in the %s frame.",
-            costmap_ros_->getGlobalFrameID().c_str(), plan_to_add.at(0).header.frame_id.c_str());
+            local_costmap_->getGlobalFrameID().c_str(), plan_to_add.at(0).header.frame_id.c_str());
         return false;
     }
 
@@ -273,18 +273,17 @@ bool EBandPlanner::optimizeBand()
 bool EBandPlanner::optimizeBand(std::vector<Bubble>& band)
 {
     // check whether band and costmap are in the same frame
-    if (band.front().center.header.frame_id != costmap_ros_->getGlobalFrameID())
+    if (band.front().center.header.frame_id != local_costmap_->getGlobalFrameID())
     {
         ROS_ERROR("Elastic Band expects plan for optimization in the %s frame, the plan was sent in the %s frame.",
-                  costmap_ros_->getGlobalFrameID().c_str(), band.front().center.header.frame_id.c_str());
+                  local_costmap_->getGlobalFrameID().c_str(), band.front().center.header.frame_id.c_str());
         return false;
     }
 
-    double distance;
     for (std::size_t i = 0; i < band.size(); i++)
     {
         // update Size of Bubbles in band by calculating Dist to nearest Obstacle [depends kinematic, environment]
-        distance = calcObstacleKinematicDistance(band.at(i).center.pose);
+        const double distance = calcObstacleKinematicDistance(band.at(i).center.pose);
         if (distance == 0.0)
         {
             // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
@@ -888,7 +887,7 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
     bubble_jump.angular.x = 0.0;
     bubble_jump.angular.y = 0.0;
     bubble_jump.angular.z =
-        band.at(bubble_num).expansion / getCircumscribedRadius(*costmap_ros_) * forces.at(bubble_num).wrench.torque.z;
+        band.at(bubble_num).expansion / getCircumscribedRadius(*local_costmap_) * forces.at(bubble_num).wrench.torque.z;
     bubble_jump.angular.z = normalize_angle(bubble_jump.angular.z);
 
     // apply changes to calc tmp bubble position
@@ -1374,7 +1373,7 @@ bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::Wr
 
     // calculate delta-poses (on upper edge of bubble) for x-direction
     PoseToPose2D(curr_bubble.center.pose, edge_pose2D);
-    edge_pose2D.theta = edge_pose2D.theta + (curr_bubble.expansion / getCircumscribedRadius(*costmap_ros_));
+    edge_pose2D.theta = edge_pose2D.theta + (curr_bubble.expansion / getCircumscribedRadius(*local_costmap_));
     edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
     PoseToPose2D(edge, edge_pose2D);
 
@@ -1382,7 +1381,7 @@ bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::Wr
     distance1 = calcObstacleKinematicDistance(edge);
 
     // calculate delta-poses (on lower edge of bubble) for x-direction
-    edge_pose2D.theta = edge_pose2D.theta - 2.0 * (curr_bubble.expansion / getCircumscribedRadius(*costmap_ros_));
+    edge_pose2D.theta = edge_pose2D.theta - 2.0 * (curr_bubble.expansion / getCircumscribedRadius(*local_costmap_));
     edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
     PoseToPose2D(edge, edge_pose2D);
 
@@ -1553,7 +1552,7 @@ bool EBandPlanner::calcBubbleDistance(geometry_msgs::Pose start_center_pose, geo
     diff_pose2D.y = end_pose2D.y - start_pose2D.y;
 
     // calc distance
-    // double angle_to_pseudo_vel = diff_pose2D.theta * getCircumscribedRadius(*costmap_ros_);
+    // double angle_to_pseudo_vel = diff_pose2D.theta * getCircumscribedRadius(*local_costmap_);
     // distance = sqrt( (diff_pose2D.x * diff_pose2D.x) + (diff_pose2D.y * diff_pose2D.y) + (angle_to_pseudo_vel *
     // angle_to_pseudo_vel) );
     distance = sqrt((diff_pose2D.x * diff_pose2D.x) + (diff_pose2D.y * diff_pose2D.y));
@@ -1590,7 +1589,7 @@ bool EBandPlanner::calcBubbleDifference(geometry_msgs::Pose start_center_pose, g
     // multiply by inscribed radius to math calculation of distance
     difference.angular.x = 0.0;
     difference.angular.y = 0.0;
-    difference.angular.z = diff_pose2D.theta * getCircumscribedRadius(*costmap_ros_);
+    difference.angular.z = diff_pose2D.theta * getCircumscribedRadius(*local_costmap_);
 
     // TODO take into account kinematic properties of body
 

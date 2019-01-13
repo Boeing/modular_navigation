@@ -43,6 +43,7 @@ class Costmap2DROS
      * @param tf A reference to a TransformListener
      */
     Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf);
+    Costmap2DROS(const Costmap2DROS&) = delete;
     ~Costmap2DROS();
 
     /**

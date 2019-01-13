@@ -1,36 +1,3 @@
-/*
- * Copyright (c) 2013, Willow Garage, Inc.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Willow Garage, Inc. nor the names of its
- *       contributors may be used to endorse or promote products derived from
- *       this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- */
-
-/**
- * @author David Lu!!
- * Test harness for InflationLayer for Costmap2D
- */
 #include <cmath>
 #include <map>
 
@@ -80,7 +47,7 @@ void validatePointInflation(unsigned int mx, unsigned int my, Costmap2D* costmap
     m[0].push_back(initial);
     for (std::map<double, std::vector<CellData>>::iterator bin = m.begin(); bin != m.end(); ++bin)
     {
-        for (int i = 0; i < bin->second.size(); ++i)
+        for (unsigned int i = 0; i < bin->second.size(); ++i)
         {
             const CellData& cell = bin->second[i];
             if (!seen[cell.index_])
@@ -139,7 +106,7 @@ TEST(costmap, testAdjacentToObstacleCanStillMove)
     std::vector<Point> polygon = setRadii(layers, 2.1, 2.3, 4.1);
 
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
-    InflationLayer* ilayer = addInflationLayer(layers, tf);
+    addInflationLayer(layers, tf);
     layers.setFootprint(polygon);
 
     addObservation(olayer, 0, 0, MAX_Z);
@@ -166,7 +133,7 @@ TEST(costmap, testInflationShouldNotCreateUnknowns)
     std::vector<Point> polygon = setRadii(layers, 2.1, 2.3, 4.1);
 
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
-    InflationLayer* ilayer = addInflationLayer(layers, tf);
+    addInflationLayer(layers, tf);
     layers.setFootprint(polygon);
 
     addObservation(olayer, 0, 0, MAX_Z);
@@ -176,7 +143,6 @@ TEST(costmap, testInflationShouldNotCreateUnknowns)
 
     EXPECT_EQ(countValues(*costmap, NO_INFORMATION), 0);
 }
-
 
 /**
  * Test for the cost function correctness with a larger range and different values
@@ -267,8 +233,7 @@ TEST(costmap, testInflationOrderCorrectness)
     InflationLayer* ilayer = addInflationLayer(layers, tf);
     layers.setFootprint(polygon);
 
-    // Add two diagonal cells, they would induce problems under the
-    // previous implementations
+    // Add two diagonal cells, they would induce problems under the previous implementations
     addObservation(olayer, 4, 4, MAX_Z);
     addObservation(olayer, 5, 5, MAX_Z);
 
@@ -293,7 +258,7 @@ TEST(costmap, testInflation)
 
     addStaticLayer(layers, tf);
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
-    InflationLayer* ilayer = addInflationLayer(layers, tf);
+    addInflationLayer(layers, tf);
     layers.setFootprint(polygon);
 
     Costmap2D* costmap = layers.getCostmap();
@@ -361,7 +326,7 @@ TEST(costmap, testInflation2)
 
     addStaticLayer(layers, tf);
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
-    InflationLayer* ilayer = addInflationLayer(layers, tf);
+    addInflationLayer(layers, tf);
     layers.setFootprint(polygon);
 
     // Creat a small L-Shape all at once
@@ -389,7 +354,7 @@ TEST(costmap, testInflation3)
     std::vector<Point> polygon = setRadii(layers, 1, 1.75, 3);
 
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
-    InflationLayer* ilayer = addInflationLayer(layers, tf);
+    addInflationLayer(layers, tf);
     layers.setFootprint(polygon);
 
     // There should be no occupied cells
