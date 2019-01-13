@@ -93,7 +93,7 @@ MoveBase::MoveBase()
         ROS_INFO_STREAM("Starting local planner: " << local_planner);
         tc_ = blp_loader_.createInstance(local_planner);
         ROS_INFO_STREAM("Created local planner: " << local_planner);
-        tc_->initialize(blp_loader_.getName(local_planner), tf_buffer_.get(), local_costmap_.get());
+        tc_->initialize(blp_loader_.getName(local_planner), tf_buffer_, local_costmap_);
     }
     catch (const pluginlib::PluginlibException& ex)
     {
@@ -629,8 +629,7 @@ bool MoveBase::loadRecoveryBehaviors(ros::NodeHandle node)
                     }
 
                     // initialize the recovery behavior with its name
-                    behavior->initialize(behavior_list[i]["name"], tf_buffer_.get(), global_costmap_.get(),
-                                         local_costmap_.get());
+                    behavior->initialize(behavior_list[i]["name"], tf_buffer_, global_costmap_, local_costmap_);
                     recovery_behaviors_.push_back(behavior);
                 }
                 catch (const pluginlib::PluginlibException& ex)

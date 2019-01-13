@@ -93,7 +93,7 @@ double getDistanceToCollision(const unsigned char cost, const double inflation_w
     }
 }
 
-OmniPIDController::OmniPIDController() : costmap_ros_(nullptr)
+OmniPIDController::OmniPIDController() : local_costmap_(nullptr)
 {
 }
 
@@ -126,8 +126,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
         return control;
     }
 
-    const std::string robot_frame = costmap_ros_->getBaseFrameID();
-    const std::string local_frame = costmap_ros_->getGlobalFrameID();
+    // const std::string robot_frame = local_costmap_->getBaseFrameID();
+    const std::string local_frame = local_costmap_->getGlobalFrameID();
 
     // Get the global costmap to local costmap transform
     try
@@ -285,7 +285,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     // Check current position is collision free
     //
     const unsigned char cost =
-        getCost(*costmap_ros_->getCostmap(), robot_pose.translation().x(), robot_pose.translation().y());
+        getCost(*local_costmap_->getCostmap(), robot_pose.translation().x(), robot_pose.translation().y());
     if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
     {
         ROS_WARN_STREAM("Robot in collision!");
@@ -310,7 +310,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
 
         accum_distance += (p.translation() - prev_p.translation()).norm();
 
-        const unsigned char cost = getCost(*costmap_ros_->getCostmap(), p.translation().x(), p.translation().y());
+        const unsigned char cost = getCost(*local_costmap_->getCostmap(), p.translation().x(), p.translation().y());
 
         //
         // Execute evasive action if in collision
@@ -341,7 +341,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     // Determine target speed (based on cost of goal and current cost)
     //
     const unsigned char target_cost =
-        getCost(*costmap_ros_->getCostmap(), end_p.translation().x(), end_p.translation().y());
+        getCost(*local_costmap_->getCostmap(), end_p.translation().x(), end_p.translation().y());
     const double speed_factor =
         std::max(0.2, (static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE - std::max(cost, target_cost)) /
                        static_cast<double>(costmap_2d::INSCRIBED_INFLATED_OBSTACLE)));
@@ -541,13 +541,14 @@ bool OmniPIDController::clearPlan()
     return true;
 }
 
-void OmniPIDController::initialize(std::string, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
+void OmniPIDController::initialize(const std::string&, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                                   const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap)
 {
-    tf_buffer_ = tf;
-    costmap_ros_ = costmap_ros;
+    tf_buffer_ = tf_buffer;
+    local_costmap_ = local_costmap;
 
     // Assert the costmap is in odom
-    const std::string local_frame = costmap_ros_->getGlobalFrameID();
+    const std::string local_frame = local_costmap_->getGlobalFrameID();
     if (local_frame != "odom")
     {
         throw std::runtime_error("Local costmap must be in odom frame for robust trajectory control");

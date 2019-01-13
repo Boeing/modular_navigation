@@ -1,4 +1,4 @@
-image: TenByTen.pgm
+image: map.pgm
 resolution: 1.0
 origin: [0,0,0]
 negate: 0

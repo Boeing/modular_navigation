@@ -12,18 +12,6 @@
 
 const double MAX_Z(1.0);
 
-void setValues(costmap_2d::Costmap2D& costmap, const unsigned char* map)
-{
-    int index = 0;
-    for (int i = 0; i < costmap.getSizeInCellsY(); i++)
-    {
-        for (int j = 0; j < costmap.getSizeInCellsX(); j++)
-        {
-            costmap.setCost(j, i, map[index]);
-        }
-    }
-}
-
 char printableCost(unsigned char cost)
 {
     switch (cost)
@@ -44,9 +32,9 @@ char printableCost(unsigned char cost)
 void printMap(costmap_2d::Costmap2D& costmap)
 {
     printf("map:\n");
-    for (int i = 0; i < costmap.getSizeInCellsY(); i++)
+    for (unsigned int i = 0; i < costmap.getSizeInCellsY(); i++)
     {
-        for (int j = 0; j < costmap.getSizeInCellsX(); j++)
+        for (unsigned int j = 0; j < costmap.getSizeInCellsX(); j++)
         {
             printf("%4d", int(costmap.getCost(j, i)));
         }
@@ -57,9 +45,9 @@ void printMap(costmap_2d::Costmap2D& costmap)
 unsigned int countValues(costmap_2d::Costmap2D& costmap, unsigned char value, bool equal = true)
 {
     unsigned int count = 0;
-    for (int i = 0; i < costmap.getSizeInCellsY(); i++)
+    for (unsigned int i = 0; i < costmap.getSizeInCellsY(); i++)
     {
-        for (int j = 0; j < costmap.getSizeInCellsX(); j++)
+        for (unsigned int j = 0; j < costmap.getSizeInCellsX(); j++)
         {
             unsigned char c = costmap.getCost(j, i);
             if ((equal && c == value) || (!equal && c != value))
@@ -118,5 +106,4 @@ costmap_2d::InflationLayer* addInflationLayer(costmap_2d::LayeredCostmap& layers
     return ilayer;
 }
 
-
-#endif  // COSTMAP_2D_TESTING_HELPER_H
+#endif

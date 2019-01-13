@@ -66,13 +66,9 @@ double PID::compute(const double error, const double duration)
     // Calculate derivative contribution to command
     d_term = gains_.d_gain * d_error_;
 
-    ROS_INFO_STREAM("p_term: " << p_term);
-    ROS_INFO_STREAM("i_term: " << i_term);
-    ROS_INFO_STREAM("d_term: " << d_term);
-
     // Compute the command
     cmd_ = p_term + i_term + d_term;
 
     return cmd_;
 }
-}  // namespace omni_pid_controller
+}

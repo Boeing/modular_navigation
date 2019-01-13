@@ -22,11 +22,6 @@ double normalize_angle(const double angle)
     return a;
 }
 
-double shortest_angular_distance(const double from, const double to)
-{
-    return normalize_angle(to - from);
-}
-
 void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D)
 {
     tf2::Quaternion qt(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);

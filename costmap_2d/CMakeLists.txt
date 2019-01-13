@@ -39,10 +39,7 @@ include_directories(
     include
 )
 
-# messages
-add_message_files(
-    DIRECTORY msg
-    FILES
+add_message_files(FILES
     VoxelGrid.msg
 )
 
@@ -107,106 +104,49 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 add_library(layers
-  src/plugins/inflation_layer.cpp
-  src/plugins/obstacle_layer.cpp
-  src/plugins/static_layer.cpp
-  src/plugins/voxel_layer.cpp
+    src/plugins/inflation_layer.cpp
+    src/plugins/obstacle_layer.cpp
+    src/plugins/static_layer.cpp
+    src/plugins/voxel_layer.cpp
 )
 add_dependencies(layers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(layers
     ${PROJECT_NAME}
 )
 
-add_executable(${PROJECT_NAME}_markers src/nodes/${PROJECT_NAME}_markers.cpp)
-add_dependencies(${PROJECT_NAME}_markers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME}_markers
-    ${PROJECT_NAME}
-    ${Boost_LIBRARIES}
-    ${catkin_LIBRARIES}
-)
-
-add_executable(${PROJECT_NAME}_cloud src/nodes/${PROJECT_NAME}_cloud.cpp)
-add_dependencies(${PROJECT_NAME}_cloud ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME}_cloud
-    ${PROJECT_NAME}
-    ${Boost_LIBRARIES}
-    ${catkin_LIBRARIES}
-)
-
-add_executable(${PROJECT_NAME}_node src/nodes/${PROJECT_NAME}_node.cpp)
-add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME}_node
-    ${PROJECT_NAME}
-    ${Boost_LIBRARIES}
-    ${catkin_LIBRARIES}
-)
-
 if(CATKIN_ENABLE_TESTING)
-  # Find package test dependencies
-  find_package(rostest REQUIRED)
+    find_package(rostest REQUIRED)
 
-  # Add the test folder to the include directories
-  include_directories(test)
+    add_executable(footprint_tests EXCLUDE_FROM_ALL test/integration_tests/footprint/footprint_tests.cpp)
+    add_dependencies(tests footprint_tests)
+    target_link_libraries(footprint_tests ${PROJECT_NAME} ${GTEST_LIBRARIES})
+    add_rostest(test/integration_tests/footprint/footprint_tests.launch)
 
-  # Create targets for test executables
-  add_executable(costmap_tester EXCLUDE_FROM_ALL test/costmap_tester.cpp)
-  add_dependencies(tests costmap_tester)
-  target_link_libraries(costmap_tester ${PROJECT_NAME} ${GTEST_LIBRARIES})
+    add_executable(inflation_tests EXCLUDE_FROM_ALL test/integration_tests/inflation/inflation_tests.cpp)
+    add_dependencies(tests inflation_tests)
+    target_link_libraries(inflation_tests ${PROJECT_NAME} layers ${GTEST_LIBRARIES})
+    add_rostest(test/integration_tests/inflation/inflation_tests.launch)
 
-  add_executable(footprint_tests EXCLUDE_FROM_ALL test/footprint_tests.cpp)
-  add_dependencies(tests footprint_tests)
-  target_link_libraries(footprint_tests ${PROJECT_NAME} ${GTEST_LIBRARIES})
+    add_executable(obstacle_tests EXCLUDE_FROM_ALL test/integration_tests/obstacle/obstacle_tests.cpp)
+    add_dependencies(tests obstacle_tests)
+    target_link_libraries(obstacle_tests ${PROJECT_NAME} layers ${GTEST_LIBRARIES})
+    add_rostest(test/integration_tests/obstacle/obstacle_tests.launch)
 
-  add_executable(obstacle_tests EXCLUDE_FROM_ALL test/obstacle_tests.cpp)
-  add_dependencies(tests obstacle_tests)
-  target_link_libraries(obstacle_tests ${PROJECT_NAME} layers ${GTEST_LIBRARIES})
-
-  add_executable(static_tests EXCLUDE_FROM_ALL test/static_tests.cpp)
-  add_dependencies(tests static_tests)
-  target_link_libraries(static_tests ${PROJECT_NAME} layers ${GTEST_LIBRARIES})
-
-  add_executable(inflation_tests EXCLUDE_FROM_ALL test/inflation_tests.cpp)
-  add_dependencies(tests inflation_tests)
-  target_link_libraries(inflation_tests ${PROJECT_NAME} layers ${GTEST_LIBRARIES})
-
-  catkin_download_test_data(${PROJECT_NAME}_simple_driving_test_indexed.bag
-    http://download.ros.org/data/${PROJECT_NAME}/simple_driving_test_indexed.bag
-    DESTINATION ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_SHARE_DESTINATION}/test
-    MD5 61168cff9425b11e093ea3a627c81c8d)
-  catkin_download_test_data(${PROJECT_NAME}_willow-full-0.025.pgm
-    http://download.ros.org/data/${PROJECT_NAME}/willow-full-0.025.pgm
-    DESTINATION ${CATKIN_DEVEL_PREFIX}/${CATKIN_PACKAGE_SHARE_DESTINATION}/test
-    MD5 e66b17ee374f2d7657972efcb3e2e4f7)
-
-  add_rostest(test/footprint_tests.launch)
-  add_rostest(test/inflation_tests.launch)
-  add_rostest(test/obstacle_tests.launch)
-  add_rostest(test/simple_driving_test.xml)
-  add_rostest(test/static_tests.launch)
-
-  catkin_add_gtest(array_parser_test test/array_parser_test.cpp)
-  target_link_libraries(array_parser_test ${PROJECT_NAME})
+    catkin_add_gtest(array_parser_test test/unit_tests/array_parser_test.cpp)
+    target_link_libraries(array_parser_test ${PROJECT_NAME})
 endif()
 
-install( TARGETS
-    ${PROJECT_NAME}_cloud
-    ${PROJECT_NAME}_markers
-    ${PROJECT_NAME}_node
-    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
 install(TARGETS
-    ${PROJECT_NAME}
-    layers
+    ${PROJECT_NAME} layers
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
 
 install(FILES costmap_plugins.xml
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  PATTERN ".svn" EXCLUDE
+    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+    PATTERN ".svn" EXCLUDE
 )

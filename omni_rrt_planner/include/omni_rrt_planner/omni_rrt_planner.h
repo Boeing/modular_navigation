@@ -67,9 +67,9 @@ class OmniRRTPlanner : public nav_core::BaseGlobalPlanner
                                           const geometry_msgs::PoseStamped& goal) override;
     virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) override;
 
-    virtual void initialize(std::string name, std::shared_ptr<tf2_ros::Buffer> tf_buffer,
-                            std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
-                            std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap) override;
+    virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                            const std::shared_ptr<costmap_2d::Costmap2DROS>& global_costmap,
+                            const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap) override;
 
     // Visualisation
     void visualisePlannerData(const ompl::base::PlannerData& pd);

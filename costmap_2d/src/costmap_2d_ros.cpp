@@ -396,6 +396,7 @@ void Costmap2DROS::updateMap()
     }
 }
 
+// cppcheck-suppress unusedFunction
 void Costmap2DROS::start()
 {
     std::vector<boost::shared_ptr<Layer>>* plugins = layered_costmap_->getPlugins();
@@ -417,6 +418,7 @@ void Costmap2DROS::start()
         r.sleep();
 }
 
+// cppcheck-suppress unusedFunction
 void Costmap2DROS::stop()
 {
     stop_updates_ = true;
@@ -430,12 +432,14 @@ void Costmap2DROS::stop()
     stopped_ = true;
 }
 
+// cppcheck-suppress unusedFunction
 void Costmap2DROS::pause()
 {
     stop_updates_ = true;
     initialized_ = false;
 }
 
+// cppcheck-suppress unusedFunction
 void Costmap2DROS::resume()
 {
     stop_updates_ = false;
@@ -446,7 +450,7 @@ void Costmap2DROS::resume()
         r.sleep();
 }
 
-
+// cppcheck-suppress unusedFunction
 void Costmap2DROS::resetLayers()
 {
     Costmap2D* top = layered_costmap_->getCostmap();
@@ -499,6 +503,7 @@ bool Costmap2DROS::getRobotPose(geometry_msgs::PoseStamped& global_pose) const
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 void Costmap2DROS::getOrientedFootprint(std::vector<geometry_msgs::Point>& oriented_footprint) const
 {
     geometry_msgs::PoseStamped global_pose;

@@ -1,5 +1,5 @@
-#ifndef COSTMAP_2D_VOXEL_LAYER_H_
-#define COSTMAP_2D_VOXEL_LAYER_H_
+#ifndef COSTMAP_2D_VOXEL_LAYER_H
+#define COSTMAP_2D_VOXEL_LAYER_H
 
 #include <costmap_2d/VoxelGrid.h>
 #include <costmap_2d/VoxelPluginConfig.h>
@@ -26,10 +26,7 @@ namespace costmap_2d
 class VoxelLayer : public ObstacleLayer
 {
   public:
-    VoxelLayer() : voxel_grid_(0, 0, 0)
-    {
-        costmap_ = nullptr;  // this is the unsigned char* member of parent class's parent class Costmap2D.
-    }
+    VoxelLayer();
 
     virtual ~VoxelLayer() override;
 
@@ -54,8 +51,12 @@ class VoxelLayer : public ObstacleLayer
     virtual void resetMaps() override;
 
   private:
+    // cppcheck-suppress unusedPrivateFunction
     void reconfigureCB(costmap_2d::VoxelPluginConfig& config, uint32_t level);
+
+    // cppcheck-suppress unusedPrivateFunction
     void clearNonLethal(double wx, double wy, double w_size_x, double w_size_y, bool clear_no_info);
+
     virtual void raytraceFreespace(const costmap_2d::Observation& clearing_observation, double* min_x, double* min_y,
                                    double* max_x, double* max_y) override;
 
@@ -69,6 +70,7 @@ class VoxelLayer : public ObstacleLayer
     ros::Publisher clearing_endpoints_pub_;
     sensor_msgs::PointCloud clearing_endpoints_;
 
+    // cppcheck-suppress unusedPrivateFunction
     inline bool worldToMap3DFloat(double wx, double wy, double wz, double& mx, double& my, double& mz)
     {
         if (wx < origin_x_ || wy < origin_y_ || wz < origin_z_)
@@ -82,6 +84,7 @@ class VoxelLayer : public ObstacleLayer
         return false;
     }
 
+    // cppcheck-suppress unusedPrivateFunction
     inline bool worldToMap3D(double wx, double wy, double wz, unsigned int& mx, unsigned int& my, unsigned int& mz)
     {
         if (wx < origin_x_ || wy < origin_y_ || wz < origin_z_)
@@ -97,6 +100,7 @@ class VoxelLayer : public ObstacleLayer
         return false;
     }
 
+    // cppcheck-suppress unusedPrivateFunction
     inline void mapToWorld3D(unsigned int mx, unsigned int my, unsigned int mz, double& wx, double& wy, double& wz)
     {
         // returns the center point of the cell
@@ -105,6 +109,7 @@ class VoxelLayer : public ObstacleLayer
         wz = origin_z_ + (mz + 0.5) * z_resolution_;
     }
 
+    // cppcheck-suppress unusedPrivateFunction
     inline double dist(double x0, double y0, double z0, double x1, double y1, double z1)
     {
         return sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) + (z1 - z0) * (z1 - z0));

@@ -9,17 +9,17 @@
 namespace eband_local_planner
 {
 
-EBandTrajectoryCtrl::EBandTrajectoryCtrl(costmap_2d::Costmap2DROS* costmap_ros, const double max_vel_lin,
-                                         const double max_vel_th, const double min_vel_lin, const double min_vel_th,
-                                         const double min_in_place_vel_th, const double in_place_trans_vel,
-                                         const double xy_goal_tolerance, const double yaw_goal_tolerance,
-                                         const double k_prop, const double k_damp, const double ctrl_rate,
-                                         const double max_acceleration, const double virtual_mass,
-                                         const double max_translational_acceleration,
+EBandTrajectoryCtrl::EBandTrajectoryCtrl(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap,
+                                         const double max_vel_lin, const double max_vel_th, const double min_vel_lin,
+                                         const double min_vel_th, const double min_in_place_vel_th,
+                                         const double in_place_trans_vel, const double xy_goal_tolerance,
+                                         const double yaw_goal_tolerance, const double k_prop, const double k_damp,
+                                         const double ctrl_rate, const double max_acceleration,
+                                         const double virtual_mass, const double max_translational_acceleration,
                                          const double max_rotational_acceleration,
                                          const double rotation_correction_threshold)
-    : costmap_ros_(costmap_ros), band_set_(false), visualization_(false), max_vel_lin_(max_vel_lin),
-      max_vel_th_(max_vel_th), min_vel_lin_(min_vel_lin), min_vel_th_(min_vel_th),
+    : local_costmap_(local_costmap), pid_(1, 0, 0, -10, 10), band_set_(false), visualization_(false),
+      max_vel_lin_(max_vel_lin), max_vel_th_(max_vel_th), min_vel_lin_(min_vel_lin), min_vel_th_(min_vel_th),
       min_in_place_vel_th_(min_in_place_vel_th), in_place_trans_vel_(in_place_trans_vel),
       xy_goal_tolerance_(xy_goal_tolerance), yaw_goal_tolerance_(yaw_goal_tolerance), k_prop_(k_prop), k_damp_(k_damp),
       ctrl_rate_(ctrl_rate), max_acceleration_(max_acceleration), virtual_mass_(virtual_mass),
@@ -28,8 +28,6 @@ EBandTrajectoryCtrl::EBandTrajectoryCtrl(costmap_2d::Costmap2DROS* costmap_ros, 
       rotation_correction_threshold_(rotation_correction_threshold)
 
 {
-    pid_.initPid(1, 0, 0, 10, -10);
-
     // init velocity for interpolation
     last_vel_.linear.x = 0.0;
     last_vel_.linear.y = 0.0;
@@ -122,7 +120,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
     double bubble_distance, ang_pseudo_dist;
     bubble_diff =
         getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center.pose, elastic_band_.at(1).center.pose, ref_frame_band_);
-    ang_pseudo_dist = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+    ang_pseudo_dist = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
                            (bubble_diff.linear.y * bubble_diff.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));
 
@@ -165,7 +163,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
             geometry_msgs::Twist next_bubble_diff;
             next_bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(1).center.pose,
                                                            elastic_band_.at(2).center.pose, ref_frame_band_);
-            ang_pseudo_dist = next_bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+            ang_pseudo_dist = next_bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
             next_bubble_distance =
                 sqrt((next_bubble_diff.linear.x * next_bubble_diff.linear.x) +
                      (next_bubble_diff.linear.y * next_bubble_diff.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));
@@ -192,8 +190,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
                 double ang_pseudo_dist1, ang_pseudo_dist2;
 
                 // get distance between next bubble center and intersection point
-                ang_pseudo_dist1 = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
-                ang_pseudo_dist2 = next_bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+                ang_pseudo_dist1 = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
+                ang_pseudo_dist2 = next_bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
 
                 // careful! - we need this sign because of the direction of the vectors and the definition of the
                 // vector-product
@@ -265,7 +263,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
     if (dist_to_goal > rotation_correction_threshold_)
     {
         const double angular_diff = angularDiff(control_deviation, elastic_band_.at(0).center.pose);
-        const double vel = pid_.computeCommand(angular_diff, ros::Duration(1 / ctrl_rate_));
+        const double vel = pid_.compute(angular_diff, ros::Duration(1.0 / ctrl_rate_).toSec());
         const double mult = fabs(vel) > max_vel_th_ ? max_vel_th_ / fabs(vel) : 1.0;
         control_deviation.angular.z = vel * mult;
         const double abs_vel = fabs(control_deviation.angular.z);
@@ -309,7 +307,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
 
     // if neccessarry scale desired vel to stay lower than currbub_maxvel_abs
     // TODO getCircumscribedRadius is nuts (because the footprint is a circle)
-    ang_pseudo_dist = desired_velocity.angular.z * getCircumscribedRadius(*costmap_ros_);
+    ang_pseudo_dist = desired_velocity.angular.z * getCircumscribedRadius(*local_costmap_);
     desvel_abs = sqrt((desired_velocity.linear.x * desired_velocity.linear.x) +
                       (desired_velocity.linear.y * desired_velocity.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));
 
@@ -423,6 +421,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
             last_vel_.linear.y = 0.0;
             last_vel_.angular.z = 0.0;
             goal_reached = true;
+            pid_.reset();
             break;
         }
     }
@@ -460,7 +459,7 @@ double EBandTrajectoryCtrl::getBubbleTargetVel(const int target_bub_num, const s
     ROS_ASSERT((target_bub_num >= 0) && ((target_bub_num + 1) < static_cast<int>(band.size())));
     bubble_diff = getFrame1ToFrame2InRefFrame(band.at(target_bub_num).center.pose,
                                               band.at(target_bub_num + 1).center.pose, ref_frame_band_);
-    angle_to_pseudo_vel = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+    angle_to_pseudo_vel = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
 
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
                            (bubble_diff.linear.y * bubble_diff.linear.y) + (angle_to_pseudo_vel * angle_to_pseudo_vel));
@@ -533,34 +532,6 @@ geometry_msgs::Twist EBandTrajectoryCtrl::getFrame1ToFrame2InRefFrame(const geom
 
     return frame_diff;
 }
-
-geometry_msgs::Twist EBandTrajectoryCtrl::getFrame1ToFrame2InRefFrameNew(const geometry_msgs::Pose& frame1,
-                                                                         const geometry_msgs::Pose& frame2,
-                                                                         const geometry_msgs::Pose& ref_frame)
-{
-    double x1 = frame1.position.x - ref_frame.position.x;
-    double y1 = frame1.position.y - ref_frame.position.y;
-    double x2 = frame2.position.x - ref_frame.position.x;
-    double y2 = frame2.position.y - ref_frame.position.y;
-    double yaw_ref = tf2::getYaw(ref_frame.orientation);
-
-    double x_diff = x2 - x1;
-    double y_diff = y2 - y1;
-    double theta_diff = atan2(y_diff, x_diff);
-
-    // Now project this vector on to the reference frame
-    double rotation = normalize_angle(yaw_ref);
-    double x_final = x_diff * cos(rotation) + y_diff * sin(rotation);
-    double y_final = -x_diff * sin(rotation) + y_diff * cos(rotation);
-
-    geometry_msgs::Twist twist_msg;
-    twist_msg.linear.x = x_final;
-    twist_msg.linear.y = y_final;
-    twist_msg.angular.z = normalize_angle(theta_diff - yaw_ref);
-
-    return twist_msg;
-}
-
 
 geometry_msgs::Twist EBandTrajectoryCtrl::transformTwistFromFrame1ToFrame2(const geometry_msgs::Twist& curr_twist,
                                                                            const geometry_msgs::Pose& frame1,

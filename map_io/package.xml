@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>map_io</name>
+    <version>0.1.0</version>
+    <description>map_io</description>
+    <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
+    <author>Boeing</author>
+    <license>Boeing Proprietary</license>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <depend>nav_msgs</depend>
+    <depend>roscpp</depend>
+    <depend>sdl</depend>
+    <depend>sdl-image</depend>
+    <depend>tf2</depend>
+    <depend>yaml-cpp</depend>
+
+    <test_depend>rosunit</test_depend>
+</package>

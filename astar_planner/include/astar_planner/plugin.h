@@ -23,9 +23,9 @@ class AStarPlanner : public nav_core::BaseGlobalPlanner
     AStarPlanner();
     ~AStarPlanner();
 
-    void initialize(std::string name, std::shared_ptr<tf2_ros::Buffer> tf_buffer,
-                    std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
-                    std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap) override;
+    void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                    const std::shared_ptr<costmap_2d::Costmap2DROS>& global_costmap,
+                    const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap) override;
 
     nav_core::PlanResult makePlan(const geometry_msgs::PoseStamped& start,
                                   const geometry_msgs::PoseStamped& goal) override;

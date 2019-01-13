@@ -25,12 +25,9 @@ namespace costmap_2d
 class ObstacleLayer : public CostmapLayer
 {
   public:
-    ObstacleLayer()
-    {
-        costmap_ = NULL;  // this is the unsigned char* member of parent class Costmap2D.
-    }
-
+    ObstacleLayer();
     virtual ~ObstacleLayer() override;
+
     virtual void onInitialize() override;
     virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
                               double* max_x, double* max_y) override;

@@ -6,6 +6,8 @@
 
 #include <geometry_msgs/PoseStamped.h>
 
+#include <tf2_ros/buffer.h>
+
 namespace nav_core
 {
 
@@ -22,9 +24,9 @@ class BaseGlobalPlanner
     virtual PlanResult makePlan(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& goal) = 0;
     virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) = 0;
 
-    virtual void initialize(std::string name, std::shared_ptr<tf2_ros::Buffer> tf_buffer,
-                            std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap,
-                            std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap) = 0;
+    virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                            const std::shared_ptr<costmap_2d::Costmap2DROS>& global_costmap,
+                            const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap) = 0;
 
     virtual ~BaseGlobalPlanner()
     {
@@ -35,6 +37,6 @@ class BaseGlobalPlanner
     {
     }
 };
-};  // namespace nav_core
+}
 
-#endif  // NAV_CORE_BASE_GLOBAL_PLANNER_H
+#endif

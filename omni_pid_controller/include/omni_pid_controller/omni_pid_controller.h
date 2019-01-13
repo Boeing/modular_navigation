@@ -60,11 +60,12 @@ class OmniPIDController : public nav_core::BaseLocalPlanner
                                              const nav_msgs::Odometry& odom) override;
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
     virtual bool clearPlan() override;
-    virtual void initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros) override;
+    virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,
+                            const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap) override;
 
   private:
-    costmap_2d::Costmap2DROS* costmap_ros_;
-    tf2_ros::Buffer* tf_buffer_;
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
 
     // This is the execution of the current local trajectory in "odom" frame
     std::mutex control_mutex_;

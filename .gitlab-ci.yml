@@ -65,8 +65,13 @@ test:
     - cd /root/ros
   script:
     - catkin run_tests -j1 -i --no-status --no-notify
+    - cp -r build/*/test_results/* ${CI_PROJECT_DIR}
     - catkin_test_results --all --verbose
   tags:
     - docker-executor
     - linux
     - docker
+  artifacts:
+    reports:
+      junit:
+        - "*/*.xml"

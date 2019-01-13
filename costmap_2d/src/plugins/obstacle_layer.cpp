@@ -1,3 +1,4 @@
+#include <costmap_2d/cost_values.h>
 #include <costmap_2d/costmap_math.h>
 #include <costmap_2d/plugins/obstacle_layer.h>
 
@@ -8,15 +9,18 @@
 
 PLUGINLIB_EXPORT_CLASS(costmap_2d::ObstacleLayer, costmap_2d::Layer)
 
-using costmap_2d::FREE_SPACE;
-using costmap_2d::LETHAL_OBSTACLE;
-using costmap_2d::NO_INFORMATION;
-
 using costmap_2d::Observation;
 using costmap_2d::ObservationBuffer;
 
 namespace costmap_2d
 {
+
+ObstacleLayer::ObstacleLayer()
+    : footprint_clearing_enabled_(false), max_obstacle_height_(0), rolling_window_(false), dsrv_(nullptr),
+      combination_method_(0)
+{
+    Costmap2D::costmap_ = nullptr;  // this is the unsigned char* member of parent class Costmap2D.
+}
 
 void ObstacleLayer::onInitialize()
 {
@@ -420,6 +424,7 @@ void ObstacleLayer::addStaticObservation(costmap_2d::Observation& obs, bool mark
         static_clearing_observations_.push_back(obs);
 }
 
+// cppcheck-suppress unusedFunction
 void ObstacleLayer::clearStaticObservations(bool marking, bool clearing)
 {
     if (marking)

@@ -1,3 +1,4 @@
+#include <costmap_2d/cost_values.h>
 #include <costmap_2d/plugins/voxel_layer.h>
 
 #include <pluginlib/class_list_macros.h>
@@ -6,15 +7,24 @@
 #define VOXEL_BITS 16
 PLUGINLIB_EXPORT_CLASS(costmap_2d::VoxelLayer, costmap_2d::Layer)
 
-using costmap_2d::FREE_SPACE;
-using costmap_2d::LETHAL_OBSTACLE;
-using costmap_2d::NO_INFORMATION;
-
 using costmap_2d::Observation;
 using costmap_2d::ObservationBuffer;
 
 namespace costmap_2d
 {
+
+VoxelLayer::VoxelLayer()
+    : voxel_dsrv_(nullptr), publish_voxel_(false), voxel_grid_(0, 0, 0), z_resolution_(0), origin_z_(0),
+      unknown_threshold_(0), mark_threshold_(0), size_z_(0)
+{
+    Costmap2D::costmap_ = nullptr;  // this is the unsigned char* member of parent class's parent class Costmap2D.
+}
+
+VoxelLayer::~VoxelLayer()
+{
+    if (voxel_dsrv_)
+        delete voxel_dsrv_;
+}
 
 void VoxelLayer::onInitialize()
 {
@@ -34,12 +44,6 @@ void VoxelLayer::setupDynamicReconfigure(ros::NodeHandle& nh)
     dynamic_reconfigure::Server<costmap_2d::VoxelPluginConfig>::CallbackType cb =
         boost::bind(&VoxelLayer::reconfigureCB, this, _1, _2);
     voxel_dsrv_->setCallback(cb);
-}
-
-VoxelLayer::~VoxelLayer()
-{
-    if (voxel_dsrv_)
-        delete voxel_dsrv_;
 }
 
 void VoxelLayer::reconfigureCB(costmap_2d::VoxelPluginConfig& config, uint32_t)
@@ -180,6 +184,7 @@ void VoxelLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, 
     updateFootprint(robot_x, robot_y, robot_yaw, min_x, min_y, max_x, max_y);
 }
 
+// cppcheck-suppress unusedFunction
 void VoxelLayer::clearNonLethal(double wx, double wy, double w_size_x, double w_size_y, bool clear_no_info)
 {
     // get the cell coordinates of the center point of the window
@@ -412,5 +417,4 @@ void VoxelLayer::updateOrigin(double new_origin_x, double new_origin_y)
     delete[] local_map;
     delete[] local_voxel_map;
 }
-
-}  // namespace costmap_2d
+}

@@ -41,7 +41,7 @@ class EBandVisualization
         green
     };
 
-    EBandVisualization(ros::NodeHandle& pn, costmap_2d::Costmap2DROS* costmap_ros);
+    EBandVisualization(ros::NodeHandle& pn, const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap);
     ~EBandVisualization();
 
     /**
@@ -89,7 +89,7 @@ class EBandVisualization
                       Bubble bubble);
 
   private:
-    costmap_2d::Costmap2DROS* costmap_ros_;
+    const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
 
     ros::Publisher bubble_pub_;
     ros::Publisher one_bubble_pub_;
@@ -129,7 +129,6 @@ class EBandVisualization
                        visualization_msgs::Marker& marker, std::string marker_name_space, int marker_id,
                        Color marker_color);
 };
+}
 
-}  // namespace eband_local_planner
-
-#endif  // EBAND_LOCAL_PLANNER_EBAND_VISUALIZATION_H
+#endif
