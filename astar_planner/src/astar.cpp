@@ -70,7 +70,7 @@ PathResult PathFinder::findPath(Coord2D startPos, Coord2D goalPos)
             const Coord2D new_coord = current_coord + directions_[i];
 
             // Check out of bounds
-            if (new_coord.x < 0 || new_coord.x >= world_width_ || new_coord.y < 0 || new_coord.y >= world_width_)
+            if (new_coord.x < 0 || new_coord.x >= world_width_ || new_coord.y < 0 || new_coord.y >= world_height_)
             {
                 continue;
             }
