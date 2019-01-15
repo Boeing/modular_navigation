@@ -77,11 +77,19 @@ MoveBase::MoveBase()
         ROS_INFO_STREAM("Starting global planner: " << global_planner);
         planner_ = bgp_loader_.createInstance(global_planner);
         ROS_INFO_STREAM("Created global planner: " << global_planner);
-        planner_->initialize(bgp_loader_.getName(global_planner), tf_buffer_, global_costmap_, local_costmap_);
+
+        try
+        {
+            planner_->initialize(bgp_loader_.getName(global_planner), tf_buffer_, global_costmap_, local_costmap_);
+        }
+        catch (const std::exception& e)
+        {
+            throw std::runtime_error("Failed to initialize the global planner: " + std::string(e.what()));
+        }
     }
-    catch (const pluginlib::PluginlibException& ex)
+    catch (const pluginlib::PluginlibException& e)
     {
-        throw std::runtime_error("Failed to create the global planner: " + std::string(ex.what()));
+        throw std::runtime_error("Failed to create the global planner: " + std::string(e.what()));
     }
 
     // Pause the local costmap
@@ -93,11 +101,19 @@ MoveBase::MoveBase()
         ROS_INFO_STREAM("Starting local planner: " << local_planner);
         tc_ = blp_loader_.createInstance(local_planner);
         ROS_INFO_STREAM("Created local planner: " << local_planner);
-        tc_->initialize(blp_loader_.getName(local_planner), tf_buffer_, local_costmap_);
+
+        try
+        {
+            tc_->initialize(blp_loader_.getName(local_planner), tf_buffer_, local_costmap_);
+        }
+        catch (const std::exception& e)
+        {
+            throw std::runtime_error("Failed to initialize the global planner: " + std::string(e.what()));
+        }
     }
-    catch (const pluginlib::PluginlibException& ex)
+    catch (const pluginlib::PluginlibException& e)
     {
-        throw std::runtime_error("Failed to create the local planner: " + std::string(ex.what()));
+        throw std::runtime_error("Failed to create the local planner: " + std::string(e.what()));
     }
 
     // Start actively updating costmaps based on sensor data
