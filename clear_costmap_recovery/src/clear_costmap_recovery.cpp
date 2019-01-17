@@ -1,3 +1,4 @@
+#include <chrono>
 #include <clear_costmap_recovery/clear_costmap_recovery.h>
 #include <costmap_2d/cost_values.h>
 #include <pluginlib/class_list_macros.h>
@@ -39,8 +40,15 @@ void ClearCostmapRecovery::runBehavior()
         return;
     }
     ROS_INFO("Clearing costmaps");
+
+    const auto t0 = std::chrono::steady_clock::now();
+
     clear(*global_costmap_);
     clear(*local_costmap_);
+
+    const double duration =
+        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
+    ROS_INFO_STREAM("Clearing costmaps took: " << duration);
 }
 
 void ClearCostmapRecovery::clear(costmap_2d::Costmap2DROS& costmap)
