@@ -346,7 +346,6 @@ void ObstacleLayer::updateBounds(double robot_x, double robot_y, double robot_ya
             // if the obstacle is too high or too far away from the robot we won't add it
             if (pz > max_obstacle_height_)
             {
-                ROS_DEBUG("The point is too high");
                 continue;
             }
 
@@ -357,7 +356,6 @@ void ObstacleLayer::updateBounds(double robot_x, double robot_y, double robot_ya
             // if the point is far enough away... we won't consider it
             if (sq_dist >= sq_obstacle_range)
             {
-                ROS_DEBUG("The point is too far away");
                 continue;
             }
 
