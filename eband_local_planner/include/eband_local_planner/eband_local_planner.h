@@ -174,115 +174,20 @@ class EBandPlanner
                                     const geometry_msgs::WrenchStamped& curr_bubble_force,
                                     geometry_msgs::Twist& curr_step_width, const int& curr_recursion_depth);
 
-    /**
-     * @brief interpolates between two bubbles by calculating the pose for the center of a bubble in the middle of the
-     * path connecting the bubbles [depends kinematics]
-     * @param center of first of the two bubbles between which shall be interpolated
-     * @param center of second of the two bubbles between which shall be interpolated
-     * @param reference to hand back the interpolated bubble's center
-     * @return true if interpolation was successful
-     */
-    bool interpolateBubbles(geometry_msgs::PoseStamped start_center, geometry_msgs::PoseStamped end_center,
-                            geometry_msgs::PoseStamped& interpolated_center);
-
-    /**
-     * @brief this checks whether two bubbles overlap
-     * @param band on which we want to check
-     * @param iterator to first bubble
-     * @param iterator to second bubble
-     * @return true if bubbles overlap
-     */
-    bool checkOverlap(Bubble bubble1, Bubble bubble2);
-
-    /**
-     * @brief This calculates the distance between two bubbles [depends kinematics, shape]
-     * @param pose of the center of first bubbles
-     * @param pose of the center of second bubbles
-     * @param refernce to variable to pass distance to caller function
-     * @return true if distance was successfully calculated
-     */
-    bool calcBubbleDistance(geometry_msgs::Pose start_center_pose, geometry_msgs::Pose end_center_pose,
-                            double& distance);
-
-    /**
-     * @brief Calculates the difference between the pose of the center of two bubbles and outputs it as Twist (pointing
-     * from first to second bubble) [depends kinematic]
-     * @param pose of the first bubble
-     * @param pose of the second bubble
-     * @param reference to variable in wich the difference is stored as twist
-     * @return true if difference was successfully calculated
-     */
-    bool calcBubbleDifference(geometry_msgs::Pose start_center_pose, geometry_msgs::Pose end_center_pose,
-                              geometry_msgs::Twist& difference);
-
-    /**
-     * @brief Calculates the distance between the center of a bubble and the closest obstacle [depends kinematics,
-     * shape, environment]
-     * @param center of bubble as Pose
-     * @param reference to distance variable
-     * @return True if successfully calculated distance false otherwise
-     */
-    double calcObstacleKinematicDistance(const geometry_msgs::Pose& center_pose) const;
-
-    /**
-     * @brief Calculates all forces for a certain bubble at a specific position in the band [depends kinematic]
-     * @param position in band for which internal forces shall be calculated
-     * @param band for which forces shall be calculated
-     * @param Bubble for which internal forces shall be calculated
-     * @param reference to variable via which forces and torques are given back
-     * @return true if forces were calculated successfully
-     */
     bool getForcesAt(int bubble_num, std::vector<Bubble> band, Bubble curr_bubble,
                      geometry_msgs::WrenchStamped& forces);
 
-    /**
-     * @brief Calculates internal forces for bubbles along the band [depends kinematic]
-     * @param position in band for which internal forces shall be calculated
-     * @param band for which forces shall be calculated
-     * @param Bubble for which internal forces shall be calculated
-     * @param reference to variable via which forces and torques are given back
-     * @return true if forces were calculated successfully
-     */
     bool calcInternalForces(int bubble_num, std::vector<Bubble> band, Bubble curr_bubble,
                             geometry_msgs::WrenchStamped& forces);
 
-    /**
-     * @brief Calculates external forces for bubbles along the band [depends shape, environment]
-     * @param position in band for which internal forces shall be calculated
-     * @param Bubble for which external forces shall be calculated
-     * @param reference to variable via which forces and torques are given back
-     * @return true if forces were calculated successfully
-     */
     bool calcExternalForces(int bubble_num, Bubble curr_bubble, geometry_msgs::WrenchStamped& forces);
 
-    /**
-     * @brief Calculates tangential portion of forces
-     * @param number of bubble for which forces shall be recalculated
-     * @param reference to variable via which forces and torques are given back
-     * @return true if forces were calculated successfully
-     */
     bool suppressTangentialForces(int bubble_num, std::vector<Bubble> band, geometry_msgs::WrenchStamped& forces);
 
-    double costToDistance(const unsigned char cost) const;
+    bool interpolateBubbles(geometry_msgs::PoseStamped start_center, geometry_msgs::PoseStamped end_center,
+                            geometry_msgs::PoseStamped& interpolated_center);
 
-    bool moveBubbleOutOfCollision(Bubble& bubble, const double search_distance);
-
-    /**
-     * @brief This converts a plan from a sequence of stamped poses into a band, a sequence of bubbles. Therefore it
-     * calculates distances to the surrounding obstacles and derives the expansion or radius of the bubble
-     * @param plan is the sequence of stamped Poses which shall be converted
-     * @param band is the resulting sequence of bubbles
-     * @return true if path was successfully converted - band did not break
-     */
-    bool convertPlanToBand(std::vector<geometry_msgs::PoseStamped> plan, std::vector<Bubble>& band);
-
-    /**
-     * @brief This converts a band from a sequence of bubbles into a plan from, a sequence of stamped poses
-     * @param band is the sequence of bubbles which shall be converted
-     * @param plan is the resulting sequence of stamped Poses
-     * @return true if path was successfully converted - band did not break
-     */
-    bool convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band);
+    bool checkOverlap(Bubble bubble1, Bubble bubble2);
 };
 }
 

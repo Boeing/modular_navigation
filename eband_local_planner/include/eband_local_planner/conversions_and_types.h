@@ -31,21 +31,18 @@ enum AddAtPosition
 double normalize_angle_positive(const double angle);
 double normalize_angle(const double angle);
 
-/**
- * @brief Converts a frame of type Pose to type Pose2D (mainly -> conversion of orientation from quaternions to euler
- * angles)
- * @param Pose which shall be converted
- * @param References to converted ROS Pose2D frmae
- */
-void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D);
+double distance2D(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end);
+double rotationZ(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end);
 
-/**
- * @brief Converts a frame of type Pose to type Pose2D (mainly -> conversion of orientation from euler angles to
- * quaternions, -> z-coordinate is set to zero)
- * @param References to converted ROS Pose2D frame
- * @param Pose2D which shall be converted
- */
-void Pose2DToPose(geometry_msgs::Pose& pose, const geometry_msgs::Pose2D pose2D);
+geometry_msgs::Pose2D convert(const geometry_msgs::Pose& pose);
+geometry_msgs::Pose convert(const geometry_msgs::Pose2D& pose);
+std::vector<geometry_msgs::PoseStamped> convert(const std::vector<Bubble>& band);
+
+double costToDistance(const unsigned char cost, const double costmap_weight);
+double obstacleDistance(const geometry_msgs::Pose& center_pose, const costmap_2d::Costmap2D& costmap,
+                        const double costmap_weight);
+std::vector<Bubble> convert(const std::vector<geometry_msgs::PoseStamped>& plan, const costmap_2d::Costmap2D& costmap,
+                            const double costmap_weight);
 
 /**
  * @brief  Transforms the global plan of the robot from the planner frame to the local frame. This replaces the
@@ -69,7 +66,6 @@ bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geo
  * @return radius in meters
  */
 double getCircumscribedRadius(costmap_2d::Costmap2DROS& costmap);
+}
 
-}  // namespace eband_local_planner
-
-#endif  // EBAND_LOCAL_PLANNER_CONVERSIONS_AND_TYPES_H
+#endif

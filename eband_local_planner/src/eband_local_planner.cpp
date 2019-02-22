@@ -57,12 +57,13 @@ bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global
         return false;
     }
 
-    // convert frames in path into bubbles in band -> sets center of bubbles and calculates expansion
-    if (!convertPlanToBand(global_plan_, elastic_band_))
+    try
     {
-        ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for "
-                 "optimization");
-        // TODO try to do local repairs of band
+        elastic_band_ = convert(global_plan_, *costmap_, costmap_weight_);
+    }
+    catch (const std::exception& e)
+    {
+        ROS_WARN_STREAM("Conversion from plan to elastic band failed: " << e.what());
         return false;
     }
 
@@ -87,12 +88,7 @@ bool EBandPlanner::getPlan(std::vector<geometry_msgs::PoseStamped>& global_plan)
         return false;
     }
 
-    // convert band to plan
-    if (!convertBandToPlan(global_plan, elastic_band_))
-    {
-        ROS_WARN("Conversion from Elastic Band to path failed.");
-        return false;
-    }
+    global_plan = convert(elastic_band_);
 
     return true;
 }
@@ -137,12 +133,14 @@ bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan
         return false;
     }
 
-    // convert plan to band
     std::vector<Bubble> band_to_add;
-    if (!convertPlanToBand(plan_to_add, band_to_add))
+    try
     {
-        ROS_DEBUG("Conversion from plan to elastic band failed. Plan not appended");
-        // TODO try to do local repairs of band
+        band_to_add = convert(plan_to_add, *costmap_, costmap_weight_);
+    }
+    catch (const std::exception& e)
+    {
+        ROS_WARN_STREAM("Conversion from plan to elastic band failed: " << e.what());
         return false;
     }
 
@@ -283,7 +281,7 @@ bool EBandPlanner::optimizeBand(std::vector<Bubble>& band)
     for (std::size_t i = 0; i < band.size(); i++)
     {
         // update Size of Bubbles in band by calculating Dist to nearest Obstacle [depends kinematic, environment]
-        const double distance = calcObstacleKinematicDistance(band.at(i).center.pose);
+        const double distance = obstacleDistance(band.at(i).center.pose, *costmap_, costmap_weight_);
         if (distance == 0.0)
         {
             // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
@@ -576,7 +574,7 @@ bool EBandPlanner::fillGap(std::vector<Bubble>& band, std::vector<Bubble>::itera
 #endif
 
     // calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic, environment]
-    distance = calcObstacleKinematicDistance(interpolated_center.pose);
+    distance = obstacleDistance(interpolated_center.pose, *costmap_, costmap_weight_);
 
     if (distance <= 0)  // tiny_bubble_distance_)
     {
@@ -869,15 +867,11 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
         return true;
     }
 
-    geometry_msgs::Pose2D bubble_pose2D, new_bubble_pose2D;
-    geometry_msgs::Pose bubble_pose, new_bubble_pose;
     geometry_msgs::Twist bubble_jump;
     Bubble new_bubble = band.at(bubble_num);
-    double distance;
 
     // move bubble
-    bubble_pose = band.at(bubble_num).center.pose;
-    PoseToPose2D(bubble_pose, bubble_pose2D);
+    geometry_msgs::Pose2D bubble_pose2D = convert(band.at(bubble_num).center.pose);
 
     // move according to bubble_new = bubble_old + alpha*force -> we choose alpha to be the current expansion of the
     // modified bubble
@@ -891,14 +885,14 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
     bubble_jump.angular.z = normalize_angle(bubble_jump.angular.z);
 
     // apply changes to calc tmp bubble position
+    geometry_msgs::Pose2D new_bubble_pose2D;
     new_bubble_pose2D.x = bubble_pose2D.x + bubble_jump.linear.x;
     new_bubble_pose2D.y = bubble_pose2D.y + bubble_jump.linear.y;
     new_bubble_pose2D.theta = bubble_pose2D.theta + bubble_jump.angular.z;
     new_bubble_pose2D.theta = normalize_angle(new_bubble_pose2D.theta);
 
     // apply changes to local copy
-    Pose2DToPose(new_bubble_pose, new_bubble_pose2D);
-    new_bubble.center.pose = new_bubble_pose;
+    new_bubble.center.pose = convert(new_bubble_pose2D);
 
 #ifdef DEBUG_EBAND_
     ROS_DEBUG("Try moving bubble %d at (%f, %f, %f) by (%f, %f, %f).", bubble_num, bubble_pose2D.x, bubble_pose2D.y,
@@ -908,7 +902,7 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
     // check validity of moved bubble
 
     // recalc expansion of bubble -> calc Size of Bubbles by calculating Dist to nearest Obstacle
-    distance = calcObstacleKinematicDistance(new_bubble_pose);
+    const double distance = obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_);
 
     if (distance <= tiny_bubble_expansion_)
     {
@@ -988,8 +982,7 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
                 new_bubble = curr_bubble;
 
 #ifdef DEBUG_EBAND_
-                geometry_msgs::Pose2D curr_bubble_pose2D;
-                PoseToPose2D(curr_bubble.center.pose, curr_bubble_pose2D);
+                const geometry_msgs::Pose2D curr_bubble_pose2D = convert(curr_bubble.center.pose);
                 ROS_DEBUG("Instead - Try moving bubble %d at (%f, %f, %f) by (%f, %f, %f) to (%f, %f, %f).", bubble_num,
                           bubble_pose2D.x, bubble_pose2D.y, bubble_pose2D.theta, new_step_width.linear.x,
                           new_step_width.linear.y, new_step_width.angular.z, curr_bubble_pose2D.x, curr_bubble_pose2D.y,
@@ -1043,11 +1036,6 @@ bool EBandPlanner::applyForces(int bubble_num, std::vector<Bubble>& band,
         }
     }
 
-// check successful - bubble and band valid apply changes
-#ifdef DEBUG_EBAND_
-    ROS_DEBUG("Frame %d of %lu: Check successful - bubble and band valid. Applying Changes", bubble_num, band.size());
-#endif
-
     band.at(bubble_num) = new_bubble;
 
     return true;
@@ -1059,14 +1047,12 @@ bool EBandPlanner::moveApproximateEquilibrium(const int& bubble_num, const std::
                                               const geometry_msgs::WrenchStamped& curr_bubble_force,
                                               geometry_msgs::Twist& curr_step_width, const int& curr_recursion_depth)
 {
-    double distance;
     Bubble new_bubble = curr_bubble;
-    geometry_msgs::Pose2D new_bubble_pose2D, curr_bubble_pose2D;
     geometry_msgs::WrenchStamped new_bubble_force = curr_bubble_force;
 
     // move bubble
-    PoseToPose2D(curr_bubble.center.pose, curr_bubble_pose2D);
-    PoseToPose2D(new_bubble.center.pose, new_bubble_pose2D);
+    const geometry_msgs::Pose2D curr_bubble_pose2D = convert(curr_bubble.center.pose);
+    geometry_msgs::Pose2D new_bubble_pose2D = convert(new_bubble.center.pose);
 
     // apply changes to calculate tmp bubble position
     new_bubble_pose2D.x = curr_bubble_pose2D.x + curr_step_width.linear.x;
@@ -1075,12 +1061,12 @@ bool EBandPlanner::moveApproximateEquilibrium(const int& bubble_num, const std::
     new_bubble_pose2D.theta = normalize_angle(new_bubble_pose2D.theta);
 
     // apply changes to local copy
-    Pose2DToPose(new_bubble.center.pose, new_bubble_pose2D);
+    new_bubble.center.pose = convert(new_bubble_pose2D);
 
     // check validity of moved bubble
 
     // recalc expansion of bubble -> calc Size of Bubbles by calculating Dist to nearest Obstacle
-    distance = calcObstacleKinematicDistance(new_bubble.center.pose);
+    const double distance = obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_);
 
     // we wont be able to calculate forces later on
     if (distance == 0.0)
@@ -1239,61 +1225,38 @@ bool EBandPlanner::calcInternalForces(int bubble_num, std::vector<Bubble> band, 
         return true;
     }
 
-    // init tmp variables
-    double distance1, distance2;
-    geometry_msgs::Twist difference1, difference2;
-    geometry_msgs::Wrench wrench;
-
-    // make sure this method was called for a valid element in the forces or bubbles vector
     ROS_ASSERT(bubble_num > 0);
     ROS_ASSERT(bubble_num < int(band.size()) - 1);
 
-    // get distance between bubbles
-    if (!calcBubbleDistance(curr_bubble.center.pose, band[bubble_num - 1].center.pose, distance1))
-    {
-        ROS_ERROR("Failed to calculate Distance between two bubbles. Aborting calculation of internal forces!");
-        return false;
-    }
+    const Bubble& prev_bubble = band[bubble_num - 1];
+    const Bubble& next_bubble = band[bubble_num + 1];
 
-    if (!calcBubbleDistance(curr_bubble.center.pose, band[bubble_num + 1].center.pose, distance2))
-    {
-        ROS_ERROR("Failed to calculate Distance between two bubbles. Aborting calculation of internal forces!");
-        return false;
-    }
+    const double dx_1 = prev_bubble.center.pose.position.x - curr_bubble.center.pose.position.x;
+    const double dy_1 = prev_bubble.center.pose.position.y - curr_bubble.center.pose.position.y;
+    double distance_1 = std::sqrt((dx_1 * dx_1) + (dy_1 * dy_1));
 
-    // get (element-wise) difference between bubbles
-    if (!calcBubbleDifference(curr_bubble.center.pose, band[bubble_num - 1].center.pose, difference1))
-    {
-        ROS_ERROR("Failed to calculate Difference between two bubbles. Aborting calculation of internal forces!");
-        return false;
-    }
+    const double dx_2 = next_bubble.center.pose.position.x - curr_bubble.center.pose.position.x;
+    const double dy_2 = next_bubble.center.pose.position.y - curr_bubble.center.pose.position.y;
+    double distance_2 = std::sqrt((dx_2 * dx_2) + (dy_2 * dy_2));
 
-    if (!calcBubbleDifference(curr_bubble.center.pose, band[bubble_num + 1].center.pose, difference2))
-    {
-        ROS_ERROR("Failed to calculate Difference between two bubbles. Aborting calculation of internal forces!");
-        return false;
-    }
+    const double angular_z_1 =
+        rotationZ(curr_bubble.center.pose, prev_bubble.center.pose) * getCircumscribedRadius(*local_costmap_);
+    const double angular_z_2 =
+        rotationZ(curr_bubble.center.pose, next_bubble.center.pose) * getCircumscribedRadius(*local_costmap_);
 
     // make sure to avoid division by  (almost) zero during force calculation (avoid numerical problems)
     // -> if difference/distance is (close to) zero then the force in this direction should be zero as well
-    if (distance1 <= tiny_bubble_distance_)
-        distance1 = 1000000.0;
-    if (distance2 <= tiny_bubble_distance_)
-        distance2 = 1000000.0;
+    if (distance_1 <= tiny_bubble_distance_)
+        distance_1 = 1000000.0;
+    if (distance_2 <= tiny_bubble_distance_)
+        distance_2 = 1000000.0;
 
-    // now calculate wrench - forces model an elastic band and are normed (distance) to render forces for small and
-    // large bubbles the same
-    wrench.force.x = internal_force_gain_ * (difference1.linear.x / distance1 + difference2.linear.x / distance2);
-    wrench.force.y = internal_force_gain_ * (difference1.linear.y / distance1 + difference2.linear.y / distance2);
-    wrench.force.z = internal_force_gain_ * (difference1.linear.z / distance1 + difference2.linear.z / distance2);
-    wrench.torque.x = internal_force_gain_ * (difference1.angular.x / distance1 + difference2.angular.x / distance2);
-    wrench.torque.y = internal_force_gain_ * (difference1.angular.y / distance1 + difference2.angular.y / distance2);
-    wrench.torque.z = internal_force_gain_ * (difference1.angular.z / distance1 + difference2.angular.z / distance2);
+    // forces model an elastic band and are normed (distance) to render forces for small and large bubbles the same
+    geometry_msgs::Wrench wrench;
 
-#ifdef DEBUG_EBAND_
-    ROS_DEBUG("Calculating internal forces: (x, y, theta) = (%f, %f, %f)", wrench.force.x, wrench.force.y,
-              wrench.torque.z);
-#endif
+    wrench.force.x = internal_force_gain_ * (dx_1 / distance_1 + dx_2 / distance_2);
+    wrench.force.y = internal_force_gain_ * (dy_1 / distance_1 + dy_2 / distance_2);
+    wrench.torque.z = internal_force_gain_ * (angular_z_1 / distance_1 + angular_z_2 / distance_2);
 
     // store wrench in vector
     forces.wrench = wrench;
@@ -1304,9 +1267,7 @@ bool EBandPlanner::calcInternalForces(int bubble_num, std::vector<Bubble> band, 
 bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::WrenchStamped& forces)
 {
     // init tmp variables
-    double distance1, distance2;
     geometry_msgs::Pose edge;
-    geometry_msgs::Pose2D edge_pose2D;
     geometry_msgs::Wrench wrench;
 
     // calculate delta-poses (on upper edge of bubble) for x-direction
@@ -1314,13 +1275,13 @@ bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::Wr
     edge.position.x = edge.position.x + curr_bubble.expansion;
 
     // get expansion on bubble at this point
-    distance1 = calcObstacleKinematicDistance(edge);
+    double distance1 = obstacleDistance(edge, *costmap_, costmap_weight_);
 
     // calculate delta-poses (on lower edge of bubble) for x-direction
     edge.position.x = edge.position.x - 2.0 * curr_bubble.expansion;
 
     // get expansion on bubble at this point
-    distance2 = calcObstacleKinematicDistance(edge);
+    double distance2 = obstacleDistance(edge, *costmap_, costmap_weight_);
 
     // calculate difference-quotient (approx. of derivative) in x-direction
     if (curr_bubble.expansion <= tiny_bubble_expansion_)
@@ -1342,13 +1303,13 @@ bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::Wr
     edge.position.y = edge.position.y + curr_bubble.expansion;
 
     // get expansion on bubble at this point
-    distance1 = calcObstacleKinematicDistance(edge);
+    distance1 = obstacleDistance(edge, *costmap_, costmap_weight_);
 
     // calculate delta-poses (on lower edge of bubble) for x-direction
     edge.position.y = edge.position.y - 2.0 * curr_bubble.expansion;
 
     // get expansion on bubble at this point
-    distance2 = calcObstacleKinematicDistance(edge);
+    distance2 = obstacleDistance(edge, *costmap_, costmap_weight_);
 
     // calculate difference-quotient (approx. of derivative) in x-direction
     if (curr_bubble.expansion <= tiny_bubble_expansion_)
@@ -1372,21 +1333,20 @@ bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::Wr
     wrench.torque.y = 0.0;
 
     // calculate delta-poses (on upper edge of bubble) for x-direction
-    PoseToPose2D(curr_bubble.center.pose, edge_pose2D);
+    geometry_msgs::Pose2D edge_pose2D = convert(curr_bubble.center.pose);
     edge_pose2D.theta = edge_pose2D.theta + (curr_bubble.expansion / getCircumscribedRadius(*local_costmap_));
     edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
-    PoseToPose2D(edge, edge_pose2D);
 
     // get expansion on bubble at this point
-    distance1 = calcObstacleKinematicDistance(edge);
+    distance1 = obstacleDistance(edge, *costmap_, costmap_weight_);
 
     // calculate delta-poses (on lower edge of bubble) for x-direction
+    edge_pose2D = convert(edge);
     edge_pose2D.theta = edge_pose2D.theta - 2.0 * (curr_bubble.expansion / getCircumscribedRadius(*local_costmap_));
     edge_pose2D.theta = normalize_angle(edge_pose2D.theta);
-    PoseToPose2D(edge, edge_pose2D);
 
     // get expansion on bubble at this point
-    distance2 = calcObstacleKinematicDistance(edge);
+    distance2 = obstacleDistance(edge, *costmap_, costmap_weight_);
 
     // calculate difference-quotient (approx. of derivative) in x-direction
     if (curr_bubble.expansion <= tiny_bubble_expansion_)
@@ -1399,13 +1359,8 @@ bool EBandPlanner::calcExternalForces(int, Bubble curr_bubble, geometry_msgs::Wr
     }
     else
         wrench.torque.z = -external_force_gain_ * (distance2 - distance1) / (2.0 * curr_bubble.expansion);
-        // TODO above equations skip term to make forces continuous at end of influence region - test to add
-        // corresponsing term
-
-#ifdef DEBUG_EBAND_
-    ROS_DEBUG("Calculating external forces: (x, y, theta) = (%f, %f, %f)", wrench.force.x, wrench.force.y,
-              wrench.torque.z);
-#endif
+    // TODO above equations skip term to make forces continuous at end of influence region - test to add
+    // corresponsing term
 
     // assign wrench to forces vector
     forces.wrench = wrench;
@@ -1424,27 +1379,25 @@ bool EBandPlanner::suppressTangentialForces(int bubble_num, std::vector<Bubble> 
         return true;
     }
 
-    double scalar_fd, scalar_dd;
-    geometry_msgs::Twist difference;
-
     // make sure this method was called for a valid element in the forces or bubbles vector
     ROS_ASSERT(bubble_num > 0);
     ROS_ASSERT(bubble_num < int(band.size()) - 1);
 
-    // get pose-difference from following to preceding bubble -> "direction of the band in this bubble"
-    if (!calcBubbleDifference(band[bubble_num + 1].center.pose, band[bubble_num - 1].center.pose, difference))
-        return false;
+    const Bubble& prev_bubble = band[bubble_num - 1];
+    const Bubble& next_bubble = band[bubble_num + 1];
+
+    const double dx = prev_bubble.center.pose.position.x - next_bubble.center.pose.position.x;
+    const double dy = prev_bubble.center.pose.position.y - next_bubble.center.pose.position.y;
+    const double angular_z =
+        rotationZ(next_bubble.center.pose, prev_bubble.center.pose) * getCircumscribedRadius(*local_costmap_);
 
     // "project wrench" in middle bubble onto connecting vector
     // scalar wrench*difference
-    scalar_fd = forces.wrench.force.x * difference.linear.x + forces.wrench.force.y * difference.linear.y +
-                forces.wrench.force.z * difference.linear.z + forces.wrench.torque.x * difference.angular.x +
-                forces.wrench.torque.y * difference.angular.y + forces.wrench.torque.z * difference.angular.z;
+    const double scalar_fd =
+        forces.wrench.force.x * dx + forces.wrench.force.y * dy + forces.wrench.torque.z * angular_z;
 
     // abs of difference-vector: scalar difference*difference
-    scalar_dd = difference.linear.x * difference.linear.x + difference.linear.y * difference.linear.y +
-                difference.linear.z * difference.linear.z + difference.angular.x * difference.angular.x +
-                difference.angular.y * difference.angular.y + difference.angular.z * difference.angular.z;
+    const double scalar_dd = dx * dx + dy * dy + angular_z * angular_z;
 
     // avoid division by (almost) zero -> check if bubbles have (almost) same center-pose
     if (scalar_dd <= tiny_bubble_distance_)
@@ -1455,17 +1408,12 @@ bool EBandPlanner::suppressTangentialForces(int bubble_num, std::vector<Bubble> 
     }
 
     // calculate orthogonal components
-    forces.wrench.force.x = forces.wrench.force.x - scalar_fd / scalar_dd * difference.linear.x;
-    forces.wrench.force.y = forces.wrench.force.y - scalar_fd / scalar_dd * difference.linear.y;
-    forces.wrench.force.z = forces.wrench.force.z - scalar_fd / scalar_dd * difference.linear.z;
-    forces.wrench.torque.x = forces.wrench.torque.x - scalar_fd / scalar_dd * difference.angular.x;
-    forces.wrench.torque.y = forces.wrench.torque.y - scalar_fd / scalar_dd * difference.angular.y;
-    forces.wrench.torque.z = forces.wrench.torque.z - scalar_fd / scalar_dd * difference.angular.z;
-
-#ifdef DEBUG_EBAND_
-    ROS_DEBUG("Supressing tangential forces: (x, y, theta) = (%f, %f, %f)", forces.wrench.force.x,
-              forces.wrench.force.y, forces.wrench.torque.z);
-#endif
+    forces.wrench.force.x = forces.wrench.force.x - scalar_fd / scalar_dd * dx;
+    forces.wrench.force.y = forces.wrench.force.y - scalar_fd / scalar_dd * dy;
+    forces.wrench.force.z = 0;
+    forces.wrench.torque.x = 0;
+    forces.wrench.torque.y = 0;
+    forces.wrench.torque.z = forces.wrench.torque.z - scalar_fd / scalar_dd * angular_z;
 
     return true;
 }
@@ -1474,10 +1422,6 @@ bool EBandPlanner::suppressTangentialForces(int bubble_num, std::vector<Bubble> 
 bool EBandPlanner::interpolateBubbles(geometry_msgs::PoseStamped start_center, geometry_msgs::PoseStamped end_center,
                                       geometry_msgs::PoseStamped& interpolated_center)
 {
-    // instantiate local variables
-    geometry_msgs::Pose2D start_pose2D, end_pose2D, interpolated_pose2D;
-    double delta_theta;
-
     // copy header
     interpolated_center.header = start_center.header;
 
@@ -1486,19 +1430,20 @@ bool EBandPlanner::interpolateBubbles(geometry_msgs::PoseStamped start_center, g
     // - for instance use "slerp" to interpolate directly between quaternions
     // - or work with pose2D right from the beginnning
     // convert quaternions to euler angles - at this point this no longer works in 3D !!
-    PoseToPose2D(start_center.pose, start_pose2D);
-    PoseToPose2D(end_center.pose, end_pose2D);
+    geometry_msgs::Pose2D start_pose2D = convert(start_center.pose);
+    geometry_msgs::Pose2D end_pose2D = convert(end_center.pose);
 
     // calc mean of theta angle
-    delta_theta = end_pose2D.theta - start_pose2D.theta;
-    delta_theta = normalize_angle(delta_theta) / 2.0;
+    const double delta_theta = normalize_angle(end_pose2D.theta - start_pose2D.theta) / 2.0;
+
+    geometry_msgs::Pose2D interpolated_pose2D;
     interpolated_pose2D.theta = start_pose2D.theta + delta_theta;
     interpolated_pose2D.theta = normalize_angle(interpolated_pose2D.theta);
 
     // convert back to quaternion
     interpolated_pose2D.x = 0.0;
     interpolated_pose2D.y = 0.0;
-    Pose2DToPose(interpolated_center.pose, interpolated_pose2D);
+    interpolated_center.pose = convert(interpolated_pose2D);
 
     // interpolate positions
     interpolated_center.pose.position.x = (end_center.pose.position.x + start_center.pose.position.x) / 2.0;
@@ -1510,16 +1455,10 @@ bool EBandPlanner::interpolateBubbles(geometry_msgs::PoseStamped start_center, g
     return true;
 }
 
-
 bool EBandPlanner::checkOverlap(Bubble bubble1, Bubble bubble2)
 {
     // calc (kinematic) Distance between bubbles
-    double distance = 0.0;
-    if (!calcBubbleDistance(bubble1.center.pose, bubble2.center.pose, distance))
-    {
-        ROS_ERROR("failed to calculate Distance between two bubbles. Aborting check for overlap!");
-        return false;
-    }
+    const double distance = distance2D(bubble1.center.pose, bubble2.center.pose);
 
     // compare with size of the two bubbles
     if (distance >= min_bubble_overlap_ * (bubble1.expansion + bubble2.expansion))
@@ -1530,180 +1469,4 @@ bool EBandPlanner::checkOverlap(Bubble bubble1, Bubble bubble2)
     // everything fine - bubbles overlap
     return true;
 }
-
-
-bool EBandPlanner::calcBubbleDistance(geometry_msgs::Pose start_center_pose, geometry_msgs::Pose end_center_pose,
-                                      double& distance)
-{
-    geometry_msgs::Pose2D start_pose2D, end_pose2D, diff_pose2D;
-
-    // TODO make this in a better way
-    // - or work with pose2D right from the beginnning
-    // convert quaternions to euler angles - at this point this no longer works in 3D !!
-    PoseToPose2D(start_center_pose, start_pose2D);
-    PoseToPose2D(end_center_pose, end_pose2D);
-
-    // get rotational difference
-    diff_pose2D.theta = end_pose2D.theta - start_pose2D.theta;
-    diff_pose2D.theta = normalize_angle(diff_pose2D.theta);
-
-    // get translational difference
-    diff_pose2D.x = end_pose2D.x - start_pose2D.x;
-    diff_pose2D.y = end_pose2D.y - start_pose2D.y;
-
-    // calc distance
-    // double angle_to_pseudo_vel = diff_pose2D.theta * getCircumscribedRadius(*local_costmap_);
-    // distance = sqrt( (diff_pose2D.x * diff_pose2D.x) + (diff_pose2D.y * diff_pose2D.y) + (angle_to_pseudo_vel *
-    // angle_to_pseudo_vel) );
-    distance = sqrt((diff_pose2D.x * diff_pose2D.x) + (diff_pose2D.y * diff_pose2D.y));
-
-    // TODO take into account kinematic properties of body
-
-    return true;
 }
-
-
-bool EBandPlanner::calcBubbleDifference(geometry_msgs::Pose start_center_pose, geometry_msgs::Pose end_center_pose,
-                                        geometry_msgs::Twist& difference)
-{
-    geometry_msgs::Pose2D start_pose2D, end_pose2D, diff_pose2D;
-
-    // TODO make this in a better way
-    // - or work with pose2D right from the beginnning
-    // convert quaternions to euler angles - at this point this no longer works in 3D !!
-    PoseToPose2D(start_center_pose, start_pose2D);
-    PoseToPose2D(end_center_pose, end_pose2D);
-
-    // get rotational difference
-    diff_pose2D.theta = end_pose2D.theta - start_pose2D.theta;
-    diff_pose2D.theta = normalize_angle(diff_pose2D.theta);
-
-    // get translational difference
-    diff_pose2D.x = end_pose2D.x - start_pose2D.x;
-    diff_pose2D.y = end_pose2D.y - start_pose2D.y;
-
-    difference.linear.x = diff_pose2D.x;
-    difference.linear.y = diff_pose2D.y;
-    difference.linear.z = 0.0;
-
-    // multiply by inscribed radius to math calculation of distance
-    difference.angular.x = 0.0;
-    difference.angular.y = 0.0;
-    difference.angular.z = diff_pose2D.theta * getCircumscribedRadius(*local_costmap_);
-
-    // TODO take into account kinematic properties of body
-
-    return true;
-}
-
-double EBandPlanner::calcObstacleKinematicDistance(const geometry_msgs::Pose& center_pose) const
-{
-    // calculate distance to nearest obstacle [depends kinematic, shape, environment]
-
-    unsigned int cell_x, cell_y;
-    unsigned char disc_cost;
-
-    // read distance to nearest obstacle directly from costmap
-    // (does not take into account shape and kinematic properties)
-    // get cell for coordinates of bubble center
-    if (!costmap_->worldToMap(center_pose.position.x, center_pose.position.y, cell_x, cell_y))
-    {
-        // probably at the edge of the costmap - this value should be recovered soon
-        disc_cost = 1;
-    }
-    else
-    {
-        // get cost for this cell
-        disc_cost = costmap_->getCost(cell_x, cell_y);
-    }
-
-    // TODO what?
-    // Why don't we actually calculate our own distance map rather than weirdly reverse engineering it from inflation
-    // ans - because we would need to save the distance map when we calculate inflation (the costmap should do this...)
-
-    return costToDistance(disc_cost);
-}
-
-double EBandPlanner::costToDistance(const unsigned char cost) const
-{
-    if (cost >= costmap_2d::LETHAL_OBSTACLE || cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-    {
-        return 0.0;
-    }
-    else
-    {
-        if (cost == 0 || cost == 255)
-        {
-            const double factor = 1.0 / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
-            return -log(factor) / costmap_weight_;
-        }
-        else
-        {
-            const double factor = static_cast<double>(cost) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
-            return -log(factor) / costmap_weight_;
-        }
-    }
-}
-
-bool EBandPlanner::convertPlanToBand(std::vector<geometry_msgs::PoseStamped> plan, std::vector<Bubble>& band)
-{
-    // create local variables
-    std::vector<Bubble> tmp_band;
-
-    ROS_DEBUG("Copying plan to band - Conversion started: %lu frames to convert.", plan.size());
-
-    // get local copy of referenced variable
-    tmp_band = band;
-
-    // adapt band to plan
-    tmp_band.resize(plan.size());
-    for (std::size_t i = 0; i < plan.size(); i++)
-    {
-        // set poses in plan as centers of bubbles
-        tmp_band[i].center = plan[i];
-
-        // calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic, environment]
-        const double distance = calcObstacleKinematicDistance(tmp_band[i].center.pose);
-
-        // TODO - collect all of the in-collision bubbles in a row and replace them with one moved
-
-        if (distance <= 0.0)
-        {
-            // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
-            ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %lu  in "
-                     "collision. Plan invalid",
-                     i, plan.size());
-            return false;
-        }
-
-        // assign to expansion of bubble
-        tmp_band[i].expansion = distance;
-    }
-
-    // write to referenced variable
-    band = tmp_band;
-
-    ROS_DEBUG("Successfully converted plan to band");
-    return true;
-}
-
-bool EBandPlanner::convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band)
-{
-    // create local variables
-    std::vector<geometry_msgs::PoseStamped> tmp_plan;
-
-    // adapt plan to band
-    tmp_plan.resize(band.size());
-    for (std::size_t i = 0; i < band.size(); i++)
-    {
-        // set centers of bubbles to StampedPose in plan
-        tmp_plan[i] = band[i].center;
-    }
-
-    // write to referenced variable and done
-    plan = tmp_plan;
-
-    return true;
-}
-
-}  // namespace eband_local_planner
