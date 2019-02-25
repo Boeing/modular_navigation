@@ -51,6 +51,13 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
     if (plugins_.size() == 0)
         return;
 
+    if (costmap_.getSizeInCellsX() == 0 || costmap_.getSizeInCellsY() == 0)
+    {
+        ROS_WARN_STREAM("0 sized map detected, skipping update. x_size: " << costmap_.getSizeInCellsX() << ", y_size: "
+                                                                          << costmap_.getSizeInCellsY());
+        return;
+    }
+
     double minx = std::numeric_limits<double>::max();
     double miny = std::numeric_limits<double>::max();
     double maxx = -std::numeric_limits<double>::max();
