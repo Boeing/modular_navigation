@@ -50,11 +50,10 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
 
     ros::Publisher plan_pub_;
 
-    std::vector<geometry_msgs::PoseStamped> global_plan_;
-    std::vector<geometry_msgs::PoseStamped> transformed_plan_;
-    std::vector<int> plan_start_end_counter_;
+    std::vector<geometry_msgs::Pose> transformed_plan_;
+    std::vector<geometry_msgs::Pose>::const_iterator window_end_;
 
-    std::shared_ptr<EBandPlanner> eband_;
+    std::shared_ptr<EBandOptimiser> eband_;
     std::shared_ptr<EBandVisualization> eband_visual_;
     std::shared_ptr<EBandTrajectoryCtrl> eband_trj_ctrl_;
 
