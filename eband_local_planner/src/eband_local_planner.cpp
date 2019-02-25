@@ -227,7 +227,7 @@ bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan
 
     // instantiate local copy of band
     std::vector<Bubble> tmp_band;
-    std::vector<Bubble>::iterator tmp_iter1, tmp_iter2;
+    std::vector<Bubble>::iterator tmp_iter1;
 
     // copy new frames to tmp_band
     tmp_band.assign(band_to_add.begin(), band_to_add.end());
@@ -261,18 +261,11 @@ bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan
     {
         // compose new vector by appending elastic_band to new frames
         tmp_band.insert(tmp_band.end(), elastic_band_.begin(), elastic_band_.end());
-        // and get iterators to connecting bubbles
-        tmp_iter1 = tmp_band.begin() + band_to_add.size() - 1;
-        tmp_iter2 = tmp_iter1 + 1;
     }
     else
     {
         // compose new vector by pre-appending elastic_band to new frames
         tmp_band.insert(tmp_band.begin(), elastic_band_.begin(), elastic_band_.end());
-
-        // and get iterators to connecting bubbles
-        tmp_iter1 = tmp_band.begin() + elastic_band_.size() - 1;
-        tmp_iter2 = tmp_iter1 + 1;
     }
 
     // otherwise - done
@@ -364,12 +357,12 @@ void EBandPlanner::refineBand(std::vector<Bubble>& band) const
             {
                 // remove the next bubble
                 iter = band.erase(next);
-                iter--;
+                --iter;
             }
             else
             {
                 // we can't shortcut so we just have to deal
-                iter++;
+                ++iter;
             }
         }
     }
