@@ -59,7 +59,6 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
 
     bool goal_reached_;
 };
-
 }
 
 #endif

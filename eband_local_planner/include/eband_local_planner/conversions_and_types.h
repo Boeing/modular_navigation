@@ -52,10 +52,10 @@ double obstacleDistance(const geometry_msgs::Pose& center_pose, const costmap_2d
 std::vector<Bubble> convert(const std::vector<geometry_msgs::Pose>& plan, const costmap_2d::Costmap2D& costmap,
                             const double costmap_weight, const double inflation_radius);
 
-std::vector<geometry_msgs::Pose> transform(const std::vector<geometry_msgs::PoseStamped>& plan, const tf2_ros::Buffer& tf_buffer, const std::string& frame_id);
+std::vector<geometry_msgs::Pose> transform(const std::vector<geometry_msgs::PoseStamped>& plan,
+                                           const tf2_ros::Buffer& tf_buffer, const std::string& frame_id);
 
 double getCircumscribedRadius(costmap_2d::Costmap2DROS& costmap);
-
 }
 
 #endif

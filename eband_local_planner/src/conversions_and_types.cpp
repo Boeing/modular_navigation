@@ -228,7 +228,8 @@ std::vector<Bubble> convert(const std::vector<geometry_msgs::Pose>& plan, const 
     return band;
 }
 
-std::vector<geometry_msgs::Pose> transform(const std::vector<geometry_msgs::PoseStamped>& plan, const tf2_ros::Buffer& tf_buffer, const std::string& frame_id)
+std::vector<geometry_msgs::Pose> transform(const std::vector<geometry_msgs::PoseStamped>& plan,
+                                           const tf2_ros::Buffer& tf_buffer, const std::string& frame_id)
 {
     if (plan.empty())
         return {};
@@ -236,12 +237,9 @@ std::vector<geometry_msgs::Pose> transform(const std::vector<geometry_msgs::Pose
     tf2::Transform transform_;
     try
     {
-        const geometry_msgs::TransformStamped transform = tf_buffer.lookupTransform(
-                    frame_id,
-                    ros::Time(),
-                    plan.front().header.frame_id,
-                    plan.front().header.stamp,
-                    plan.front().header.frame_id);
+        const geometry_msgs::TransformStamped transform =
+            tf_buffer.lookupTransform(frame_id, ros::Time(), plan.front().header.frame_id, plan.front().header.stamp,
+                                      plan.front().header.frame_id);
         tf2::convert(transform.transform, transform_);
     }
     catch (const tf2::TransformException& e)

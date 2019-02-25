@@ -29,8 +29,9 @@ class EBandVisualization
     EBandVisualization(ros::NodeHandle& pn, const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap);
     ~EBandVisualization();
 
-    void publishBand(const std::vector<Bubble>& band, const std::string& marker_name_space="bubbles");
-    void publishBubble(const Bubble& bubble, const int marker_id, const Color marker_color=Color::red, const std::string& marker_name_space="ctrl_target");
+    void publishBand(const std::vector<Bubble>& band, const std::string& marker_name_space = "bubbles");
+    void publishBubble(const Bubble& bubble, const int marker_id, const Color marker_color = Color::red,
+                       const std::string& marker_name_space = "ctrl_target");
 
   private:
     const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
@@ -40,9 +41,9 @@ class EBandVisualization
 
     double marker_lifetime_;
 
-    visualization_msgs::Marker makeMarker(const Bubble& bubble, const std::string& marker_name_space, const int marker_id, const Color& marker_color) const;
+    visualization_msgs::Marker makeMarker(const Bubble& bubble, const std::string& marker_name_space,
+                                          const int marker_id, const Color& marker_color) const;
 };
-
 }
 
 #endif

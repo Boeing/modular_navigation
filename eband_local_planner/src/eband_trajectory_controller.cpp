@@ -119,8 +119,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
 
     // get difference and distance between bubbles in odometry frame
     double bubble_distance, ang_pseudo_dist;
-    bubble_diff =
-        getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center, elastic_band_.at(1).center, ref_frame_band_);
+    bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center, elastic_band_.at(1).center, ref_frame_band_);
     ang_pseudo_dist = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
                            (bubble_diff.linear.y * bubble_diff.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));
@@ -162,8 +161,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
             // get difference between next and next but one bubble
             double next_bubble_distance;
             geometry_msgs::Twist next_bubble_diff;
-            next_bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(1).center,
-                                                           elastic_band_.at(2).center, ref_frame_band_);
+            next_bubble_diff =
+                getFrame1ToFrame2InRefFrame(elastic_band_.at(1).center, elastic_band_.at(2).center, ref_frame_band_);
             ang_pseudo_dist = next_bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
             next_bubble_distance =
                 sqrt((next_bubble_diff.linear.x * next_bubble_diff.linear.x) +
@@ -401,8 +400,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
             curr_target_bubble++;
             // transform next target bubble into robot-body frame
             // and get difference to robot bubble
-            bubble_diff = getFrame1ToFrame2InRefFrame(
-                elastic_band_.at(0).center, elastic_band_.at(curr_target_bubble).center, ref_frame_band_);
+            bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center,
+                                                      elastic_band_.at(curr_target_bubble).center, ref_frame_band_);
         }
         else
         {
@@ -456,8 +455,8 @@ double EBandTrajectoryCtrl::getBubbleTargetVel(const int target_bub_num, const s
 
     // get distance to next bubble center
     ROS_ASSERT((target_bub_num >= 0) && ((target_bub_num + 1) < static_cast<int>(band.size())));
-    bubble_diff = getFrame1ToFrame2InRefFrame(band.at(target_bub_num).center,
-                                              band.at(target_bub_num + 1).center, ref_frame_band_);
+    bubble_diff = getFrame1ToFrame2InRefFrame(band.at(target_bub_num).center, band.at(target_bub_num + 1).center,
+                                              ref_frame_band_);
     angle_to_pseudo_vel = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
 
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
@@ -606,5 +605,4 @@ geometry_msgs::Twist EBandTrajectoryCtrl::limitTwist(const geometry_msgs::Twist&
     ROS_DEBUG("Angular command %f", res.angular.z);
     return res;
 }
-
 }

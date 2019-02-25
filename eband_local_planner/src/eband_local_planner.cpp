@@ -23,7 +23,7 @@ bool checkOverlap(const Bubble& bubble1, const Bubble& bubble2, const double min
 }
 
 geometry_msgs::Pose interpolate(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end,
-                                       const double fraction = 0.5)
+                                const double fraction = 0.5)
 {
     geometry_msgs::Pose interpolated;
 
@@ -61,12 +61,12 @@ geometry_msgs::Wrench add(const geometry_msgs::Wrench& first, const geometry_msg
 }
 
 EBandOptimiser::EBandOptimiser(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap,
-                           const int num_optim_iterations, const double internal_force_gain,
-                           const double external_force_gain, const double tiny_bubble_distance,
-                           const double tiny_bubble_expansion, const double min_bubble_overlap,
-                           const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
-                           const double significant_force, const double costmap_weight,
-                           const double costmap_inflation_radius)
+                               const int num_optim_iterations, const double internal_force_gain,
+                               const double external_force_gain, const double tiny_bubble_distance,
+                               const double tiny_bubble_expansion, const double min_bubble_overlap,
+                               const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
+                               const double significant_force, const double costmap_weight,
+                               const double costmap_inflation_radius)
     : local_costmap_(local_costmap), num_optim_iterations_(num_optim_iterations),
       internal_force_gain_(internal_force_gain), external_force_gain_(external_force_gain),
       tiny_bubble_distance_(tiny_bubble_distance), tiny_bubble_expansion_(tiny_bubble_expansion),
@@ -103,7 +103,8 @@ void EBandOptimiser::setPlan(const std::vector<geometry_msgs::Pose>& global_plan
 
 void EBandOptimiser::pruneTillPose(const geometry_msgs::Pose& robot_pose)
 {
-    Bubble robot_bubble = {robot_pose, obstacleDistance(robot_pose, *costmap_, costmap_weight_, costmap_inflation_radius_)};
+    Bubble robot_bubble = {robot_pose,
+                           obstacleDistance(robot_pose, *costmap_, costmap_weight_, costmap_inflation_radius_)};
     for (int i = static_cast<int>(elastic_band_.size()) - 1; i >= 0; i--)
     {
         if (checkOverlap(robot_bubble, elastic_band_[static_cast<std::size_t>(i)], min_bubble_overlap_))
@@ -152,7 +153,8 @@ void EBandOptimiser::updateDistances(std::vector<Bubble>& band) const
 {
     for (std::size_t i = 0; i < band.size(); i++)
     {
-        const double distance = obstacleDistance(band.at(i).center, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        const double distance =
+            obstacleDistance(band.at(i).center, *costmap_, costmap_weight_, costmap_inflation_radius_);
         if (distance == 0.0)
         {
             throw std::runtime_error("Frame " + std::to_string(i) + " of " + std::to_string(band.size()) +
@@ -269,7 +271,7 @@ void EBandOptimiser::modifyBandArtificialForce(std::vector<Bubble>& band) const
 
 
 Bubble EBandOptimiser::applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
-                                const Bubble& curr_bubble, const Bubble& next_bubble) const
+                                  const Bubble& curr_bubble, const Bubble& next_bubble) const
 {
     Bubble new_bubble = moveToEquilibrium(wrench, prev_bubble, curr_bubble, next_bubble);
 
@@ -291,7 +293,7 @@ Bubble EBandOptimiser::applyForce(const geometry_msgs::Wrench& wrench, const Bub
 }
 
 Bubble EBandOptimiser::moveBubble(const geometry_msgs::Wrench& wrench, const Bubble& curr_bubble,
-                                const double step_size) const
+                                  const double step_size) const
 {
     geometry_msgs::Twist bubble_jump;
     bubble_jump.linear.x = step_size * wrench.force.x;
@@ -313,7 +315,7 @@ Bubble EBandOptimiser::moveBubble(const geometry_msgs::Wrench& wrench, const Bub
 }
 
 Bubble EBandOptimiser::moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
-                                       const Bubble& curr_bubble, const Bubble& next_bubble) const
+                                         const Bubble& curr_bubble, const Bubble& next_bubble) const
 {
     double step_size = curr_bubble.expansion;
 
@@ -369,7 +371,7 @@ Bubble EBandOptimiser::moveToEquilibrium(const geometry_msgs::Wrench& wrench, co
 }
 
 geometry_msgs::Wrench EBandOptimiser::force(const Bubble& prev_bubble, const Bubble& curr_bubble,
-                                          const Bubble& next_bubble) const
+                                            const Bubble& next_bubble) const
 {
     const geometry_msgs::Wrench internal_force = internalForce(prev_bubble, curr_bubble, next_bubble);
     const geometry_msgs::Wrench external_force = externalForce(curr_bubble);
@@ -379,7 +381,7 @@ geometry_msgs::Wrench EBandOptimiser::force(const Bubble& prev_bubble, const Bub
 }
 
 geometry_msgs::Wrench EBandOptimiser::internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble,
-                                                  const Bubble& next_bubble) const
+                                                    const Bubble& next_bubble) const
 {
     const double dx_1 = prev_bubble.center.position.x - curr_bubble.center.position.x;
     const double dy_1 = prev_bubble.center.position.y - curr_bubble.center.position.y;
@@ -448,7 +450,7 @@ geometry_msgs::Wrench EBandOptimiser::externalForce(const Bubble& curr_bubble) c
 }
 
 geometry_msgs::Wrench EBandOptimiser::tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
-                                                    const Bubble&, const Bubble& next_bubble) const
+                                                      const Bubble&, const Bubble& next_bubble) const
 {
     const double dx = prev_bubble.center.position.x - next_bubble.center.position.x;
     const double dy = prev_bubble.center.position.y - next_bubble.center.position.y;
@@ -472,5 +474,4 @@ geometry_msgs::Wrench EBandOptimiser::tangentialForce(const geometry_msgs::Wrenc
 
     return ret;
 }
-
 }

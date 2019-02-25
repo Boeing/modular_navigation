@@ -21,10 +21,11 @@ class EBandOptimiser
 {
   public:
     EBandOptimiser(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap, const int num_optim_iterations,
-                 const double internal_force_gain, const double external_force_gain, const double tiny_bubble_distance,
-                 const double tiny_bubble_expansion, const double min_bubble_overlap,
-                 const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
-                 const double significant_force, const double costmap_weight, const double costmap_inflation_radius);
+                   const double internal_force_gain, const double external_force_gain,
+                   const double tiny_bubble_distance, const double tiny_bubble_expansion,
+                   const double min_bubble_overlap, const int equilibrium_max_recursion_depth,
+                   const double equilibrium_relative_overshoot, const double significant_force,
+                   const double costmap_weight, const double costmap_inflation_radius);
     ~EBandOptimiser();
 
     void setVisualization(std::shared_ptr<EBandVisualization> eband_visual);
@@ -41,9 +42,9 @@ class EBandOptimiser
     double distance() const
     {
         double distance = 0.0;
-        for (std::size_t i=0; i<elastic_band_.size() - 1; ++i)
+        for (std::size_t i = 0; i < elastic_band_.size() - 1; ++i)
         {
-            distance += distance2D(elastic_band_[i].center, elastic_band_[i+1].center);
+            distance += distance2D(elastic_band_[i].center, elastic_band_[i + 1].center);
         }
         return distance;
     }

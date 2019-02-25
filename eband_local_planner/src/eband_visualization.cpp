@@ -40,13 +40,15 @@ void EBandVisualization::publishBand(const std::vector<Bubble>& band, const std:
     bubble_pub_.publish(eband_msg);
 }
 
-void EBandVisualization::publishBubble(const Bubble& bubble, const int marker_id, const Color marker_color, const std::string& marker_name_space)
+void EBandVisualization::publishBubble(const Bubble& bubble, const int marker_id, const Color marker_color,
+                                       const std::string& marker_name_space)
 {
     visualization_msgs::Marker bubble_msg = makeMarker(bubble, marker_name_space, marker_id, marker_color);
     one_bubble_pub_.publish(bubble_msg);
 }
 
-visualization_msgs::Marker EBandVisualization::makeMarker(const Bubble& bubble, const std::string& marker_name_space, const int marker_id, const Color& marker_color) const
+visualization_msgs::Marker EBandVisualization::makeMarker(const Bubble& bubble, const std::string& marker_name_space,
+                                                          const int marker_id, const Color& marker_color) const
 {
     visualization_msgs::Marker marker;
 
@@ -99,5 +101,4 @@ visualization_msgs::Marker EBandVisualization::makeMarker(const Bubble& bubble, 
 
     return marker;
 }
-
 }

@@ -90,7 +90,8 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
     {
         const std::string robot_frame = local_costmap_->getBaseFrameID();
         const std::string local_frame = local_costmap_->getGlobalFrameID();
-        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(local_frame, robot_frame, now, ros::Duration(0.1));
+        const geometry_msgs::TransformStamped tr =
+            tf_buffer_->lookupTransform(local_frame, robot_frame, now, ros::Duration(0.1));
 
         geometry_msgs::Pose local_robot_pose;
         local_robot_pose.position.x = tr.transform.translation.x;
@@ -160,7 +161,8 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         return result;
     }
 
-    ROS_DEBUG_STREAM("Retrieving velocity command: " << cmd_twist.linear.x << " " << cmd_twist.linear.y << " " << cmd_twist.angular.z);
+    ROS_DEBUG_STREAM("Retrieving velocity command: " << cmd_twist.linear.x << " " << cmd_twist.linear.y << " "
+                                                     << cmd_twist.angular.z);
     result.cmd_vel = cmd_twist;
 
     {
@@ -221,5 +223,4 @@ bool EBandPlannerROS::clearPlan()
 {
     return true;
 }
-
 }
