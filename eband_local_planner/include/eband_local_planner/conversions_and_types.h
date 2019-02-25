@@ -45,7 +45,8 @@ double costToDistance(const unsigned char cost, const double costmap_weight);
 
 std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen::Vector2i& end);
 
-bool validPath(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end, const costmap_2d::Costmap2D& costmap, const double costmap_weight, const double min_distance);
+bool validPath(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end, const costmap_2d::Costmap2D& costmap,
+               const double costmap_weight, const double min_distance);
 
 double obstacleDistance(const geometry_msgs::Pose& center_pose, const costmap_2d::Costmap2D& costmap,
                         const double costmap_weight, const double inflation_radius);

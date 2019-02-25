@@ -20,7 +20,8 @@ bool checkOverlap(const Bubble& bubble1, const Bubble& bubble2, const double min
     return (distance < min_overlap * (bubble1.expansion + bubble2.expansion));
 }
 
-geometry_msgs::PoseStamped interpolate(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& end, const double fraction=0.5)
+geometry_msgs::PoseStamped interpolate(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& end,
+                                       const double fraction = 0.5)
 {
     geometry_msgs::PoseStamped interpolated;
     interpolated.header = start.header;
@@ -56,7 +57,6 @@ geometry_msgs::Wrench add(const geometry_msgs::Wrench& first, const geometry_msg
     sum.torque.z = first.torque.z + second.torque.z;
     return sum;
 }
-
 }
 
 EBandPlanner::EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap,
@@ -64,13 +64,15 @@ EBandPlanner::EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& loca
                            const double external_force_gain, const double tiny_bubble_distance,
                            const double tiny_bubble_expansion, const double min_bubble_overlap,
                            const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
-                           const double significant_force, const double costmap_weight, const double costmap_inflation_radius)
+                           const double significant_force, const double costmap_weight,
+                           const double costmap_inflation_radius)
     : local_costmap_(local_costmap), num_optim_iterations_(num_optim_iterations),
       internal_force_gain_(internal_force_gain), external_force_gain_(external_force_gain),
       tiny_bubble_distance_(tiny_bubble_distance), tiny_bubble_expansion_(tiny_bubble_expansion),
       min_bubble_overlap_(min_bubble_overlap), max_recursion_depth_approx_equi_(equilibrium_max_recursion_depth),
       equilibrium_relative_overshoot_(equilibrium_relative_overshoot), significant_force_(significant_force),
-      costmap_weight_(costmap_weight), costmap_inflation_radius_(costmap_inflation_radius), visualization_(false), costmap_(local_costmap_->getCostmap()), robot_radius_(getCircumscribedRadius(*local_costmap_))
+      costmap_weight_(costmap_weight), costmap_inflation_radius_(costmap_inflation_radius), visualization_(false),
+      costmap_(local_costmap_->getCostmap()), robot_radius_(getCircumscribedRadius(*local_costmap_))
 {
 }
 
@@ -301,10 +303,12 @@ void EBandPlanner::updateDistances(std::vector<Bubble>& band) const
 {
     for (std::size_t i = 0; i < band.size(); i++)
     {
-        const double distance = obstacleDistance(band.at(i).center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        const double distance =
+            obstacleDistance(band.at(i).center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
         if (distance == 0.0)
         {
-            throw std::runtime_error("Frame " + std::to_string(i) + " of " + std::to_string(band.size()) + " in collision");
+            throw std::runtime_error("Frame " + std::to_string(i) + " of " + std::to_string(band.size()) +
+                                     " in collision");
         }
         band.at(i).expansion = distance;
     }
@@ -333,7 +337,8 @@ void EBandPlanner::refineBand(std::vector<Bubble>& band) const
                 Bubble new_bubble = *iter;
                 const double fraction = iter->expansion * min_bubble_overlap_ / distance_to_next_bubble;
                 new_bubble.center = interpolate(iter->center, next->center, fraction);
-                new_bubble.expansion = obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
+                new_bubble.expansion =
+                    obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
 
                 // insert to band
                 iter = band.insert(next, new_bubble);
@@ -343,7 +348,8 @@ void EBandPlanner::refineBand(std::vector<Bubble>& band) const
                 // we can't connect this band... oh shit
                 // ok now we need to a-star or something boss
                 // for now lets fail *shrug*
-                throw std::runtime_error("Failed to connect band at: " + std::to_string(std::distance(band.begin(), iter)));
+                throw std::runtime_error("Failed to connect band at: " +
+                                         std::to_string(std::distance(band.begin(), iter)));
             }
         }
         else
@@ -388,9 +394,9 @@ void EBandPlanner::modifyBandArtificialForce(std::vector<Bubble>& band) const
     // cycle 1x forwards and 1x backwards through band
     while ((i > 0) && (i < band.size() - 1))
     {
-        const Bubble& prev_bubble = band.at(i-1);
+        const Bubble& prev_bubble = band.at(i - 1);
         const Bubble& curr_bubble = band.at(i);
-        const Bubble& next_bubble = band.at(i+1);
+        const Bubble& next_bubble = band.at(i + 1);
 
         const geometry_msgs::Wrench wrench = force(prev_bubble, curr_bubble, next_bubble);
         band.at(i) = applyForce(wrench, prev_bubble, curr_bubble, next_bubble);
@@ -414,7 +420,8 @@ void EBandPlanner::modifyBandArtificialForce(std::vector<Bubble>& band) const
 }
 
 
-Bubble EBandPlanner::applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const
+Bubble EBandPlanner::applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+                                const Bubble& curr_bubble, const Bubble& next_bubble) const
 {
     Bubble new_bubble = moveToEquilibrium(wrench, prev_bubble, curr_bubble, next_bubble);
 
@@ -435,7 +442,8 @@ Bubble EBandPlanner::applyForce(const geometry_msgs::Wrench& wrench, const Bubbl
     return new_bubble;
 }
 
-Bubble EBandPlanner::moveBubble(const geometry_msgs::Wrench& wrench, const Bubble& curr_bubble, const double step_size) const
+Bubble EBandPlanner::moveBubble(const geometry_msgs::Wrench& wrench, const Bubble& curr_bubble,
+                                const double step_size) const
 {
     geometry_msgs::Twist bubble_jump;
     bubble_jump.linear.x = step_size * wrench.force.x;
@@ -456,17 +464,19 @@ Bubble EBandPlanner::moveBubble(const geometry_msgs::Wrench& wrench, const Bubbl
     return new_bubble;
 }
 
-Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const
+Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+                                       const Bubble& curr_bubble, const Bubble& next_bubble) const
 {
     double step_size = curr_bubble.expansion;
 
     Bubble equilib_bubble = curr_bubble;
 
-    for (int iteration_num=0; iteration_num < max_recursion_depth_approx_equi_; iteration_num++)
+    for (int iteration_num = 0; iteration_num < max_recursion_depth_approx_equi_; iteration_num++)
     {
         Bubble new_bubble = moveBubble(wrench, curr_bubble, step_size);
 
-        const double distance = obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        const double distance =
+            obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
         if (distance < tiny_bubble_expansion_)
         {
             ROS_DEBUG("Calculation of Distance failed. Bubble moved into collision");
@@ -478,14 +488,20 @@ Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, cons
 
         const geometry_msgs::Wrench new_wrench = force(prev_bubble, new_bubble, next_bubble);
 
-        const double checksum_zero = (new_wrench.force.x * wrench.force.x) + (new_wrench.force.y * wrench.force.y) + (new_wrench.torque.z * wrench.torque.z);
+        const double checksum_zero = (new_wrench.force.x * wrench.force.x) + (new_wrench.force.y * wrench.force.y) +
+                                     (new_wrench.torque.z * wrench.torque.z);
 
         if (checksum_zero < 0.0)
         {
-            const double abs_new_force = std::sqrt((new_wrench.force.x * new_wrench.force.x) + (new_wrench.force.y * new_wrench.force.y) + (new_wrench.torque.z * new_wrench.torque.z));
-            const double abs_old_force = std::sqrt((wrench.force.x * wrench.force.x) + (wrench.force.y * wrench.force.y) + (wrench.torque.z * wrench.torque.z));
+            const double abs_new_force =
+                std::sqrt((new_wrench.force.x * new_wrench.force.x) + (new_wrench.force.y * new_wrench.force.y) +
+                          (new_wrench.torque.z * new_wrench.torque.z));
+            const double abs_old_force =
+                std::sqrt((wrench.force.x * wrench.force.x) + (wrench.force.y * wrench.force.y) +
+                          (wrench.torque.z * wrench.torque.z));
 
-            if ((abs_new_force > equilibrium_relative_overshoot_ * abs_old_force) && (abs_new_force > significant_force_))
+            if ((abs_new_force > equilibrium_relative_overshoot_ * abs_old_force) &&
+                (abs_new_force > significant_force_))
             {
                 step_size *= 0.5;
                 continue;
@@ -499,21 +515,23 @@ Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, cons
         {
             break;
         }
-
     }
 
     return equilib_bubble;
 }
 
-geometry_msgs::Wrench EBandPlanner::force(const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const
+geometry_msgs::Wrench EBandPlanner::force(const Bubble& prev_bubble, const Bubble& curr_bubble,
+                                          const Bubble& next_bubble) const
 {
     const geometry_msgs::Wrench internal_force = internalForce(prev_bubble, curr_bubble, next_bubble);
     const geometry_msgs::Wrench external_force = externalForce(curr_bubble);
-    const geometry_msgs::Wrench wrench = tangentialForce(add(internal_force, external_force), prev_bubble, curr_bubble, next_bubble);
+    const geometry_msgs::Wrench wrench =
+        tangentialForce(add(internal_force, external_force), prev_bubble, curr_bubble, next_bubble);
     return wrench;
 }
 
-geometry_msgs::Wrench EBandPlanner::internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const
+geometry_msgs::Wrench EBandPlanner::internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble,
+                                                  const Bubble& next_bubble) const
 {
     const double dx_1 = prev_bubble.center.pose.position.x - curr_bubble.center.pose.position.x;
     const double dy_1 = prev_bubble.center.pose.position.y - curr_bubble.center.pose.position.y;
@@ -581,7 +599,8 @@ geometry_msgs::Wrench EBandPlanner::externalForce(const Bubble& curr_bubble) con
     return wrench;
 }
 
-geometry_msgs::Wrench EBandPlanner::tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble&, const Bubble& next_bubble) const
+geometry_msgs::Wrench EBandPlanner::tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+                                                    const Bubble&, const Bubble& next_bubble) const
 {
     const double dx = prev_bubble.center.pose.position.x - next_bubble.center.pose.position.x;
     const double dy = prev_bubble.center.pose.position.y - next_bubble.center.pose.position.y;
@@ -605,5 +624,4 @@ geometry_msgs::Wrench EBandPlanner::tangentialForce(const geometry_msgs::Wrench&
 
     return ret;
 }
-
 }

@@ -151,7 +151,8 @@ std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen:
     return line;
 }
 
-bool validPath(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end, const costmap_2d::Costmap2D& costmap, const double costmap_weight, const double min_distance)
+bool validPath(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end, const costmap_2d::Costmap2D& costmap,
+               const double costmap_weight, const double min_distance)
 {
     unsigned int start_cell_x, start_cell_y;
     if (!costmap.worldToMap(start.position.x, start.position.y, start_cell_x, start_cell_y))
@@ -161,16 +162,19 @@ bool validPath(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end,
     if (!costmap.worldToMap(end.position.x, end.position.y, end_cell_x, end_cell_y))
         return false;
 
-    const std::vector<Eigen::Vector2i> line = drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
+    const std::vector<Eigen::Vector2i> line =
+        drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
 
-    for (std::size_t i=0; i<line.size(); ++i)
+    for (std::size_t i = 0; i < line.size(); ++i)
     {
         const Eigen::Vector2i& p = line.at(i);
         unsigned char cost = costmap.getCost(static_cast<unsigned int>(p.x()), static_cast<unsigned int>(p.y()));
         const double distance = costToDistance(cost, costmap_weight);
         if (distance < min_distance)
         {
-            ROS_WARN_STREAM("Collision at: cell=[" << p.x() << ", " << p.y() << "] at iteration: " << i << " distance: " << distance << " cost: " << static_cast<int>(cost) << " tiny: " << min_distance);
+            ROS_WARN_STREAM("Collision at: cell=[" << p.x() << ", " << p.y() << "] at iteration: " << i
+                                                   << " distance: " << distance << " cost: " << static_cast<int>(cost)
+                                                   << " tiny: " << min_distance);
             return false;
         }
     }

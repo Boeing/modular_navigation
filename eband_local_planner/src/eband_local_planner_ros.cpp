@@ -314,5 +314,4 @@ bool EBandPlannerROS::clearPlan()
 {
     return true;
 }
-
 }

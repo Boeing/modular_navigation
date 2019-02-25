@@ -47,7 +47,6 @@ class EBandPlanner
     void optimizeBand();
 
   private:
-
     const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
 
     const int num_optim_iterations_;      // maximal number of iteration steps during optimization of band
@@ -83,16 +82,19 @@ class EBandPlanner
     void refineBand(std::vector<Bubble>& band) const;
     void modifyBandArtificialForce(std::vector<Bubble>& band) const;
 
-    Bubble applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const;
+    Bubble applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble,
+                      const Bubble& next_bubble) const;
     Bubble moveBubble(const geometry_msgs::Wrench& wrench, const Bubble& curr_bubble, const double step_size) const;
-    Bubble moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const;
+    Bubble moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble,
+                             const Bubble& next_bubble) const;
 
     geometry_msgs::Wrench force(const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const;
-    geometry_msgs::Wrench internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const;
+    geometry_msgs::Wrench internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble,
+                                        const Bubble& next_bubble) const;
     geometry_msgs::Wrench externalForce(const Bubble& curr_bubble) const;
-    geometry_msgs::Wrench tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble, const Bubble& curr_bubble, const Bubble& next_bubble) const;
+    geometry_msgs::Wrench tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+                                          const Bubble& curr_bubble, const Bubble& next_bubble) const;
 };
-
 }
 
 #endif
