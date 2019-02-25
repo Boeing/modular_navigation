@@ -46,6 +46,8 @@ class AStarPlanner : public nav_core::BaseGlobalPlanner
     OrientationFilter orientation_filter_;
 
     void outlineMap(unsigned char* costarr, int nx, int ny, unsigned char value);
+
+    double neutral_cost_;
 };
 }
 

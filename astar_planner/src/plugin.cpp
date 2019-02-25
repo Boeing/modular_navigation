@@ -24,7 +24,8 @@ namespace astar_planner
 {
 
 AStarPlanner::AStarPlanner()
-    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), publish_potential_(true)
+    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), publish_potential_(true),
+      neutral_cost_(10.0)
 {
 }
 
@@ -41,6 +42,8 @@ void AStarPlanner::initialize(const std::string& name, const std::shared_ptr<tf2
     local_costmap_ = local_costmap;
 
     ros::NodeHandle private_nh("~/" + name);
+
+    neutral_cost_ = private_nh.param("neutral_cost", 30.0);
 
     orientation_filter_.setMode(1);
     orientation_filter_.setWindowSize(1);
@@ -188,8 +191,7 @@ nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& st
     }
 
     const uint8_t obstacle_threshold = 253;
-    const double neutral_cost = 10.0;
-    PathFinder astar(mm_size_x, mm_size_y, merged_costmap.data, obstacle_threshold, neutral_cost);
+    PathFinder astar(mm_size_x, mm_size_y, merged_costmap.data, obstacle_threshold, neutral_cost_);
 
     const Coord2D start_coord(static_cast<int>(start_x), static_cast<int>(start_y));
     const Coord2D goal_coord(static_cast<int>(goal_x), static_cast<int>(goal_y));
