@@ -41,7 +41,8 @@ EBandTrajectoryCtrl::EBandTrajectoryCtrl(const std::shared_ptr<costmap_2d::Costm
     tmp_pose2D.x = 0.0;
     tmp_pose2D.y = 0.0;
     tmp_pose2D.theta = 0.0;
-    Pose2DToPose(ref_frame_band_, tmp_pose2D);
+
+    ref_frame_band_ = convert(tmp_pose2D);
 }
 
 EBandTrajectoryCtrl::~EBandTrajectoryCtrl()
@@ -240,15 +241,13 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
         // compose bubble from ctrl-target
         geometry_msgs::Pose2D tmp_bubble_2d, curr_bubble_2d;
 
-        geometry_msgs::Pose tmp_pose;
         // init bubble for visualization
         Bubble new_bubble = elastic_band_.at(0);
-        PoseToPose2D(elastic_band_.at(0).center.pose, curr_bubble_2d);
+        curr_bubble_2d = convert(elastic_band_.at(0).center.pose);
         tmp_bubble_2d.x = curr_bubble_2d.x + control_deviation.linear.x;
         tmp_bubble_2d.y = curr_bubble_2d.y + control_deviation.linear.y;
         tmp_bubble_2d.theta = curr_bubble_2d.theta + control_deviation.angular.z;
-        Pose2DToPose(tmp_pose, tmp_bubble_2d);
-        new_bubble.center.pose = tmp_pose;
+        new_bubble.center.pose = convert(tmp_bubble_2d);
         new_bubble.expansion = 0.1;  // just draw a small bubble
         target_visual_->publishBubble("ctrl_target", 0, target_visual_->red, new_bubble);
     }
@@ -494,14 +493,13 @@ geometry_msgs::Twist EBandTrajectoryCtrl::getFrame1ToFrame2InRefFrame(const geom
                                                                       const geometry_msgs::Pose& frame2,
                                                                       const geometry_msgs::Pose& ref_frame)
 {
-    geometry_msgs::Pose2D frame1_pose2D, frame2_pose2D, ref_frame_pose2D;
     geometry_msgs::Pose2D frame1_pose2D_rf, frame2_pose2D_rf;
     geometry_msgs::Twist frame_diff;
 
     // transform all frames to Pose2d
-    PoseToPose2D(frame1, frame1_pose2D);
-    PoseToPose2D(frame2, frame2_pose2D);
-    PoseToPose2D(ref_frame, ref_frame_pose2D);
+    const geometry_msgs::Pose2D frame1_pose2D = convert(frame1);
+    const geometry_msgs::Pose2D frame2_pose2D = convert(frame2);
+    const geometry_msgs::Pose2D ref_frame_pose2D = convert(ref_frame);
 
     // transform frame1 into ref frame
     frame1_pose2D_rf.x = (frame1_pose2D.x - ref_frame_pose2D.x) * cos(ref_frame_pose2D.theta) +
@@ -537,15 +535,14 @@ geometry_msgs::Twist EBandTrajectoryCtrl::transformTwistFromFrame1ToFrame2(const
                                                                            const geometry_msgs::Pose& frame1,
                                                                            const geometry_msgs::Pose& frame2)
 {
-    geometry_msgs::Pose2D frame1_pose2D, frame2_pose2D;
     geometry_msgs::Twist tmp_transformed;
     double delta_ang;
 
     tmp_transformed = curr_twist;
 
     // transform all frames to Pose2d
-    PoseToPose2D(frame1, frame1_pose2D);
-    PoseToPose2D(frame2, frame2_pose2D);
+    const geometry_msgs::Pose2D frame1_pose2D = convert(frame1);
+    const geometry_msgs::Pose2D frame2_pose2D = convert(frame2);
 
     // get orientation diff of frames
     delta_ang = frame2_pose2D.theta - frame1_pose2D.theta;

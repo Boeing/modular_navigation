@@ -105,8 +105,6 @@ void EBandVisualization::publishForce(std::string marker_name_space, int id, Col
 void EBandVisualization::bubbleToMarker(Bubble bubble, visualization_msgs::Marker& marker,
                                         std::string marker_name_space, int marker_id, Color marker_color)
 {
-    geometry_msgs::Pose2D tmp_pose2d;
-
     // header
     marker.header.stamp = ros::Time::now();
     marker.header.frame_id = bubble.center.header.frame_id;
@@ -121,7 +119,7 @@ void EBandVisualization::bubbleToMarker(Bubble bubble, visualization_msgs::Marke
     marker.pose = bubble.center.pose;
 
     // get theta-angle to display as elevation
-    PoseToPose2D(bubble.center.pose, tmp_pose2d);
+    // const geometry_msgs::Pose2D tmp_pose2d = convert(bubble.center.pose);
     marker.pose.position.z = 0;  // tmp_pose2d.theta * getCircumscribedRadius(*costmap_ros_);
 
     // scale ~ diameter --> is 2x expansion ~ radius
@@ -162,8 +160,6 @@ void EBandVisualization::bubbleToMarker(Bubble bubble, visualization_msgs::Marke
 void EBandVisualization::bubbleHeadingToMarker(Bubble bubble, visualization_msgs::Marker& marker,
                                                std::string marker_name_space, int marker_id, Color marker_color)
 {
-    geometry_msgs::Pose2D tmp_pose2d;
-
     // header
     marker.header.stamp = ros::Time::now();
     marker.header.frame_id = bubble.center.header.frame_id;
@@ -178,7 +174,7 @@ void EBandVisualization::bubbleHeadingToMarker(Bubble bubble, visualization_msgs
     marker.pose = bubble.center.pose;
 
     // get theta-angle to display as elevation
-    PoseToPose2D(bubble.center.pose, tmp_pose2d);
+    const geometry_msgs::Pose2D tmp_pose2d = convert(bubble.center.pose);
     marker.pose.position.z = tmp_pose2d.theta * getCircumscribedRadius(*local_costmap_);
 
     // scale ~ diameter --> is 2x expansion ~ radius
@@ -221,8 +217,6 @@ void EBandVisualization::forceToMarker(geometry_msgs::WrenchStamped wrench, geom
                                        visualization_msgs::Marker& marker, std::string marker_name_space, int marker_id,
                                        Color marker_color)
 {
-    geometry_msgs::Pose2D tmp_pose2d;
-
     // header
     marker.header.stamp = ros::Time::now();
     marker.header.frame_id = wrench.header.frame_id;
@@ -237,7 +231,7 @@ void EBandVisualization::forceToMarker(geometry_msgs::WrenchStamped wrench, geom
     marker.pose.position = wrench_origin.position;
 
     // get theta-angle to display as elevation
-    PoseToPose2D(wrench_origin, tmp_pose2d);
+    const geometry_msgs::Pose2D tmp_pose2d = convert(wrench_origin);
     marker.pose.position.z = tmp_pose2d.theta * getCircumscribedRadius(*local_costmap_);
 
     // body - orientation of vector (calc. quaternion that transform xAxis into force-vector)

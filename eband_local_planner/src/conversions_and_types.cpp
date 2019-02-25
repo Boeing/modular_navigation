@@ -22,38 +22,211 @@ double normalize_angle(const double angle)
     return a;
 }
 
-void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D)
+double distance2D(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end)
+{
+    const double dx = start.position.x - end.position.x;
+    const double dy = start.position.y - end.position.y;
+    return std::sqrt((dx * dx) + (dy * dy));
+}
+
+double rotationZ(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end)
+{
+    const tf2::Quaternion q_start(start.orientation.x, start.orientation.y, start.orientation.z, start.orientation.w);
+    const tf2::Quaternion q_end(end.orientation.x, end.orientation.y, end.orientation.z, end.orientation.w);
+    return normalize_angle(tf2::getYaw(q_end) - tf2::getYaw(q_start));
+}
+
+geometry_msgs::Pose2D convert(const geometry_msgs::Pose& pose)
 {
     tf2::Quaternion qt(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-
-    pose2D.x = pose.position.x;
-    pose2D.y = pose.position.y;
-    pose2D.theta = tf2::getYaw(qt);
-
-    return;
+    geometry_msgs::Pose2D ret;
+    ret.x = pose.position.x;
+    ret.y = pose.position.y;
+    ret.theta = tf2::getYaw(qt);
+    return ret;
 }
 
-
-void Pose2DToPose(geometry_msgs::Pose& pose, const geometry_msgs::Pose2D pose2D)
+geometry_msgs::Pose convert(const geometry_msgs::Pose2D& pose)
 {
-    // use tf-pkg to convert angles
     tf2::Quaternion frame_quat;
-    frame_quat.setRPY(0, 0, pose2D.theta);
+    frame_quat.setRPY(0, 0, pose.theta);
 
-    // set position
-    pose.position.x = pose2D.x;
-    pose.position.y = pose2D.y;
-    pose.position.z = 0.0;
-
-    // set quaternion
-    pose.orientation.x = frame_quat.x();
-    pose.orientation.y = frame_quat.y();
-    pose.orientation.z = frame_quat.z();
-    pose.orientation.w = frame_quat.w();
-
-    return;
+    geometry_msgs::Pose ret;
+    ret.position.x = pose.x;
+    ret.position.y = pose.y;
+    ret.position.z = 0.0;
+    ret.orientation.x = frame_quat.x();
+    ret.orientation.y = frame_quat.y();
+    ret.orientation.z = frame_quat.z();
+    ret.orientation.w = frame_quat.w();
+    return ret;
 }
 
+std::vector<geometry_msgs::PoseStamped> convert(const std::vector<Bubble>& band)
+{
+    std::vector<geometry_msgs::PoseStamped> plan(band.size());
+    for (std::size_t i = 0; i < band.size(); i++)
+    {
+        plan[i] = band[i].center;
+    }
+    return plan;
+}
+
+double costToDistance(const unsigned char cost, const double costmap_weight)
+{
+    if (cost >= costmap_2d::LETHAL_OBSTACLE || cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
+    {
+        return 0.0;
+    }
+    else if (cost == costmap_2d::NO_INFORMATION)
+    {
+        return 0.0;
+    }
+    else
+    {
+        const unsigned char _cost = std::max(static_cast<unsigned char>(1), cost);
+        const double factor = static_cast<double>(_cost) / (costmap_2d::INSCRIBED_INFLATED_OBSTACLE - 1);
+        return -log(factor) / costmap_weight;
+    }
+}
+
+std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen::Vector2i& end)
+{
+    if (start == end)
+        return {end};
+
+    double x1 = start.x();
+    double x2 = end.x();
+
+    double y1 = start.y();
+    double y2 = end.y();
+
+    const bool steep = (std::abs(y2 - y1) > std::abs(x2 - x1));
+    if (steep)
+    {
+        std::swap(x1, y1);
+        std::swap(x2, y2);
+    }
+
+    bool reverse = false;
+    if (x1 > x2)
+    {
+        std::swap(x1, x2);
+        std::swap(y1, y2);
+        reverse = true;
+    }
+
+    const double dx = x2 - x1;
+    const double dy = std::abs(y2 - y1);
+
+    double error = dx / 2.0;
+    const int ystep = (y1 < y2) ? 1 : -1;
+    int y = static_cast<int>(y1);
+
+    const int max_x = static_cast<int>(x2);
+
+    std::vector<Eigen::Vector2i> line;
+    for (int x = static_cast<int>(x1); x < max_x; ++x)
+    {
+        if (steep)
+        {
+            line.push_back({y, x});
+        }
+        else
+        {
+            line.push_back({x, y});
+        }
+
+        error -= dy;
+        if (error < 0)
+        {
+            y += ystep;
+            error += dx;
+        }
+    }
+
+    if (reverse)
+        std::reverse(line.begin(), line.end());
+
+    return line;
+}
+
+bool validPath(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end, const costmap_2d::Costmap2D& costmap,
+               const double costmap_weight, const double min_distance)
+{
+    unsigned int start_cell_x, start_cell_y;
+    if (!costmap.worldToMap(start.position.x, start.position.y, start_cell_x, start_cell_y))
+        return false;
+
+    unsigned int end_cell_x, end_cell_y;
+    if (!costmap.worldToMap(end.position.x, end.position.y, end_cell_x, end_cell_y))
+        return false;
+
+    const std::vector<Eigen::Vector2i> line =
+        drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
+
+    for (std::size_t i = 0; i < line.size(); ++i)
+    {
+        const Eigen::Vector2i& p = line.at(i);
+        unsigned char cost = costmap.getCost(static_cast<unsigned int>(p.x()), static_cast<unsigned int>(p.y()));
+        const double distance = costToDistance(cost, costmap_weight);
+        if (distance < min_distance)
+        {
+            ROS_WARN_STREAM("Collision at: cell=[" << p.x() << ", " << p.y() << "] at iteration: " << i
+                                                   << " distance: " << distance << " cost: " << static_cast<int>(cost)
+                                                   << " tiny: " << min_distance);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+double obstacleDistance(const geometry_msgs::Pose& center_pose, const costmap_2d::Costmap2D& costmap,
+                        const double costmap_weight, const double inflation_radius)
+{
+    unsigned int cell_x, cell_y;
+    unsigned char disc_cost;
+    if (!costmap.worldToMap(center_pose.position.x, center_pose.position.y, cell_x, cell_y))
+    {
+        // probably at the edge of the costmap - this value should be recovered soon
+        disc_cost = 1;
+    }
+    else
+    {
+        // get cost for this cell
+        disc_cost = costmap.getCost(cell_x, cell_y);
+    }
+
+    if (disc_cost == 0)
+    {
+        return inflation_radius;
+    }
+    else
+    {
+        return std::min(costToDistance(disc_cost, costmap_weight), inflation_radius);
+    }
+}
+
+std::vector<Bubble> convert(const std::vector<geometry_msgs::PoseStamped>& plan, const costmap_2d::Costmap2D& costmap,
+                            const double costmap_weight, const double inflation_radius)
+{
+    std::vector<Bubble> band(plan.size());
+    for (std::size_t i = 0; i < plan.size(); i++)
+    {
+        band[i].center = plan[i];
+        const double distance = obstacleDistance(band[i].center.pose, costmap, costmap_weight, inflation_radius);
+
+        if (distance <= 0.0)
+        {
+            throw std::runtime_error("Failed to build band because pose " + std::to_string(i) + " is in collision");
+        }
+
+        band[i].expansion = distance;
+    }
+
+    return band;
+}
 
 bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geometry_msgs::PoseStamped>& global_plan,
                          costmap_2d::Costmap2DROS& costmap, const std::string& global_frame,
@@ -155,7 +328,7 @@ bool transformGlobalPlan(const tf2_ros::Buffer& tf_buffer, const std::vector<geo
         // write to reference variable
         start_end_counts = start_end_count;
     }
-    catch (tf2::TransformException& ex)
+    catch (const tf2::TransformException& ex)
     {
         ROS_ERROR_STREAM("TransformException: " << ex.what());
         return false;
@@ -179,5 +352,4 @@ double getCircumscribedRadius(costmap_2d::Costmap2DROS& costmap)
     }
     return sqrt(max_distance_sqr);
 }
-
-}  // namespace eband_local_planner
+}

@@ -60,7 +60,6 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
 
     bool goal_reached_;
 };
+}
 
-}  // namespace eband_local_planner
-
-#endif  // EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_ROS_H
+#endif
