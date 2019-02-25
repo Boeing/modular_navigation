@@ -41,7 +41,8 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     const int equilibrium_max_recursion_depth = pn.param("eband_equilibrium_approx_max_recursion_depth", 4);
     const double equilibrium_relative_overshoot = pn.param("eband_equilibrium_relative_overshoot", 0.75);
     const double significant_force = pn.param("eband_significant_force_lower_bound", 0.15);
-    const double costmap_weight = pn.param("costmap_weight", 10.0);
+    const double costmap_weight = pn.param("costmap_weight", 2.0);
+    const double costmap_inflation_radius = pn.param("costmap_inflation_radius", 1.0) / 2.0;
 
     ROS_INFO_STREAM("tiny_bubble_distance: " << tiny_bubble_distance);
     ROS_INFO_STREAM("tiny_bubble_expansion: " << tiny_bubble_expansion);
@@ -49,7 +50,7 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     eband_ = std::shared_ptr<EBandPlanner>(new EBandPlanner(
         local_costmap_, num_optim_iterations, internal_force_gain, external_force_gain, tiny_bubble_distance,
         tiny_bubble_expansion, min_bubble_overlap, equilibrium_max_recursion_depth, equilibrium_relative_overshoot,
-        significant_force, costmap_weight));
+        significant_force, costmap_weight, costmap_inflation_radius));
 
     const double max_vel_lin = pn.param("max_vel_lin", 0.75);
     const double max_vel_th = pn.param("max_vel_th", 1.0);
@@ -189,20 +190,22 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
     // update Elastic Band (react on obstacle from costmap, ...)
     ROS_DEBUG("Calling optimization method for elastic band");
     std::vector<eband_local_planner::Bubble> current_band;
-    if (!eband_->optimizeBand())
+    try
     {
-        ROS_WARN("Optimization failed - Band invalid - No controls available");
-        // display current band
+        eband_->optimizeBand();
+    }
+    catch (const std::exception& e)
+    {
+        ROS_ERROR_STREAM("Optimization failed: " << e.what());
+
         if (eband_->getBand(current_band))
             eband_visual_->publishBand("bubbles", current_band);
+
         result.state = nav_core::ControlState::FAILED;
         return result;
     }
 
-    // get current Elastic Band and
     eband_->getBand(current_band);
-
-    // set it to the controller
     if (!eband_trj_ctrl_->setBand(current_band))
     {
         ROS_DEBUG("Failed to to set current band to Trajectory Controller");
@@ -210,7 +213,6 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         return result;
     }
 
-    // set Odometry to controller
     if (!eband_trj_ctrl_->setOdometry(odom))
     {
         ROS_DEBUG("Failed to to set current odometry to Trajectory Controller");
@@ -218,7 +220,6 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         return result;
     }
 
-    // get resulting commands from the controller
     geometry_msgs::Twist cmd_twist;
     if (!eband_trj_ctrl_->getTwist(cmd_twist, goal_reached_))
     {
@@ -227,11 +228,9 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         return result;
     }
 
-    // set retrieved commands to reference variable
     ROS_DEBUG("Retrieving velocity command: (%f, %f, %f)", cmd_twist.linear.x, cmd_twist.linear.y, cmd_twist.angular.z);
     result.cmd_vel = cmd_twist;
 
-    // publish plan
     std::vector<geometry_msgs::PoseStamped> refined_plan;
     if (eband_->getPlan(refined_plan))
     {
@@ -242,7 +241,6 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         plan_pub_.publish(gui_path);
     }
 
-    // display current band
     if (eband_->getBand(current_band))
     {
         eband_visual_->publishBand("bubbles", current_band);
@@ -307,7 +305,6 @@ bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& ori
         eband_visual_->publishBand("bubbles", current_band);
     }
 
-    // set goal as not reached
     goal_reached_ = false;
 
     return true;
@@ -318,4 +315,4 @@ bool EBandPlannerROS::clearPlan()
     return true;
 }
 
-}  // namespace eband_local_planner
+}

@@ -42,6 +42,7 @@ double getYaw(const double w, const double x, const double y, const double z)
     }
     return yaw;
 };
+
 }
 
 MoveBase::MoveBase()
@@ -390,7 +391,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
             std::lock_guard<std::mutex> planning_lock(planner_mutex_);
             if (state_ != new_state)
             {
-                ROS_DEBUG_STREAM("Transitioning from " << toString(state_) << " to " << toString(new_state));
+                ROS_INFO_STREAM("Transitioning from " << toString(state_) << " to " << toString(new_state));
                 state_ = new_state;
             }
 
@@ -410,7 +411,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
         as_.publishFeedback(feedback);
 
         const double t_diff = ros::SteadyTime::now().toSec() - steady_time.toSec();
-        ROS_DEBUG_STREAM("Cycle time: " << t_diff);
+        ROS_INFO_STREAM("Cycle time: " << t_diff);
 
         rate.sleep();
 
@@ -429,7 +430,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
 MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::SteadyTime& steady_time,
                                      const ros::Time& ros_time)
 {
-    ROS_DEBUG_STREAM("Executing state: " << state);
+    ROS_INFO_STREAM("Executing state: " << state);
 
     if (state == MoveBaseState::PLANNING)
     {
@@ -445,7 +446,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
         std::lock_guard<std::mutex> planning_lock(planner_mutex_);
         if (new_global_plan_)
         {
-            ROS_DEBUG("Got a new plan");
+            ROS_INFO("Got a new plan");
             new_global_plan_ = false;
 
             boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(local_costmap_->getCostmap()->getMutex()));
@@ -476,7 +477,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
             std::unique_lock<std::mutex> lock(planner_mutex_);
             if (new_global_plan_)
             {
-                ROS_DEBUG("Got a new plan");
+                ROS_INFO("Got a new plan");
                 new_global_plan_ = false;
 
                 if (!tc_->setPlan(planner_plan_))
