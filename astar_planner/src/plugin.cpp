@@ -24,8 +24,8 @@ namespace astar_planner
 {
 
 AStarPlanner::AStarPlanner()
-    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), neutral_cost_(10),
-      publish_potential_(true)
+    : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), publish_potential_(true),
+      neutral_cost_(10.0)
 {
 }
 
