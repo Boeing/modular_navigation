@@ -47,7 +47,7 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     ROS_INFO_STREAM("tiny_bubble_distance: " << tiny_bubble_distance);
     ROS_INFO_STREAM("tiny_bubble_expansion: " << tiny_bubble_expansion);
 
-    eband_ = std::shared_ptr<EBandPlanner>(new EBandPlanner(
+    eband_ = std::shared_ptr<EBandOptimiser>(new EBandOptimiser(
         local_costmap_, num_optim_iterations, internal_force_gain, external_force_gain, tiny_bubble_distance,
         tiny_bubble_expansion, min_bubble_overlap, equilibrium_max_recursion_depth, equilibrium_relative_overshoot,
         significant_force, costmap_weight, costmap_inflation_radius));
@@ -81,132 +81,64 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const ros::Time&,
+nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const ros::Time& now,
                                                   const nav_msgs::Odometry& odom)
 {
-    // instantiate local variables
-    geometry_msgs::PoseStamped global_pose_msg;
-    std::vector<geometry_msgs::PoseStamped> tmp_plan;
-
     nav_core::Control result;
 
-    // get current robot position
-    ROS_DEBUG("Reading current robot Position from costmap and appending it to elastic band.");
-    if (!local_costmap_->getRobotPose(global_pose_msg))
-    {
-        ROS_WARN("Could not retrieve up to date robot pose from costmap for local planning.");
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    // convert robot pose to frame in plan and set position in band at which to append
-    tmp_plan.assign(1, global_pose_msg);
-    eband_local_planner::AddAtPosition add_frames_at = add_front;
-
-    // set it to elastic band and let eband connect it
-    if (!eband_->addFrames(tmp_plan, add_frames_at))
-    {
-        ROS_WARN("Could not connect robot pose to existing elastic band.");
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    // get additional path-frames which are now in moving window
-    ROS_DEBUG("Checking for new path frames in moving window");
-    std::vector<int> plan_start_end_counter = plan_start_end_counter_;
-    std::vector<geometry_msgs::PoseStamped> append_transformed_plan;
-
-    // transform global plan to the map frame we are working in - careful this also cuts the plan off (reduces it to
-    // local window)
-    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *local_costmap_,
-                                                  local_costmap_->getGlobalFrameID(), transformed_plan_,
-                                                  plan_start_end_counter))
-    {
-        // if plan could not be transformed abort control and local planning
-        ROS_WARN("Could not transform the global plan to the frame of the controller");
-
-        ROS_INFO_STREAM("global_plan_.size(): " << global_plan_.size());
-        ROS_INFO_STREAM("transformed_plan_.size(): " << transformed_plan_.size());
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    // also check if there really is a plan
-    if (transformed_plan_.empty())
-    {
-        // if global plan passed in is empty... we won't do anything
-        ROS_WARN("Transformed plan is empty. Aborting local planner!");
-        ROS_INFO_STREAM("global_plan_.size(): " << global_plan_.size());
-        ROS_INFO_STREAM("transformed_plan_.size(): " << transformed_plan_.size());
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    ROS_DEBUG("Retrieved start-end-counts are: (%d, %d)", plan_start_end_counter.at(0), plan_start_end_counter.at(1));
-    ROS_DEBUG("Current start-end-counts are: (%d, %d)", plan_start_end_counter_.at(0), plan_start_end_counter_.at(1));
-
-    // identify new frames - if there are any
-    append_transformed_plan.clear();
-
-    // did last transformed plan end further away from end of complete plan than this transformed plan?
-    if (plan_start_end_counter_.at(1) >
-        plan_start_end_counter.at(1))  // counting from the back (as start might be pruned)
-    {
-        // new frames in moving window
-        if (plan_start_end_counter_.at(1) >
-            plan_start_end_counter.at(0))  // counting from the back (as start might be pruned)
-        {
-            // append everything
-            append_transformed_plan = transformed_plan_;
-        }
-        else
-        {
-            // append only the new portion of the plan
-            int discarded_frames = plan_start_end_counter.at(0) - plan_start_end_counter_.at(1);
-            ROS_ASSERT(transformed_plan_.begin() + discarded_frames + 1 >= transformed_plan_.begin());
-            ROS_ASSERT(transformed_plan_.begin() + discarded_frames + 1 < transformed_plan_.end());
-            append_transformed_plan.assign(transformed_plan_.begin() + discarded_frames + 1, transformed_plan_.end());
-        }
-
-        // set it to elastic band and let eband connect it
-        ROS_DEBUG("Adding %d new frames to current band", (int)append_transformed_plan.size());
-        add_frames_at = add_back;
-        if (eband_->addFrames(append_transformed_plan, add_back))
-        {
-            // appended frames succesfully to global plan - set new start-end counts
-            ROS_DEBUG("Sucessfully added frames to band");
-            plan_start_end_counter_ = plan_start_end_counter;
-        }
-        else
-        {
-            ROS_WARN("Failed to add frames to existing band");
-            result.state = nav_core::ControlState::FAILED;
-            return result;
-        }
-    }
-    else
-        ROS_DEBUG("Nothing to add");
-
-    // update Elastic Band (react on obstacle from costmap, ...)
-    ROS_DEBUG("Calling optimization method for elastic band");
-    std::vector<eband_local_planner::Bubble> current_band;
     try
     {
-        eband_->optimizeBand();
+        const std::string robot_frame = local_costmap_->getBaseFrameID();
+        const std::string local_frame = local_costmap_->getGlobalFrameID();
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(local_frame, robot_frame, now, ros::Duration(0.1));
+
+        geometry_msgs::Pose local_robot_pose;
+        local_robot_pose.position.x = tr.transform.translation.x;
+        local_robot_pose.position.y = tr.transform.translation.y;
+        local_robot_pose.position.z = tr.transform.translation.z;
+        local_robot_pose.orientation = tr.transform.rotation;
+
+        eband_->pruneTillPose(local_robot_pose);
+
+        double distance = eband_->distance();
+        const double max_distance = 1.0;
+        const auto start_append = window_end_;
+        auto end_append = window_end_;
+        while (distance < max_distance && end_append != transformed_plan_.end())
+        {
+            ++end_append;
+
+            if (end_append == transformed_plan_.end())
+                break;
+
+            distance += distance2D(*(end_append - 1), *end_append);
+        }
+
+        std::vector<geometry_msgs::Pose> window(start_append, end_append);
+        window_end_ = end_append;
+        eband_->append(window);
+    }
+    catch (const std::exception& e)
+    {
+        ROS_ERROR_STREAM("Moving window failed: " << e.what());
+        eband_visual_->publishBand(eband_->band());
+        result.state = nav_core::ControlState::FAILED;
+        return result;
+    }
+
+    try
+    {
+        eband_->optimize();
     }
     catch (const std::exception& e)
     {
         ROS_ERROR_STREAM("Optimization failed: " << e.what());
-
-        if (eband_->getBand(current_band))
-            eband_visual_->publishBand("bubbles", current_band);
-
+        eband_visual_->publishBand(eband_->band());
         result.state = nav_core::ControlState::FAILED;
         return result;
     }
 
-    eband_->getBand(current_band);
-    if (!eband_trj_ctrl_->setBand(current_band))
+    if (!eband_trj_ctrl_->setBand(eband_->band()))
     {
         ROS_DEBUG("Failed to to set current band to Trajectory Controller");
         result.state = nav_core::ControlState::FAILED;
@@ -228,23 +160,25 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         return result;
     }
 
-    ROS_DEBUG("Retrieving velocity command: (%f, %f, %f)", cmd_twist.linear.x, cmd_twist.linear.y, cmd_twist.angular.z);
+    ROS_DEBUG_STREAM("Retrieving velocity command: " << cmd_twist.linear.x << " " << cmd_twist.linear.y << " " << cmd_twist.angular.z);
     result.cmd_vel = cmd_twist;
 
-    std::vector<geometry_msgs::PoseStamped> refined_plan;
-    if (eband_->getPlan(refined_plan))
     {
+        const std::vector<geometry_msgs::Pose> refined_plan = convert(eband_->band());
         nav_msgs::Path gui_path;
-        gui_path.header.frame_id = refined_plan[0].header.frame_id;
-        gui_path.header.stamp = refined_plan[0].header.stamp;
-        gui_path.poses = refined_plan;
+        gui_path.header.frame_id = local_costmap_->getGlobalFrameID();
+        gui_path.header.stamp = now;
+        for (const geometry_msgs::Pose& pose : refined_plan)
+        {
+            geometry_msgs::PoseStamped ps;
+            ps.header = gui_path.header;
+            ps.pose = pose;
+            gui_path.poses.push_back(ps);
+        }
         plan_pub_.publish(gui_path);
     }
 
-    if (eband_->getBand(current_band))
-    {
-        eband_visual_->publishBand("bubbles", current_band);
-    }
+    eband_visual_->publishBand(eband_->band());
 
     if (goal_reached_)
         result.state = nav_core::ControlState::COMPLETE;
@@ -253,59 +187,32 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
     return result;
 }
 
-bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)
+bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& plan)
 {
-    // Reset the global plan
-    global_plan_ = orig_global_plan;
+    if (plan.empty())
+        return false;
 
-    // transform global plan to the map frame we are working in this also cuts the plan off (reduces it to local window)
-    std::vector<int> start_end_counts(2, static_cast<int>(global_plan_.size()));  // counts from the end() of the plan
-    if (!eband_local_planner::transformGlobalPlan(*tf_buffer_, global_plan_, *local_costmap_,
-                                                  local_costmap_->getGlobalFrameID(), transformed_plan_,
-                                                  start_end_counts))
+    try
     {
-        // if plan could not be tranformed abort control and local planning
-        ROS_WARN("Could not transform the global plan to the frame of the controller");
+        // transform to the local costmap frame
+        transformed_plan_ = transform(plan, *tf_buffer_, local_costmap_->getGlobalFrameID());
+
+        // initialise moving window iterators
+        window_end_ = transformed_plan_.cbegin() + 1;
+
+        std::vector<geometry_msgs::Pose> window(transformed_plan_.cbegin(), window_end_);
+
+        eband_->setPlan(window);
+
+        eband_visual_->publishBand(eband_->band());
+
+        goal_reached_ = false;
+    }
+    catch (const std::exception& e)
+    {
+        ROS_ERROR_STREAM("Failed to setPlan: " << e.what());
         return false;
     }
-
-    // also check if there really is a plan
-    if (transformed_plan_.empty())
-    {
-        // if global plan passed in is empty... we won't do anything
-        ROS_WARN("Transformed plan is empty. Aborting local planner!");
-        ROS_INFO_STREAM("global_plan_.size(): " << global_plan_.size());
-        ROS_INFO_STREAM("transformed_plan_.size(): " << transformed_plan_.size());
-        return false;
-    }
-
-    // set plan - as this is fresh from the global planner robot pose should be identical to start frame
-    if (!eband_->setPlan(transformed_plan_))
-    {
-        ROS_WARN("Eband local planner detected collision");
-        return false;
-    }
-
-    // plan transformed and set to elastic band successfully - set counters to global variable
-    plan_start_end_counter_ = start_end_counts;
-
-    // display result
-    std::vector<eband_local_planner::Bubble> current_band;
-    if (eband_->getBand(current_band))
-    {
-        eband_visual_->publishBand("bubbles", current_band);
-    }
-
-    // let eband refine the plan before starting continuous operation (to smooth sampling based plans)
-    eband_->optimizeBand();
-
-    // display result
-    if (eband_->getBand(current_band))
-    {
-        eband_visual_->publishBand("bubbles", current_band);
-    }
-
-    goal_reached_ = false;
 
     return true;
 }
@@ -314,4 +221,5 @@ bool EBandPlannerROS::clearPlan()
 {
     return true;
 }
+
 }

@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include <geometry_msgs/Twist.h>
+
 #include <boost/geometry.hpp>
 #include <boost/geometry/algorithms/simplify.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
@@ -16,32 +18,31 @@ namespace
 
 bool checkOverlap(const Bubble& bubble1, const Bubble& bubble2, const double min_overlap)
 {
-    const double distance = distance2D(bubble1.center.pose, bubble2.center.pose);
+    const double distance = distance2D(bubble1.center, bubble2.center);
     return (distance < min_overlap * (bubble1.expansion + bubble2.expansion));
 }
 
-geometry_msgs::PoseStamped interpolate(const geometry_msgs::PoseStamped& start, const geometry_msgs::PoseStamped& end,
+geometry_msgs::Pose interpolate(const geometry_msgs::Pose& start, const geometry_msgs::Pose& end,
                                        const double fraction = 0.5)
 {
-    geometry_msgs::PoseStamped interpolated;
-    interpolated.header = start.header;
+    geometry_msgs::Pose interpolated;
 
-    const geometry_msgs::Pose2D start_pose2D = convert(start.pose);
-    const geometry_msgs::Pose2D end_pose2D = convert(end.pose);
+    const geometry_msgs::Pose2D start_pose2D = convert(start);
+    const geometry_msgs::Pose2D end_pose2D = convert(end);
 
     const double delta_theta = normalize_angle(end_pose2D.theta - start_pose2D.theta);
 
     tf2::Quaternion qt;
     qt.setRPY(0, 0, normalize_angle(start_pose2D.theta + fraction * delta_theta));
 
-    interpolated.pose.orientation.x = qt.x();
-    interpolated.pose.orientation.y = qt.y();
-    interpolated.pose.orientation.z = qt.z();
-    interpolated.pose.orientation.w = qt.w();
+    interpolated.orientation.x = qt.x();
+    interpolated.orientation.y = qt.y();
+    interpolated.orientation.z = qt.z();
+    interpolated.orientation.w = qt.w();
 
-    interpolated.pose.position.x = start.pose.position.x + fraction * (end.pose.position.x - start.pose.position.x);
-    interpolated.pose.position.y = start.pose.position.y + fraction * (end.pose.position.y - start.pose.position.y);
-    interpolated.pose.position.z = start.pose.position.z + fraction * (end.pose.position.z - start.pose.position.z);
+    interpolated.position.x = start.position.x + fraction * (end.position.x - start.position.x);
+    interpolated.position.y = start.position.y + fraction * (end.position.y - start.position.y);
+    interpolated.position.z = start.position.z + fraction * (end.position.z - start.position.z);
 
     return interpolated;
 }
@@ -59,7 +60,7 @@ geometry_msgs::Wrench add(const geometry_msgs::Wrench& first, const geometry_msg
 }
 }
 
-EBandPlanner::EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap,
+EBandOptimiser::EBandOptimiser(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap,
                            const int num_optim_iterations, const double internal_force_gain,
                            const double external_force_gain, const double tiny_bubble_distance,
                            const double tiny_bubble_expansion, const double min_bubble_overlap,
@@ -76,210 +77,65 @@ EBandPlanner::EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& loca
 {
 }
 
-EBandPlanner::~EBandPlanner()
+EBandOptimiser::~EBandOptimiser()
 {
 }
 
-void EBandPlanner::setVisualization(std::shared_ptr<EBandVisualization> eband_visual)
+void EBandOptimiser::setVisualization(std::shared_ptr<EBandVisualization> eband_visual)
 {
     eband_visual_ = eband_visual;
     visualization_ = true;
 }
 
-bool EBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan)
+void EBandOptimiser::setPlan(const std::vector<geometry_msgs::Pose>& global_plan)
 {
-    // check if plan valid (minimum 2 frames)
-    if (global_plan.size() < 2)
-    {
-        ROS_ERROR(
-            "Attempt to pass empty path to optimization. Valid path needs to have at least 2 Frames. This one has %lu.",
-            global_plan.size());
-        return false;
-    }
-    // copy plan to local member variable
-    global_plan_ = global_plan;
-
-    // check whether plan and costmap are in the same frame
-    if (global_plan.front().header.frame_id != local_costmap_->getGlobalFrameID())
-    {
-        ROS_ERROR("Elastic Band expects plan for optimization in the %s frame, the plan was sent in the %s frame.",
-                  local_costmap_->getGlobalFrameID().c_str(), global_plan.front().header.frame_id.c_str());
-        return false;
-    }
-
     try
     {
-        elastic_band_ = convert(global_plan_, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        elastic_band_ = convert(global_plan, *costmap_, costmap_weight_, costmap_inflation_radius_);
     }
     catch (const std::exception& e)
     {
-        ROS_WARN_STREAM("Conversion from plan to elastic band failed: " << e.what());
-        return false;
+        throw std::runtime_error("Conversion from plan to elastic band failed: " + std::string(e.what()));
     }
 
-    // close gaps and remove redundant bubbles
     refineBand(elastic_band_);
-
-    ROS_DEBUG("Refinement done - Band set.");
-    return true;
 }
 
-
-bool EBandPlanner::getPlan(std::vector<geometry_msgs::PoseStamped>& global_plan)
+void EBandOptimiser::pruneTillPose(const geometry_msgs::Pose& robot_pose)
 {
-    // check if there is a band
-    if (elastic_band_.empty())
+    Bubble robot_bubble = {robot_pose, obstacleDistance(robot_pose, *costmap_, costmap_weight_, costmap_inflation_radius_)};
+    for (int i = static_cast<int>(elastic_band_.size()) - 1; i >= 0; i--)
     {
-        ROS_WARN("Band is empty. There was no path successfully set so far.");
-        return false;
+        if (checkOverlap(robot_bubble, elastic_band_[static_cast<std::size_t>(i)], min_bubble_overlap_))
+        {
+            elastic_band_.erase(elastic_band_.begin(), elastic_band_.begin() + i);
+            elastic_band_.insert(elastic_band_.begin(), robot_bubble);
+            return;
+        }
     }
-
-    global_plan = convert(elastic_band_);
-
-    return true;
+    elastic_band_.insert(elastic_band_.begin(), robot_bubble);
+    return;
 }
 
-bool EBandPlanner::getBand(std::vector<Bubble>& elastic_band)
+void EBandOptimiser::append(const std::vector<geometry_msgs::Pose>& plan)
 {
-    elastic_band = elastic_band_;
-
-    // check if there is a band
-    if (elastic_band_.empty())
-    {
-        ROS_WARN("Band is empty.");
-        return false;
-    }
-
-    return true;
-}
-
-bool EBandPlanner::addFrames(const std::vector<geometry_msgs::PoseStamped>& plan_to_add,
-                             const AddAtPosition& add_frames_at)
-{
-    // check that there is a plan at all (minimum 1 frame in this case, as robot + goal = plan)
-    if (elastic_band_.size() < 1)
-    {
-        ROS_WARN("Attempt to connect path to empty band. path not connected. Use SetPath instead");
-        return false;
-    }
-
-    // check that plan which shall be added is not empty
-    if (plan_to_add.empty())
-    {
-        ROS_WARN("Attempt to connect empty path to band. Nothing to do here.");
-        return false;
-    }
-
-    // check whether plan and costmap are in the same frame
-    if (plan_to_add.at(0).header.frame_id != local_costmap_->getGlobalFrameID())
-    {
-        ROS_ERROR(
-            "Elastic Band expects robot pose for optimization in the %s frame, the pose was sent in the %s frame.",
-            local_costmap_->getGlobalFrameID().c_str(), plan_to_add.at(0).header.frame_id.c_str());
-        return false;
-    }
-
-    std::vector<Bubble> band_to_add;
     try
     {
-        band_to_add = convert(plan_to_add, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        const std::vector<Bubble> band_to_add = convert(plan, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        elastic_band_.insert(elastic_band_.end(), band_to_add.begin(), band_to_add.end());
     }
     catch (const std::exception& e)
     {
-        ROS_WARN_STREAM("Conversion from plan to elastic band failed: " << e.what());
-        return false;
+        throw std::runtime_error("Conversion from plan to elastic band failed: " + std::string(e.what()));
     }
-
-    // connect frames to existing band
-    ROS_DEBUG("Checking for connections between current band and new bubbles");
-    bool connected = false;
-    int bubble_connect = -1;
-    if (add_frames_at == add_front)
-    {
-        // add frames at the front of the current band
-        // - for instance to connect band and current robot position
-        for (int i = elastic_band_.size() - 1; i >= 0; i--)
-        {
-            // cycle over bubbles from End - connect to bubble furthest away but overlapping
-            if (checkOverlap(band_to_add.back(), elastic_band_.at(i), min_bubble_overlap_))
-            {
-                bubble_connect = i;
-                connected = true;
-                break;
-            }
-        }
-    }
-    else
-    {
-        // add frames at the end of the current band
-        // - for instance to connect new frames entering the moving window
-        for (std::size_t i = 0; i < elastic_band_.size() - 1; i++)
-        {
-            // cycle over bubbles from Start - connect to bubble furthest away but overlapping
-            if (checkOverlap(band_to_add.front(), elastic_band_.at(i), min_bubble_overlap_))
-            {
-                bubble_connect = i;
-                connected = true;
-                break;
-            }
-        }
-    }
-
-    // instantiate local copy of band
-    std::vector<Bubble> tmp_band;
-    std::vector<Bubble>::iterator tmp_iter1;
-
-    // copy new frames to tmp_band
-    tmp_band.assign(band_to_add.begin(), band_to_add.end());
-
-    if (connected)
-    {
-        ROS_DEBUG("Connections found - composing new band by connecting new frames to bubble %d", bubble_connect);
-        if (add_frames_at == add_front)
-        {
-            // compose new vector by appending elastic_band to new frames
-            tmp_iter1 = elastic_band_.begin() + bubble_connect;
-            ROS_ASSERT((tmp_iter1 >= elastic_band_.begin()) && (tmp_iter1 < elastic_band_.end()));
-            tmp_band.insert(tmp_band.end(), tmp_iter1, elastic_band_.end());
-        }
-        else
-        {
-            // compose new vector by pre-appending elastic_band to new frames
-            tmp_iter1 = elastic_band_.begin() + bubble_connect + 1;  // +1 - as insert only appends [start, end)
-            ROS_ASSERT((tmp_iter1 > elastic_band_.begin()) && (tmp_iter1 <= elastic_band_.end()));
-            tmp_band.insert(tmp_band.begin(), elastic_band_.begin(), tmp_iter1);
-        }
-
-        // done
-        elastic_band_ = tmp_band;
-        return true;
-    }
-
-    // otherwise, we need to do some more work - add complete band to tmp_band
-    ROS_DEBUG("No direct connection found - Composing tmp band and trying to fill gap");
-    if (add_frames_at == add_front)
-    {
-        // compose new vector by appending elastic_band to new frames
-        tmp_band.insert(tmp_band.end(), elastic_band_.begin(), elastic_band_.end());
-    }
-    else
-    {
-        // compose new vector by pre-appending elastic_band to new frames
-        tmp_band.insert(tmp_band.begin(), elastic_band_.begin(), elastic_band_.end());
-    }
-
-    // otherwise - done
-    elastic_band_ = tmp_band;
-
-    return true;
 }
 
-void EBandPlanner::optimizeBand()
+void EBandOptimiser::optimize()
 {
     optimizeBand(elastic_band_);
 }
 
-void EBandPlanner::optimizeBand(std::vector<Bubble>& band) const
+void EBandOptimiser::optimizeBand(std::vector<Bubble>& band) const
 {
     updateDistances(band);
     refineBand(band);
@@ -292,12 +148,11 @@ void EBandPlanner::optimizeBand(std::vector<Bubble>& band) const
     }
 }
 
-void EBandPlanner::updateDistances(std::vector<Bubble>& band) const
+void EBandOptimiser::updateDistances(std::vector<Bubble>& band) const
 {
     for (std::size_t i = 0; i < band.size(); i++)
     {
-        const double distance =
-            obstacleDistance(band.at(i).center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
+        const double distance = obstacleDistance(band.at(i).center, *costmap_, costmap_weight_, costmap_inflation_radius_);
         if (distance == 0.0)
         {
             throw std::runtime_error("Frame " + std::to_string(i) + " of " + std::to_string(band.size()) +
@@ -307,7 +162,7 @@ void EBandPlanner::updateDistances(std::vector<Bubble>& band) const
     }
 }
 
-void EBandPlanner::refineBand(std::vector<Bubble>& band) const
+void EBandOptimiser::refineBand(std::vector<Bubble>& band) const
 {
     const std::size_t max_size = 50;
 
@@ -319,19 +174,19 @@ void EBandPlanner::refineBand(std::vector<Bubble>& band) const
         if (next == band.end())
             break;
 
-        const double distance_to_next_bubble = distance2D(iter->center.pose, next->center.pose);
+        const double distance_to_next_bubble = distance2D(iter->center, next->center);
         const bool overlaping = (distance_to_next_bubble < min_bubble_overlap_ * (iter->expansion + next->expansion));
 
         if (!overlaping)
         {
             // check if a path is possible
-            if (validPath(iter->center.pose, next->center.pose, *costmap_, costmap_weight_, tiny_bubble_distance_))
+            if (validPath(iter->center, next->center, *costmap_, costmap_weight_, tiny_bubble_distance_))
             {
                 Bubble new_bubble = *iter;
                 const double fraction = iter->expansion * min_bubble_overlap_ / distance_to_next_bubble;
                 new_bubble.center = interpolate(iter->center, next->center, fraction);
                 new_bubble.expansion =
-                    obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
+                    obstacleDistance(new_bubble.center, *costmap_, costmap_weight_, costmap_inflation_radius_);
 
                 // insert to band
                 iter = band.insert(next, new_bubble);
@@ -353,7 +208,7 @@ void EBandPlanner::refineBand(std::vector<Bubble>& band) const
                 break;
 
             // check if a shortcut path is possible to the next next bubble
-            if (validPath(iter->center.pose, next_next->center.pose, *costmap_, costmap_weight_, tiny_bubble_distance_))
+            if (validPath(iter->center, next_next->center, *costmap_, costmap_weight_, tiny_bubble_distance_))
             {
                 // remove the next bubble
                 iter = band.erase(next);
@@ -368,7 +223,7 @@ void EBandPlanner::refineBand(std::vector<Bubble>& band) const
     }
 }
 
-void EBandPlanner::modifyBandArtificialForce(std::vector<Bubble>& band) const
+void EBandOptimiser::modifyBandArtificialForce(std::vector<Bubble>& band) const
 {
     if (band.empty())
     {
@@ -413,20 +268,20 @@ void EBandPlanner::modifyBandArtificialForce(std::vector<Bubble>& band) const
 }
 
 
-Bubble EBandPlanner::applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+Bubble EBandOptimiser::applyForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
                                 const Bubble& curr_bubble, const Bubble& next_bubble) const
 {
     Bubble new_bubble = moveToEquilibrium(wrench, prev_bubble, curr_bubble, next_bubble);
 
     // Check there is a straight line path to the previous bubble
-    if (!validPath(prev_bubble.center.pose, new_bubble.center.pose, *costmap_, costmap_weight_, tiny_bubble_distance_))
+    if (!validPath(prev_bubble.center, new_bubble.center, *costmap_, costmap_weight_, tiny_bubble_distance_))
     {
         ROS_DEBUG("Bubble at new position cannot be connected to neighbour. Discarding changes.");
         return curr_bubble;
     }
 
     // Check there is a straight line path to the next bubble
-    if (!validPath(new_bubble.center.pose, next_bubble.center.pose, *costmap_, costmap_weight_, tiny_bubble_distance_))
+    if (!validPath(new_bubble.center, next_bubble.center, *costmap_, costmap_weight_, tiny_bubble_distance_))
     {
         ROS_DEBUG("Bubble at new position cannot be connected to neighbour. Discarding changes.");
         return curr_bubble;
@@ -435,7 +290,7 @@ Bubble EBandPlanner::applyForce(const geometry_msgs::Wrench& wrench, const Bubbl
     return new_bubble;
 }
 
-Bubble EBandPlanner::moveBubble(const geometry_msgs::Wrench& wrench, const Bubble& curr_bubble,
+Bubble EBandOptimiser::moveBubble(const geometry_msgs::Wrench& wrench, const Bubble& curr_bubble,
                                 const double step_size) const
 {
     geometry_msgs::Twist bubble_jump;
@@ -447,17 +302,17 @@ Bubble EBandPlanner::moveBubble(const geometry_msgs::Wrench& wrench, const Bubbl
     bubble_jump.angular.z = normalize_angle(step_size / robot_radius_ * wrench.torque.z);
 
     geometry_msgs::Pose2D new_bubble_pose2D;
-    geometry_msgs::Pose2D bubble_pose2D = convert(curr_bubble.center.pose);
+    geometry_msgs::Pose2D bubble_pose2D = convert(curr_bubble.center);
     new_bubble_pose2D.x = bubble_pose2D.x + bubble_jump.linear.x;
     new_bubble_pose2D.y = bubble_pose2D.y + bubble_jump.linear.y;
     new_bubble_pose2D.theta = normalize_angle(bubble_pose2D.theta + bubble_jump.angular.z);
 
     Bubble new_bubble = curr_bubble;
-    new_bubble.center.pose = convert(new_bubble_pose2D);
+    new_bubble.center = convert(new_bubble_pose2D);
     return new_bubble;
 }
 
-Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+Bubble EBandOptimiser::moveToEquilibrium(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
                                        const Bubble& curr_bubble, const Bubble& next_bubble) const
 {
     double step_size = curr_bubble.expansion;
@@ -469,7 +324,7 @@ Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, cons
         Bubble new_bubble = moveBubble(wrench, curr_bubble, step_size);
 
         const double distance =
-            obstacleDistance(new_bubble.center.pose, *costmap_, costmap_weight_, costmap_inflation_radius_);
+            obstacleDistance(new_bubble.center, *costmap_, costmap_weight_, costmap_inflation_radius_);
         if (distance < tiny_bubble_expansion_)
         {
             ROS_DEBUG("Calculation of Distance failed. Bubble moved into collision");
@@ -513,7 +368,7 @@ Bubble EBandPlanner::moveToEquilibrium(const geometry_msgs::Wrench& wrench, cons
     return equilib_bubble;
 }
 
-geometry_msgs::Wrench EBandPlanner::force(const Bubble& prev_bubble, const Bubble& curr_bubble,
+geometry_msgs::Wrench EBandOptimiser::force(const Bubble& prev_bubble, const Bubble& curr_bubble,
                                           const Bubble& next_bubble) const
 {
     const geometry_msgs::Wrench internal_force = internalForce(prev_bubble, curr_bubble, next_bubble);
@@ -523,19 +378,19 @@ geometry_msgs::Wrench EBandPlanner::force(const Bubble& prev_bubble, const Bubbl
     return wrench;
 }
 
-geometry_msgs::Wrench EBandPlanner::internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble,
+geometry_msgs::Wrench EBandOptimiser::internalForce(const Bubble& prev_bubble, const Bubble& curr_bubble,
                                                   const Bubble& next_bubble) const
 {
-    const double dx_1 = prev_bubble.center.pose.position.x - curr_bubble.center.pose.position.x;
-    const double dy_1 = prev_bubble.center.pose.position.y - curr_bubble.center.pose.position.y;
+    const double dx_1 = prev_bubble.center.position.x - curr_bubble.center.position.x;
+    const double dy_1 = prev_bubble.center.position.y - curr_bubble.center.position.y;
     double distance_1 = std::sqrt((dx_1 * dx_1) + (dy_1 * dy_1));
 
-    const double dx_2 = next_bubble.center.pose.position.x - curr_bubble.center.pose.position.x;
-    const double dy_2 = next_bubble.center.pose.position.y - curr_bubble.center.pose.position.y;
+    const double dx_2 = next_bubble.center.position.x - curr_bubble.center.position.x;
+    const double dy_2 = next_bubble.center.position.y - curr_bubble.center.position.y;
     double distance_2 = std::sqrt((dx_2 * dx_2) + (dy_2 * dy_2));
 
-    const double angular_z_1 = rotationZ(curr_bubble.center.pose, prev_bubble.center.pose) * robot_radius_;
-    const double angular_z_2 = rotationZ(curr_bubble.center.pose, next_bubble.center.pose) * robot_radius_;
+    const double angular_z_1 = rotationZ(curr_bubble.center, prev_bubble.center) * robot_radius_;
+    const double angular_z_2 = rotationZ(curr_bubble.center, next_bubble.center) * robot_radius_;
 
     // make sure to avoid division by  (almost) zero during force calculation (avoid numerical problems)
     // -> if difference/distance is (close to) zero then the force in this direction should be zero as well
@@ -557,25 +412,25 @@ geometry_msgs::Wrench EBandPlanner::internalForce(const Bubble& prev_bubble, con
     return wrench;
 }
 
-geometry_msgs::Wrench EBandPlanner::externalForce(const Bubble& curr_bubble) const
+geometry_msgs::Wrench EBandOptimiser::externalForce(const Bubble& curr_bubble) const
 {
     // calculate delta-poses (on upper edge of bubble) for x-direction
-    geometry_msgs::Pose e1 = curr_bubble.center.pose;
+    geometry_msgs::Pose e1 = curr_bubble.center;
     e1.position.x += curr_bubble.expansion;
     const double distance1 = obstacleDistance(e1, *costmap_, costmap_weight_, costmap_inflation_radius_);
 
     // calculate delta-poses (on lower edge of bubble) for x-direction
-    geometry_msgs::Pose e2 = curr_bubble.center.pose;
+    geometry_msgs::Pose e2 = curr_bubble.center;
     e2.position.x -= curr_bubble.expansion;
     const double distance2 = obstacleDistance(e2, *costmap_, costmap_weight_, costmap_inflation_radius_);
 
     // calculate delta-poses (on upper edge of bubble) for y-direction
-    geometry_msgs::Pose e3 = curr_bubble.center.pose;
+    geometry_msgs::Pose e3 = curr_bubble.center;
     e3.position.y += curr_bubble.expansion;
     const double distance3 = obstacleDistance(e3, *costmap_, costmap_weight_, costmap_inflation_radius_);
 
     // calculate delta-poses (on lower edge of bubble) for y-direction
-    geometry_msgs::Pose e4 = curr_bubble.center.pose;
+    geometry_msgs::Pose e4 = curr_bubble.center;
     e4.position.y -= curr_bubble.expansion;
     const double distance4 = obstacleDistance(e4, *costmap_, costmap_weight_, costmap_inflation_radius_);
 
@@ -592,12 +447,12 @@ geometry_msgs::Wrench EBandPlanner::externalForce(const Bubble& curr_bubble) con
     return wrench;
 }
 
-geometry_msgs::Wrench EBandPlanner::tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
+geometry_msgs::Wrench EBandOptimiser::tangentialForce(const geometry_msgs::Wrench& wrench, const Bubble& prev_bubble,
                                                     const Bubble&, const Bubble& next_bubble) const
 {
-    const double dx = prev_bubble.center.pose.position.x - next_bubble.center.pose.position.x;
-    const double dy = prev_bubble.center.pose.position.y - next_bubble.center.pose.position.y;
-    const double angular_z = rotationZ(prev_bubble.center.pose, next_bubble.center.pose) * robot_radius_;
+    const double dx = prev_bubble.center.position.x - next_bubble.center.position.x;
+    const double dy = prev_bubble.center.position.y - next_bubble.center.position.y;
+    const double angular_z = rotationZ(prev_bubble.center, next_bubble.center) * robot_radius_;
 
     // "project wrench" in middle bubble onto connecting vector
     // scalar wrench * difference
@@ -617,4 +472,5 @@ geometry_msgs::Wrench EBandPlanner::tangentialForce(const geometry_msgs::Wrench&
 
     return ret;
 }
+
 }

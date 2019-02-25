@@ -1,50 +1,54 @@
 #ifndef EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
 #define EBAND_LOCAL_PLANNER_EBAND_LOCAL_PLANNER_H
 
-#include <ros/assert.h>
 #include <ros/ros.h>
 
 #include <memory>
 #include <string>
 #include <vector>
 
+#include <geometry_msgs/Wrench.h>
+
 #include <eband_local_planner/conversions_and_types.h>
 #include <eband_local_planner/eband_visualization.h>
-
-#include <geometry_msgs/Pose.h>
-#include <geometry_msgs/Pose2D.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/Twist.h>
-#include <geometry_msgs/WrenchStamped.h>
-#include <nav_msgs/Odometry.h>
-#include <nav_msgs/Path.h>
 
 #include <costmap_2d/costmap_2d_ros.h>
 
 namespace eband_local_planner
 {
 
-class EBandPlanner
+class EBandOptimiser
 {
   public:
-    EBandPlanner(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap, const int num_optim_iterations,
+    EBandOptimiser(const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap, const int num_optim_iterations,
                  const double internal_force_gain, const double external_force_gain, const double tiny_bubble_distance,
                  const double tiny_bubble_expansion, const double min_bubble_overlap,
                  const int equilibrium_max_recursion_depth, const double equilibrium_relative_overshoot,
                  const double significant_force, const double costmap_weight, const double costmap_inflation_radius);
-    ~EBandPlanner();
+    ~EBandOptimiser();
 
     void setVisualization(std::shared_ptr<EBandVisualization> eband_visual);
 
-    bool setPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan);
+    void setPlan(const std::vector<geometry_msgs::Pose>& plan);
+    void pruneTillPose(const geometry_msgs::Pose& robot_pose);
+    void append(const std::vector<geometry_msgs::Pose>& plan);
 
-    bool getPlan(std::vector<geometry_msgs::PoseStamped>& global_plan);
+    std::vector<Bubble> band() const
+    {
+        return elastic_band_;
+    }
 
-    bool getBand(std::vector<Bubble>& elastic_band);
+    double distance() const
+    {
+        double distance = 0.0;
+        for (std::size_t i=0; i<elastic_band_.size() - 1; ++i)
+        {
+            distance += distance2D(elastic_band_[i].center, elastic_band_[i+1].center);
+        }
+        return distance;
+    }
 
-    bool addFrames(const std::vector<geometry_msgs::PoseStamped>& robot_pose, const AddAtPosition& add_frames_at);
-
-    void optimizeBand();
+    void optimize();
 
   private:
     const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
@@ -72,7 +76,7 @@ class EBandPlanner
 
     std::shared_ptr<EBandVisualization> eband_visual_;
     costmap_2d::Costmap2D* costmap_;
-    std::vector<geometry_msgs::PoseStamped> global_plan_;
+
     std::vector<Bubble> elastic_band_;
 
     const double robot_radius_;

@@ -120,15 +120,15 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
     // get difference and distance between bubbles in odometry frame
     double bubble_distance, ang_pseudo_dist;
     bubble_diff =
-        getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center.pose, elastic_band_.at(1).center.pose, ref_frame_band_);
+        getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center, elastic_band_.at(1).center, ref_frame_band_);
     ang_pseudo_dist = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
                            (bubble_diff.linear.y * bubble_diff.linear.y) + (ang_pseudo_dist * ang_pseudo_dist));
 
     if (visualization_)
     {
-        target_visual_->publishBubble("ctrl_target", 1, target_visual_->blue, elastic_band_.at(0));
-        target_visual_->publishBubble("ctrl_target", 2, target_visual_->blue, elastic_band_.at(1));
+        target_visual_->publishBubble(elastic_band_.at(0), 1, EBandVisualization::Color::blue);
+        target_visual_->publishBubble(elastic_band_.at(1), 2, EBandVisualization::Color::blue);
     }
 
     // by default our control deviation is the difference between the bubble centers
@@ -162,8 +162,8 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
             // get difference between next and next but one bubble
             double next_bubble_distance;
             geometry_msgs::Twist next_bubble_diff;
-            next_bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(1).center.pose,
-                                                           elastic_band_.at(2).center.pose, ref_frame_band_);
+            next_bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(1).center,
+                                                           elastic_band_.at(2).center, ref_frame_band_);
             ang_pseudo_dist = next_bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
             next_bubble_distance =
                 sqrt((next_bubble_diff.linear.x * next_bubble_diff.linear.x) +
@@ -177,12 +177,12 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
                 control_deviation.angular.z = bubble_diff.angular.z + next_bubble_diff.angular.z;
                 // done
                 if (visualization_)
-                    target_visual_->publishBubble("ctrl_target", 3, target_visual_->red, elastic_band_.at(2));
+                    target_visual_->publishBubble(elastic_band_.at(2), 3, EBandVisualization::Color::red);
             }
             else
             {
                 if (visualization_)
-                    target_visual_->publishBubble("ctrl_target", 3, target_visual_->red, elastic_band_.at(2));
+                    target_visual_->publishBubble(elastic_band_.at(2), 3, EBandVisualization::Color::red);
 
                 // we want to calculate intersection point of bubble ...
                 // ... and vector connecting the following bubbles
@@ -243,25 +243,25 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
 
         // init bubble for visualization
         Bubble new_bubble = elastic_band_.at(0);
-        curr_bubble_2d = convert(elastic_band_.at(0).center.pose);
+        curr_bubble_2d = convert(elastic_band_.at(0).center);
         tmp_bubble_2d.x = curr_bubble_2d.x + control_deviation.linear.x;
         tmp_bubble_2d.y = curr_bubble_2d.y + control_deviation.linear.y;
         tmp_bubble_2d.theta = curr_bubble_2d.theta + control_deviation.angular.z;
-        new_bubble.center.pose = convert(tmp_bubble_2d);
+        new_bubble.center = convert(tmp_bubble_2d);
         new_bubble.expansion = 0.1;  // just draw a small bubble
-        target_visual_->publishBubble("ctrl_target", 0, target_visual_->red, new_bubble);
+        target_visual_->publishBubble(new_bubble, 0, EBandVisualization::Color::red);
     }
 
-    const geometry_msgs::Point& goal = (--elastic_band_.end())->center.pose.position;
-    const double dx = elastic_band_.at(0).center.pose.position.x - goal.x;
-    const double dy = elastic_band_.at(0).center.pose.position.y - goal.y;
+    const geometry_msgs::Point& goal = (--elastic_band_.end())->center.position;
+    const double dx = elastic_band_.at(0).center.position.x - goal.x;
+    const double dy = elastic_band_.at(0).center.position.y - goal.y;
     const double dist_to_goal = sqrt(dx * dx + dy * dy);
 
     // Assuming we're far enough from the final goal, make sure to rotate so
     // we're facing the right way
     if (dist_to_goal > rotation_correction_threshold_)
     {
-        const double angular_diff = angularDiff(control_deviation, elastic_band_.at(0).center.pose);
+        const double angular_diff = angularDiff(control_deviation, elastic_band_.at(0).center);
         const double vel = pid_.compute(angular_diff, ros::Duration(1.0 / ctrl_rate_).toSec());
         const double mult = fabs(vel) > max_vel_th_ ? max_vel_th_ / fabs(vel) : 1.0;
         control_deviation.angular.z = vel * mult;
@@ -389,7 +389,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
     robot_cmd = last_vel_;
 
     // now convert into robot-body frame
-    robot_cmd = transformTwistFromFrame1ToFrame2(robot_cmd, ref_frame_band_, elastic_band_.at(0).center.pose);
+    robot_cmd = transformTwistFromFrame1ToFrame2(robot_cmd, ref_frame_band_, elastic_band_.at(0).center);
 
     // check whether we reached the end of the band
     int curr_target_bubble = 1;
@@ -402,7 +402,7 @@ bool EBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goal_r
             // transform next target bubble into robot-body frame
             // and get difference to robot bubble
             bubble_diff = getFrame1ToFrame2InRefFrame(
-                elastic_band_.at(0).center.pose, elastic_band_.at(curr_target_bubble).center.pose, ref_frame_band_);
+                elastic_band_.at(0).center, elastic_band_.at(curr_target_bubble).center, ref_frame_band_);
         }
         else
         {
@@ -456,8 +456,8 @@ double EBandTrajectoryCtrl::getBubbleTargetVel(const int target_bub_num, const s
 
     // get distance to next bubble center
     ROS_ASSERT((target_bub_num >= 0) && ((target_bub_num + 1) < static_cast<int>(band.size())));
-    bubble_diff = getFrame1ToFrame2InRefFrame(band.at(target_bub_num).center.pose,
-                                              band.at(target_bub_num + 1).center.pose, ref_frame_band_);
+    bubble_diff = getFrame1ToFrame2InRefFrame(band.at(target_bub_num).center,
+                                              band.at(target_bub_num + 1).center, ref_frame_band_);
     angle_to_pseudo_vel = bubble_diff.angular.z * getCircumscribedRadius(*local_costmap_);
 
     bubble_distance = sqrt((bubble_diff.linear.x * bubble_diff.linear.x) +
@@ -607,4 +607,4 @@ geometry_msgs::Twist EBandTrajectoryCtrl::limitTwist(const geometry_msgs::Twist&
     return res;
 }
 
-}  // namespace eband_local_planner
+}
