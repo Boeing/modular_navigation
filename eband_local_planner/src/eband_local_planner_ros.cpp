@@ -13,7 +13,7 @@ PLUGINLIB_DECLARE_CLASS(eband_local_planner, EBandPlannerROS, eband_local_planne
 namespace eband_local_planner
 {
 
-EBandPlannerROS::EBandPlannerROS() : tf_buffer_(nullptr), local_costmap_(nullptr), goal_reached_(false)
+EBandPlannerROS::EBandPlannerROS() : tf_buffer_(nullptr), local_costmap_(nullptr)
 {
 }
 
@@ -35,8 +35,8 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     const int num_optim_iterations = pn.param("num_iterations_eband_optimization", 3);
     const double internal_force_gain = pn.param("eband_internal_force_gain", 1.0);
     const double external_force_gain = pn.param("eband_external_force_gain", 2.0);
-    const double tiny_bubble_distance = pn.param("eband_tiny_bubble_distance", 0.01);
-    const double tiny_bubble_expansion = pn.param("eband_tiny_bubble_expansion", 0.01);
+    const double tiny_bubble_distance = pn.param("eband_tiny_bubble_distance", 0.02);
+    const double tiny_bubble_expansion = pn.param("eband_tiny_bubble_expansion", 0.02);
     const double min_bubble_overlap = pn.param("eband_min_relative_bubble_overlap", 0.7);
     const int equilibrium_max_recursion_depth = pn.param("eband_equilibrium_approx_max_recursion_depth", 4);
     const double equilibrium_relative_overshoot = pn.param("eband_equilibrium_relative_overshoot", 0.75);
@@ -52,36 +52,34 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
         tiny_bubble_expansion, min_bubble_overlap, equilibrium_max_recursion_depth, equilibrium_relative_overshoot,
         significant_force, costmap_weight, costmap_inflation_radius));
 
-    const double max_vel_lin = pn.param("max_vel_lin", 0.75);
-    const double max_vel_th = pn.param("max_vel_th", 1.0);
-    const double min_vel_lin = pn.param("min_vel_lin", 0.1);
-    const double min_vel_th = pn.param("min_vel_th", 0.0);
-    const double min_in_place_vel_th = pn.param("min_in_place_vel_th", 0.0);
-    const double in_place_trans_vel = pn.param("in_place_trans_vel", 0.0);
-    const double xy_goal_tolerance = pn.param("xy_goal_tolerance", 0.1);
-    const double yaw_goal_tolerance = pn.param("yaw_goal_tolerance", 0.05);
-    const double k_prop = pn.param("k_prop", 4.0);
-    const double k_damp = pn.param("k_damp", 3.5);
-    const double ctrl_rate = pn.param("ctrl_rate", 10.0);
-    const double max_acceleration = pn.param("max_acceleration", 0.5);
-    const double virtual_mass = pn.param("virtual_mass", 0.75);
-    const double max_translational_acceleration = pn.param("max_translational_acceleration", 0.5);
-    const double max_rotational_acceleration = pn.param("max_rotational_acceleration", 1.5);
-    const double rotation_correction_threshold = pn.param("rotation_correction_threshold", 0.5);
 
-    eband_trj_ctrl_ = std::shared_ptr<EBandTrajectoryCtrl>(new EBandTrajectoryCtrl(
-        local_costmap_, max_vel_lin, max_vel_th, min_vel_lin, min_vel_th, min_in_place_vel_th, in_place_trans_vel,
-        xy_goal_tolerance, yaw_goal_tolerance, k_prop, k_damp, ctrl_rate, max_acceleration, virtual_mass,
-        max_translational_acceleration, max_rotational_acceleration, rotation_correction_threshold));
+    const double max_velocity_x = pn.param("max_velocity_x", 0.15);
+    const double max_velocity_y = pn.param("max_velocity_y", 0.05);
+    const double max_velocity_w = pn.param("max_velocity_w", 0.10);
+
+    const double max_acceleration_x = pn.param("max_acceleration_x", 0.10);
+    const double max_acceleration_y = pn.param("max_acceleration_y", 0.10);
+    const double max_acceleration_w = pn.param("max_acceleration_w", 0.10);
+
+    const double goal_radius = pn.param("goal_radius", 0.06);
+
+    const double xy_goal_tolerance = pn.param("xy_goal_tolerance", 0.002);
+    const double yaw_goal_tolerance = pn.param("yaw_goal_tolerance", 0.01);
+
+    const double k_prop = pn.param("k_prop", 0.5);
+    const double k_damp = pn.param("k_damp", 4.0);
+
+    velocity_controller_ = std::shared_ptr<EBandController>(new EBandController(
+        local_costmap_, max_velocity_x, max_velocity_y, max_velocity_w, max_acceleration_x, max_acceleration_y,
+        max_acceleration_w, goal_radius, xy_goal_tolerance, yaw_goal_tolerance, k_prop, k_damp));
 
     eband_visual_ = std::shared_ptr<EBandVisualization>(new EBandVisualization(pn, local_costmap_));
     eband_->setVisualization(eband_visual_);
-    eband_trj_ctrl_->setVisualization(eband_visual_);
 
     ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const ros::Time& now,
+nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
                                                   const nav_msgs::Odometry& odom)
 {
     nav_core::Control result;
@@ -91,7 +89,7 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         const std::string robot_frame = local_costmap_->getBaseFrameID();
         const std::string local_frame = local_costmap_->getGlobalFrameID();
         const geometry_msgs::TransformStamped tr =
-            tf_buffer_->lookupTransform(local_frame, robot_frame, now, ros::Duration(0.1));
+            tf_buffer_->lookupTransform(local_frame, robot_frame, ros_time, ros::Duration(0.1));
 
         geometry_msgs::Pose local_robot_pose;
         local_robot_pose.position.x = tr.transform.translation.x;
@@ -139,37 +137,13 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
         return result;
     }
 
-    if (!eband_trj_ctrl_->setBand(eband_->band()))
-    {
-        ROS_DEBUG("Failed to to set current band to Trajectory Controller");
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    if (!eband_trj_ctrl_->setOdometry(odom))
-    {
-        ROS_DEBUG("Failed to to set current odometry to Trajectory Controller");
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    geometry_msgs::Twist cmd_twist;
-    if (!eband_trj_ctrl_->getTwist(cmd_twist, goal_reached_))
-    {
-        ROS_DEBUG("Failed to calculate Twist from band in Trajectory Controller");
-        result.state = nav_core::ControlState::FAILED;
-        return result;
-    }
-
-    ROS_DEBUG_STREAM("Retrieving velocity command: " << cmd_twist.linear.x << " " << cmd_twist.linear.y << " "
-                                                     << cmd_twist.angular.z);
-    result.cmd_vel = cmd_twist;
+    result = velocity_controller_->computeControl(eband_->band(), steady_time, ros_time, odom);
 
     {
         const std::vector<geometry_msgs::Pose> refined_plan = convert(eband_->band());
         nav_msgs::Path gui_path;
         gui_path.header.frame_id = local_costmap_->getGlobalFrameID();
-        gui_path.header.stamp = now;
+        gui_path.header.stamp = ros_time;
         for (const geometry_msgs::Pose& pose : refined_plan)
         {
             geometry_msgs::PoseStamped ps;
@@ -182,10 +156,6 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime&, const 
 
     eband_visual_->publishBand(eband_->band());
 
-    if (goal_reached_)
-        result.state = nav_core::ControlState::COMPLETE;
-    else
-        result.state = nav_core::ControlState::RUNNING;
     return result;
 }
 
@@ -207,8 +177,6 @@ bool EBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& pla
         eband_->setPlan(window);
 
         eband_visual_->publishBand(eband_->band());
-
-        goal_reached_ = false;
     }
     catch (const std::exception& e)
     {

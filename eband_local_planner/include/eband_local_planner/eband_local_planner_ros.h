@@ -55,9 +55,7 @@ class EBandPlannerROS : public nav_core::BaseLocalPlanner
 
     std::shared_ptr<EBandOptimiser> eband_;
     std::shared_ptr<EBandVisualization> eband_visual_;
-    std::shared_ptr<EBandTrajectoryCtrl> eband_trj_ctrl_;
-
-    bool goal_reached_;
+    std::shared_ptr<EBandController> velocity_controller_;
 };
 }
 
