@@ -32,8 +32,8 @@ class VoxelLayer : public ObstacleLayer
 
     virtual void onInitialize() override;
 
-    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y) override;
+    virtual void updateBounds(const double robot_x, const double robot_y, const double robot_yaw, double* min_x,
+                              double* min_y, double* max_x, double* max_y) override;
 
     void updateOrigin(double new_origin_x, double new_origin_y) override;
 
@@ -55,7 +55,8 @@ class VoxelLayer : public ObstacleLayer
     void reconfigureCB(costmap_2d::VoxelPluginConfig& config, uint32_t level);
 
     // cppcheck-suppress unusedPrivateFunction
-    void clearNonLethal(double wx, double wy, double w_size_x, double w_size_y, bool clear_no_info);
+    void clearNonLethal(const double wx, const double wy, const double w_size_x, const double w_size_y,
+                        bool clear_no_info);
 
     virtual void raytraceFreespace(const costmap_2d::Observation& clearing_observation, double* min_x, double* min_y,
                                    double* max_x, double* max_y) override;

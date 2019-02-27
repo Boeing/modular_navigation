@@ -28,7 +28,7 @@ ObservationBuffer::~ObservationBuffer()
 // cppcheck-suppress unusedFunction
 bool ObservationBuffer::setGlobalFrame(const std::string& new_global_frame)
 {
-    ros::Time transform_time = ros::Time::now();
+    const ros::Time transform_time = ros::Time::now();
     std::string tf_error;
 
     geometry_msgs::TransformStamped transformStamped;
@@ -80,7 +80,7 @@ void ObservationBuffer::bufferCloud(const sensor_msgs::PointCloud2& cloud)
     observation_list_.push_front(Observation());
 
     // check whether the origin frame has been set explicitly or whether we should get it from the cloud
-    string origin_frame = sensor_frame_ == "" ? cloud.header.frame_id : sensor_frame_;
+    const string origin_frame = sensor_frame_ == "" ? cloud.header.frame_id : sensor_frame_;
 
     try
     {
@@ -114,7 +114,7 @@ void ObservationBuffer::bufferCloud(const sensor_msgs::PointCloud2& cloud)
         observation_cloud.row_step = global_frame_cloud.row_step;
         observation_cloud.is_dense = global_frame_cloud.is_dense;
 
-        unsigned int cloud_size = global_frame_cloud.height * global_frame_cloud.width;
+        const unsigned int cloud_size = global_frame_cloud.height * global_frame_cloud.width;
         sensor_msgs::PointCloud2Modifier modifier(observation_cloud);
         modifier.resize(cloud_size);
         unsigned int point_count = 0;
@@ -163,6 +163,7 @@ void ObservationBuffer::getObservations(vector<Observation>& observations)
 
     // now we'll just copy the observations for the caller
     list<Observation>::iterator obs_it;
+    observations.reserve(observation_list_.size());
     for (obs_it = observation_list_.begin(); obs_it != observation_list_.end(); ++obs_it)
     {
         observations.push_back(*obs_it);

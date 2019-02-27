@@ -5,8 +5,8 @@ using namespace std;
 
 namespace costmap_2d
 {
-Costmap2D::Costmap2D(unsigned int cells_size_x, unsigned int cells_size_y, double resolution, double origin_x,
-                     double origin_y, unsigned char default_value)
+Costmap2D::Costmap2D(const unsigned int cells_size_x, const unsigned int cells_size_y, const double resolution,
+                     const double origin_x, const double origin_y, const unsigned char default_value)
     : size_x_(cells_size_x), size_y_(cells_size_y), resolution_(resolution), origin_x_(origin_x), origin_y_(origin_y),
       costmap_(nullptr), default_value_(default_value)
 {
@@ -25,14 +25,15 @@ void Costmap2D::deleteMaps()
     costmap_ = nullptr;
 }
 
-void Costmap2D::initMaps(unsigned int size_x, unsigned int size_y)
+void Costmap2D::initMaps(const unsigned int size_x, const unsigned int size_y)
 {
     boost::unique_lock<mutex_t> lock(*access_);
     delete[] costmap_;
     costmap_ = new unsigned char[size_x * size_y];
 }
 
-void Costmap2D::resizeMap(unsigned int size_x, unsigned int size_y, double resolution, double origin_x, double origin_y)
+void Costmap2D::resizeMap(const unsigned int size_x, const unsigned int size_y, const double resolution,
+                          const double origin_x, const double origin_y)
 {
     size_x_ = size_x;
     size_y_ = size_y;
@@ -52,7 +53,7 @@ void Costmap2D::resetMaps()
     memset(costmap_, default_value_, size_x_ * size_y_ * sizeof(unsigned char));
 }
 
-void Costmap2D::resetMap(unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn)
+void Costmap2D::resetMap(const unsigned int x0, const unsigned int y0, const unsigned int xn, const unsigned int yn)
 {
     assert(x0 < xn);
     assert(y0 < yn);
@@ -66,8 +67,8 @@ void Costmap2D::resetMap(unsigned int x0, unsigned int y0, unsigned int xn, unsi
 }
 
 // cppcheck-suppress unusedFunction
-bool Costmap2D::copyCostmapWindow(const Costmap2D& map, double win_origin_x, double win_origin_y, double win_size_x,
-                                  double win_size_y)
+bool Costmap2D::copyCostmapWindow(const Costmap2D& map, const double win_origin_x, const double win_origin_y,
+                                  const double win_size_x, const double win_size_y)
 {
     // check for self windowing
     if (this == &map)
@@ -155,23 +156,23 @@ unsigned char* Costmap2D::getCharMap() const
     return costmap_;
 }
 
-unsigned char Costmap2D::getCost(unsigned int mx, unsigned int my) const
+unsigned char Costmap2D::getCost(const unsigned int mx, const unsigned int my) const
 {
     return costmap_[getIndex(mx, my)];
 }
 
-void Costmap2D::setCost(unsigned int mx, unsigned int my, unsigned char cost)
+void Costmap2D::setCost(const unsigned int mx, const unsigned int my, const unsigned char cost)
 {
     costmap_[getIndex(mx, my)] = cost;
 }
 
-void Costmap2D::mapToWorld(unsigned int mx, unsigned int my, double& wx, double& wy) const
+void Costmap2D::mapToWorld(const unsigned int mx, const unsigned int my, double& wx, double& wy) const
 {
     wx = origin_x_ + (mx + 0.5) * resolution_;
     wy = origin_y_ + (my + 0.5) * resolution_;
 }
 
-bool Costmap2D::worldToMap(double wx, double wy, unsigned int& mx, unsigned int& my) const
+bool Costmap2D::worldToMap(const double wx, const double wy, unsigned int& mx, unsigned int& my) const
 {
     if (wx < origin_x_ || wy < origin_y_)
         return false;
@@ -185,14 +186,14 @@ bool Costmap2D::worldToMap(double wx, double wy, unsigned int& mx, unsigned int&
     return false;
 }
 
-void Costmap2D::worldToMapNoBounds(double wx, double wy, int& mx, int& my) const
+void Costmap2D::worldToMapNoBounds(const double wx, const double wy, int& mx, int& my) const
 {
     mx = (int)((wx - origin_x_) / resolution_);
     my = (int)((wy - origin_y_) / resolution_);
 }
 
 // cppcheck-suppress unusedFunction
-void Costmap2D::worldToMapEnforceBounds(double wx, double wy, int& mx, int& my) const
+void Costmap2D::worldToMapEnforceBounds(const double wx, const double wy, int& mx, int& my) const
 {
     // Here we avoid doing any math to wx,wy before comparing them to
     // the bounds, so their values can go out to the max and min values
@@ -224,22 +225,20 @@ void Costmap2D::worldToMapEnforceBounds(double wx, double wy, int& mx, int& my) 
     }
 }
 
-void Costmap2D::updateOrigin(double new_origin_x, double new_origin_y)
+void Costmap2D::updateOrigin(const double new_origin_x, const double new_origin_y)
 {
     // project the new origin into the grid
-    int cell_ox, cell_oy;
-    cell_ox = int((new_origin_x - origin_x_) / resolution_);
-    cell_oy = int((new_origin_y - origin_y_) / resolution_);
+    const int cell_ox = int((new_origin_x - origin_x_) / resolution_);
+    const int cell_oy = int((new_origin_y - origin_y_) / resolution_);
 
     // compute the associated world coordinates for the origin cell
     // because we want to keep things grid-aligned
-    double new_grid_ox, new_grid_oy;
-    new_grid_ox = origin_x_ + cell_ox * resolution_;
-    new_grid_oy = origin_y_ + cell_oy * resolution_;
+    const double new_grid_ox = origin_x_ + cell_ox * resolution_;
+    const double new_grid_oy = origin_y_ + cell_oy * resolution_;
 
     // To save casting from unsigned int to int a bunch of times
-    int size_x = size_x_;
-    int size_y = size_y_;
+    const int size_x = size_x_;
+    const int size_y = size_y_;
 
     // we need to compute the overlap of the new and existing windows
     int lower_left_x, lower_left_y, upper_right_x, upper_right_y;
@@ -248,8 +247,8 @@ void Costmap2D::updateOrigin(double new_origin_x, double new_origin_y)
     upper_right_x = min(max(cell_ox + size_x, 0), size_x);
     upper_right_y = min(max(cell_oy + size_y, 0), size_y);
 
-    unsigned int cell_size_x = upper_right_x - lower_left_x;
-    unsigned int cell_size_y = upper_right_y - lower_left_y;
+    const unsigned int cell_size_x = upper_right_x - lower_left_x;
+    const unsigned int cell_size_y = upper_right_y - lower_left_y;
 
     // we need a map to store the obstacles in the window temporarily
     unsigned char* local_map = new unsigned char[cell_size_x * cell_size_y];
@@ -266,8 +265,8 @@ void Costmap2D::updateOrigin(double new_origin_x, double new_origin_y)
     origin_y_ = new_grid_oy;
 
     // compute the starting cell location for copying data back in
-    int start_x = lower_left_x - cell_ox;
-    int start_y = lower_left_y - cell_oy;
+    const int start_x = lower_left_x - cell_ox;
+    const int start_y = lower_left_y - cell_oy;
 
     // now we want to copy the overlapping information back into the map, but in its new location
     copyMapRegion(local_map, 0, 0, cell_size_x, costmap_, start_x, start_y, size_x_, cell_size_x, cell_size_y);
@@ -276,10 +275,11 @@ void Costmap2D::updateOrigin(double new_origin_x, double new_origin_y)
     delete[] local_map;
 }
 
-bool Costmap2D::setConvexPolygonCost(const std::vector<geometry_msgs::Point>& polygon, unsigned char cost_value)
+bool Costmap2D::setConvexPolygonCost(const std::vector<geometry_msgs::Point>& polygon, const unsigned char cost_value)
 {
     // we assume the polygon is given in the global_frame... we need to transform it to map coordinates
     std::vector<MapLocation> map_polygon;
+    map_polygon.reserve(polygon.size());
     for (unsigned int i = 0; i < polygon.size(); ++i)
     {
         MapLocation loc;
@@ -299,7 +299,7 @@ bool Costmap2D::setConvexPolygonCost(const std::vector<geometry_msgs::Point>& po
     // set the cost of those cells
     for (unsigned int i = 0; i < polygon_cells.size(); ++i)
     {
-        unsigned int index = getIndex(polygon_cells[i].x, polygon_cells[i].y);
+        const unsigned int index = getIndex(polygon_cells[i].x, polygon_cells[i].y);
         costmap_[index] = cost_value;
     }
     return true;
@@ -314,7 +314,7 @@ void Costmap2D::polygonOutlineCells(const std::vector<MapLocation>& polygon, std
     }
     if (!polygon.empty())
     {
-        unsigned int last_index = polygon.size() - 1;
+        const unsigned int last_index = polygon.size() - 1;
         // we also need to close the polygon by going from the last point to the first
         raytraceLine(cell_gatherer, polygon[last_index].x, polygon[last_index].y, polygon[0].x, polygon[0].y);
     }
@@ -350,8 +350,8 @@ void Costmap2D::convexFillCells(const std::vector<MapLocation>& polygon, std::ve
     i = 0;
     MapLocation min_pt;
     MapLocation max_pt;
-    unsigned int min_x = polygon_cells[0].x;
-    unsigned int max_x = polygon_cells[polygon_cells.size() - 1].x;
+    const unsigned int min_x = polygon_cells[0].x;
+    const unsigned int max_x = polygon_cells[polygon_cells.size() - 1].x;
 
     // walk through each column and mark cells inside the polygon
     for (unsigned int x = min_x; x <= max_x; ++x)

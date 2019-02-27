@@ -1,6 +1,8 @@
 #ifndef COSTMAP_2D_OBSTACLE_LAYER_H_
 #define COSTMAP_2D_OBSTACLE_LAYER_H_
 
+#include <unordered_map>
+
 #include <costmap_2d/costmap_layer.h>
 #include <costmap_2d/layered_costmap.h>
 #include <costmap_2d/observation_buffer.h>
@@ -29,8 +31,8 @@ class ObstacleLayer : public CostmapLayer
     virtual ~ObstacleLayer() override;
 
     virtual void onInitialize() override;
-    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y) override;
+    virtual void updateBounds(const double robot_x, const double robot_y, const double robot_yaw, double* min_x,
+                              double* min_y, double* max_x, double* max_y) override;
     virtual void updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
                              unsigned int max_i, unsigned int max_j) override;
 
@@ -82,17 +84,10 @@ class ObstacleLayer : public CostmapLayer
 
     /**
      * @brief  Get the observations used to mark space
-     * @param marking_observations A reference to a vector that will be populated with the observations
+     * @param observations A reference to a vector that will be populated with the observations
      * @return True if all the observation buffers are current, false otherwise
      */
-    bool getMarkingObservations(std::vector<costmap_2d::Observation>& marking_observations) const;
-
-    /**
-     * @brief  Get the observations used to clear space
-     * @param clearing_observations A reference to a vector that will be populated with the observations
-     * @return True if all the observation buffers are current, false otherwise
-     */
-    bool getClearingObservations(std::vector<costmap_2d::Observation>& clearing_observations) const;
+    bool getObservations(std::vector<costmap_2d::Observation>& observations) const;
 
     /**
      * @brief  Clear freespace based on one observation
@@ -105,8 +100,8 @@ class ObstacleLayer : public CostmapLayer
     virtual void raytraceFreespace(const costmap_2d::Observation& clearing_observation, double* min_x, double* min_y,
                                    double* max_x, double* max_y);
 
-    void updateRaytraceBounds(double ox, double oy, double wx, double wy, double range, double* min_x, double* min_y,
-                              double* max_x, double* max_y);
+    void updateRaytraceBounds(const double ox, const double oy, const double wx, const double wy, const double range,
+                              double* min_x, double* min_y, double* max_x, double* max_y);
 
     std::vector<geometry_msgs::Point> transformed_footprint_;
     bool footprint_clearing_enabled_;
@@ -124,10 +119,9 @@ class ObstacleLayer : public CostmapLayer
         observation_notifiers_;  ///< @brief Used to make sure that transforms are available for each sensor
     std::vector<boost::shared_ptr<costmap_2d::ObservationBuffer>>
         observation_buffers_;  ///< @brief Used to store observations from various sensors
-    std::vector<boost::shared_ptr<costmap_2d::ObservationBuffer>>
-        marking_buffers_;  ///< @brief Used to store observation buffers used for marking obstacles
-    std::vector<boost::shared_ptr<costmap_2d::ObservationBuffer>>
-        clearing_buffers_;  ///< @brief Used to store observation buffers used for clearing obstacles
+
+    bool marking_;
+    bool clearing_;
 
     // Used only for testing purposes
     std::vector<costmap_2d::Observation> static_clearing_observations_;
@@ -139,6 +133,10 @@ class ObstacleLayer : public CostmapLayer
     int combination_method_;
 
   private:
+    unsigned int sub_sample_;
+    std::unordered_map<std::string, unsigned int>
+        subsample_counter_map_;  ///< @brief Subsampling counter for each topic
+
     void reconfigureCB(costmap_2d::ObstaclePluginConfig& config, uint32_t level);
 };
 

@@ -25,8 +25,8 @@ class Layer
      * For more details, see "Layered Costmaps for Context-Sensitive Navigation",
      * by Lu et. Al, IROS 2014.
      */
-    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y) = 0;
+    virtual void updateBounds(const double robot_x, const double robot_y, const double robot_yaw, double* min_x,
+                              double* min_y, double* max_x, double* max_y) = 0;
 
     /**
      * @brief Actually update the underlying costmap, only within the bounds calculated during UpdateBounds().

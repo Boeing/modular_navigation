@@ -52,8 +52,8 @@ class CostmapLayer : public Layer, public Costmap2D
     {
     }
 
-    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y) = 0;
+    virtual void updateBounds(const double robot_x, const double robot_y, const double robot_yaw, double* min_x,
+                              double* min_y, double* max_x, double* max_y) = 0;
 
     virtual void matchSize();
 
@@ -66,7 +66,7 @@ class CostmapLayer : public Layer, public Costmap2D
      * @param mx1 Maximum x value of the bounding box
      * @param my1 Maximum y value of the bounding box
      */
-    void addExtraBounds(double mx0, double my0, double mx1, double my1);
+    void addExtraBounds(const double mx0, const double my0, const double mx1, const double my1);
 
   protected:
     /*
@@ -127,7 +127,7 @@ class CostmapLayer : public Layer, public Costmap2D
      * @param max_x bounding box
      * @param max_y bounding box
      */
-    void touch(double x, double y, double* min_x, double* min_y, double* max_x, double* max_y);
+    void touch(const double x, const double y, double* min_x, double* min_y, double* max_x, double* max_y);
 
     /*
      * Updates the bounding box specified in the parameters

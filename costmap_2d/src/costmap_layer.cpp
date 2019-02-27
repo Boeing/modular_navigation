@@ -3,7 +3,7 @@
 namespace costmap_2d
 {
 
-void CostmapLayer::touch(double x, double y, double* min_x, double* min_y, double* max_x, double* max_y)
+void CostmapLayer::touch(const double x, const double y, double* min_x, double* min_y, double* max_x, double* max_y)
 {
     *min_x = std::min(x, *min_x);
     *min_y = std::min(y, *min_y);
@@ -19,7 +19,7 @@ void CostmapLayer::matchSize()
 }
 
 // cppcheck-suppress unusedFunction
-void CostmapLayer::addExtraBounds(double mx0, double my0, double mx1, double my1)
+void CostmapLayer::addExtraBounds(const double mx0, const double my0, const double mx1, const double my1)
 {
     extra_min_x_ = std::min(mx0, extra_min_x_);
     extra_max_x_ = std::max(mx1, extra_max_x_);
@@ -51,7 +51,7 @@ void CostmapLayer::updateWithMax(costmap_2d::Costmap2D& master_grid, const unsig
         return;
 
     unsigned char* master_array = master_grid.getCharMap();
-    unsigned int span = master_grid.getSizeInCellsX();
+    const unsigned int span = master_grid.getSizeInCellsX();
 
     for (unsigned int j = min_j; j < max_j; j++)
     {
@@ -79,7 +79,7 @@ void CostmapLayer::updateWithTrueOverwrite(costmap_2d::Costmap2D& master_grid, c
         return;
 
     unsigned char* master = master_grid.getCharMap();
-    unsigned int span = master_grid.getSizeInCellsX();
+    const unsigned int span = master_grid.getSizeInCellsX();
 
     for (unsigned int j = min_j; j < max_j; j++)
     {
@@ -99,7 +99,7 @@ void CostmapLayer::updateWithOverwrite(costmap_2d::Costmap2D& master_grid, const
         return;
 
     unsigned char* master = master_grid.getCharMap();
-    unsigned int span = master_grid.getSizeInCellsX();
+    const unsigned int span = master_grid.getSizeInCellsX();
 
     for (unsigned int j = min_j; j < max_j; j++)
     {
@@ -121,7 +121,7 @@ void CostmapLayer::updateWithAddition(costmap_2d::Costmap2D& master_grid, const 
         return;
 
     unsigned char* master_array = master_grid.getCharMap();
-    unsigned int span = master_grid.getSizeInCellsX();
+    const unsigned int span = master_grid.getSizeInCellsX();
 
     for (unsigned int j = min_j; j < max_j; j++)
     {

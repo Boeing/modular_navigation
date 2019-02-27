@@ -85,7 +85,8 @@ std::vector<geometry_msgs::Point> toPointVector(geometry_msgs::Polygon polygon);
  * @param  footprint_spec Basic shape of the footprint
  * @param  oriented_footprint Will be filled with the points in the oriented footprint of the robot
  */
-void transformFootprint(double x, double y, double theta, const std::vector<geometry_msgs::Point>& footprint_spec,
+void transformFootprint(const double x, const double y, const double theta,
+                        const std::vector<geometry_msgs::Point>& footprint_spec,
                         std::vector<geometry_msgs::Point>& oriented_footprint);
 
 /**
@@ -96,7 +97,8 @@ void transformFootprint(double x, double y, double theta, const std::vector<geom
  * @param  footprint_spec Basic shape of the footprint
  * @param  oriented_footprint Will be filled with the points in the oriented footprint of the robot
  */
-void transformFootprint(double x, double y, double theta, const std::vector<geometry_msgs::Point>& footprint_spec,
+void transformFootprint(const double x, const double y, const double theta,
+                        const std::vector<geometry_msgs::Point>& footprint_spec,
                         geometry_msgs::PolygonStamped& oriented_footprint);
 
 /**

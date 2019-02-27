@@ -125,7 +125,7 @@ void Costmap2DPublisher::publishCostmap()
         return;
     }
 
-    float resolution = costmap_->getResolution();
+    const float resolution = costmap_->getResolution();
 
     if (always_send_full_costmap_ || grid_.info.resolution != resolution ||
         grid_.info.width != costmap_->getSizeInCellsX() || grid_.info.height != costmap_->getSizeInCellsY() ||

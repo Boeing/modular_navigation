@@ -19,30 +19,30 @@ class Costmap2D
 {
     friend class CostmapTester;  // Need this for gtest to work correctly
   public:
-    Costmap2D(unsigned int cells_size_x, unsigned int cells_size_y, double resolution, double origin_x, double origin_y,
-              unsigned char default_value = 0);
+    Costmap2D(const unsigned int cells_size_x, const unsigned int cells_size_y, const double resolution,
+              const double origin_x, const double origin_y, const unsigned char default_value = 0);
 
     Costmap2D(const Costmap2D& map);
 
     Costmap2D& operator=(const Costmap2D& map);
 
-    bool copyCostmapWindow(const Costmap2D& map, double win_origin_x, double win_origin_y, double win_size_x,
-                           double win_size_y);
+    bool copyCostmapWindow(const Costmap2D& map, const double win_origin_x, const double win_origin_y,
+                           const double win_size_x, const double win_size_y);
 
     Costmap2D();
     virtual ~Costmap2D();
 
-    unsigned char getCost(unsigned int mx, unsigned int my) const;
+    unsigned char getCost(const unsigned int mx, const unsigned int my) const;
 
-    void setCost(unsigned int mx, unsigned int my, unsigned char cost);
+    void setCost(const unsigned int mx, const unsigned int my, const unsigned char cost);
 
-    void mapToWorld(unsigned int mx, unsigned int my, double& wx, double& wy) const;
+    void mapToWorld(const unsigned int mx, const unsigned int my, double& wx, double& wy) const;
 
-    bool worldToMap(double wx, double wy, unsigned int& mx, unsigned int& my) const;
+    bool worldToMap(const double wx, const double wy, unsigned int& mx, unsigned int& my) const;
 
-    void worldToMapNoBounds(double wx, double wy, int& mx, int& my) const;
+    void worldToMapNoBounds(const double wx, const double wy, int& mx, int& my) const;
 
-    void worldToMapEnforceBounds(double wx, double wy, int& mx, int& my) const;
+    void worldToMapEnforceBounds(const double wx, const double wy, int& mx, int& my) const;
 
     inline unsigned int getIndex(unsigned int mx, unsigned int my) const
     {
@@ -87,7 +87,7 @@ class Costmap2D
      * @param cost_value The value to set costs to
      * @return True if the polygon was filled... false if it could not be filled
      */
-    bool setConvexPolygonCost(const std::vector<geometry_msgs::Point>& polygon, unsigned char cost_value);
+    bool setConvexPolygonCost(const std::vector<geometry_msgs::Point>& polygon, const unsigned char cost_value);
 
     /**
      * @brief  Get the map cells that make up the outline of a polygon
@@ -108,7 +108,7 @@ class Costmap2D
      * @param  new_origin_x The x coordinate of the new origin
      * @param  new_origin_y The y coordinate of the new origin
      */
-    virtual void updateOrigin(double new_origin_x, double new_origin_y);
+    virtual void updateOrigin(const double new_origin_x, const double new_origin_y);
 
     /**
      * @brief  Save the costmap out to a pgm file
@@ -116,9 +116,10 @@ class Costmap2D
      */
     bool saveMap(std::string file_name);
 
-    void resizeMap(unsigned int size_x, unsigned int size_y, double resolution, double origin_x, double origin_y);
+    void resizeMap(const unsigned int size_x, const unsigned int size_y, const double resolution, const double origin_x,
+                   const double origin_y);
 
-    void resetMap(unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn);
+    void resetMap(const unsigned int x0, const unsigned int y0, const unsigned int xn, const unsigned int yn);
 
     unsigned int cellDistance(double world_dist);
 
@@ -144,10 +145,10 @@ class Costmap2D
      * @param region_size_y The y size of the region to copy
      */
     template <typename data_type>
-    void copyMapRegion(data_type* source_map, unsigned int sm_lower_left_x, unsigned int sm_lower_left_y,
-                       unsigned int sm_size_x, data_type* dest_map, unsigned int dm_lower_left_x,
-                       unsigned int dm_lower_left_y, unsigned int dm_size_x, unsigned int region_size_x,
-                       unsigned int region_size_y)
+    void copyMapRegion(data_type* source_map, const unsigned int sm_lower_left_x, const unsigned int sm_lower_left_y,
+                       const unsigned int sm_size_x, data_type* dest_map, const unsigned int dm_lower_left_x,
+                       const unsigned int dm_lower_left_y, const unsigned int dm_size_x,
+                       const unsigned int region_size_x, const unsigned int region_size_y)
     {
         // we'll first need to compute the starting points for each map
         data_type* sm_index = source_map + (sm_lower_left_y * sm_size_x + sm_lower_left_x);
@@ -177,7 +178,7 @@ class Costmap2D
      * @param size_x The x size to use for map initialization
      * @param size_y The y size to use for map initialization
      */
-    virtual void initMaps(unsigned int size_x, unsigned int size_y);
+    virtual void initMaps(const unsigned int size_x, const unsigned int size_y);
 
     /**
      * @brief  Raytrace a line and apply some action at each step

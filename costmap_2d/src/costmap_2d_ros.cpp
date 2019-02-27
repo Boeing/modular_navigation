@@ -63,7 +63,9 @@ Costmap2DROS::Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf)
     }
 
     // check if we want a rolling window version of the costmap
-    bool rolling_window, track_unknown_space, always_send_full_costmap;
+    bool rolling_window;
+    bool track_unknown_space;
+    bool always_send_full_costmap;
     private_nh.param("rolling_window", rolling_window, false);
     private_nh.param("track_unknown_space", track_unknown_space, false);
     private_nh.param("always_send_full_costmap", always_send_full_costmap, false);

@@ -41,7 +41,10 @@ TEST(costmap, testRaytracing)
     tf2_ros::Buffer tf;
 
     LayeredCostmap layers("frame", false, false);  // Not rolling window, not tracking unknown
-    addStaticLayer(layers, tf);                    // This adds the static map
+    layers.resizeMap(10, 10, 1, 0, 0);
+
+    addStaticLayer(layers, tf);  // This adds the static map
+
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
 
     // Add a point at 0, 0, 0
@@ -49,6 +52,7 @@ TEST(costmap, testRaytracing)
 
     // This actually puts the LETHAL (254) point in the costmap at (0,0)
     layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
+
     // printMap(*(layers.getCostmap()));
 
     int lethal_count = countValues(*(layers.getCostmap()), LETHAL_OBSTACLE);
@@ -64,6 +68,8 @@ TEST(costmap, testRaytracing2)
 {
     tf2_ros::Buffer tf;
     LayeredCostmap layers("frame", false, false);
+    layers.resizeMap(10, 10, 1, 0, 0);
+
     addStaticLayer(layers, tf);
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
 
@@ -78,6 +84,7 @@ TEST(costmap, testRaytracing2)
 
     // Static map has 20 LETHAL cells (see diagram above)
     int obs_before = countValues(*(layers.getCostmap()), LETHAL_OBSTACLE);
+    printMap(*(layers.getCostmap()));
     ASSERT_EQ(obs_before, 20);
 
     // The sensor origin will be <0,0>. So if we add an obstacle at 9,9,
@@ -174,6 +181,8 @@ TEST(costmap, testDynamicObstacles)
 {
     tf2_ros::Buffer tf;
     LayeredCostmap layers("frame", false, false);
+    layers.resizeMap(10, 10, 1, 0, 0);
+
     addStaticLayer(layers, tf);
 
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);
@@ -201,6 +210,8 @@ TEST(costmap, testMultipleAdditions)
 {
     tf2_ros::Buffer tf;
     LayeredCostmap layers("frame", false, false);
+    layers.resizeMap(10, 10, 1, 0, 0);
+
     addStaticLayer(layers, tf);
 
     ObstacleLayer* olayer = addObstacleLayer(layers, tf);

@@ -81,8 +81,8 @@ void VoxelLayer::resetMaps()
     voxel_grid_.reset();
 }
 
-void VoxelLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y)
+void VoxelLayer::updateBounds(const double robot_x, const double robot_y, const double robot_yaw, double* min_x,
+                              double* min_y, double* max_x, double* max_y)
 {
     if (rolling_window_)
         updateOrigin(robot_x - getSizeInMetersX() / 2, robot_y - getSizeInMetersY() / 2);
@@ -91,70 +91,68 @@ void VoxelLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, 
     useExtraBounds(min_x, min_y, max_x, max_y);
 
     bool current = true;
-    std::vector<Observation> observations, clearing_observations;
+    std::vector<Observation> observations;
 
     // get the marking observations
-    current = getMarkingObservations(observations) && current;
-
-    // get the clearing observations
-    current = getClearingObservations(clearing_observations) && current;
+    current = getObservations(observations) && current;
 
     // update the global current status
     current_ = current;
 
-    // raytrace freespace
-    for (unsigned int i = 0; i < clearing_observations.size(); ++i)
+    if (clearing_)
+        // raytrace freespace
+        for (unsigned int i = 0; i < observations.size(); ++i)
+            raytraceFreespace(observations[i], min_x, min_y, max_x, max_y);
+    if (marking_)
     {
-        raytraceFreespace(clearing_observations[i], min_x, min_y, max_x, max_y);
-    }
-
-    // place the new obstacles into a priority queue... each with a priority of zero to begin with
-    for (std::vector<Observation>::const_iterator it = observations.begin(); it != observations.end(); ++it)
-    {
-        const Observation& obs = *it;
-
-        const sensor_msgs::PointCloud2& cloud = *(obs.cloud_);
-
-        double sq_obstacle_range = obs.obstacle_range_ * obs.obstacle_range_;
-
-        sensor_msgs::PointCloud2ConstIterator<float> iter_x(cloud, "x");
-        sensor_msgs::PointCloud2ConstIterator<float> iter_y(cloud, "y");
-        sensor_msgs::PointCloud2ConstIterator<float> iter_z(cloud, "z");
-
-        for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
+        // place the new obstacles into a priority queue... each with a priority of zero to begin with
+        for (std::vector<Observation>::const_iterator it = observations.begin(); it != observations.end(); ++it)
         {
-            // if the obstacle is too high or too far away from the robot we won't add it
-            if (*iter_z > max_obstacle_height_)
-                continue;
+            const Observation& obs = *it;
 
-            // compute the squared distance from the hitpoint to the pointcloud's origin
-            double sq_dist = (*iter_x - obs.origin_.x) * (*iter_x - obs.origin_.x) +
-                             (*iter_y - obs.origin_.y) * (*iter_y - obs.origin_.y) +
-                             (*iter_z - obs.origin_.z) * (*iter_z - obs.origin_.z);
+            const sensor_msgs::PointCloud2& cloud = *(obs.cloud_);
 
-            // if the point is far enough away... we won't consider it
-            if (sq_dist >= sq_obstacle_range)
-                continue;
+            const double sq_obstacle_range = obs.obstacle_range_ * obs.obstacle_range_;
 
-            // now we need to compute the map coordinates for the observation
-            unsigned int mx, my, mz;
-            if (*iter_z < origin_z_)
+            sensor_msgs::PointCloud2ConstIterator<float> iter_x(cloud, "x");
+            sensor_msgs::PointCloud2ConstIterator<float> iter_y(cloud, "y");
+            sensor_msgs::PointCloud2ConstIterator<float> iter_z(cloud, "z");
+
+            for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
             {
-                if (!worldToMap3D(*iter_x, *iter_y, origin_z_, mx, my, mz))
+                // if the obstacle is too high or too far away from the robot we won't add it
+                if (*iter_z > max_obstacle_height_)
                     continue;
-            }
-            else if (!worldToMap3D(*iter_x, *iter_y, *iter_z, mx, my, mz))
-            {
-                continue;
-            }
 
-            // mark the cell in the voxel grid and check if we should also mark it in the costmap
-            if (voxel_grid_.markVoxelInMap(mx, my, mz, mark_threshold_))
-            {
-                unsigned int index = getIndex(mx, my);
+                // compute the squared distance from the hitpoint to the pointcloud's origin
+                const double sq_dist = (*iter_x - obs.origin_.x) * (*iter_x - obs.origin_.x) +
+                                       (*iter_y - obs.origin_.y) * (*iter_y - obs.origin_.y) +
+                                       (*iter_z - obs.origin_.z) * (*iter_z - obs.origin_.z);
 
-                costmap_[index] = LETHAL_OBSTACLE;
-                touch(double(*iter_x), double(*iter_y), min_x, min_y, max_x, max_y);
+                // if the point is far enough away... we won't consider it
+                if (sq_dist >= sq_obstacle_range)
+                    continue;
+
+                // now we need to compute the map coordinates for the observation
+                unsigned int mx, my, mz;
+                if (*iter_z < origin_z_)
+                {
+                    if (!worldToMap3D(*iter_x, *iter_y, origin_z_, mx, my, mz))
+                        continue;
+                }
+                else if (!worldToMap3D(*iter_x, *iter_y, *iter_z, mx, my, mz))
+                {
+                    continue;
+                }
+
+                // mark the cell in the voxel grid and check if we should also mark it in the costmap
+                if (voxel_grid_.markVoxelInMap(mx, my, mz, mark_threshold_))
+                {
+                    unsigned int index = getIndex(mx, my);
+
+                    costmap_[index] = LETHAL_OBSTACLE;
+                    touch(double(*iter_x), double(*iter_y), min_x, min_y, max_x, max_y);
+                }
             }
         }
     }
@@ -185,7 +183,8 @@ void VoxelLayer::updateBounds(double robot_x, double robot_y, double robot_yaw, 
 }
 
 // cppcheck-suppress unusedFunction
-void VoxelLayer::clearNonLethal(double wx, double wy, double w_size_x, double w_size_y, bool clear_no_info)
+void VoxelLayer::clearNonLethal(const double wx, const double wy, const double w_size_x, const double w_size_y,
+                                bool clear_no_info)
 {
     // get the cell coordinates of the center point of the window
     unsigned int mx, my;
@@ -244,9 +243,9 @@ void VoxelLayer::raytraceFreespace(const Observation& clearing_observation, doub
         return;
 
     double sensor_x, sensor_y, sensor_z;
-    double ox = clearing_observation.origin_.x;
-    double oy = clearing_observation.origin_.y;
-    double oz = clearing_observation.origin_.z;
+    const double ox = clearing_observation.origin_.x;
+    const double oy = clearing_observation.origin_.y;
+    const double oz = clearing_observation.origin_.z;
 
     if (!worldToMap3DFloat(ox, oy, oz, sensor_x, sensor_y, sensor_z))
     {
@@ -265,8 +264,8 @@ void VoxelLayer::raytraceFreespace(const Observation& clearing_observation, doub
     }
 
     // we can pre-compute the enpoints of the map outside of the inner loop... we'll need these later
-    double map_end_x = origin_x_ + getSizeInMetersX();
-    double map_end_y = origin_y_ + getSizeInMetersY();
+    const double map_end_x = origin_x_ + getSizeInMetersX();
+    const double map_end_y = origin_y_ + getSizeInMetersY();
 
     sensor_msgs::PointCloud2ConstIterator<float> iter_x(*(clearing_observation.cloud_), "x");
     sensor_msgs::PointCloud2ConstIterator<float> iter_y(*(clearing_observation.cloud_), "y");
@@ -278,16 +277,16 @@ void VoxelLayer::raytraceFreespace(const Observation& clearing_observation, doub
         double wpy = *iter_y;
         double wpz = *iter_z;
 
-        double distance = dist(ox, oy, oz, wpx, wpy, wpz);
+        const double distance = dist(ox, oy, oz, wpx, wpy, wpz);
         double scaling_fact = 1.0;
         scaling_fact = std::max(std::min(scaling_fact, (distance - 2 * resolution_) / distance), 0.0);
         wpx = scaling_fact * (wpx - ox) + ox;
         wpy = scaling_fact * (wpy - oy) + oy;
         wpz = scaling_fact * (wpz - oz) + oz;
 
-        double a = wpx - ox;
-        double b = wpy - oy;
-        double c = wpz - oz;
+        const double a = wpx - ox;
+        const double b = wpy - oy;
+        const double c = wpz - oz;
         double t = 1.0;
 
         // we can only raytrace to a maximum z height
@@ -363,29 +362,26 @@ void VoxelLayer::raytraceFreespace(const Observation& clearing_observation, doub
 void VoxelLayer::updateOrigin(double new_origin_x, double new_origin_y)
 {
     // project the new origin into the grid
-    int cell_ox, cell_oy;
-    cell_ox = int((new_origin_x - origin_x_) / resolution_);
-    cell_oy = int((new_origin_y - origin_y_) / resolution_);
+    const int cell_ox = int((new_origin_x - origin_x_) / resolution_);
+    const int cell_oy = int((new_origin_y - origin_y_) / resolution_);
 
     // compute the associated world coordinates for the origin cell
     // beacuase we want to keep things grid-aligned
-    double new_grid_ox, new_grid_oy;
-    new_grid_ox = origin_x_ + cell_ox * resolution_;
-    new_grid_oy = origin_y_ + cell_oy * resolution_;
+    const double new_grid_ox = origin_x_ + cell_ox * resolution_;
+    const double new_grid_oy = origin_y_ + cell_oy * resolution_;
 
     // To save casting from unsigned int to int a bunch of times
-    int size_x = size_x_;
-    int size_y = size_y_;
+    const int size_x = size_x_;
+    const int size_y = size_y_;
 
     // we need to compute the overlap of the new and existing windows
-    int lower_left_x, lower_left_y, upper_right_x, upper_right_y;
-    lower_left_x = std::min(std::max(cell_ox, 0), size_x);
-    lower_left_y = std::min(std::max(cell_oy, 0), size_y);
-    upper_right_x = std::min(std::max(cell_ox + size_x, 0), size_x);
-    upper_right_y = std::min(std::max(cell_oy + size_y, 0), size_y);
+    const int lower_left_x = std::min(std::max(cell_ox, 0), size_x);
+    const int lower_left_y = std::min(std::max(cell_oy, 0), size_y);
+    const int upper_right_x = std::min(std::max(cell_ox + size_x, 0), size_x);
+    const int upper_right_y = std::min(std::max(cell_oy + size_y, 0), size_y);
 
-    unsigned int cell_size_x = upper_right_x - lower_left_x;
-    unsigned int cell_size_y = upper_right_y - lower_left_y;
+    const unsigned int cell_size_x = upper_right_x - lower_left_x;
+    const unsigned int cell_size_y = upper_right_y - lower_left_y;
 
     // we need a map to store the obstacles in the window temporarily
     unsigned char* local_map = new unsigned char[cell_size_x * cell_size_y];
@@ -406,8 +402,8 @@ void VoxelLayer::updateOrigin(double new_origin_x, double new_origin_y)
     origin_y_ = new_grid_oy;
 
     // compute the starting cell location for copying data back in
-    int start_x = lower_left_x - cell_ox;
-    int start_y = lower_left_y - cell_oy;
+    const int start_x = lower_left_x - cell_ox;
+    const int start_y = lower_left_y - cell_oy;
 
     // now we want to copy the overlapping information back into the map, but in its new location
     copyMapRegion(local_map, 0, 0, cell_size_x, costmap_, start_x, start_y, size_x_, cell_size_x, cell_size_y);

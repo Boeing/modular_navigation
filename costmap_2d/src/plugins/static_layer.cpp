@@ -171,7 +171,8 @@ void StaticLayer::reset()
     onInitialize();
 }
 
-void StaticLayer::updateBounds(double, double, double, double* min_x, double* min_y, double* max_x, double* max_y)
+void StaticLayer::updateBounds(const double, const double, const double, double* min_x, double* min_y, double* max_x,
+                               double* max_y)
 {
     if (!layered_costmap_->isRolling())
     {

@@ -60,10 +60,11 @@ inline double distance(double x0, double y0, double x1, double y1)
     return hypot(x1 - x0, y1 - y0);
 }
 
-double distanceToLine(double pX, double pY, double x0, double y0, double x1, double y1);
+double distanceToLine(const double pX, const double pY, const double x0, const double y0, const double x1,
+                      const double y1);
 
-bool intersects(std::vector<geometry_msgs::Point>& polygon, float testx, float testy);
+bool intersects(const std::vector<geometry_msgs::Point>& polygon, const float testx, const float testy);
 
-bool intersects(std::vector<geometry_msgs::Point>& polygon1, std::vector<geometry_msgs::Point>& polygon2);
+bool intersects(const std::vector<geometry_msgs::Point>& polygon1, const std::vector<geometry_msgs::Point>& polygon2);
 
 #endif  // COSTMAP_2D_COSTMAP_MATH_H_

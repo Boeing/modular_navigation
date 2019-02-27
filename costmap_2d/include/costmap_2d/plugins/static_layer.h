@@ -23,8 +23,8 @@ class StaticLayer : public CostmapLayer
     virtual void deactivate() override;
     virtual void reset() override;
 
-    virtual void updateBounds(double robot_x, double robot_y, double robot_yaw, double* min_x, double* min_y,
-                              double* max_x, double* max_y) override;
+    virtual void updateBounds(const double robot_x, const double robot_y, const double robot_yaw, double* min_x,
+                              double* min_y, double* max_x, double* max_y) override;
     virtual void updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int min_i, unsigned int min_j,
                              unsigned int max_i, unsigned int max_j) override;
 
