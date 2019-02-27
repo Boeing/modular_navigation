@@ -25,8 +25,8 @@ LayeredCostmap::~LayeredCostmap()
 {
 }
 
-void LayeredCostmap::resizeMap(unsigned int size_x, unsigned int size_y, double resolution, double origin_x,
-                               double origin_y, bool size_locked)
+void LayeredCostmap::resizeMap(const unsigned int size_x, const unsigned int size_y, const double resolution,
+                               const double origin_x, const double origin_y, const bool size_locked)
 {
     boost::unique_lock<Costmap2D::mutex_t> lock(*(costmap_.getMutex()));
     size_locked_ = size_locked;
@@ -37,7 +37,7 @@ void LayeredCostmap::resizeMap(unsigned int size_x, unsigned int size_y, double 
     }
 }
 
-void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
+void LayeredCostmap::updateMap(const double robot_x, const double robot_y, const double robot_yaw)
 {
     boost::unique_lock<Costmap2D::mutex_t> lock(*(costmap_.getMutex()));
 

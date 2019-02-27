@@ -51,16 +51,16 @@ void calculateMinAndMaxDistances(const std::vector<geometry_msgs::Point>& footpr
     for (unsigned int i = 0; i < footprint.size() - 1; ++i)
     {
         // check the distance from the robot center point to the first vertex
-        double vertex_dist = distance(0.0, 0.0, footprint[i].x, footprint[i].y);
-        double edge_dist =
+        const double vertex_dist = distance(0.0, 0.0, footprint[i].x, footprint[i].y);
+        const double edge_dist =
             distanceToLine(0.0, 0.0, footprint[i].x, footprint[i].y, footprint[i + 1].x, footprint[i + 1].y);
         min_dist = std::min(min_dist, std::min(vertex_dist, edge_dist));
         max_dist = std::max(max_dist, std::max(vertex_dist, edge_dist));
     }
 
     // we also need to do the last vertex and the first vertex
-    double vertex_dist = distance(0.0, 0.0, footprint.back().x, footprint.back().y);
-    double edge_dist =
+    const double vertex_dist = distance(0.0, 0.0, footprint.back().x, footprint.back().y);
+    const double edge_dist =
         distanceToLine(0.0, 0.0, footprint.back().x, footprint.back().y, footprint.front().x, footprint.front().y);
     min_dist = std::min(min_dist, std::min(vertex_dist, edge_dist));
     max_dist = std::max(max_dist, std::max(vertex_dist, edge_dist));
@@ -87,6 +87,7 @@ geometry_msgs::Point toPoint(geometry_msgs::Point32 pt)
 geometry_msgs::Polygon toPolygon(std::vector<geometry_msgs::Point> pts)
 {
     geometry_msgs::Polygon polygon;
+    polygon.points.reserve(pts.size());
     for (unsigned int i = 0; i < pts.size(); i++)
     {
         polygon.points.push_back(toPoint32(pts[i]));
@@ -97,6 +98,7 @@ geometry_msgs::Polygon toPolygon(std::vector<geometry_msgs::Point> pts)
 std::vector<geometry_msgs::Point> toPointVector(geometry_msgs::Polygon polygon)
 {
     std::vector<geometry_msgs::Point> pts;
+    pts.reserve(polygon.points.size());
     for (unsigned int i = 0; i < polygon.points.size(); i++)
     {
         pts.push_back(toPoint(polygon.points[i]));
@@ -104,13 +106,14 @@ std::vector<geometry_msgs::Point> toPointVector(geometry_msgs::Polygon polygon)
     return pts;
 }
 
-void transformFootprint(double x, double y, double theta, const std::vector<geometry_msgs::Point>& footprint_spec,
+void transformFootprint(const double x, const double y, const double theta,
+                        const std::vector<geometry_msgs::Point>& footprint_spec,
                         std::vector<geometry_msgs::Point>& oriented_footprint)
 {
     // build the oriented footprint at a given location
     oriented_footprint.clear();
-    double cos_th = cos(theta);
-    double sin_th = sin(theta);
+    const double cos_th = cos(theta);
+    const double sin_th = sin(theta);
     for (unsigned int i = 0; i < footprint_spec.size(); ++i)
     {
         geometry_msgs::Point new_pt;
@@ -120,13 +123,14 @@ void transformFootprint(double x, double y, double theta, const std::vector<geom
     }
 }
 
-void transformFootprint(double x, double y, double theta, const std::vector<geometry_msgs::Point>& footprint_spec,
+void transformFootprint(const double x, const double y, const double theta,
+                        const std::vector<geometry_msgs::Point>& footprint_spec,
                         geometry_msgs::PolygonStamped& oriented_footprint)
 {
     // build the oriented footprint at a given location
     oriented_footprint.polygon.points.clear();
-    double cos_th = cos(theta);
-    double sin_th = sin(theta);
+    const double cos_th = cos(theta);
+    const double sin_th = sin(theta);
     for (unsigned int i = 0; i < footprint_spec.size(); ++i)
     {
         geometry_msgs::Point32 new_pt;
@@ -153,8 +157,9 @@ std::vector<geometry_msgs::Point> makeFootprintFromRadius(double radius)
     std::vector<geometry_msgs::Point> points;
 
     // Loop over 16 angles around a circle making a point each time
-    int N = 16;
+    const int N = 16;
     geometry_msgs::Point pt;
+    points.reserve(N);
     for (int i = 0; i < N; ++i)
     {
         double angle = i * 2 * M_PI / N;
@@ -299,6 +304,7 @@ std::vector<geometry_msgs::Point> makeFootprintFromXMLRPC(XmlRpc::XmlRpcValue& f
     std::vector<geometry_msgs::Point> footprint;
     geometry_msgs::Point pt;
 
+    footprint.reserve(footprint_xmlrpc.size());
     for (int i = 0; i < footprint_xmlrpc.size(); ++i)
     {
         // Make sure each element of the list is an array of size 2. (x and y coordinates)

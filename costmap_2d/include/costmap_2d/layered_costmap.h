@@ -32,15 +32,15 @@ class LayeredCostmap
      * @brief  Update the underlying costmap with new data.
      * If you want to update the map outside of the update loop that runs, you can call this.
      */
-    void updateMap(double robot_x, double robot_y, double robot_yaw);
+    void updateMap(const double robot_x, const double robot_y, const double robot_yaw);
 
     std::string getGlobalFrameID() const
     {
         return global_frame_;
     }
 
-    void resizeMap(unsigned int size_x, unsigned int size_y, double resolution, double origin_x, double origin_y,
-                   bool size_locked = false);
+    void resizeMap(const unsigned int size_x, const unsigned int size_y, const double resolution, const double origin_x,
+                   const double origin_y, const bool size_locked = false);
 
     bool isCurrent();
 

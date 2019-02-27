@@ -74,14 +74,16 @@ void InflationLayer::matchSize()
     cell_inflation_radius_ = cellDistance(inflation_radius_);
     computeCaches();
 
-    unsigned int size_x = costmap->getSizeInCellsX(), size_y = costmap->getSizeInCellsY();
+    const unsigned int size_x = costmap->getSizeInCellsX();
+    const unsigned int size_y = costmap->getSizeInCellsY();
     if (seen_)
         delete[] seen_;
     seen_size_ = size_x * size_y;
     seen_ = new bool[seen_size_];
 }
 
-void InflationLayer::updateBounds(double, double, double, double* min_x, double* min_y, double* max_x, double* max_y)
+void InflationLayer::updateBounds(const double, const double, const double, double* min_x, double* min_y, double* max_x,
+                                  double* max_y)
 {
     if (need_reinflation_)
     {
@@ -99,10 +101,10 @@ void InflationLayer::updateBounds(double, double, double, double* min_x, double*
     {
         // Only increase the area to update costs of inflation
 
-        double tmp_min_x = last_min_x_;
-        double tmp_min_y = last_min_y_;
-        double tmp_max_x = last_max_x_;
-        double tmp_max_y = last_max_y_;
+        const double tmp_min_x = last_min_x_;
+        const double tmp_min_y = last_min_y_;
+        const double tmp_max_x = last_max_x_;
+        const double tmp_max_y = last_max_y_;
         last_min_x_ = *min_x;
         last_min_y_ = *min_y;
         last_max_x_ = *max_x;
@@ -137,7 +139,7 @@ void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, uns
     ROS_ASSERT_MSG(inflation_cells_.empty(), "The inflation list must be empty at the beginning of inflation");
 
     unsigned char* master_array = master_grid.getCharMap();
-    unsigned int size_x = master_grid.getSizeInCellsX(), size_y = master_grid.getSizeInCellsY();
+    const unsigned int size_x = master_grid.getSizeInCellsX(), size_y = master_grid.getSizeInCellsY();
 
     if (seen_ == nullptr)
     {
@@ -191,7 +193,7 @@ void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, uns
             // process all cells at distance dist_bin.first
             const CellData& cell = bin->second[i];
 
-            unsigned int index = cell.index_;
+            const unsigned int index = cell.index_;
 
             // ignore if already visited
             if (seen_[index])
@@ -207,8 +209,8 @@ void InflationLayer::updateCosts(Costmap2D& master_grid, unsigned int min_i, uns
             unsigned int sy = cell.src_y_;
 
             // assign the cost associated with the distance from an obstacle to the cell
-            unsigned char cost = costLookup(mx, my, sx, sy);
-            unsigned char old_cost = master_array[index];
+            const unsigned char cost = costLookup(mx, my, sx, sy);
+            const unsigned char old_cost = master_array[index];
             if (old_cost == costmap_2d::NO_INFORMATION &&
                 (inflate_unknown_ ? (cost > costmap_2d::FREE_SPACE)
                                   : (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)))
