@@ -14,6 +14,7 @@
     <build_depend>tf2_geometry_msgs</build_depend>
     <build_depend>tf2_sensor_msgs</build_depend>
 
+    <depend>cv_bridge</depend>
     <depend>dynamic_reconfigure</depend>
     <depend>geometry_msgs</depend>
     <depend>laser_geometry</depend>
