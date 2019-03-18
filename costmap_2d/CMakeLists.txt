@@ -5,6 +5,7 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
     cmake_modules
+    cv_bridge
     dynamic_reconfigure
     geometry_msgs
     laser_geometry
@@ -24,6 +25,7 @@ find_package(catkin REQUIRED COMPONENTS
     voxel_grid
 )
 
+find_package(OpenCV 3 REQUIRED)
 find_package(Eigen3 REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
@@ -53,6 +55,7 @@ generate_messages(
 # dynamic reconfigure
 generate_dynamic_reconfigure_options(
     cfg/Costmap2D.cfg
+    cfg/DilationInflationPlugin.cfg
     cfg/GenericPlugin.cfg
     cfg/InflationPlugin.cfg
     cfg/ObstaclePlugin.cfg
@@ -66,6 +69,7 @@ catkin_package(
         ${PROJECT_NAME}
         layers
     CATKIN_DEPENDS
+        cv_bridge
         dynamic_reconfigure
         geometry_msgs
         laser_geometry
@@ -97,18 +101,22 @@ add_library(${PROJECT_NAME}
     src/layered_costmap.cpp
     src/observation_buffer.cpp
 )
+
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}
     ${Boost_LIBRARIES}
     ${catkin_LIBRARIES}
+    ${OpenCV_LIBRARIES}
 )
 
 add_library(layers
+    src/plugins/dilation_inflation_layer.cpp
     src/plugins/inflation_layer.cpp
     src/plugins/obstacle_layer.cpp
     src/plugins/static_layer.cpp
     src/plugins/voxel_layer.cpp
 )
+
 add_dependencies(layers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(layers
     ${PROJECT_NAME}
