@@ -398,7 +398,6 @@ void Costmap2DROS::updateMap()
     }
 }
 
-// cppcheck-suppress unusedFunction
 void Costmap2DROS::start()
 {
     std::vector<boost::shared_ptr<Layer>>* plugins = layered_costmap_->getPlugins();
