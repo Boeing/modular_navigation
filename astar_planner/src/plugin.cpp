@@ -62,7 +62,6 @@ nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& st
 
     nav_core::PlanResult result;
 
-    const std::string robot_frame = local_costmap_->getBaseFrameID();
     const std::string local_frame = local_costmap_->getGlobalFrameID();
     const std::string global_frame = global_costmap_->getGlobalFrameID();
     const ros::Time now = ros::Time::now();
