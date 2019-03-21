@@ -6,6 +6,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
 #include <chrono>
 
 #include <costmap_2d/cost_values.h>
@@ -59,12 +62,16 @@ nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& st
 
     nav_core::PlanResult result;
 
-    // const std::string robot_frame = local_costmap_->getBaseFrameID();
-    // const std::string local_frame = local_costmap_->getGlobalFrameID();
+    const std::string robot_frame = local_costmap_->getBaseFrameID();
+    const std::string local_frame = local_costmap_->getGlobalFrameID();
     const std::string global_frame = global_costmap_->getGlobalFrameID();
     const ros::Time now = ros::Time::now();
 
-    // TODO transform local frame to global frame when super imposing map
+    const geometry_msgs::TransformStamped tr =
+        tf_buffer_->lookupTransform(local_frame, global_frame, now, ros::Duration(0.1));
+    const tf2::Quaternion qt(tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z,
+                             tr.transform.rotation.w);
+    const double theta = tf2::getYaw(qt);
 
     if (goal.header.frame_id != global_frame)
     {
@@ -151,17 +158,31 @@ nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& st
     cv::resize(global_costmap, merged_costmap, cv::Size(mm_size_x, mm_size_y), 0, 0, cv::INTER_LINEAR);
 
     //
+    // Rotate the local costmap into global frame
+    //
+    const cv::Point2f center_point(local_costmap.cols * 0.5f, local_costmap.rows * 0.5f);
+    cv::Mat M = cv::getRotationMatrix2D(center_point, -theta * M_PI / 180.0, 1.0);
+    cv::Mat rotated_local_costmap;
+    cv::warpAffine(local_costmap, rotated_local_costmap, M, local_costmap.size(), cv::INTER_CUBIC);
+
+    //
     // Super impose the local costmap data
     //
-    int merged_local_x = (l_origin_x - mm_origin_x) / mm_resolution;
-    int merged_local_y = (l_origin_y - mm_origin_y) / mm_resolution;
-    local_costmap.copyTo(
-        merged_costmap(cv::Rect(merged_local_x, merged_local_y, local_costmap.cols, local_costmap.rows)));
+    cv::Mat original_merged = merged_costmap.clone();
+    int merged_local_x = (l_origin_x - mm_origin_x - tr.transform.translation.x) / mm_resolution;
+    int merged_local_y = (l_origin_y - mm_origin_y - tr.transform.translation.y) / mm_resolution;
+    rotated_local_costmap.copyTo(merged_costmap(
+        cv::Rect(merged_local_x, merged_local_y, rotated_local_costmap.cols, rotated_local_costmap.rows)));
     outlineMap(merged_costmap.data, mm_size_x, mm_size_y, costmap_2d::LETHAL_OBSTACLE);
 
+    cv::Mat final_merged = cv::max(original_merged, merged_costmap);
+
     //    cv::imwrite("/home/boeing/local.png", local_costmap);
+    //    cv::imwrite("/home/boeing/rotated_local_costmap.png", rotated_local_costmap);
     //    cv::imwrite("/home/boeing/global.png", global_costmap);
+    //    cv::imwrite("/home/boeing/original_merged.png", original_merged);
     //    cv::imwrite("/home/boeing/merged.png", merged_costmap);
+    //    cv::imwrite("/home/boeing/final_merged.png", final_merged);
 
     //
     // Calculate start and end map coordinates
@@ -223,7 +244,7 @@ nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& st
         for (unsigned int i = 0; i < grid.data.size(); i++)
         {
             const double p = astar.gridMap()[i].cost;
-            if (p > max)
+            if (p > max && astar.gridMap()[i].already_visited)
             {
                 max = p;
             }
@@ -231,7 +252,7 @@ nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& st
 
         for (unsigned int i = 0; i < grid.data.size(); i++)
         {
-            if (astar.gridMap()[i].cost >= std::numeric_limits<double>::max())
+            if (astar.gridMap()[i].cost > std::numeric_limits<double>::max())
             {
                 grid.data[i] = -1;
             }
