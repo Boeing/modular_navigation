@@ -4,13 +4,13 @@
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/costmap_layer.h>
 
-#include <nav_core/recovery_behavior.h>
+#include <navigation_interface/recovery_behavior.h>
 #include <ros/ros.h>
 
 namespace clear_costmap_recovery
 {
 
-class ClearCostmapRecovery : public nav_core::RecoveryBehavior
+class ClearCostmapRecovery : public navigation_interface::RecoveryBehavior
 {
   public:
     ClearCostmapRecovery();

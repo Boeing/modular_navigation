@@ -21,7 +21,7 @@
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
 
-PLUGINLIB_EXPORT_CLASS(astar_planner::AStarPlanner, nav_core::BaseGlobalPlanner)
+PLUGINLIB_EXPORT_CLASS(astar_planner::AStarPlanner, navigation_interface::BaseGlobalPlanner)
 
 namespace astar_planner
 {
@@ -55,12 +55,12 @@ void AStarPlanner::initialize(const std::string& name, const std::shared_ptr<tf2
     potential_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("potential", 1);
 }
 
-nav_core::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& start,
-                                            const geometry_msgs::PoseStamped& goal)
+navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& start,
+                                                        const geometry_msgs::PoseStamped& goal)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    nav_core::PlanResult result;
+    navigation_interface::PlanResult result;
 
     const std::string local_frame = local_costmap_->getGlobalFrameID();
     const std::string global_frame = global_costmap_->getGlobalFrameID();

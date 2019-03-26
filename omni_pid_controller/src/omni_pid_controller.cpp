@@ -11,7 +11,7 @@
 #include <ompl/geometric/PathSimplifier.h>
 
 PLUGINLIB_DECLARE_CLASS(omni_pid_controller, OmniPIDController, omni_pid_controller::OmniPIDController,
-                        nav_core::BaseLocalPlanner)
+                        navigation_interface::BaseLocalPlanner)
 
 namespace omni_pid_controller
 {
@@ -101,10 +101,11 @@ OmniPIDController::~OmniPIDController()
 {
 }
 
-nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
-                                                    const nav_msgs::Odometry& odom)
+navigation_interface::Control OmniPIDController::computeControl(const ros::SteadyTime& steady_time,
+                                                                const ros::Time& ros_time,
+                                                                const nav_msgs::Odometry& odom)
 {
-    nav_core::Control control;
+    navigation_interface::Control control;
 
     std::lock_guard<std::mutex> lock(control_mutex_);
 
@@ -117,7 +118,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     const bool has_control = bool(control_data_);
     if (!has_control)
     {
-        control.state = nav_core::ControlState::COMPLETE;
+        control.state = navigation_interface::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -144,7 +145,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     catch (const tf2::TransformException& e)
     {
         ROS_WARN_STREAM("Failed to get global->local costmap transform: " << e.what());
-        control.state = nav_core::ControlState::FAILED;
+        control.state = navigation_interface::ControlState::FAILED;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -178,8 +179,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     if (odom_time_delay > maximum_odom_time_delay)
     {
         ROS_WARN_STREAM("Odometry is too old: delay = " << odom_time_delay);
-        control.state = nav_core::ControlState::FAILED;
-        control.error = nav_core::ControlFailure::BAD_ODOMETRY;
+        control.state = navigation_interface::ControlState::FAILED;
+        control.error = navigation_interface::ControlFailure::BAD_ODOMETRY;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -255,7 +256,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
         ROS_INFO_STREAM("goal_error: " << goal_error.transpose());
         ROS_INFO_STREAM("goal_error.norm(): " << goal_error.transpose());
         ROS_INFO_STREAM("angular_error: " << angular_error);
-        control.state = nav_core::ControlState::COMPLETE;
+        control.state = navigation_interface::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -271,8 +272,8 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     {
         ROS_WARN_STREAM("Exceeded maximum linear tracking error: " << linear_error.norm() << " > "
                                                                    << max_linear_tracking_error_);
-        control.state = nav_core::ControlState::FAILED;
-        control.error = nav_core::ControlFailure::TRACKING_LIMIT_EXCEEDED;
+        control.state = navigation_interface::ControlState::FAILED;
+        control.error = navigation_interface::ControlFailure::TRACKING_LIMIT_EXCEEDED;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -289,7 +290,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
     {
         ROS_WARN_STREAM("Robot in collision!");
-        control.state = nav_core::ControlState::EMERGENCY_BRAKING;
+        control.state = navigation_interface::ControlState::EMERGENCY_BRAKING;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -326,7 +327,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
                 tracking_x_pid_.reset();
                 tracking_y_pid_.reset();
                 rotation_pid_.reset();
-                control.state = nav_core::ControlState::EMERGENCY_BRAKING;
+                control.state = navigation_interface::ControlState::EMERGENCY_BRAKING;
                 return control;
             }
         }
@@ -513,7 +514,7 @@ nav_core::Control OmniPIDController::computeControl(const ros::SteadyTime& stead
     ROS_INFO_STREAM("v_y: " << control.cmd_vel.linear.y);
     ROS_INFO_STREAM("v_w: " << control.cmd_vel.angular.z);
 
-    control.state = nav_core::ControlState::RUNNING;
+    control.state = navigation_interface::ControlState::RUNNING;
     return control;
 }
 

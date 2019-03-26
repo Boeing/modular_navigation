@@ -1,6 +1,6 @@
 <library path="lib/libeband_local_planner">
     <class name="eband_local_planner/EBandPlannerROS" type="eband_local_planner::EBandPlannerROS"
-           base_class_type="nav_core::BaseLocalPlanner">
+           base_class_type="navigation_interface::BaseLocalPlanner">
         <description>
             Elastic Band Plugin for BaseLocalPlanner
         </description>

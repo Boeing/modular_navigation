@@ -8,8 +8,8 @@ find_package(catkin REQUIRED
     costmap_2d
     cv_bridge
     geometry_msgs
-    nav_core
     nav_msgs
+    navigation_interface
     pluginlib
     roscpp
     tf2_ros
@@ -29,8 +29,8 @@ catkin_package(
       costmap_2d
       cv_bridge
       geometry_msgs
-      nav_core
       nav_msgs
+      navigation_interface
       pluginlib
       roscpp
       tf2_ros

@@ -12,14 +12,14 @@
 
     <depend>costmap_2d</depend>
     <depend>geometry_msgs</depend>
-    <depend>nav_core</depend>
     <depend>nav_msgs</depend>
+    <depend>navigation_interface</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
-    <depend>tf2_ros</depend>
     <depend>rviz_visual_tools</depend>
+    <depend>tf2_ros</depend>
 
     <export>
-        <nav_core plugin="${prefix}/plugin.xml"/>
+        <navigation_interface plugin="${prefix}/plugin.xml"/>
     </export>
 </package>

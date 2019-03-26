@@ -1,7 +1,7 @@
 #ifndef OMNI_RRT_PLANNER_H
 #define OMNI_RRT_PLANNER_H
 
-#include <nav_core/base_global_planner.h>
+#include <navigation_interface/base_global_planner.h>
 
 #include <costmap_2d/costmap_2d.h>
 
@@ -54,7 +54,7 @@ double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double
                               const double inflation_weight);
 double getDistanceToCollision(const unsigned char cost, const double inflation_weight);
 
-class OmniRRTPlanner : public nav_core::BaseGlobalPlanner
+class OmniRRTPlanner : public navigation_interface::BaseGlobalPlanner
 {
   public:
     OmniRRTPlanner();
@@ -63,8 +63,8 @@ class OmniRRTPlanner : public nav_core::BaseGlobalPlanner
     //
     // BaseLocalPlanner
     //
-    virtual nav_core::PlanResult makePlan(const geometry_msgs::PoseStamped& start,
-                                          const geometry_msgs::PoseStamped& goal) override;
+    virtual navigation_interface::PlanResult makePlan(const geometry_msgs::PoseStamped& start,
+                                                      const geometry_msgs::PoseStamped& goal) override;
     virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) override;
 
     virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,

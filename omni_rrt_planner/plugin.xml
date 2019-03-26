@@ -1,5 +1,5 @@
 <library path="lib/libomni_rrt_planner">
-  <class name="omni_rrt_planner/OmniRRTPlanner" type="omni_rrt_planner::OmniRRTPlanner" base_class_type="nav_core::BaseGlobalPlanner">
+  <class name="omni_rrt_planner/OmniRRTPlanner" type="omni_rrt_planner::OmniRRTPlanner" base_class_type="navigation_interface::BaseGlobalPlanner">
     <description>
     </description>
   </class>

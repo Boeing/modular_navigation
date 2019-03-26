@@ -52,8 +52,9 @@ MoveBase::MoveBase()
       local_costmap_(std::make_shared<costmap_2d::Costmap2DROS>("local_costmap", *tf_buffer_)),
 
       clear_costmaps_service_(nh_.advertiseService("clear_costmaps", &MoveBase::clearCostmapsCallback, this)),
-      bgp_loader_("nav_core", "nav_core::BaseGlobalPlanner"), blp_loader_("nav_core", "nav_core::BaseLocalPlanner"),
-      recovery_loader_("nav_core", "nav_core::RecoveryBehavior"), new_global_plan_(false),
+      bgp_loader_("navigation_interface", "navigation_interface::BaseGlobalPlanner"),
+      blp_loader_("navigation_interface", "navigation_interface::BaseLocalPlanner"),
+      recovery_loader_("navigation_interface", "navigation_interface::RecoveryBehavior"), new_global_plan_(false),
       planner_frequency_(get_param_with_default_warn("~planner_frequency", 0.2)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
       planner_patience_(get_param_with_default_warn("~planner_patience", 5.0)),
@@ -188,7 +189,7 @@ bool MoveBase::planCallback(modular_move_base::Plan::Request& req, modular_move_
     }
 
     // Run planner
-    const nav_core::PlanResult result = planner_->makePlan(start, goal);
+    const navigation_interface::PlanResult result = planner_->makePlan(start, goal);
     if (result.success)
     {
         ROS_INFO_STREAM("Global plan found with length: " << result.plan.size() << " and cost: " << result.cost);
@@ -288,7 +289,7 @@ void MoveBase::planThread()
             if (global_costmap_->getRobotPose(start))
             {
                 // If the planner fails or returns a zero length plan, planning failed
-                const nav_core::PlanResult result = planner_->makePlan(start, goal);
+                const navigation_interface::PlanResult result = planner_->makePlan(start, goal);
                 if (result.success && !result.plan.empty())
                 {
                     ROS_INFO_STREAM("Global plan found with length: " << result.plan.size()
@@ -498,30 +499,30 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
             return MoveBaseState::CONTROLLING;
         }
 
-        nav_core::Control control;
+        navigation_interface::Control control;
         {
             std::lock_guard<std::mutex> lock(odom_mutex_);
             control = tc_->computeControl(steady_time, ros_time, base_odom_);
         }
 
-        if (control.state == nav_core::ControlState::RUNNING)
+        if (control.state == navigation_interface::ControlState::RUNNING)
         {
             vel_pub_.publish(control.cmd_vel);
             recovery_index_ = 0;
             return MoveBaseState::CONTROLLING;
         }
-        else if (control.state == nav_core::ControlState::EMERGENCY_BRAKING)
+        else if (control.state == navigation_interface::ControlState::EMERGENCY_BRAKING)
         {
             ROS_WARN_STREAM("ControlState == EMERGENCY_BRAKING");
             publishZeroVelocity();
             return MoveBaseState::CONTROLLING;
         }
-        else if (control.state == nav_core::ControlState::COMPLETE)
+        else if (control.state == navigation_interface::ControlState::COMPLETE)
         {
             publishZeroVelocity();
             return MoveBaseState::GOAL_COMPLETE;
         }
-        else if (control.state == nav_core::ControlState::FAILED)
+        else if (control.state == navigation_interface::ControlState::FAILED)
         {
             ROS_WARN_STREAM("ControlState == FAILED");
             publishZeroVelocity();
@@ -529,7 +530,7 @@ MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::Stead
         }
         else
         {
-            throw std::runtime_error("Unknown nav_core::ControlState: " +
+            throw std::runtime_error("Unknown navigation_interface::ControlState: " +
                                      std::to_string(static_cast<int>(control.state)));
         }
     }
@@ -633,7 +634,7 @@ bool MoveBase::loadRecoveryBehaviors(ros::NodeHandle node)
                         }
                     }
 
-                    boost::shared_ptr<nav_core::RecoveryBehavior> behavior(
+                    boost::shared_ptr<navigation_interface::RecoveryBehavior> behavior(
                         recovery_loader_.createInstance(behavior_list[i]["type"]));
 
                     // shouldn't be possible, but it won't hurt to check

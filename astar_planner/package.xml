@@ -13,14 +13,14 @@
     <depend>cv_bridge</depend>
     <depend>eigen</depend>
     <depend>geometry_msgs</depend>
-    <depend>nav_core</depend>
     <depend>nav_msgs</depend>
+    <depend>navigation_interface</depend>
     <depend>opencv3</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
     <depend>tf2_ros</depend>
 
     <export>
-        <nav_core plugin="${prefix}/plugin.xml"/>
+        <navigation_interface plugin="${prefix}/plugin.xml"/>
     </export>
 </package>
