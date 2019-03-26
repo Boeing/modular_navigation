@@ -13,12 +13,12 @@
 
     <depend>costmap_2d</depend>
     <depend>eigen</depend>
-    <depend>nav_core</depend>
+    <depend>navigation_interface</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
     <depend>tf2_ros</depend>
 
     <export>
-      <nav_core plugin="${prefix}/plugin.xml"/>
+      <navigation_interface plugin="${prefix}/plugin.xml"/>
     </export>
 </package>

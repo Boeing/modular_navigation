@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>nav_core</name>
+    <name>navigation_interface</name>
     <version>1.16.2</version>
     <description>Fork of nav_core</description>
     <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>

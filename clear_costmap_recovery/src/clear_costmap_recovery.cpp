@@ -4,7 +4,7 @@
 #include <pluginlib/class_list_macros.h>
 #include <vector>
 
-PLUGINLIB_EXPORT_CLASS(clear_costmap_recovery::ClearCostmapRecovery, nav_core::RecoveryBehavior)
+PLUGINLIB_EXPORT_CLASS(clear_costmap_recovery::ClearCostmapRecovery, navigation_interface::RecoveryBehavior)
 
 namespace clear_costmap_recovery
 {

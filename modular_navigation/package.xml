@@ -13,7 +13,7 @@
     <exec_depend>eband_local_planner</exec_depend>
     <exec_depend>global_planner</exec_depend>
     <exec_depend>modular_move_base</exec_depend>
-    <exec_depend>nav_core</exec_depend>
+    <exec_depend>navigation_interface</exec_depend>
     <exec_depend>omni_pid_controller</exec_depend>
     <exec_depend>omni_rrt_planner</exec_depend>
     <exec_depend>rrt_local_planner</exec_depend>

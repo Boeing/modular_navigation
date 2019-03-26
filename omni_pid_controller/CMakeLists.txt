@@ -6,8 +6,8 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
     costmap_2d
     geometry_msgs
-    nav_core
     nav_msgs
+    navigation_interface
     pluginlib
     roscpp
     rviz_visual_tools
@@ -25,8 +25,8 @@ catkin_package(
     CATKIN_DEPENDS
         costmap_2d
         geometry_msgs
-        nav_core
         nav_msgs
+        navigation_interface
         pluginlib
         roscpp
         rviz_visual_tools

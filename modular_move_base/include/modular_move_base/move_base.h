@@ -9,9 +9,9 @@
 #include <actionlib/server/simple_action_server.h>
 #include <move_base_msgs/MoveBaseAction.h>
 
-#include <nav_core/base_global_planner.h>
-#include <nav_core/base_local_planner.h>
-#include <nav_core/recovery_behavior.h>
+#include <navigation_interface/base_global_planner.h>
+#include <navigation_interface/base_local_planner.h>
+#include <navigation_interface/recovery_behavior.h>
 
 #include <nav_msgs/Odometry.h>
 
@@ -132,13 +132,13 @@ class MoveBase
 
     actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> as_;
 
-    boost::shared_ptr<nav_core::BaseGlobalPlanner> planner_;
-    boost::shared_ptr<nav_core::BaseLocalPlanner> tc_;
+    boost::shared_ptr<navigation_interface::BaseGlobalPlanner> planner_;
+    boost::shared_ptr<navigation_interface::BaseLocalPlanner> tc_;
 
     std::shared_ptr<costmap_2d::Costmap2DROS> global_costmap_;
     std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;
 
-    std::vector<boost::shared_ptr<nav_core::RecoveryBehavior>> recovery_behaviors_;
+    std::vector<boost::shared_ptr<navigation_interface::RecoveryBehavior>> recovery_behaviors_;
     unsigned int recovery_index_;
 
     ros::Publisher current_goal_pub_;
@@ -151,9 +151,9 @@ class MoveBase
 
     ros::Time last_valid_plan_;
 
-    pluginlib::ClassLoader<nav_core::BaseGlobalPlanner> bgp_loader_;
-    pluginlib::ClassLoader<nav_core::BaseLocalPlanner> blp_loader_;
-    pluginlib::ClassLoader<nav_core::RecoveryBehavior> recovery_loader_;
+    pluginlib::ClassLoader<navigation_interface::BaseGlobalPlanner> bgp_loader_;
+    pluginlib::ClassLoader<navigation_interface::BaseLocalPlanner> blp_loader_;
+    pluginlib::ClassLoader<navigation_interface::RecoveryBehavior> recovery_loader_;
 
     std::mutex planner_mutex_;
 

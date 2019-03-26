@@ -1,12 +1,12 @@
-#ifndef NAV_CORE_RECOVERY_BEHAVIOR_H
-#define NAV_CORE_RECOVERY_BEHAVIOR_H
+#ifndef NAVIGATION_INTERFACE_BASE_LOCAL_PLANNER_H_RECOVERY_BEHAVIOR_H
+#define NAVIGATION_INTERFACE_BASE_LOCAL_PLANNER_H_RECOVERY_BEHAVIOR_H
 
 #include <costmap_2d/costmap_2d_ros.h>
 #include <memory>
 
 #include <tf2_ros/buffer.h>
 
-namespace nav_core
+namespace navigation_interface
 {
 
 class RecoveryBehavior

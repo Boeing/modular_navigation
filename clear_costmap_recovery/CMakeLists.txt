@@ -6,7 +6,7 @@ add_definitions(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
     cmake_modules
     costmap_2d
-    nav_core
+    navigation_interface
     pluginlib
     roscpp
     tf2_ros
@@ -22,7 +22,7 @@ catkin_package(
         ${PROJECT_NAME}
     CATKIN_DEPENDS
         costmap_2d
-        nav_core
+        navigation_interface
         pluginlib
         roscpp
         tf2_ros

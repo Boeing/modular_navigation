@@ -1,7 +1,7 @@
 #ifndef RRT_LOCAL_PLANNER_H
 #define RRT_LOCAL_PLANNER_H
 
-#include <nav_core/base_local_planner.h>
+#include <navigation_interface/base_local_planner.h>
 
 #include <rrt_local_planner/pid.h>
 
@@ -109,7 +109,7 @@ double getDistanceToCollision(const costmap_2d::Costmap2D& costmap, const double
                               const double inflation_weight);
 double getDistanceToCollision(const unsigned char cost, const double inflation_weight);
 
-class RRTLocalPlanner : public nav_core::BaseLocalPlanner
+class RRTLocalPlanner : public navigation_interface::BaseLocalPlanner
 {
   public:
     RRTLocalPlanner();
@@ -118,7 +118,7 @@ class RRTLocalPlanner : public nav_core::BaseLocalPlanner
     //
     // BaseLocalPlanner
     //
-    virtual nav_core::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+    virtual navigation_interface::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
                                              const nav_msgs::Odometry& odom) override;
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
     virtual bool clearPlan() override;

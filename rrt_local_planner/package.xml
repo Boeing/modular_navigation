@@ -11,7 +11,7 @@
 
     <depend>costmap_2d</depend>
     <depend>geometry_msgs</depend>
-    <depend>nav_core</depend>
+    <depend>navigation_interface</depend>
     <depend>nav_msgs</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
@@ -20,6 +20,6 @@
     <depend>rviz_visual_tools</depend>
 
     <export>
-        <nav_core plugin="${prefix}/plugin.xml"/>
+        <navigation_interface plugin="${prefix}/plugin.xml"/>
     </export>
 </package>

@@ -97,7 +97,7 @@ EBandController::~EBandController()
 {
 }
 
-nav_core::Control EBandController::computeControl(const std::vector<Bubble>& elastic_band,
+navigation_interface::Control EBandController::computeControl(const std::vector<Bubble>& elastic_band,
                                                   const ros::SteadyTime& steady_time, const ros::Time&,
                                                   const nav_msgs::Odometry& odom)
 {
@@ -109,7 +109,7 @@ nav_core::Control EBandController::computeControl(const std::vector<Bubble>& ela
         time_step = std::numeric_limits<double>::min();
     last_update_ = steady_time;
 
-    nav_core::Control control;
+    navigation_interface::Control control;
 
     control.cmd_vel.linear.x = 0.0;
     control.cmd_vel.linear.y = 0.0;
@@ -133,7 +133,7 @@ nav_core::Control EBandController::computeControl(const std::vector<Bubble>& ela
     {
         ROS_INFO_STREAM("Goal complete: dx: " << goal_error.linear.x << " dy: " << goal_error.linear.y
                                               << " dw: " << goal_error_wrt_robot.angular.z);
-        control.state = nav_core::ControlState::COMPLETE;
+        control.state = navigation_interface::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         goal_w_pid_.reset();
@@ -239,7 +239,7 @@ nav_core::Control EBandController::computeControl(const std::vector<Bubble>& ela
     }
 
     control.cmd_vel = velocity;
-    control.state = nav_core::ControlState::RUNNING;
+    control.state = navigation_interface::ControlState::RUNNING;
     return control;
 }
 }

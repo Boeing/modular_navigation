@@ -13,7 +13,7 @@
 
 #include <geometry_msgs/Twist.h>
 
-#include <nav_core/base_local_planner.h>
+#include <navigation_interface/base_local_planner.h>
 #include <nav_msgs/Odometry.h>
 
 namespace eband_local_planner
@@ -29,7 +29,7 @@ class EBandController
                     const double k_damp);
     ~EBandController();
 
-    nav_core::Control computeControl(const std::vector<Bubble>& elastic_band, const ros::SteadyTime& steady_time,
+    navigation_interface::Control computeControl(const std::vector<Bubble>& elastic_band, const ros::SteadyTime& steady_time,
                                      const ros::Time& ros_time, const nav_msgs::Odometry& odom);
 
   private:

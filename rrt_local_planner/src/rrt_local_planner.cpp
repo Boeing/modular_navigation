@@ -11,7 +11,7 @@
 #include <ompl/geometric/PathSimplifier.h>
 
 PLUGINLIB_DECLARE_CLASS(rrt_local_planner, RRTLocalPlanner, rrt_local_planner::RRTLocalPlanner,
-                        nav_core::BaseLocalPlanner)
+                        navigation_interface::BaseLocalPlanner)
 
 namespace rrt_local_planner
 {
@@ -138,10 +138,10 @@ RRTLocalPlanner::~RRTLocalPlanner()
 {
 }
 
-nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+navigation_interface::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
                                                   const nav_msgs::Odometry& odom)
 {
-    nav_core::Control control;
+    navigation_interface::Control control;
 
     bool has_global_path = true;
     //    {
@@ -153,7 +153,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
 
     if (!has_global_path)
     {
-        control.state = nav_core::ControlState::COMPLETE;
+        control.state = navigation_interface::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -164,7 +164,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
 
     if (!has_control)
     {
-        control.state = nav_core::ControlState::COMPLETE;
+        control.state = navigation_interface::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -189,8 +189,8 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
     if (odom_time_delay > maximum_odom_time_delay)
     {
         ROS_WARN_STREAM("Odometry is too old: delay = " << odom_time_delay);
-        control.state = nav_core::ControlState::FAILED;
-        control.error = nav_core::ControlFailure::BAD_ODOMETRY;
+        control.state = navigation_interface::ControlState::FAILED;
+        control.error = navigation_interface::ControlFailure::BAD_ODOMETRY;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -271,7 +271,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
         ROS_INFO_STREAM("goal_error.norm(): " << goal_error.transpose());
         ROS_INFO_STREAM("angular_error: " << angular_error);
         control_data_->execution_complete = true;
-        control.state = nav_core::ControlState::COMPLETE;
+        control.state = navigation_interface::ControlState::COMPLETE;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -287,8 +287,8 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
     {
         ROS_WARN_STREAM("Exceeded maximum linear tracking error: " << linear_error.norm() << " > "
                                                                    << max_linear_tracking_error_);
-        control.state = nav_core::ControlState::FAILED;
-        control.error = nav_core::ControlFailure::TRACKING_LIMIT_EXCEEDED;
+        control.state = navigation_interface::ControlState::FAILED;
+        control.error = navigation_interface::ControlFailure::TRACKING_LIMIT_EXCEEDED;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -300,8 +300,8 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
     {
         ROS_WARN_STREAM("Exceeded maximum angular tracking error: " << angular_error << " > "
                                                                     << max_angular_tracking_error_);
-        control.state = nav_core::ControlState::FAILED;
-        control.error = nav_core::ControlFailure::TRACKING_LIMIT_EXCEEDED;
+        control.state = navigation_interface::ControlState::FAILED;
+        control.error = navigation_interface::ControlFailure::TRACKING_LIMIT_EXCEEDED;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -318,7 +318,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
     if (cost >= costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
     {
         ROS_WARN_STREAM("Robot in collision!");
-        control.state = nav_core::ControlState::EMERGENCY_BRAKING;
+        control.state = navigation_interface::ControlState::EMERGENCY_BRAKING;
         goal_x_pid_.reset();
         goal_y_pid_.reset();
         tracking_x_pid_.reset();
@@ -357,7 +357,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
                 tracking_x_pid_.reset();
                 tracking_y_pid_.reset();
                 rotation_pid_.reset();
-                control.state = nav_core::ControlState::EMERGENCY_BRAKING;
+                control.state = navigation_interface::ControlState::EMERGENCY_BRAKING;
                 return control;
             }
         }
@@ -534,7 +534,7 @@ nav_core::Control RRTLocalPlanner::computeControl(const ros::SteadyTime& steady_
     ROS_INFO_STREAM("v_y: " << control.cmd_vel.linear.y);
     ROS_INFO_STREAM("v_w: " << control.cmd_vel.angular.z);
 
-    control.state = nav_core::ControlState::RUNNING;
+    control.state = navigation_interface::ControlState::RUNNING;
     return control;
 }
 

@@ -1,5 +1,5 @@
 <library path="lib/librrt_local_planner">
-  <class name="rrt_local_planner/RRTLocalPlanner" type="rrt_local_planner::RRTLocalPlanner" base_class_type="nav_core::BaseLocalPlanner">
+  <class name="rrt_local_planner/RRTLocalPlanner" type="rrt_local_planner::RRTLocalPlanner" base_class_type="navigation_interface::BaseLocalPlanner">
     <description>
       RRT Local Planner
     </description>

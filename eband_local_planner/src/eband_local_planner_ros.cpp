@@ -5,10 +5,10 @@
 
 #include <pluginlib/class_list_macros.h>
 
-#include <nav_core/base_local_planner.h>
+#include <navigation_interface/base_local_planner.h>
 
 PLUGINLIB_DECLARE_CLASS(eband_local_planner, EBandPlannerROS, eband_local_planner::EBandPlannerROS,
-                        nav_core::BaseLocalPlanner)
+                        navigation_interface::BaseLocalPlanner)
 
 namespace eband_local_planner
 {
@@ -79,10 +79,10 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+navigation_interface::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
                                                   const nav_msgs::Odometry& odom)
 {
-    nav_core::Control result;
+    navigation_interface::Control result;
 
     try
     {
@@ -121,7 +121,7 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_
     {
         ROS_ERROR_STREAM("Moving window failed: " << e.what());
         eband_visual_->publishBand(eband_->band());
-        result.state = nav_core::ControlState::FAILED;
+        result.state = navigation_interface::ControlState::FAILED;
         return result;
     }
 
@@ -133,7 +133,7 @@ nav_core::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_
     {
         ROS_ERROR_STREAM("Optimization failed: " << e.what());
         eband_visual_->publishBand(eband_->band());
-        result.state = nav_core::ControlState::FAILED;
+        result.state = navigation_interface::ControlState::FAILED;
         return result;
     }
 

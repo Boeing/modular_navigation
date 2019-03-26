@@ -10,8 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
     geometry_msgs
     message_generation
     move_base_msgs
-    nav_core
     nav_msgs
+    navigation_interface
     pluginlib
     roscpp
     std_srvs
