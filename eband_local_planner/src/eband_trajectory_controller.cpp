@@ -98,8 +98,8 @@ EBandController::~EBandController()
 }
 
 navigation_interface::Control EBandController::computeControl(const std::vector<Bubble>& elastic_band,
-                                                  const ros::SteadyTime& steady_time, const ros::Time&,
-                                                  const nav_msgs::Odometry& odom)
+                                                              const ros::SteadyTime& steady_time, const ros::Time&,
+                                                              const nav_msgs::Odometry& odom)
 {
     ROS_ASSERT(odom.header.frame_id == local_costmap_->getGlobalFrameID());
     ROS_ASSERT(elastic_band.size() > 1);

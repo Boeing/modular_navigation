@@ -10,7 +10,8 @@
 
 #include <ompl/geometric/PathSimplifier.h>
 
-PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner, navigation_interface::BaseGlobalPlanner)
+PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner,
+                        navigation_interface::BaseGlobalPlanner)
 
 namespace omni_rrt_planner
 {
@@ -175,7 +176,7 @@ void OmniRRTPlanner::initialize(const std::string& name, const std::shared_ptr<t
 }
 
 navigation_interface::PlanResult OmniRRTPlanner::makePlan(const geometry_msgs::PoseStamped& start,
-                                              const geometry_msgs::PoseStamped& goal)
+                                                          const geometry_msgs::PoseStamped& goal)
 {
     const double search_window =
         std::max(global_costmap_->getCostmap()->getSizeInCellsX() * global_costmap_->getCostmap()->getResolution(),

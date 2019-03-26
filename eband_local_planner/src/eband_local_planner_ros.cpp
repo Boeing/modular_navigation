@@ -79,8 +79,8 @@ void EBandPlannerROS::initialize(const std::string& name, const std::shared_ptr<
     ROS_DEBUG("Elastic Band plugin initialized");
 }
 
-navigation_interface::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
-                                                  const nav_msgs::Odometry& odom)
+navigation_interface::Control EBandPlannerROS::computeControl(const ros::SteadyTime& steady_time,
+                                                              const ros::Time& ros_time, const nav_msgs::Odometry& odom)
 {
     navigation_interface::Control result;
 

@@ -13,8 +13,8 @@
 
 #include <geometry_msgs/Twist.h>
 
-#include <navigation_interface/base_local_planner.h>
 #include <nav_msgs/Odometry.h>
+#include <navigation_interface/base_local_planner.h>
 
 namespace eband_local_planner
 {
@@ -29,8 +29,9 @@ class EBandController
                     const double k_damp);
     ~EBandController();
 
-    navigation_interface::Control computeControl(const std::vector<Bubble>& elastic_band, const ros::SteadyTime& steady_time,
-                                     const ros::Time& ros_time, const nav_msgs::Odometry& odom);
+    navigation_interface::Control computeControl(const std::vector<Bubble>& elastic_band,
+                                                 const ros::SteadyTime& steady_time, const ros::Time& ros_time,
+                                                 const nav_msgs::Odometry& odom);
 
   private:
     const std::shared_ptr<costmap_2d::Costmap2DROS> local_costmap_;

@@ -119,7 +119,7 @@ class RRTLocalPlanner : public navigation_interface::BaseLocalPlanner
     // BaseLocalPlanner
     //
     virtual navigation_interface::Control computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
-                                             const nav_msgs::Odometry& odom) override;
+                                                         const nav_msgs::Odometry& odom) override;
     virtual bool setPlan(const std::vector<geometry_msgs::PoseStamped>& plan) override;
     virtual bool clearPlan() override;
     virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,

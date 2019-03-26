@@ -101,8 +101,9 @@ OmniPIDController::~OmniPIDController()
 {
 }
 
-navigation_interface::Control OmniPIDController::computeControl(const ros::SteadyTime& steady_time, const ros::Time& ros_time,
-                                                    const nav_msgs::Odometry& odom)
+navigation_interface::Control OmniPIDController::computeControl(const ros::SteadyTime& steady_time,
+                                                                const ros::Time& ros_time,
+                                                                const nav_msgs::Odometry& odom)
 {
     navigation_interface::Control control;
 

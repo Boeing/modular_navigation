@@ -64,7 +64,7 @@ class OmniRRTPlanner : public navigation_interface::BaseGlobalPlanner
     // BaseLocalPlanner
     //
     virtual navigation_interface::PlanResult makePlan(const geometry_msgs::PoseStamped& start,
-                                          const geometry_msgs::PoseStamped& goal) override;
+                                                      const geometry_msgs::PoseStamped& goal) override;
     virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) override;
 
     virtual void initialize(const std::string& name, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer,

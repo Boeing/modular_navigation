@@ -56,7 +56,7 @@ void AStarPlanner::initialize(const std::string& name, const std::shared_ptr<tf2
 }
 
 navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& start,
-                                            const geometry_msgs::PoseStamped& goal)
+                                                        const geometry_msgs::PoseStamped& goal)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 

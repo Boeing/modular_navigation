@@ -28,7 +28,7 @@ class AStarPlanner : public navigation_interface::BaseGlobalPlanner
                     const std::shared_ptr<costmap_2d::Costmap2DROS>& local_costmap) override;
 
     navigation_interface::PlanResult makePlan(const geometry_msgs::PoseStamped& start,
-                                  const geometry_msgs::PoseStamped& goal) override;
+                                              const geometry_msgs::PoseStamped& goal) override;
     virtual double cost(const std::vector<geometry_msgs::PoseStamped>& plan) override;
 
   private:
