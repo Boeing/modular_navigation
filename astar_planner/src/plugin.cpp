@@ -30,6 +30,16 @@ AStarPlanner::AStarPlanner()
     : tf_buffer_(nullptr), global_costmap_(nullptr), local_costmap_(nullptr), publish_potential_(true),
       neutral_cost_(10.0)
 {
+    {
+        cost_translation_table_[0] = 0;      // NO obstacle
+        cost_translation_table_[253] = 99;   // INSCRIBED obstacle
+        cost_translation_table_[254] = 100;  // LETHAL obstacle
+        cost_translation_table_[255] = -1;   // UNKNOWN
+        for (int i = 1; i < 253; i++)
+        {
+            cost_translation_table_[i] = char(1 + (97 * (i - 1)) / 251);
+        }
+    }
 }
 
 AStarPlanner::~AStarPlanner()
@@ -53,6 +63,7 @@ void AStarPlanner::initialize(const std::string& name, const std::shared_ptr<tf2
 
     plan_pub_ = private_nh.advertise<nav_msgs::Path>("plan", 1);
     potential_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("potential", 1);
+    merged_pub_ = private_nh.advertise<nav_msgs::OccupancyGrid>("merged", 1);
 }
 
 navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::PoseStamped& start,
@@ -67,7 +78,7 @@ navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::Pos
     const ros::Time now = ros::Time::now();
 
     const geometry_msgs::TransformStamped tr =
-        tf_buffer_->lookupTransform(local_frame, global_frame, now, ros::Duration(0.1));
+        tf_buffer_->lookupTransform(global_frame, local_frame, now, ros::Duration(0.1));
     const tf2::Quaternion qt(tr.transform.rotation.x, tr.transform.rotation.y, tr.transform.rotation.z,
                              tr.transform.rotation.w);
     const double theta = tf2::getYaw(qt);
@@ -159,8 +170,8 @@ navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::Pos
     //
     // Rotate the local costmap into global frame
     //
-    const cv::Point2f center_point(local_costmap.cols * 0.5f, local_costmap.rows * 0.5f);
-    cv::Mat M = cv::getRotationMatrix2D(center_point, -theta * M_PI / 180.0, 1.0);
+    const cv::Point2f center_point(0, 0);
+    cv::Mat M = cv::getRotationMatrix2D(center_point, -theta * 180.0 / M_PI, 1.0);
     cv::Mat rotated_local_costmap;
     cv::warpAffine(local_costmap, rotated_local_costmap, M, local_costmap.size(), cv::INTER_CUBIC);
 
@@ -168,20 +179,45 @@ navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::Pos
     // Super impose the local costmap data
     //
     cv::Mat original_merged = merged_costmap.clone();
-    int merged_local_x = (l_origin_x - mm_origin_x - tr.transform.translation.x) / mm_resolution;
-    int merged_local_y = (l_origin_y - mm_origin_y - tr.transform.translation.y) / mm_resolution;
+    const int merged_local_x =
+        ((std::cos(theta) * l_origin_x - std::sin(theta) * l_origin_y) + tr.transform.translation.x - mm_origin_x) /
+        mm_resolution;
+    const int merged_local_y =
+        ((std::sin(theta) * l_origin_x + std::cos(theta) * l_origin_y) + tr.transform.translation.y - mm_origin_y) /
+        mm_resolution;
     rotated_local_costmap.copyTo(merged_costmap(
         cv::Rect(merged_local_x, merged_local_y, rotated_local_costmap.cols, rotated_local_costmap.rows)));
+
+    //
+    // Stop planning off of the map
+    //
     outlineMap(merged_costmap.data, mm_size_x, mm_size_y, costmap_2d::LETHAL_OBSTACLE);
 
     cv::Mat final_merged = cv::max(original_merged, merged_costmap);
 
-    //    cv::imwrite("/home/boeing/local.png", local_costmap);
-    //    cv::imwrite("/home/boeing/rotated_local_costmap.png", rotated_local_costmap);
-    //    cv::imwrite("/home/boeing/global.png", global_costmap);
-    //    cv::imwrite("/home/boeing/original_merged.png", original_merged);
-    //    cv::imwrite("/home/boeing/merged.png", merged_costmap);
-    //    cv::imwrite("/home/boeing/final_merged.png", final_merged);
+    //
+    // Publish the merged map
+    //
+    {
+        nav_msgs::OccupancyGrid grid;
+
+        grid.header.frame_id = global_frame;
+        grid.header.stamp = now;
+        grid.info.resolution = mm_resolution;
+        grid.info.width = mm_size_x;
+        grid.info.height = mm_size_y;
+        grid.info.origin.position.x = mm_origin_x;
+        grid.info.origin.position.y = mm_origin_y;
+        grid.info.origin.orientation.w = 1.0;
+        grid.data.resize(mm_size_x * mm_size_y);
+
+        for (unsigned int i = 0; i < grid.data.size(); i++)
+        {
+            grid.data[i] = cost_translation_table_[static_cast<unsigned char>(final_merged.data[i])];
+        }
+
+        merged_pub_.publish(grid);
+    }
 
     //
     // Calculate start and end map coordinates
