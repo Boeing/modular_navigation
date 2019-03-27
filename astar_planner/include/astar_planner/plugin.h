@@ -11,6 +11,7 @@
 
 #include <ros/ros.h>
 
+#include <array>
 #include <mutex>
 #include <vector>
 
@@ -38,6 +39,7 @@ class AStarPlanner : public navigation_interface::BaseGlobalPlanner
 
     ros::Publisher plan_pub_;
     ros::Publisher potential_pub_;
+    ros::Publisher merged_pub_;
 
     bool publish_potential_;
 
@@ -48,6 +50,8 @@ class AStarPlanner : public navigation_interface::BaseGlobalPlanner
     void outlineMap(unsigned char* costarr, int nx, int ny, unsigned char value);
 
     double neutral_cost_;
+
+    std::array<char, 256> cost_translation_table_;
 };
 }
 
