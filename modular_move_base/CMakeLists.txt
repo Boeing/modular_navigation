@@ -15,8 +15,8 @@ find_package(catkin REQUIRED COMPONENTS
     pluginlib
     roscpp
     std_srvs
-    tf2_ros
     tf2_geometry_msgs
+    tf2_ros
 )
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
@@ -38,6 +38,7 @@ catkin_package(
         move_base_msgs
         nav_msgs
         roscpp
+        tf2_geometry_msgs
 )
 
 include_directories(
