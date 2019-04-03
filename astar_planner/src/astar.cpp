@@ -45,6 +45,14 @@ PathResult PathFinder::findPath(Coord2D startPos, Coord2D goalPos)
 {
     const std::size_t startIndex = toIndex(startPos);
 
+    PathResult result;
+    result.success = false;
+    if (grid_map_[startIndex].world >= obstacle_threshold_)
+    {
+        ROS_INFO("Start in collision");
+        return result;
+    }
+
     open_set_.push({0, startPos});
     grid_map_[startIndex].cost = 0.0;
 
@@ -102,7 +110,6 @@ PathResult PathFinder::findPath(Coord2D startPos, Coord2D goalPos)
         }
     }
 
-    PathResult result;
     if (solution_found)
     {
         result.success = true;
@@ -113,10 +120,6 @@ PathResult PathFinder::findPath(Coord2D startPos, Coord2D goalPos)
             result.path.push_back(coord);
             coord = cell(coord).path_parent;
         }
-    }
-    else
-    {
-        result.success = false;
     }
 
     return result;

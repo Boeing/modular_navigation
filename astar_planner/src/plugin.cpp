@@ -246,8 +246,9 @@ navigation_interface::PlanResult AStarPlanner::makePlan(const geometry_msgs::Pos
         return result;
     }
 
-    const uint8_t obstacle_threshold = 253;
-    PathFinder astar(mm_size_x, mm_size_y, merged_costmap.data, obstacle_threshold, neutral_cost_);
+    const uint8_t obstacle_threshold = costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
+    PathFinder astar(mm_size_x, mm_size_y, reinterpret_cast<uint8_t*>(final_merged.data), obstacle_threshold,
+                     neutral_cost_);
 
     const Coord2D start_coord(static_cast<int>(start_x), static_cast<int>(start_y));
     const Coord2D goal_coord(static_cast<int>(goal_x), static_cast<int>(goal_y));
