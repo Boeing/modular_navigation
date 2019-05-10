@@ -1,43 +1,28 @@
 #include <algorithm>
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/layered_costmap.h>
+
 #include <cstdio>
 #include <string>
+#include <vector>
+#include <chrono>
+
 #include <tf2/convert.h>
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <vector>
-
-#include <chrono>
-
-using namespace std;
 
 namespace costmap_2d
 {
 
-void move_parameter(ros::NodeHandle& old_h, ros::NodeHandle& new_h, std::string name, bool should_delete = true)
-{
-    if (!old_h.hasParam(name))
-        return;
-
-    XmlRpc::XmlRpcValue value;
-    old_h.getParam(name, value);
-    new_h.setParam(name, value);
-    if (should_delete)
-        old_h.deleteParam(name);
-}
-
 Costmap2DROS::Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf)
     : layered_costmap_(nullptr), name_(name), tf_(tf), transform_tolerance_(0.3), map_update_thread_shutdown_(false),
       stop_updates_(false), initialized_(true), stopped_(false), robot_stopped_(false), map_update_thread_(nullptr),
-      last_publish_(0), plugin_loader_("costmap_2d", "costmap_2d::Layer"), publisher_(nullptr), dsrv_(nullptr),
-      footprint_padding_(0.0)
+      last_publish_(0), plugin_loader_("costmap_2d", "costmap_2d::Layer"), publisher_(nullptr)
 {
     // Initialize old pose with something
     tf2::toMsg(tf2::Transform::getIdentity(), old_pose_.pose);
 
     ros::NodeHandle private_nh("~/" + name);
-    ros::NodeHandle g_nh;
 
     // get two frames
     private_nh.param("global_frame", global_frame_, std::string("map"));
@@ -70,12 +55,16 @@ Costmap2DROS::Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf)
     private_nh.param("track_unknown_space", track_unknown_space, false);
     private_nh.param("always_send_full_costmap", always_send_full_costmap, false);
 
-    layered_costmap_ = new LayeredCostmap(global_frame_, rolling_window, track_unknown_space);
+    const double width = private_nh.param("width", 20.0);
+    const double height = private_nh.param("height", 20.0);
+    const double resolution = private_nh.param("resolution", 0.02);
+    const double origin_x = private_nh.param("origin_x", -10.0);
+    const double origin_y = private_nh.param("origin_y", -10.0);
 
-    if (!private_nh.hasParam("plugins"))
-    {
-        resetOldParameters(private_nh);
-    }
+    layered_costmap_ = std::make_shared<LayeredCostmap>(global_frame_, rolling_window, track_unknown_space);
+
+    layered_costmap_->resizeMap((unsigned int)(width / resolution),
+                                (unsigned int)(height / resolution), resolution, origin_x, origin_y);
 
     if (private_nh.hasParam("plugins"))
     {
@@ -89,141 +78,42 @@ Costmap2DROS::Costmap2DROS(const std::string& name, tf2_ros::Buffer& tf)
 
             boost::shared_ptr<Layer> plugin = plugin_loader_.createInstance(type);
             layered_costmap_->addPlugin(plugin);
-            plugin->initialize(layered_costmap_, name + "/" + pname, &tf_);
+            plugin->initialize(layered_costmap_.get(), name + "/" + pname, &tf_);
         }
     }
 
-    // subscribe to the footprint topic
-    std::string topic_param, topic;
-    if (!private_nh.searchParam("footprint_topic", topic_param))
-    {
-        topic_param = "footprint_topic";
-    }
+    publisher_ = std::make_shared<Costmap2DPublisher>(&private_nh, *layered_costmap_->getCostmap(), global_frame_,
+                                                      "costmap", always_send_full_costmap);
 
-    private_nh.param(topic_param, topic, std::string("footprint"));
-    footprint_sub_ = private_nh.subscribe(topic, 1, &Costmap2DROS::setUnpaddedRobotFootprintPolygon, this);
-
-    if (!private_nh.searchParam("published_footprint_topic", topic_param))
-    {
-        topic_param = "published_footprint";
-    }
-
-    private_nh.param(topic_param, topic, std::string("oriented_footprint"));
-    footprint_pub_ = private_nh.advertise<geometry_msgs::PolygonStamped>("footprint", 1);
-
-    setUnpaddedRobotFootprint(makeFootprintFromParams(private_nh));
-
-    publisher_ = new Costmap2DPublisher(&private_nh, layered_costmap_->getCostmap(), global_frame_, "costmap",
-                                        always_send_full_costmap);
-
-    // create a thread to handle updating the map
     stop_updates_ = false;
     initialized_ = true;
     stopped_ = false;
 
-    // Create a time r to check if the robot is moving
-    robot_stopped_ = false;
-    timer_ = private_nh.createTimer(ros::Duration(.1), &Costmap2DROS::movementCB, this);
+//    robot_stopped_ = false;
+//    timer_ = private_nh.createTimer(ros::Duration(.1), &Costmap2DROS::movementCB, this);
 
-    dsrv_ = new dynamic_reconfigure::Server<Costmap2DConfig>(ros::NodeHandle("~/" + name));
-    dynamic_reconfigure::Server<Costmap2DConfig>::CallbackType cb =
-        boost::bind(&Costmap2DROS::reconfigureCB, this, _1, _2);
-    dsrv_->setCallback(cb);
-}
+    const double map_update_frequency = private_nh.param("update_frequency", 10.0);
+    const double map_publish_frequency = private_nh.param("publish_frequency", 1.0);
 
-void Costmap2DROS::setUnpaddedRobotFootprintPolygon(const geometry_msgs::Polygon& footprint)
-{
-    setUnpaddedRobotFootprint(toPointVector(footprint));
+    if (map_publish_frequency > 0)
+        publish_cycle = ros::Duration(1 / map_publish_frequency);
+    else
+        publish_cycle = ros::Duration(-1);
+
+    map_update_thread_ = std::make_shared<std::thread>(boost::bind(&Costmap2DROS::mapUpdateLoop, this, map_update_frequency));
 }
 
 Costmap2DROS::~Costmap2DROS()
 {
     map_update_thread_shutdown_ = true;
-    if (map_update_thread_ != nullptr)
+    if (map_update_thread_)
     {
         map_update_thread_->join();
-        delete map_update_thread_;
+        map_update_thread_.reset();
     }
-    if (publisher_ != nullptr)
-        delete publisher_;
-
-    delete layered_costmap_;
-    delete dsrv_;
 }
 
-void Costmap2DROS::resetOldParameters(ros::NodeHandle& nh)
-{
-    ROS_INFO("Loading from pre-hydro parameter style");
-    bool flag;
-    std::string s;
-    std::vector<XmlRpc::XmlRpcValue> plugins;
-
-    XmlRpc::XmlRpcValue::ValueStruct map;
-    SuperValue super_map;
-    SuperValue super_array;
-
-    if (nh.getParam("static_map", flag) && flag)
-    {
-        map["name"] = XmlRpc::XmlRpcValue("static_layer");
-        map["type"] = XmlRpc::XmlRpcValue("costmap_2d::StaticLayer");
-        super_map.setStruct(&map);
-        plugins.push_back(super_map);
-
-        ros::NodeHandle map_layer(nh, "static_layer");
-        move_parameter(nh, map_layer, "map_topic");
-        move_parameter(nh, map_layer, "unknown_cost_value");
-        move_parameter(nh, map_layer, "lethal_cost_threshold");
-        move_parameter(nh, map_layer, "track_unknown_space", false);
-    }
-
-    ros::NodeHandle obstacles(nh, "obstacle_layer");
-    if (nh.getParam("map_type", s) && s == "voxel")
-    {
-        map["name"] = XmlRpc::XmlRpcValue("obstacle_layer");
-        map["type"] = XmlRpc::XmlRpcValue("costmap_2d::VoxelLayer");
-        super_map.setStruct(&map);
-        plugins.push_back(super_map);
-
-        move_parameter(nh, obstacles, "origin_z");
-        move_parameter(nh, obstacles, "z_resolution");
-        move_parameter(nh, obstacles, "z_voxels");
-        move_parameter(nh, obstacles, "mark_threshold");
-        move_parameter(nh, obstacles, "unknown_threshold");
-        move_parameter(nh, obstacles, "publish_voxel_map");
-    }
-    else
-    {
-        map["name"] = XmlRpc::XmlRpcValue("obstacle_layer");
-        map["type"] = XmlRpc::XmlRpcValue("costmap_2d::ObstacleLayer");
-        super_map.setStruct(&map);
-        plugins.push_back(super_map);
-    }
-
-    move_parameter(nh, obstacles, "max_obstacle_height");
-    move_parameter(nh, obstacles, "raytrace_range");
-    move_parameter(nh, obstacles, "obstacle_range");
-    move_parameter(nh, obstacles, "track_unknown_space", true);
-    nh.param("observation_sources", s, std::string(""));
-    std::stringstream ss(s);
-    std::string source;
-    while (ss >> source)
-    {
-        move_parameter(nh, obstacles, source);
-    }
-    move_parameter(nh, obstacles, "observation_sources");
-
-    ros::NodeHandle inflation(nh, "inflation_layer");
-    move_parameter(nh, inflation, "cost_scaling_factor");
-    move_parameter(nh, inflation, "inflation_radius");
-    map["name"] = XmlRpc::XmlRpcValue("inflation_layer");
-    map["type"] = XmlRpc::XmlRpcValue("costmap_2d::InflationLayer");
-    super_map.setStruct(&map);
-    plugins.push_back(super_map);
-
-    super_array.setArray(&plugins);
-    nh.setParam("plugins", super_array);
-}
-
+/*
 void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t)
 {
     transform_tolerance_ = config.transform_tolerance;
@@ -231,7 +121,7 @@ void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t)
     {
         map_update_thread_shutdown_ = true;
         map_update_thread_->join();
-        delete map_update_thread_;
+        map_update_thread_.reset();
     }
     map_update_thread_shutdown_ = false;
     double map_update_frequency = config.update_frequency;
@@ -252,61 +142,15 @@ void Costmap2DROS::reconfigureCB(costmap_2d::Costmap2DConfig& config, uint32_t)
                                     (unsigned int)(map_height_meters / resolution), resolution, origin_x, origin_y);
     }
 
-    // If the padding has changed, call setUnpaddedRobotFootprint() to
-    // re-apply the padding.
-    if (footprint_padding_ != config.footprint_padding)
-    {
-        footprint_padding_ = config.footprint_padding;
-        setUnpaddedRobotFootprint(unpadded_footprint_);
-    }
-
-    readFootprintFromConfig(config, old_config_);
-
     old_config_ = config;
 
-    map_update_thread_ = new boost::thread(boost::bind(&Costmap2DROS::mapUpdateLoop, this, map_update_frequency));
+    map_update_thread_ =
+        std::make_shared<std::thread>(boost::bind(&Costmap2DROS::mapUpdateLoop, this, map_update_frequency));
 }
 
-void Costmap2DROS::readFootprintFromConfig(const costmap_2d::Costmap2DConfig& new_config,
-                                           const costmap_2d::Costmap2DConfig& old_config)
-{
-    // Only change the footprint if footprint or robot_radius has
-    // changed.  Otherwise we might overwrite a footprint sent on a
-    // topic by a dynamic_reconfigure call which was setting some other
-    // variable.
-    if (new_config.footprint == old_config.footprint && new_config.robot_radius == old_config.robot_radius)
-    {
-        return;
-    }
+*/
 
-    if (new_config.footprint != "" && new_config.footprint != "[]")
-    {
-        std::vector<geometry_msgs::Point> new_footprint;
-        if (makeFootprintFromString(new_config.footprint, new_footprint))
-        {
-            setUnpaddedRobotFootprint(new_footprint);
-        }
-        else
-        {
-            ROS_ERROR("Invalid footprint string from dynamic reconfigure");
-        }
-    }
-    else
-    {
-        // robot_radius may be 0, but that must be intended at this point.
-        setUnpaddedRobotFootprint(makeFootprintFromRadius(new_config.robot_radius));
-    }
-}
-
-void Costmap2DROS::setUnpaddedRobotFootprint(const std::vector<geometry_msgs::Point>& points)
-{
-    unpadded_footprint_ = points;
-    padded_footprint_ = points;
-    padFootprint(padded_footprint_, footprint_padding_);
-
-    layered_costmap_->setFootprint(padded_footprint_);
-}
-
+/*
 void Costmap2DROS::movementCB(const ros::TimerEvent&)
 {
     // don't allow configuration to happen while this check occurs
@@ -333,6 +177,8 @@ void Costmap2DROS::movementCB(const ros::TimerEvent&)
                                                      new_pose.pose.orientation.z, new_pose.pose.orientation.w)) < 1e-3);
     }
 }
+
+*/
 
 void Costmap2DROS::mapUpdateLoop(double frequency)
 {
@@ -387,12 +233,6 @@ void Costmap2DROS::updateMap()
 
             layered_costmap_->updateMap(x, y, yaw);
 
-            geometry_msgs::PolygonStamped footprint;
-            footprint.header.frame_id = global_frame_;
-            footprint.header.stamp = ros::Time::now();
-            transformFootprint(x, y, yaw, padded_footprint_, footprint);
-            footprint_pub_.publish(footprint);
-
             initialized_ = true;
         }
     }
@@ -405,7 +245,7 @@ void Costmap2DROS::start()
     if (stopped_)
     {
         // if we're stopped we need to re-subscribe to topics
-        for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
+        for (std::vector<boost::shared_ptr<Layer>>::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
         {
             (*plugin)->activate();
         }
@@ -425,7 +265,7 @@ void Costmap2DROS::stop()
     stop_updates_ = true;
     std::vector<boost::shared_ptr<Layer>>* plugins = layered_costmap_->getPlugins();
     // unsubscribe from topics
-    for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
+    for (std::vector<boost::shared_ptr<Layer>>::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
     {
         (*plugin)->deactivate();
     }
@@ -454,10 +294,10 @@ void Costmap2DROS::resume()
 // cppcheck-suppress unusedFunction
 void Costmap2DROS::resetLayers()
 {
-    Costmap2D* top = layered_costmap_->getCostmap();
+    const auto top = layered_costmap_->getCostmap();
     top->resetMap(0, 0, top->getSizeInCellsX(), top->getSizeInCellsY());
     std::vector<boost::shared_ptr<Layer>>* plugins = layered_costmap_->getPlugins();
-    for (vector<boost::shared_ptr<Layer>>::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
+    for (std::vector<boost::shared_ptr<Layer>>::iterator plugin = plugins->begin(); plugin != plugins->end(); ++plugin)
     {
         (*plugin)->reset();
     }
@@ -503,17 +343,4 @@ bool Costmap2DROS::getRobotPose(geometry_msgs::PoseStamped& global_pose) const
 
     return true;
 }
-
-// cppcheck-suppress unusedFunction
-void Costmap2DROS::getOrientedFootprint(std::vector<geometry_msgs::Point>& oriented_footprint) const
-{
-    geometry_msgs::PoseStamped global_pose;
-    if (!getRobotPose(global_pose))
-        return;
-
-    double yaw = tf2::getYaw(global_pose.pose.orientation);
-    transformFootprint(global_pose.pose.position.x, global_pose.pose.position.y, yaw, padded_footprint_,
-                       oriented_footprint);
 }
-
-}  // namespace costmap_2d

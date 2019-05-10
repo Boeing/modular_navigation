@@ -50,7 +50,7 @@ struct CompareScore
 
 struct Cell
 {
-    uint8_t world;
+//    uint8_t world;
     bool already_visited;
     Coord2D path_parent;
     double cost;
@@ -92,6 +92,8 @@ class PathFinder
     {
         return grid_map_[world_width_ * coordinates.y + coordinates.x];
     }
+
+    const uint8_t* data_;
 
     const int world_width_;
     const int world_height_;

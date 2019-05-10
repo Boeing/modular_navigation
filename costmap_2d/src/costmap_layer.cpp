@@ -13,7 +13,7 @@ void CostmapLayer::touch(const double x, const double y, double* min_x, double* 
 
 void CostmapLayer::matchSize()
 {
-    Costmap2D* master = layered_costmap_->getCostmap();
+    auto master = layered_costmap_->getCostmap();
     resizeMap(master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(), master->getOriginX(),
               master->getOriginY());
 }

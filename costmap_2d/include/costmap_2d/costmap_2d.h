@@ -17,7 +17,6 @@ struct MapLocation
 
 class Costmap2D
 {
-    friend class CostmapTester;  // Need this for gtest to work correctly
   public:
     Costmap2D(const unsigned int cells_size_x, const unsigned int cells_size_y, const double resolution,
               const double origin_x, const double origin_y, const unsigned char default_value = 0);
@@ -76,7 +75,7 @@ class Costmap2D
         default_value_ = c;
     }
 
-    unsigned char getDefaultValue()
+    unsigned char getDefaultValue() const
     {
         return default_value_;
     }
@@ -121,7 +120,7 @@ class Costmap2D
 
     void resetMap(const unsigned int x0, const unsigned int y0, const unsigned int xn, const unsigned int yn);
 
-    unsigned int cellDistance(double world_dist);
+    unsigned int cellDistance(double world_dist) const;
 
     // Provide a typedef to ease future code maintenance
     typedef boost::recursive_mutex mutex_t;

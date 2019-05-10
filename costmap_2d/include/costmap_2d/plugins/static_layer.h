@@ -30,11 +30,6 @@ class StaticLayer : public CostmapLayer
 
     virtual void matchSize() override;
 
-  protected:
-    virtual void onFootprintChanged() override
-    {
-    }
-
   private:
     // cppcheck-suppress unusedPrivateFunction
     void incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map);
@@ -50,12 +45,13 @@ class StaticLayer : public CostmapLayer
     bool use_maximum_;
     bool trinary_costmap_;
 
+    double inflation_radius_ = 0.5;
+
     ros::Subscriber map_sub_;
 
     unsigned char lethal_threshold_;
     unsigned char unknown_cost_value_;
 };
+}
 
-}  // namespace costmap_2d
-
-#endif  // COSTMAP_2D_STATIC_LAYER_H_
+#endif

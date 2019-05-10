@@ -7,6 +7,8 @@
 #include <tf2/convert.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <opencv2/imgproc.hpp>
+
 PLUGINLIB_EXPORT_CLASS(costmap_2d::StaticLayer, costmap_2d::Layer)
 
 namespace costmap_2d
@@ -54,7 +56,7 @@ void StaticLayer::matchSize()
     // If we are using rolling costmap, the static map size is unrelated to the size of the layered costmap
     if (!layered_costmap_->isRolling())
     {
-        Costmap2D* master = layered_costmap_->getCostmap();
+        const auto master = layered_costmap_->getCostmap();
         resizeMap(master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(), master->getOriginX(),
                   master->getOriginY());
     }
@@ -87,8 +89,7 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     const double size_x_m = static_cast<double>(new_map->info.width * new_map->info.resolution);
     const double size_y_m = static_cast<double>(new_map->info.height * new_map->info.resolution);
 
-    const double resolution =
-        layered_costmap_->isRolling() ? layered_costmap_->getCostmap()->getResolution() : resolution_;
+    const double resolution = layered_costmap_->getCostmap()->getResolution();
 
     const unsigned int size_x = static_cast<unsigned int>(size_x_m / resolution);
     const unsigned int size_y = static_cast<unsigned int>(size_y_m / resolution);
@@ -102,6 +103,7 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
     {
         resizeMap(size_x, size_y, resolution, new_map->info.origin.position.x, new_map->info.origin.position.y);
     }
+
     //
     // If not rolling then resize the master grid
     // This also causes all layers to match size
@@ -149,6 +151,28 @@ void StaticLayer::incomingMap(const nav_msgs::OccupancyGridConstPtr& new_map)
             ++index;
         }
     }
+
+    // inflate the inscribed radius
+    {
+        cv::Mat local_im(size_y, size_x, CV_8UC1, reinterpret_cast<void*>(costmap_));
+        const int cell_inflation_radius = static_cast<int>(inflation_radius_ / resolution);
+        const auto ellipse =
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+        cv::Mat dilated;
+        cv::dilate(local_im, dilated, ellipse);
+        dilated.setTo(costmap_2d::INSCRIBED_INFLATED_OBSTACLE, dilated > costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+        local_im = cv::max(local_im, dilated);
+    }
+
+    // write everything to the master grid now
+//    {
+//        boost::unique_lock<Costmap2D::mutex_t> lock(*layered_costmap_->getCostmap()->getMutex());
+//        cv::Mat master_im(layered_costmap_->getCostmap()->getSizeInCellsY(),
+//                          layered_costmap_->getCostmap()->getSizeInCellsX(), CV_8UC1,
+//                          reinterpret_cast<void*>(layered_costmap_->getCostmap()->getCharMap()));
+//        cv::Mat local_im(size_y, size_x, CV_8UC1, reinterpret_cast<void*>(costmap_));
+//        master_im = cv::max(master_im, local_im);
+//    }
 
     map_frame_ = new_map->header.frame_id;
 
@@ -257,5 +281,4 @@ void StaticLayer::updateCosts(costmap_2d::Costmap2D& master_grid, unsigned int m
         }
     }
 }
-
-}  // namespace costmap_2d
+}

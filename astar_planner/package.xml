@@ -20,6 +20,8 @@
     <depend>roscpp</depend>
     <depend>tf2_ros</depend>
 
+    <test_depend>rosunit</test_depend>
+
     <export>
         <navigation_interface plugin="${prefix}/plugin.xml"/>
     </export>

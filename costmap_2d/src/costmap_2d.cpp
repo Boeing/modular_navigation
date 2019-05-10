@@ -145,7 +145,7 @@ Costmap2D::~Costmap2D()
     delete access_;
 }
 
-unsigned int Costmap2D::cellDistance(double world_dist)
+unsigned int Costmap2D::cellDistance(double world_dist) const
 {
     double cells_dist = max(0.0, ceil(world_dist / resolution_));
     return (unsigned int)cells_dist;

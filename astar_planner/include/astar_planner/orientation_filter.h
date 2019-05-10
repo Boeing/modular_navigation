@@ -1,7 +1,9 @@
 #ifndef ASTAR_PLANNER_ORIENTATION_FILTER_H
 #define ASTAR_PLANNER_ORIENTATION_FILTER_H
 
-#include <nav_msgs/Path.h>
+#include <Eigen/Geometry>
+
+#include <vector>
 
 namespace astar_planner
 {
@@ -24,16 +26,17 @@ class OrientationFilter
     {
     }
 
-    virtual void processPath(std::vector<geometry_msgs::PoseStamped>& path);
+    void processPath(std::vector<Eigen::Isometry2d>& path) const;
 
-    void setAngleBasedOnPositionDerivative(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t index);
-    void interpolate(std::vector<geometry_msgs::PoseStamped>& path, const std::size_t start_index,
-                     const std::size_t end_index);
+    void setAngleBasedOnPositionDerivative(std::vector<Eigen::Isometry2d>& path, const std::size_t index) const;
+
+    void interpolate(std::vector<Eigen::Isometry2d>& path, const std::size_t start_index, const std::size_t end_index) const;
 
     void setMode(OrientationMode new_mode)
     {
         omode_ = new_mode;
     }
+
     void setMode(int new_mode)
     {
         setMode((OrientationMode)new_mode);

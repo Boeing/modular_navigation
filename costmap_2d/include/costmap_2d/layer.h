@@ -67,29 +67,15 @@ class Layer
         return name_;
     }
 
-    const std::vector<geometry_msgs::Point>& getFootprint() const;
-
-    /** @brief LayeredCostmap calls this whenever the footprint there
-     * changes (via LayeredCostmap::setFootprint()).  Override to be
-     * notified of changes to the robot's footprint. */
-    virtual void onFootprintChanged() = 0;
-
   protected:
-    /** @brief This is called at the end of initialize().  Override to
-     * implement subclass-specific initialization.
-     *
-     * tf_, name_, and layered_costmap_ will all be set already when this is called. */
     virtual void onInitialize() = 0;
 
     LayeredCostmap* layered_costmap_;
     bool current_;
-    bool enabled_;  ///< Currently this var is managed by subclasses. TODO: make this managed by this class and/or
-                    ///< container class.
+    bool enabled_;
+
     std::string name_;
     tf2_ros::Buffer* tf_;
-
-  private:
-    std::vector<geometry_msgs::Point> footprint_spec_;
 };
 }
 

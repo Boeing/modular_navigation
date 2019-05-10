@@ -1,0 +1,87 @@
+path_planner: "astar_planner/AStarPlanner"
+trajectory_planner: "sim_band_planner/SimBandPlanner"
+controller: "omni_pid_controller/OmniPIDController"
+
+path_planner_frequency: 1.0
+trajectory_planner_frequency: 1.0
+controller_frequency: 10.0
+path_swap_fraction: 0.8
+
+AStarPlanner:
+    neutral_cost: 50.0
+
+#SimBandPlanner:
+
+OmniPIDController:
+    max_velocity_x: 0.15
+    max_velocity_y: 0.05
+    max_velocity_w: 0.10
+
+    max_acceleration_x: 0.10
+    max_acceleration_y: 0.10
+    max_acceleration_w: 0.10
+
+    goal_radius: 0.06
+
+    xy_goal_tolerance: 0.002
+    yaw_goal_tolerance: 0.01
+
+
+costmap:
+
+  global_frame: map
+  robot_base_frame: base_link
+
+  transform_tolerance: 0.3
+  update_frequency: 10.0
+  publish_frequency: 2.0
+
+  rolling_window: false
+
+  # Set this to true to set the default to 255=UNKNOWN rather than 0=FREE
+  track_unknown_space: false
+
+  always_send_full_costmap: false
+
+  width: 20.0
+  height: 20.0
+  resolution: 0.02
+  origin_x: -10.0
+  origin_y: -10.0
+
+  robot_radius: 0.46
+
+  plugins:
+    - {name: static_layer, type: 'costmap_2d::StaticLayer'}
+    - {name: obstacle_layer, type: 'costmap_2d::ObstacleLayer'}
+    - {name: inflation_layer, type: 'costmap_2d::InflationLayer'}
+
+  obstacle_layer:
+    enabled: truel
+
+    footprint_clearing_enabled: false
+    combination_method: 1
+    track_unknown_space: true
+
+    observation_sources: laser
+
+    laser:
+      data_type: LaserScan
+      topic: 'laser_link/scan'
+      marking: true
+      clearing: true
+      min_obstacle_height: 0.0
+      max_obstacle_height: 1.0
+      inf_is_valid: false
+      observation_persistence: 0.0
+      expected_update_rate: 0.2
+      obstacle_range: 2.5
+      raytrace_range: 3.0
+      sub_sample: 10
+
+  static_layer:
+    enabled: true
+    lethal_cost_threshold: 100
+
+  inflation_layer:
+    inflation_radius: 0.7

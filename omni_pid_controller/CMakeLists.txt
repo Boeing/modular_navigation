@@ -1,66 +1,56 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(omni_pid_controller)
 
-add_compile_options(-std=c++11)
+add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
     costmap_2d
-    geometry_msgs
-    nav_msgs
     navigation_interface
     pluginlib
     roscpp
-    rviz_visual_tools
-    tf2_ros
 )
 
+find_package(OpenCV 3 REQUIRED)
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
+include_directories(include)
+
+include_directories(SYSTEM
+    ${Eigen3_INCLUDE_DIRS}
+    ${catkin_INCLUDE_DIRS}
+)
+
 catkin_package(
+    CATKIN_DEPENDS
+        costmap_2d
+        navigation_interface
+        pluginlib
+        roscpp
     INCLUDE_DIRS
         include
     LIBRARIES
         ${PROJECT_NAME}
-    CATKIN_DEPENDS
-        costmap_2d
-        geometry_msgs
-        nav_msgs
-        navigation_interface
-        pluginlib
-        roscpp
-        rviz_visual_tools
-        tf2_ros
-)
-
-include_directories(SYSTEM
-    ${catkin_INCLUDE_DIRS}
-    ${Eigen3_INCLUDE_DIRS}
-)
-
-include_directories(
-    include
+    DEPENDS
+        Eigen
 )
 
 add_library(${PROJECT_NAME}
-    include/${PROJECT_NAME}/${PROJECT_NAME}.h
-    include/${PROJECT_NAME}/pid.h
-    src/${PROJECT_NAME}.cpp
-    src/pid.cpp
+    include/${PROJECT_NAME}/plugin.h
+    src/plugin.cpp
 )
-target_link_libraries(${PROJECT_NAME}
-    ${catkin_LIBRARIES}
+
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+
+install(DIRECTORY include/${PROJECT_NAME}/
+    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+    FILES_MATCHING PATTERN "*.h"
 )
 
 install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-install(DIRECTORY include/${PROJECT_NAME}/
-    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-    FILES_MATCHING PATTERN "*.h"
 )
 
 install(FILES plugin.xml

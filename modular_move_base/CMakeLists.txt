@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
     std_srvs
     tf2_geometry_msgs
     tf2_ros
+    rviz_visual_tools
 )
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
