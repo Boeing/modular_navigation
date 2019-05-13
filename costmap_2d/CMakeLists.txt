@@ -6,7 +6,6 @@ add_definitions(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
     cmake_modules
     cv_bridge
-    dynamic_reconfigure
     geometry_msgs
     laser_geometry
     map_msgs
@@ -16,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
     roscpp
     sensor_msgs
     std_msgs
-    tf2
     tf2_geometry_msgs
     tf2_ros
     tf2_sensor_msgs
@@ -39,19 +37,13 @@ include_directories(
     include
 )
 
-generate_dynamic_reconfigure_options(
-    cfg/Costmap2D.cfg
-)
-
 catkin_package(
     INCLUDE_DIRS
         include
     LIBRARIES
         ${PROJECT_NAME}
-        layers
     CATKIN_DEPENDS
         cv_bridge
-        dynamic_reconfigure
         geometry_msgs
         laser_geometry
         map_msgs
@@ -61,8 +53,9 @@ catkin_package(
         roscpp
         sensor_msgs
         std_msgs
-        tf2_ros
         tf2_geometry_msgs
+        tf2_ros
+        tf2_sensor_msgs
         visualization_msgs
     DEPENDS
         Boost
@@ -70,14 +63,11 @@ catkin_package(
 )
 
 add_library(${PROJECT_NAME}
-    src/${PROJECT_NAME}.cpp
-    src/${PROJECT_NAME}_publisher.cpp
-    src/${PROJECT_NAME}_ros.cpp
-    src/costmap_layer.cpp
-    src/costmap_math.cpp
-    src/layer.cpp
-    src/layered_costmap.cpp
-    src/observation_buffer.cpp
+    src/map_data.cpp
+    src/map_publisher.cpp
+    src/plugins/base_map_data.cpp
+    src/plugins/laser_data.cpp
+    src/plugins/point_cloud_data.cpp
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -87,18 +77,16 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBRARIES}
 )
 
-add_library(layers
-    src/plugins/inflation_layer.cpp
-    src/plugins/obstacle_layer.cpp
-    src/plugins/static_layer.cpp
+add_executable(costmap
+    src/main.cpp
 )
 
-add_dependencies(layers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(layers
+target_link_libraries(costmap
     ${PROJECT_NAME}
-    ${Boost_LIBRARIES}
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBRARIES}
+)
+
+add_dependencies(costmap
+    ${PROJECT_NAME}
 )
 
 if(CATKIN_ENABLE_TESTING)
@@ -106,12 +94,13 @@ if(CATKIN_ENABLE_TESTING)
 endif()
 
 install(TARGETS
-    ${PROJECT_NAME} layers
+    ${PROJECT_NAME} costmap
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(FILES costmap_plugins.xml
+install(FILES plugins.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
