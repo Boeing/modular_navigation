@@ -6,7 +6,7 @@ add_definitions(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
     actionlib
     cmake_modules
-    costmap_2d
+    gridmap
     geometry_msgs
     message_generation
     move_base_msgs

@@ -7,9 +7,9 @@ namespace sim_band_planner
 {
 
 void simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap, const double min_distance, const double internal_force_gain, const double external_force_gain, const double rotation_factor,
-              const double velocity_decay, const double alpha_start, const double alpha_decay)
+              const double velocity_decay, const double alpha_start, const double alpha_decay, const double max_distance)
 {
-    updateDistances(path, distance_field);
+    updateDistances(path, distance_field, max_distance);
     refine(path, distance_field, min_distance, min_overlap);
 
     const double dt = 1.0;
@@ -17,7 +17,7 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
 
     for (int it = 0; it < num_iterations; it++)
     {
-        updateDistances(path, distance_field);
+        updateDistances(path, distance_field, max_distance);
 
         // f = ...
         std::vector<Eigen::Vector3d> forces(path.nodes.size(), Eigen::Vector3d::Zero());
@@ -49,7 +49,7 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
     }
 }
 
-void updateDistances(Band& path, const DistanceField& distance_field)
+void updateDistances(Band& path, const DistanceField& distance_field, const double max_distance)
 {
     for (std::size_t i = 0; i < path.nodes.size(); ++i)
     {
@@ -62,12 +62,17 @@ void updateDistances(Band& path, const DistanceField& distance_field)
             path.nodes[i].distance = distance_field.distance(mx, my) * distance_field.resolution;
             path.nodes[i].gradient = path.nodes[i].distance > 0 ? distance_field.positiveGradient(mx, my)
                                                                 : distance_field.negativeGradient(mx, my);
+
+            if (path.nodes[i].distance > 0)
+            {
+                path.nodes[i].distance = std::min(max_distance, path.nodes[i].distance);
+            }
         }
         else
         {
-            std::stringstream ss;
-            ss << "Node has left the map: " << path.nodes[i].pose.translation().transpose();
-            throw std::runtime_error(ss.str());
+            path.nodes[i].distance_to_saddle = 0;
+            path.nodes[i].distance = 0;
+            path.nodes[i].gradient = Eigen::Vector2f::Zero();
         }
     }
 }
@@ -114,9 +119,8 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
                 }
                 else
                 {
-                    std::stringstream ss;
-                    ss << "Node has left the map: " << new_node.pose.translation().transpose();
-                    throw std::runtime_error(ss.str());
+                    ++iter;
+                    continue;
                 }
             }
 

@@ -3,6 +3,11 @@
 
 #include <string>
 #include <vector>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 
 #include <ros/ros.h>
 
@@ -18,8 +23,9 @@
 
 #include <geometry_msgs/PoseStamped.h>
 
-#include <costmap_2d/costmap_2d.h>
-#include <costmap_2d/costmap_2d_ros.h>
+#include <gridmap/map_data.h>
+#include <gridmap/data_source.h>
+#include <gridmap/map_publisher.h>
 
 #include <pluginlib/class_loader.h>
 
@@ -30,10 +36,6 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <rviz_visual_tools/rviz_visual_tools.h>
-
-#include <condition_variable>
-#include <mutex>
-#include <thread>
 
 namespace move_base
 {
@@ -100,6 +102,7 @@ class MoveBase
 
     actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> as_;
 
+    pluginlib::ClassLoader<gridmap::DataSource> ds_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
     pluginlib::ClassLoader<navigation_interface::TrajectoryPlanner> tp_loader_;
     pluginlib::ClassLoader<navigation_interface::Controller> c_loader_;
@@ -108,7 +111,9 @@ class MoveBase
     std::shared_ptr<navigation_interface::TrajectoryPlanner> trajectory_planner_;
     std::shared_ptr<navigation_interface::Controller> controller_;
 
-    costmap_2d::Costmap2DROS costmap_;
+    std::shared_ptr<gridmap::MapData> map_data_;
+    std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> map_data_sources_;
+    std::shared_ptr<gridmap::MapPublisher> map_publisher_;
 
     ros::Publisher current_goal_pub_;
     ros::Publisher vel_pub_;
@@ -131,6 +136,14 @@ class MoveBase
     std::mutex trajectory_mutex_;
 
     // Configuration
+    const double map_publish_frequency_;
+
+    const std::string global_frame_;
+
+    const double clamping_thres_min_;
+    const double clamping_thres_max_;
+    const double occ_prob_thres_;
+
     const double path_planner_frequency_;
     const double trajectory_planner_frequency_;
     const double controller_frequency_;

@@ -34,7 +34,7 @@ struct Coord2D
     int y;
 };
 
-using HeuristicFunction = std::function<uint32_t(const Coord2D&, const Coord2D&)>;
+using HeuristicFunction = std::function<double(const Coord2D&, const Coord2D&)>;
 using CoordinateList = std::vector<Coord2D>;
 
 typedef std::pair<uint32_t, Coord2D> ScoreCoordPair;
@@ -50,8 +50,7 @@ struct CompareScore
 
 struct Cell
 {
-//    uint8_t world;
-    bool already_visited;
+    bool visited;
     Coord2D path_parent;
     double cost;
 };
@@ -66,18 +65,18 @@ struct PathResult
 class PathFinder
 {
   public:
-    PathFinder(const int width, const int height, const uint8_t* data, const uint8_t obstacle_threshold = 253,
-               const double neutral_cost = 10.0);
+    PathFinder(const int width, const int height, const float* data,
+               const double neutral_cost = 0.1);
     ~PathFinder();
 
     PathResult findPath(Coord2D source_, Coord2D target_);
 
-    const Cell& cell(const Coord2D& coordinates) const
+    const Cell* cell(const Coord2D& coordinates) const
     {
         return grid_map_[toIndex(coordinates)];
     }
 
-    const std::vector<Cell>& gridMap() const
+    const std::vector<Cell*>& gridMap() const
     {
         return grid_map_;
     };
@@ -88,12 +87,12 @@ class PathFinder
         return static_cast<std::size_t>(world_width_ * coordinates.y + coordinates.x);
     }
 
-    Cell& cell(const Coord2D& coordinates)
+    Cell* cell(const Coord2D& coordinates)
     {
         return grid_map_[world_width_ * coordinates.y + coordinates.x];
     }
 
-    const uint8_t* data_;
+    const float* data_;
 
     const int world_width_;
     const int world_height_;
@@ -101,36 +100,28 @@ class PathFinder
     const std::array<Coord2D, 8> directions_;
     const std::array<double, 8> direction_cost_;
 
-    const uint8_t obstacle_threshold_;
     const double neutral_cost_;
 
     HeuristicFunction heuristic_;
     std::priority_queue<ScoreCoordPair, std::vector<ScoreCoordPair>, CompareScore> open_set_;
-    std::vector<Cell> grid_map_;
+    std::vector<Cell*> grid_map_;
 };
 
-inline uint32_t manhattan(const Coord2D& source, const Coord2D& target)
+inline double manhattan(const Coord2D& source, const Coord2D& target)
 {
-    auto delta = Coord2D((source.x - target.x), (source.y - target.y));
-    return static_cast<uint32_t>(10 * (abs(delta.x) + abs(delta.y)));
+    return std::abs(source.x - target.x) + std::abs(source.y - target.y);
 }
 
-inline uint32_t euclidean(const Coord2D& source, const Coord2D& target)
+inline double euclidean(const Coord2D& source, const Coord2D& target)
 {
-    auto delta = Coord2D((source.x - target.x), (source.y - target.y));
-    return static_cast<uint32_t>(10 * sqrt(pow(delta.x, 2) + pow(delta.y, 2)));
+    return 0.5 * std::sqrt(std::pow((source.x - target.x), 2) + std::pow((source.y - target.y), 2));
 }
 
-inline uint32_t linf_norm(const Coord2D& source, const Coord2D& target)
+inline double linf_norm(const Coord2D& source, const Coord2D& target)
 {
-    return 10 * std::max(std::abs(source.x - target.x), std::abs(source.y - target.y));
+    return std::max(std::abs(source.x - target.x), std::abs(source.y - target.y));
 }
 
-inline uint32_t octagonal(const Coord2D& source, const Coord2D& target)
-{
-    auto delta = Coord2D(abs(source.x - target.x), abs(source.y - target.y));
-    return 10 * (delta.x + delta.y) + (-6) * std::min(delta.x, delta.y);
-}
 }
 
 #endif

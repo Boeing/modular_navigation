@@ -16,14 +16,11 @@ struct MovingWindow
 {
     const navigation_interface::Path nominal_path;
 
-    // window includes [start_i, end_i)
-    std::size_t start_i;
     std::size_t end_i;
-
     Band window;
 
     MovingWindow(const navigation_interface::Path& _path)
-        : nominal_path(_path), start_i(0), end_i(0)
+        : nominal_path(_path), end_i(0)
     {
     }
 
@@ -31,9 +28,15 @@ struct MovingWindow
     {
         if (!window.nodes.empty())
         {
+            // trim the window
             const std::pair<std::size_t, double> closest = window.closestSegment(pose);
-            start_i += closest.first;
             window.nodes.erase(window.nodes.begin(), window.nodes.begin() + closest.first);
+        }
+        else
+        {
+            // start appending at the closest robot pose
+            auto closest = nominal_path.closestSegment(pose);
+            end_i = closest.first;
         }
 
         double distance = window.length();

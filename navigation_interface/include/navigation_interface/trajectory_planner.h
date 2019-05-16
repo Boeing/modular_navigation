@@ -4,7 +4,7 @@
 #include <navigation_interface/types/trajectory.h>
 #include <navigation_interface/types/path.h>
 
-#include <costmap_2d/costmap_2d.h>
+#include <gridmap/map_data.h>
 
 #include <xmlrpcpp/XmlRpc.h>
 
@@ -51,7 +51,7 @@ class TrajectoryPlanner
     virtual double cost(const Trajectory& trajectory) const = 0;
 
     virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const costmap_2d::Costmap2D>& costmap) = 0;
+                            const std::shared_ptr<const gridmap::MapData>& map_data) = 0;
 
     virtual ~TrajectoryPlanner()
     {

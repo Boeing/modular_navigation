@@ -1,8 +1,0 @@
-<library path="lib/libomni_pid_controller">
-    <class name="omni_pid_controller/OmniPIDController" type="omni_pid_controller::OmniPIDController"
-           base_class_type="navigation_interface::Controller">
-        <description>
-            PID OmniPIDController for omni directional robots
-        </description>
-    </class>
-</library>

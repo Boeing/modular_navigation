@@ -3,7 +3,6 @@
 
 #include <navigation_interface/params.h>
 
-#include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -12,15 +11,9 @@
 
 #include <chrono>
 
-#include <costmap_2d/cost_values.h>
-#include <costmap_2d/costmap_2d.h>
-
 #include <pluginlib/class_list_macros.h>
 
-#include <boost/geometry.hpp>
-#include <boost/geometry/algorithms/simplify.hpp>
-#include <boost/geometry/geometries/linestring.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
+#include <nav_msgs/OccupancyGrid.h>
 
 PLUGINLIB_EXPORT_CLASS(astar_planner::AStarPlanner, navigation_interface::PathPlanner)
 
@@ -91,6 +84,125 @@ std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen:
     return line;
 }
 
+struct Costmap
+{
+    cv::Mat costmap;
+    cv::Mat obstacle_map;
+
+    double resolution;
+    double origin_x;
+    double origin_y;
+};
+
+Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius, const double exponential_weight, const int down_sample)
+{
+    Costmap grid;
+
+    // downsample
+    {
+        auto lock = map_data.getLock();
+
+        grid.resolution = map_data.resolution() * down_sample;
+
+        const int size_x = map_data.sizeX() / down_sample;
+        const int size_y = map_data.sizeY() / down_sample;
+
+        double wx, wy;
+        map_data.mapToWorld(0, 0, wx, wy);
+        grid.origin_x = map_data.originX();
+        grid.origin_y = map_data.originY();
+
+        grid.obstacle_map = cv::Mat(size_y, size_x, CV_8U, cv::Scalar(0));
+
+        const double min_log_odds_occ = map_data.occupancyThresLog();
+
+        unsigned int index = 0;
+        for (unsigned int i = 0; i < map_data.sizeX(); ++i)
+        {
+            for (unsigned int j = 0; j < map_data.sizeY(); ++j)
+            {
+                const unsigned int sub_i = i / down_sample;
+                const unsigned int sub_j = j / down_sample;
+                const unsigned int sub_index = sub_i * size_x + sub_j;
+                if (map_data.data()[index] > min_log_odds_occ)
+                    grid.obstacle_map.at<unsigned char>(sub_index) = 255;
+                ++index;
+            }
+        }
+    }
+
+    // dilate robot radius
+    cv::Mat dilated;
+    const int cell_inflation_radius = static_cast<int>(robot_radius / grid.resolution);
+    auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+    cv::dilate(grid.obstacle_map, dilated, ellipse);
+
+    // flip
+    cv::bitwise_not(dilated, grid.obstacle_map);
+
+    // allocate
+    grid.costmap = cv::Mat(grid.obstacle_map.size(), CV_32F);
+
+    // find obstacle distances
+    cv::distanceTransform(grid.obstacle_map, grid.costmap, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
+
+    // inflate
+    grid.costmap = - exponential_weight * grid.costmap * map_data.resolution();
+
+    // negative exponent maps values to [1,0)
+    cv::exp(grid.costmap, grid.costmap);
+
+    return grid;
+}
+
+double pathCost(const navigation_interface::Path& path, const Costmap& costmap, const double neutral_cost)
+{
+    std::vector<Eigen::Vector2i> line;
+    for (std::size_t i=1; i < path.nodes.size(); ++i)
+    {
+        const auto start = path.nodes[i-1].translation();
+        const auto end = path.nodes[i].translation();
+
+        const int start_cell_x = static_cast<int>((start.x() - costmap.origin_x) / costmap.resolution);
+        const int start_cell_y = static_cast<int>((start.y() - costmap.origin_y) / costmap.resolution);
+
+        const int end_cell_x = static_cast<int>((end.x() - costmap.origin_x) / costmap.resolution);
+        const int end_cell_y = static_cast<int>((end.y() - costmap.origin_y) / costmap.resolution);
+
+        const std::vector<Eigen::Vector2i> segment =
+            drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
+
+        line.insert(line.end(), segment.begin(), segment.end());
+    }
+
+    double cost = 0.0;
+    for (std::size_t j = 0; j < line.size(); ++j)
+    {
+        const Eigen::Vector2i& p = line.at(j);
+
+        if (p.x() > costmap.costmap.size().width || p.x() < 0
+                || p.y() > costmap.costmap.size().height || p.y() < 0)
+            return std::numeric_limits<double>::max();
+
+        double world = static_cast<double>(costmap.costmap.at<float>(p.y(), p.x()));
+
+        if (world >= 1.0)
+            return std::numeric_limits<double>::max();
+
+        if (j == 0)
+        {
+            cost += world;
+        }
+        else
+        {
+            const double direction = (line.at(j) - line.at(j-1)).cast<double>().norm();
+            cost += direction * (world + neutral_cost);
+        }
+    }
+
+    return cost;
+}
+
 }
 
 AStarPlanner::AStarPlanner()
@@ -105,121 +217,90 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 {
     navigation_interface::PathPlanner::Result result;
 
-    const cv::Mat cv_im_raw = cv::Mat(costmap_->getSizeInCellsY(), costmap_->getSizeInCellsX(), CV_8UC1, reinterpret_cast<void*>(costmap_->getCharMap()));
+    const Costmap costmap = buildCostmap(*map_data_, robot_radius_, exponential_weight_, down_sample_);
 
-    cv::Mat cv_im;
-    cv_im_raw.copyTo(cv_im);
-
-    // inflate
-    const double robot_radius = 0.7;
+    if (debug_viz_)
     {
-        cv_im.setTo(0, cv_im == 255);
-        cv_im.setTo(255, cv_im > 253);
-
-        cv::Mat inv_cv_im;
-        cv::bitwise_not(cv_im, inv_cv_im);
-
-        cv::Mat dist;
-        cv::distanceTransform(inv_cv_im, dist, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32S);
-
-        dist.setTo(0, dist < robot_radius / costmap_->getResolution());
-
-        dist = - (dist - robot_radius) * costmap_->getResolution();
-
-        cv::exp(dist, dist);
-
-        dist.convertTo(cv_im, CV_8U, 255.0, 0);
+        nav_msgs::OccupancyGrid grid;
+        grid.header.frame_id = "map";
+        grid.header.stamp = ros::Time::now();
+        grid.info.resolution = costmap.resolution;
+        grid.info.width = costmap.costmap.size().width;
+        grid.info.height = costmap.costmap.size().height;
+        grid.info.origin.position.x = costmap.origin_x;
+        grid.info.origin.position.y = costmap.origin_y;
+        grid.info.origin.orientation.w = 1.0;
+        grid.data.resize(grid.info.width * grid.info.height);
+        for (unsigned int i = 0; i < grid.data.size(); i++)
+        {
+            grid.data[i] = costmap.costmap.at<float>(i) * 100.f;
+        }
+        pub_.publish(grid);
     }
 
     // Calculate start and end map coordinates
-    const double start_x = (start.translation().x() - costmap_->getOriginX()) / costmap_->getResolution() - 0.5;
-    const double start_y = (start.translation().y() - costmap_->getOriginY()) / costmap_->getResolution() - 0.5;
-    const double goal_x = (goal.translation().x() - costmap_->getOriginX()) / costmap_->getResolution() - 0.5;
-    const double goal_y = (goal.translation().y() - costmap_->getOriginY()) / costmap_->getResolution() - 0.5;
+    const double start_x = (start.translation().x() - costmap.origin_x) / costmap.resolution - 0.5;
+    const double start_y = (start.translation().y() - costmap.origin_y) / costmap.resolution - 0.5;
+    const double goal_x = (goal.translation().x() - costmap.origin_x) / costmap.resolution - 0.5;
+    const double goal_y = (goal.translation().y() - costmap.origin_y) / costmap.resolution - 0.5;
 
-    ROS_DEBUG_STREAM("START: " << start.translation().transpose());
-    ROS_DEBUG_STREAM("GOAL: " << goal.translation().transpose());
-
-    if (start_x < 0 || start_x > costmap_->getSizeInCellsX() || start_y < 0 || start_y > costmap_->getSizeInCellsY())
+    if (start_x < 0 || start_x > costmap.costmap.size().width || start_y < 0 || start_y > costmap.costmap.size().height)
     {
-        ROS_WARN("The robot's start position is outside the global costmap");
+        ROS_WARN("The robot's start position is outside the costmap");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;;
         return result;
     }
 
-    if (goal_x < 0 || goal_x > costmap_->getSizeInCellsX() || goal_y < 0 || goal_y > costmap_->getSizeInCellsY())
+    if (goal_x < 0 || goal_x > costmap.costmap.size().width || goal_y < 0 || goal_y > costmap.costmap.size().height)
     {
-        ROS_WARN("The goal position is outside the global costmap");
+        ROS_WARN("The goal position is outside the costmap");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;;
         return result;
     }
 
-    const uint8_t obstacle_threshold = costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
-    PathFinder astar(costmap_->getSizeInCellsX(), costmap_->getSizeInCellsY(),
-                     reinterpret_cast<uint8_t*>(cv_im.data), obstacle_threshold, neutral_cost_);
+    PathFinder astar(costmap.costmap.size().width, costmap.costmap.size().height,
+                     reinterpret_cast<float*>(costmap.costmap.data), neutral_cost_);
 
     const Coord2D start_coord(static_cast<int>(start_x), static_cast<int>(start_y));
     const Coord2D goal_coord(static_cast<int>(goal_x), static_cast<int>(goal_y));
 
-    const auto t0 = std::chrono::steady_clock::now();
-
     PathResult astar_result = astar.findPath(start_coord, goal_coord);
 
-    ROS_INFO_STREAM(
-        "A-STAR took "
-        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+    if (debug_viz_)
+    {
+        nav_msgs::OccupancyGrid grid;
+        grid.header.frame_id = "map";
+        grid.header.stamp = ros::Time::now();
+        grid.info.resolution = costmap.resolution;
+        grid.info.width = costmap.costmap.size().width;
+        grid.info.height = costmap.costmap.size().height;
+        grid.info.origin.position.x = costmap.origin_x;
+        grid.info.origin.position.y = costmap.origin_y;
+        grid.info.origin.orientation.w = 1.0;
+        grid.data.resize(grid.info.width * grid.info.height);
+        for (std::size_t i=0; i<grid.data.size(); ++i)
+        {
+            unsigned char cost = 100;
+            if (astar.gridMap()[i])
+                cost = 255;
+            grid.data[i] = cost;
+        }
+        explore_pub_.publish(grid);
+    }
 
     if (astar_result.success)
     {
-        ROS_INFO_STREAM("Found a plan with cost: " << astar_result.cost);
-        std::vector<std::pair<double, double>> simplified_path;
+        for (auto r_it = astar_result.path.crbegin(); r_it != astar_result.path.crend(); ++r_it)
         {
-            typedef boost::geometry::model::d2::point_xy<double> xy;
-
-            boost::geometry::model::linestring<xy> line;
-            boost::geometry::append(line, xy(goal_x, goal_y));
-            for (const Coord2D& coord : astar_result.path)
-                boost::geometry::append(line, xy(coord.x, coord.y));
-            boost::geometry::append(line, xy(start_x, start_y));
-
-            boost::geometry::model::linestring<xy> simplified;
-            const double step_size = 0.25 / costmap_->getResolution();
-            boost::geometry::simplify(line, simplified, step_size);
-
-            ROS_DEBUG_STREAM("Path of length: " << line.size() << " simplified to " << simplified.size());
-
-            simplified_path.push_back({simplified.front().x(), simplified.front().y()});
-            for (std::size_t i = 1; i < simplified.size(); ++i)
-            {
-                const double distance = boost::geometry::distance(simplified[i], simplified[i - 1]);
-                if (distance > step_size)
-                {
-                    const unsigned int steps = static_cast<unsigned int>(distance / step_size);
-                    for (std::size_t s = 1; s <= steps; ++s)
-                    {
-                        const double f = static_cast<double>(s) / (steps + 1);
-                        const double x = simplified[i - 1].x() + (simplified[i].x() - simplified[i - 1].x()) * f;
-                        const double y = simplified[i - 1].y() + (simplified[i].y() - simplified[i - 1].y()) * f;
-                        simplified_path.push_back({x, y});
-                    }
-                }
-                simplified_path.push_back({simplified[i].x(), simplified[i].y()});
-            }
-        }
-
-        for (auto r_it = simplified_path.crbegin(); r_it != simplified_path.crend(); ++r_it)
-        {
-            const double x = costmap_->getOriginY() + (r_it->first + 0.5) * costmap_->getResolution();
-            const double y = costmap_->getOriginY() + (r_it->second + 0.5) * costmap_->getResolution();
+            const double x = costmap.origin_x + (r_it->x + 0.5) * costmap.resolution;
+            const double y = costmap.origin_y + (r_it->y + 0.5) * costmap.resolution;
             const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(0);
             result.path.nodes.push_back(p);
         }
 
-        result.path.nodes.push_back(goal);
-
         orientation_filter_.processPath(result.path.nodes);
 
-        result.cost = cost(result.path);
+        result.cost = astar_result.cost;
         result.outcome = navigation_interface::PathPlanner::Outcome::SUCCESSFUL;
     }
     else
@@ -227,66 +308,41 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
         ROS_ERROR("Failed to get a plan");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
     }
-
     return result;
 }
 
 bool AStarPlanner::valid(const navigation_interface::Path& path) const
 {
-    return true;
+    const Costmap costmap = buildCostmap(*map_data_, robot_radius_, exponential_weight_, down_sample_);
+    return pathCost(path, costmap, neutral_cost_) < std::numeric_limits<double>::max();
 }
 
 double AStarPlanner::cost(const navigation_interface::Path& path) const
 {
-    std::vector<Eigen::Vector2i> line;
-    for (std::size_t i=1; i < path.nodes.size(); ++i)
-    {
-        const auto start = path.nodes[i-1].translation();
-        const auto end = path.nodes[i].translation();
-
-        unsigned int start_cell_x, start_cell_y;
-        if (!costmap_->worldToMap(start.x(), start.y(), start_cell_x, start_cell_y))
-            return std::numeric_limits<double>::max();
-
-        unsigned int end_cell_x, end_cell_y;
-        if (!costmap_->worldToMap(end.x(), end.y(), end_cell_x, end_cell_y))
-            return std::numeric_limits<double>::max();
-
-        const std::vector<Eigen::Vector2i> segment =
-            drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
-
-        line.insert(line.end(), segment.begin(), segment.end());
-    }
-
-    double cost = 0.0;
-    for (std::size_t j = 0; j < line.size(); ++j)
-    {
-        const Eigen::Vector2i& p = line.at(j);
-        const double world = static_cast<double>(costmap_->getCost(p.x(), p.y()));
-
-        if (j == 0)
-        {
-            cost += world;
-        }
-        else
-        {
-            const double direction = (line.at(j) - line.at(j-1)).cast<double>().norm();
-            cost += direction * (world + neutral_cost_);
-        }
-    }
-
-    return cost;
+    const Costmap costmap = buildCostmap(*map_data_, robot_radius_, exponential_weight_, down_sample_);
+    return pathCost(path, costmap, neutral_cost_);
 }
 
 void AStarPlanner::initialize(const XmlRpc::XmlRpcValue& parameters,
-                              const std::shared_ptr<const costmap_2d::Costmap2D>& costmap)
+                              const std::shared_ptr<const gridmap::MapData>& map_data)
 {
-    costmap_ = costmap;
+    map_data_ = map_data;
 
+    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
     neutral_cost_ = navigation_interface::get_config_with_default_warn<double>(parameters, "neutral_cost", neutral_cost_, XmlRpc::XmlRpcValue::TypeDouble);
+    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    exponential_weight_ = navigation_interface::get_config_with_default_warn<double>(parameters, "exponential_weight", exponential_weight_, XmlRpc::XmlRpcValue::TypeDouble);
+    down_sample_ = navigation_interface::get_config_with_default_warn<int>(parameters, "down_sample", down_sample_, XmlRpc::XmlRpcValue::TypeInt);
 
     orientation_filter_.setMode(1);
     orientation_filter_.setWindowSize(1);
+
+    if (debug_viz_)
+    {
+        ros::NodeHandle nh;
+        pub_ = nh.advertise<nav_msgs::OccupancyGrid>("astar", 100);
+        explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("explore", 100);
+    }
 }
 
 }

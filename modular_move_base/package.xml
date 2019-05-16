@@ -11,7 +11,7 @@
 
     <depend>actionlib</depend>
     <depend>cmake_modules</depend>
-    <depend>costmap_2d</depend>
+    <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
     <depend>message_generation</depend>
     <depend>move_base_msgs</depend>

@@ -4,7 +4,7 @@ project(sim_band_planner)
 add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
-    costmap_2d
+    gridmap
     geometry_msgs
     nav_msgs
     navigation_interface
@@ -28,7 +28,7 @@ include_directories(SYSTEM
 
 catkin_package(
     CATKIN_DEPENDS
-        costmap_2d
+        gridmap
         geometry_msgs
         nav_msgs
         navigation_interface

@@ -1,9 +1,0 @@
-<class_libraries>
-  <library path="libplugins">
-    <class type="costmap_2d::BaseMapData"  base_class_type="costmap_2d::DataSource">
-    </class>
-    <class type="costmap_2d::ObstacleData"  base_class_type="costmap_2d::DataSource">
-    </class>
-  </library>
-</class_libraries>
-

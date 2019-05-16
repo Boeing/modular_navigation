@@ -1,0 +1,9 @@
+<class_libraries>
+  <library path="libgridmap">
+    <class type="gridmap::BaseMapData" base_class_type="gridmap::DataSource">
+    </class>
+    <class type="gridmap::LaserData" base_class_type="gridmap::DataSource">
+    </class>
+  </library>
+</class_libraries>
+

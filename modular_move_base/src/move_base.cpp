@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/tokenizer.hpp>
+
 #include <modular_move_base/move_base.h>
 
 #include <boost/algorithm/string.hpp>
@@ -43,7 +45,7 @@ Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
 }
 
 template <class PluginType>
-std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& class_name, pluginlib::ClassLoader<PluginType>& loader, const std::shared_ptr<const costmap_2d::Costmap2D>& costmap)
+std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& class_name, pluginlib::ClassLoader<PluginType>& loader, const std::shared_ptr<const gridmap::MapData>& costmap)
 {
     try
     {
@@ -74,6 +76,48 @@ std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& c
     return nullptr;
 }
 
+std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> loadDataSources(const ros::NodeHandle& nh,
+                                                                                         const std::string& global_frame,
+                                                                                         pluginlib::ClassLoader<gridmap::DataSource>& loader,
+                                                                                         const std::shared_ptr<gridmap::MapData>& map_data,
+                                                                                         const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+{
+    std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> plugin_ptrs;
+    if (nh.hasParam("data_sources"))
+    {
+        XmlRpc::XmlRpcValue my_list;
+        nh.getParam("data_sources", my_list);
+        for (int32_t i = 0; i < my_list.size(); ++i)
+        {
+            std::string pname = static_cast<std::string>(my_list[i]["name"]);
+            std::string type = static_cast<std::string>(my_list[i]["type"]);
+
+            try
+            {
+                ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
+                std::shared_ptr<gridmap::DataSource> plugin_ptr = std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
+
+                XmlRpc::XmlRpcValue params;
+                nh.getParam(pname, params);
+
+                plugin_ptr->initialize(pname, global_frame, params, map_data, tf_buffer);
+
+                plugin_ptrs[pname] = plugin_ptr;
+            }
+            catch (const pluginlib::PluginlibException& e)
+            {
+                throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
+            }
+            catch (const std::exception& e)
+            {
+                throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
+            }
+        }
+    }
+
+    return plugin_ptrs;
+}
+
 }
 
 MoveBase::MoveBase()
@@ -84,25 +128,39 @@ MoveBase::MoveBase()
 
       as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
 
+      ds_loader_("gridmap", "gridmap::DataSource"),
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
 
-      costmap_("costmap", *tf_buffer_),
+      map_data_(nullptr),
 
       running_(false),
       controller_done_(false),
+
       current_path_(nullptr),
       current_trajectory_(nullptr),
 
+      map_publish_frequency_(get_param_with_default_warn("~map_publish_frequency", 1.0)),
+
+      global_frame_("map"),
+
+      clamping_thres_min_(get_param_with_default_warn("~clamping_thres_min", 0.1192)),
+      clamping_thres_max_(get_param_with_default_warn("~clamping_thres_max", 0.971)),
+      occ_prob_thres_(get_param_with_default_warn("~occ_prob_thres", 0.8)),
+
       path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 1.0)),
-      trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 10.0)),
+      trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
-      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.8))
+      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.95))
 {
     ROS_INFO("Starting");
 
-    as_.registerPreemptCallback(boost::bind(&MoveBase::preemptedCallback, this));
+    map_data_ = std::make_shared<gridmap::MapData>(clamping_thres_min_, clamping_thres_max_, occ_prob_thres_);
+    map_data_sources_ = loadDataSources(ros::NodeHandle(nh_, "costmap"), global_frame_, ds_loader_, map_data_, tf_buffer_);
+    map_publisher_ = std::make_shared<gridmap::MapPublisher>(map_publish_frequency_, map_data_, global_frame_);
+
+//    as_.registerPreemptCallback(boost::bind(&MoveBase::preemptedCallback, this));
 
     const std::string path_planner_name = get_param_or_throw<std::string>("~path_planner");
     const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
@@ -114,14 +172,10 @@ MoveBase::MoveBase()
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
-    costmap_.pause();
-
     // Create the path planner
-    path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, costmap_.getCostmap());
-    trajectory_planner_ = load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, costmap_.getCostmap());
-    controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, costmap_.getCostmap());
-
-    costmap_.start();
+    path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, map_data_);
+    trajectory_planner_ = load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, map_data_);
+    controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, map_data_);
 
     as_.start();
 
@@ -137,7 +191,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
 {
     ROS_INFO_STREAM("Received New Goal");
 
-    if (move_base_goal->target_pose.header.frame_id != costmap_.getGlobalFrameID())
+    if (move_base_goal->target_pose.header.frame_id != global_frame_)
     {
         const std::string msg = "Goal must be in the global frame";
         ROS_WARN_STREAM(msg);
@@ -191,18 +245,23 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
         current_trajectory_.reset();
     }
 
+    ROS_INFO("waiting for path_planner_thread_");
     path_planner_thread_->join();
+    ROS_INFO("waiting for trajectory_planner_thread_");
     trajectory_planner_thread_->join();
+    ROS_INFO("waiting for controller_thread_");
     controller_thread_->join();
 
     path_planner_thread_.reset();
     trajectory_planner_thread_.reset();
     controller_thread_.reset();
+
+    ROS_INFO("Main loop exiting");
 }
 
 void MoveBase::preemptedCallback()
 {
-
+    ROS_INFO_STREAM("Preempting");
 }
 
 void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
@@ -219,33 +278,36 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
         }
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
 
+        const auto t0 = std::chrono::steady_clock::now();
+
         auto result = path_planner_->plan(global_robot_pose, goal);
+
+        ROS_INFO_STREAM(
+            "Path Planner took "
+            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
-            ROS_INFO_STREAM("Global path found with length: " << result.path.length() << " and cost: " << result.cost);
-
             bool update = false;
 
             std::lock_guard<std::mutex> lock(path_mutex_);
             if (current_path_)
             {
-                ROS_INFO("Comparing new path with existing path");
-
                 // trim the current path to the robot pose
                 navigation_interface::Path path = *current_path_;
-                const auto closest = path.closestSegment(global_robot_pose);
-                if (closest.first != 0)
-                    path.nodes.erase(path.nodes.begin(), path.nodes.begin() + static_cast<long>(closest.first));
+                if (!path.nodes.empty())
+                {
+                    const auto closest = path.closestSegment(global_robot_pose);
+                    if (closest.first != 0)
+                        path.nodes.erase(path.nodes.begin(), path.nodes.begin() + static_cast<long>(closest.first));
+                }
 
                 // get the current path cost
-                const double cost = path_planner_->cost(result.path);
-
-                ROS_INFO_STREAM("Current path cost: " << cost);
+                const double cost = path_planner_->cost(path);
 
                 if (result.cost < path_swap_fraction_ * cost)
                 {
-                    ROS_INFO_STREAM("New Path is better than existing - swapping");
+                    ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
                 }
 
@@ -264,13 +326,13 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
 
                 // publish
                 nav_msgs::Path gui_path;
-                gui_path.header.frame_id = costmap_.getGlobalFrameID();
+                gui_path.header.frame_id = global_frame_;
                 for (const auto& node : result.path.nodes)
                 {
                     const Eigen::Quaterniond qt(Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).angle(), Eigen::Vector3d::UnitZ()));
 
                     geometry_msgs::PoseStamped p;
-                    p.header.frame_id = costmap_.getGlobalFrameID();
+                    p.header.frame_id = global_frame_;
                     p.pose.position.x = node.translation().x();
                     p.pose.position.y = node.translation().y();
                     p.pose.orientation.w = qt.w();
@@ -332,18 +394,24 @@ void MoveBase::trajectoryPlannerThread()
             rs = robot_state_;
         }
 
+        const auto t0 = std::chrono::steady_clock::now();
+
         // optimise path
         auto result = trajectory_planner_->plan(rs.robot_state, rs.map_to_odom);
 
-        ROS_INFO_STREAM("Got a new trajectory: size: " << result.trajectory.states.size());
+        ROS_INFO_STREAM(
+            "Trajectory Planner took "
+            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
         // update trajectory for the controller
         if (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL
-                | result.outcome == navigation_interface::TrajectoryPlanner::Outcome::PARTIAL)
+                || result.outcome == navigation_interface::TrajectoryPlanner::Outcome::PARTIAL)
         {
             std::lock_guard<std::mutex> lock(trajectory_mutex_);
             result.trajectory.id = uuid();
-            current_trajectory_.reset(new ControlTrajectory({trajectory_planner_->path().get().nodes.size() == result.path_end_i, result.trajectory}));
+            bool final_goal = (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL)
+                    && (trajectory_planner_->path().get().nodes.size() == result.path_end_i);
+            current_trajectory_.reset(new ControlTrajectory({final_goal, result.trajectory}));
 
             // publish
             nav_msgs::Path gui_path;
@@ -365,6 +433,17 @@ void MoveBase::trajectoryPlannerThread()
             }
             trajectory_pub_.publish(gui_path);
         }
+        // clear the trajectory from the controller
+        else
+        {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            current_trajectory_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            trajectory_pub_.publish(gui_path);
+        }
 
         rate.sleep();
     }
@@ -382,6 +461,7 @@ void MoveBase::controllerThread()
     while (running_)
     {
         // wait for a new odom (or timeout)
+        RobotState rs;
         {
             std::unique_lock<std::mutex> lock(robot_state_mutex_);
             if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) == std::cv_status::timeout)
@@ -390,6 +470,7 @@ void MoveBase::controllerThread()
                 vel_pub_.publish(geometry_msgs::Twist());
                 continue;
             }
+            rs = robot_state_;
         }
 
         // check if a new trajectory is available
@@ -404,21 +485,15 @@ void MoveBase::controllerThread()
         }
         else
         {
+            vel_pub_.publish(geometry_msgs::Twist());
             continue;
-        }
-
-        // copy the current robot state
-        RobotState rs;
-        {
-            std::lock_guard<std::mutex> lock(robot_state_mutex_);
-            rs = robot_state_;
         }
 
         // Update feedback to correspond to our current position
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Quaterniond qt = Eigen::Quaterniond(Eigen::AngleAxisd(Eigen::Rotation2Dd(global_robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
         move_base_msgs::MoveBaseFeedback feedback;
-        feedback.base_position.header.frame_id = costmap_.getGlobalFrameID();
+        feedback.base_position.header.frame_id = global_frame_;
         feedback.base_position.pose.position.x = global_robot_pose.translation().x();
         feedback.base_position.pose.position.y = global_robot_pose.translation().y();
         feedback.base_position.pose.orientation.w = qt.w();
@@ -463,7 +538,7 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     robot_state_.robot_state.pose = convert(msg->pose.pose);
     robot_state_.robot_state.velocity = Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
 
-    const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(costmap_.getGlobalFrameID(), "odom", ros::Time(0));
+    const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
     robot_state_.map_to_odom = convert(tr.transform);
 
     robot_state_conditional_.notify_all();

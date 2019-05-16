@@ -1,0 +1,66 @@
+<?xml version="1.0" ?>
+<launch>
+
+    <!--<param name="/use_sim_time" value="true"/>-->
+
+    <!-- Gazebo Arguments -->
+    <arg name="gui" default="false"/>
+    <arg name="world_name" default="$(find modular_move_base)/test/test.world"/>
+    <arg name="extra_gazebo_args" default=""/>
+    <arg name="debug" default="false"/>
+    <arg name="physics" default="ode"/>
+    <arg name="verbose" default="true"/>
+    <arg name="paused" default="false"/>
+    <arg name="recording" default="false"/>
+    <arg unless="$(arg paused)" name="paused_arg" value=""/>
+    <arg if="$(arg paused)" name="paused_arg" value="-u"/>
+    <arg unless="$(arg recording)" name="recording_arg" value=""/>
+    <arg if="$(arg recording)" name="recording_arg" value="-r"/>
+    <arg unless="$(arg verbose)" name="verbose_arg" value=""/>
+    <arg if="$(arg verbose)" name="verbose_arg" value="--verbose"/>
+    <arg unless="$(arg debug)" name="debug_arg" value="gzserver"/>
+    <arg if="$(arg debug)" name="debug_arg" value="debug"/>
+
+	<!-- Gazebo Server-->
+    <node name="gazebo" pkg="gazebo_ros" type="$(arg debug_arg)" respawn="true" output="screen"
+          args="$(arg paused_arg) $(arg recording_arg) $(arg verbose_arg) -e $(arg physics) $(arg extra_gazebo_args) $(arg world_name)">
+    </node>
+
+    <!-- Gazebo UI -->
+    <group if="$(arg gui)">
+        <node name="gazebo_gui" pkg="gazebo_ros" type="gzclient" respawn="false" output="screen">
+        </node>
+    </group>
+
+    <!-- URDF -->
+    <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find gridmap)/test/robot.urdf.xacro'"/>
+
+    <!-- Robot State Publisher -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true">
+        <param name="publish_frequency" value="50"/>
+        <param name="use_tf_static" value="true"/>
+    </node>
+
+    <node name="spawn_robot"
+        pkg="gazebo_ros"
+        type="spawn_model"
+        args="-urdf -model robot -param robot_description -x 0 -y 0 -z 0"
+        output="screen">
+    </node>
+
+    <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />
+
+    <!-- costmap -->
+    <node pkg="gridmap" type="gridmap" respawn="true" name="gridmap" launch-prefix="xterm -e gdb --args">
+        <remap from="map" to="gazebo/map"/>
+    </node>
+
+    <!--<node name="cartographer_node" pkg="cartographer_ros"-->
+      <!--type="cartographer_node" args="-->
+           <!-- -configuration_directory $(find gridmap)/test/cartographer-->
+           <!-- -configuration_basename cartographer.lua"-->
+      <!--output="screen">-->
+    <!--<remap from="scan" to="laser/scan" />-->
+  <!--</node>-->
+
+</launch>

@@ -43,10 +43,10 @@
 
     <joint name="laser_joint" type="fixed">
         <origin xyz="0 0 0.2"/>
-        <child link="laser_link"/>
+        <child link="laser"/>
         <parent link="base_link"/>
     </joint>
-    <link name="laser_link">
+    <link name="laser">
         <visual>
             <origin xyz="0 0 0"/>
             <geometry>
@@ -68,8 +68,8 @@
                     izz="1"/>
         </inertial>
     </link>
-    <gazebo reference="laser_link">
-        <sensor type="ray" name="laser_link">
+    <gazebo reference="laser">
+        <sensor type="ray" name="laser">
             <pose>0 0 0 0 0 0</pose>
             <visualize>false</visualize>
             <update_rate>40</update_rate>
@@ -94,7 +94,7 @@
                 </noise>
             </ray>
             <plugin name="gazebo_laser_plugin" filename="libgazebo_laser_plugin.so">
-                <frame_name>laser_link</frame_name>
+                <frame_name>laser</frame_name>
                 <robot_namespace>/</robot_namespace>
             </plugin>
         </sensor>

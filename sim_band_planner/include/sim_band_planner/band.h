@@ -57,12 +57,12 @@ struct Band
         });
         const auto it = std::min_element(distances.begin(), distances.end());
         const long dist = std::distance(distances.begin(), it);
-        if (dist > 0 && dist < static_cast<int>(nodes.size()) - 1)
+        if (dist > 0 && dist < nodes.size() - 1)
         {
-            const double fut_seg = (nodes[dist+1].pose.translation()- nodes[dist].pose.translation()).norm();
-            if (distances[dist+1] < fut_seg)
+            const double prev_seg = (nodes[dist].pose.translation() - nodes[dist-1].pose.translation()).norm();
+            if (distances[dist-1] < prev_seg)
             {
-                return {dist+1, distances[dist+1]};
+                return {dist-1, distances[dist-1]};
             }
             else
                 return {dist, *it};

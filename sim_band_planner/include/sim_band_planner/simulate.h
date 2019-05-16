@@ -12,9 +12,10 @@ void simulate(Band& path, const DistanceField& distance_field,
               const double min_distance, const double internal_force_gain,
               const double external_force_gain, const double rotation_factor,
               const double velocity_decay,
-              const double alpha_start, const double alpha_decay);
+              const double alpha_start, const double alpha_decay,
+              const double max_distance);
 
-void updateDistances(Band& path, const DistanceField& distance_field);
+void updateDistances(Band& path, const DistanceField& distance_field, const double max_distance);
 
 void refine(Band& path, const DistanceField& distance_field, const double tiny_bubble_distance,
             const double min_bubble_overlap);

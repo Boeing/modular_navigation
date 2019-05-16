@@ -3,9 +3,13 @@
 
 #include <astar_planner/orientation_filter.h>
 
-#include <costmap_2d/costmap_2d.h>
+#include <gridmap/map_data.h>
+
+#include <opencv2/core.hpp>
 
 #include <navigation_interface/path_planner.h>
+
+#include <ros/ros.h>
 
 namespace astar_planner
 {
@@ -22,14 +26,21 @@ class AStarPlanner : public navigation_interface::PathPlanner
     virtual double cost(const navigation_interface::Path& path) const override;
 
     virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const costmap_2d::Costmap2D>& costmap) override;
+                            const std::shared_ptr<const gridmap::MapData>& map_data) override;
 
   private:
-    std::shared_ptr<const costmap_2d::Costmap2D> costmap_;
+    std::shared_ptr<const gridmap::MapData> map_data_;
 
     OrientationFilter orientation_filter_;
 
-    double neutral_cost_ = 30.0;
+    bool debug_viz_ = false;
+    double neutral_cost_ = 0.1;
+    double robot_radius_ = 0.7;
+    double exponential_weight_ = 2.0;
+    int down_sample_ = 4;
+
+    ros::Publisher pub_;
+    ros::Publisher explore_pub_;
 };
 }
 

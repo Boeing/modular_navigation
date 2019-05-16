@@ -6,8 +6,6 @@
 #include <chrono>
 #include <vector>
 
-#include <costmap_2d/costmap_2d.h>
-
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -88,27 +86,24 @@ struct DistanceField
           origin_y(_origin_y),
           resolution(_resolution)
     {
+        // Dilate robot radius
+        cv::Mat dilated_im = cv_im;
+        const int cell_inflation_radius = static_cast<int>(_robot_radius / resolution);
+        auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+        cv::dilate(cv_im, dilated_im, ellipse);
+
         // Invert the costmap data such that all objects are considered zeros
         cv::Mat inv_cv_im;
-        cv::bitwise_not(cv_im, inv_cv_im);
+        cv::bitwise_not(dilated_im, inv_cv_im);
 
         // Calcualte the distance transform to all objects (zero pixels)
         cv::Mat dist_u8;
         cv::distanceTransform(inv_cv_im, dist, labels, cv::DIST_L2, cv::DIST_MASK_PRECISE, cv::DIST_LABEL_PIXEL);
-
-        // inscribed radius
-//        const double robot_radius_px = _robot_radius / resolution;
-//        dist.setTo(0, dist < robot_radius_px);
-//        dist = (dist - robot_radius_px);
-
         dist.convertTo(dist_u8, CV_8U, 1.0, 0);
-
-        cv::namedWindow("dist_u8", cv::WINDOW_NORMAL);
-        cv::imshow("dist_u8", dist_u8);
 
         // Calcualte the distance transform to all non-objects from within objects
         cv::Mat dist_inv_u8;
-        cv::distanceTransform(cv_im, dist_inv, labels_inv, cv::DIST_L2, cv::DIST_MASK_PRECISE, cv::DIST_LABEL_PIXEL);
+        cv::distanceTransform(dilated_im, dist_inv, labels_inv, cv::DIST_L2, cv::DIST_MASK_PRECISE, cv::DIST_LABEL_PIXEL);
         dist_inv.convertTo(dist_inv_u8, CV_8U, 1.0, 0);
 
         // Construct label lookup vectors
@@ -140,15 +135,8 @@ struct DistanceField
         cv::rectangle(thresh, cv::Rect(cv::Point(0, 0), thresh.size()), cv::Scalar(255), 1);
         cv::distanceTransform(thresh, dist_ridges, cv::DIST_L2, cv::DIST_MASK_PRECISE);
 
-        cv::namedWindow("thresh", cv::WINDOW_NORMAL);
-        cv::imshow("thresh", thresh);
-
         cv::Mat dist_ridges_u8;
         dist_ridges.convertTo(dist_ridges_u8, CV_8U, 1.0, 0);
-        cv::namedWindow("dist_ridges", cv::WINDOW_NORMAL);
-        cv::imshow("dist_ridges", dist_ridges_u8);
-
-        cv::waitKey(0);
     }
 
     bool worldToMap(const double wx, const double wy, unsigned int& mx, unsigned int& my) const

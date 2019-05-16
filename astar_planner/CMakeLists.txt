@@ -5,7 +5,7 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED
   COMPONENTS
-    costmap_2d
+    gridmap
     cv_bridge
     geometry_msgs
     nav_msgs
@@ -26,7 +26,7 @@ catkin_package(
   LIBRARIES
       ${PROJECT_NAME}
   CATKIN_DEPENDS
-      costmap_2d
+      gridmap
       cv_bridge
       geometry_msgs
       nav_msgs
