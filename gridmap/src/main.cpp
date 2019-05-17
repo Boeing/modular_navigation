@@ -5,6 +5,7 @@
 #include <gridmap/map_publisher.h>
 #include <gridmap/plugins/base_map_data.h>
 #include <gridmap/plugins/laser_data.h>
+#include <gridmap/plugins/range_data.h>
 
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -33,6 +34,45 @@ int main(int argc, char** argv)
 
     gridmap::LaserData laser_data;
     laser_data.initialize("laser_data", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_0;
+//    range_data_0.initialize("range_0", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_1;
+//    range_data_1.initialize("range_1", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_2;
+//    range_data_2.initialize("range_2", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_3;
+//    range_data_3.initialize("range_3", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_4;
+//    range_data_4.initialize("range_4", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_5;
+//    range_data_5.initialize("range_5", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_6;
+//    range_data_6.initialize("range_6", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_7;
+//    range_data_7.initialize("range_7", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_8;
+//    range_data_8.initialize("range_8", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_9;
+//    range_data_9.initialize("range_9", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_10;
+//    range_data_10.initialize("range_10", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_11;
+//    range_data_11.initialize("range_11", global_frame, parameters, map_data, tf_buffer);
+
+//    gridmap::RangeData range_data_12;
+//    range_data_12.initialize("range_12", global_frame, parameters, map_data, tf_buffer);
 
     const double map_publish_frequency = 1.0;
     gridmap::MapPublisher map_publisher(map_publish_frequency, map_data, global_frame);

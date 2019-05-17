@@ -208,6 +208,10 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const navig
                 sim_band.nodes.erase(sim_band.nodes.begin() + i, sim_band.nodes.end());
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
                 ROS_WARN_STREAM("Point: " << i << " of trajectory is in collision");
+
+                // if the band is broken we might as well try again from nominal
+                // on the next iteration the band will reset
+                moving_window_->window.nodes.clear();
                 break;
             }
         }

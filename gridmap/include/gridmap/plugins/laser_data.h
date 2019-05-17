@@ -2,6 +2,7 @@
 #define GRIDMAP_LASER_DATA_H
 
 #include <gridmap/data_source.h>
+#include <gridmap/raytrace.h>
 
 #include <laser_geometry/laser_geometry.h>
 
@@ -31,8 +32,6 @@ class LaserData : public DataSource
     void laserScanCallback(const sensor_msgs::LaserScanConstPtr& message);
 
   private:
-    laser_geometry::LaserProjection projector_;
-
     double hit_probability_log_;
     double miss_probability_log_;
 
@@ -44,12 +43,10 @@ class LaserData : public DataSource
     int sub_sample_;
     int sub_sample_count_;
 
-    bool inf_is_valid_;
-
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::LaserScan>> subscriber_;
     std::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::LaserScan>> message_filter_;
 
-    void raytrace(const double sensor_x, const double sensor_y, const sensor_msgs::PointCloud2& cloud);
+    std::vector<Eigen::Vector3d> laser_directions_;
 };
 }
 

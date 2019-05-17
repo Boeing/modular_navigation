@@ -51,7 +51,7 @@
     <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />
 
     <!-- costmap -->
-    <node pkg="gridmap" type="gridmap" respawn="true" name="gridmap" launch-prefix="xterm -e gdb --args">
+    <node pkg="gridmap" type="gridmap_test" respawn="true" name="gridmap" launch-prefix="xterm -e gdb --args">
         <remap from="map" to="gazebo/map"/>
     </node>
 

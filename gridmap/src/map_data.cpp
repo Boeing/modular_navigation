@@ -52,6 +52,11 @@ double MapData::value(const unsigned int mx, const unsigned int my) const
     return costmap_[index(mx, my)];
 }
 
+void MapData::update(const unsigned int index, const double value)
+{
+    costmap_[index] = std::max(clamping_thres_min_log_, std::min(clamping_thres_max_log_, costmap_[index] + value));
+}
+
 void MapData::update(const unsigned int mx, const unsigned int my, const double value)
 {
     const auto it = index(mx, my);
@@ -93,10 +98,9 @@ bool MapData::worldToMap(const double wx, const double wy, unsigned int& mx, uns
     return false;
 }
 
-void MapData::worldToMapNoBounds(const double wx, const double wy, int& mx, int& my) const
+Eigen::Vector2i MapData::worldToMapNoBounds(const Eigen::Vector2d& world) const
 {
-    mx = static_cast<int>((wx - origin_x_) / resolution_);
-    my = static_cast<int>((wy - origin_y_) / resolution_);
+    return Eigen::Vector2i(static_cast<int>((world.x() - origin_x_) / resolution_), static_cast<int>((world.y() - origin_y_) / resolution_));
 }
 
 void MapData::worldToMapEnforceBounds(const double wx, const double wy, int& mx, int& my) const

@@ -3,8 +3,8 @@
 
 #include <gridmap/data_source.h>
 
-#include <thread>
 #include <atomic>
+#include <thread>
 
 #include <opencv2/imgproc.hpp>
 

@@ -1,14 +1,15 @@
-#ifndef GRIDMAP_POINT_SONAR_DATA_H
-#define GRIDMAP_POINT_SONAR_DATA_H
+#ifndef GRIDMAP_POINT_RANGE_DATA_H
+#define GRIDMAP_POINT_RANGE_DATA_H
 
 #include <gridmap/data_source.h>
+#include <gridmap/raytrace.h>
 
 #include <laser_geometry/laser_geometry.h>
 
 #include <message_filters/subscriber.h>
 
-#include <sensor_msgs/Range.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Range.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 
 #include <opencv2/imgproc.hpp>
@@ -31,8 +32,6 @@ class RangeData : public DataSource
     void rangeCallback(const sensor_msgs::RangeConstPtr& message);
 
   private:
-    laser_geometry::LaserProjection projector_;
-
     double hit_probability_log_;
     double miss_probability_log_;
 

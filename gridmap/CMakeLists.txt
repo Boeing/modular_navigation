@@ -68,7 +68,7 @@ add_library(${PROJECT_NAME}
     src/plugins/base_map_data.cpp
     src/plugins/laser_data.cpp
     src/plugins/point_cloud_data.cpp
-    src/plugins/sonar_data.cpp
+    src/plugins/range_data.cpp
     src/plugins/time_decay.cpp
 )
 

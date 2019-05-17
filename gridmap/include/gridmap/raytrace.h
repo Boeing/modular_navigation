@@ -91,6 +91,100 @@ inline void bresenham2D(ActionType at, unsigned int abs_da, unsigned int abs_db,
     at(offset);
 }
 
+inline std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen::Vector2i& end)
+{
+    if (start == end)
+        return {end};
+
+    double x1 = start.x();
+    double x2 = end.x();
+
+    double y1 = start.y();
+    double y2 = end.y();
+
+    const bool steep = (std::abs(y2 - y1) > std::abs(x2 - x1));
+    if (steep)
+    {
+        std::swap(x1, y1);
+        std::swap(x2, y2);
+    }
+
+    bool reverse = false;
+    if (x1 > x2)
+    {
+        std::swap(x1, x2);
+        std::swap(y1, y2);
+        reverse = true;
+    }
+
+    const double dx = x2 - x1;
+    const double dy = std::abs(y2 - y1);
+
+    double error = dx / 2.0;
+    const int ystep = (y1 < y2) ? 1 : -1;
+    int y = static_cast<int>(y1);
+
+    const int max_x = static_cast<int>(x2);
+
+    std::vector<Eigen::Vector2i> line;
+    for (int x = static_cast<int>(x1); x < max_x; ++x)
+    {
+        if (steep)
+        {
+            line.push_back({y, x});
+        }
+        else
+        {
+            line.push_back({x, y});
+        }
+
+        error -= dy;
+        if (error < 0)
+        {
+            y += ystep;
+            error += dx;
+        }
+    }
+
+    if (reverse)
+        std::reverse(line.begin(), line.end());
+
+    return line;
+}
+
+inline void clipRayEnd(const Eigen::Vector2i& start, Eigen::Vector2i& end, const Eigen::Vector2i& size)
+{
+    const Eigen::Vector2i dir = end - start;
+
+    if (end.x() < 0)
+    {
+        const double t = static_cast<double>(start.x()) / dir.x();
+        end.x() = 0;
+        end.y() = start.y() + dir.y() * t;
+    }
+
+    if (end.y() < 0)
+    {
+        const double t = static_cast<double>(start.y()) / dir.y();
+        end.x() = start.x() + dir.x() * t;
+        end.y() = 0;
+    }
+
+    if (end.x() >= size.x())
+    {
+        const double t = static_cast<double>(size.x() - 1 - start.x()) / dir.x();
+        end.x() = size.x() - 1;
+        end.y() = start.y() + dir.y() * t;
+    }
+
+    if (end.y() >= size.y())
+    {
+        const double t = static_cast<double>(size.y() - 1 - start.y()) / dir.y();
+        end.x() = start.x() + dir.x() * t;
+        end.y() = size.y() - 1;
+    }
+}
+
 }
 
 #endif

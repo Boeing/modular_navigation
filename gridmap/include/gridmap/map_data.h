@@ -5,6 +5,8 @@
 #include <mutex>
 #include <vector>
 
+#include <Eigen/Geometry>
+
 namespace gridmap
 {
 
@@ -37,6 +39,7 @@ class MapData
 
     double value(const unsigned int mx, const unsigned int my) const;
 
+    void update(const unsigned int index, const double value);
     void update(const unsigned int mx, const unsigned int my, const double value);
 
     void set(const unsigned int mx, const unsigned int my, const double value);
@@ -47,9 +50,14 @@ class MapData
 
     bool worldToMap(const double wx, const double wy, unsigned int& mx, unsigned int& my) const;
 
-    void worldToMapNoBounds(const double wx, const double wy, int& mx, int& my) const;
+    Eigen::Vector2i worldToMapNoBounds(const Eigen::Vector2d& world) const;
 
     void worldToMapEnforceBounds(const double wx, const double wy, int& mx, int& my) const;
+
+    Eigen::Vector2i size() const
+    {
+        return Eigen::Vector2i(size_x_, size_y_);
+    }
 
     unsigned int sizeX() const
     {
