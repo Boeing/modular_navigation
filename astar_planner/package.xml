@@ -19,6 +19,7 @@
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
     <depend>tf2_ros</depend>
+    <depend>hd_map</depend>
 
     <test_depend>rosunit</test_depend>
 

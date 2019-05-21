@@ -27,13 +27,13 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     virtual boost::optional<std::string> pathId() const override;
     virtual boost::optional<navigation_interface::Path> path() const override;
 
-    virtual Result plan(const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) override;
+    virtual Result plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) override;
 
     virtual bool valid(const navigation_interface::Trajectory& trajectory) const override;
     virtual double cost(const navigation_interface::Trajectory& trajectory) const override;
 
-    virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const gridmap::MapData>& map_data) override;
+    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onMapDataChanged() override;
 
     boost::optional<Band> band() const
     {
@@ -44,8 +44,6 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     }
 
   private:
-    std::shared_ptr<const gridmap::MapData> map_data_;
-
     std::unique_ptr<rviz_visual_tools::RvizVisualTools> viz_;
 
     // Runtime data
@@ -53,8 +51,6 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
 
     // Configuration
     bool debug_viz_ = true;
-    double size_x_ = 6.0;
-    double size_y_ = 6.0;
     int num_iterations_ = 10;
     double internal_force_gain_ = 0.004;
     double external_force_gain_ = 0.004;

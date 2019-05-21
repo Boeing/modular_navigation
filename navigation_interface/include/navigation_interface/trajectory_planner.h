@@ -39,28 +39,39 @@ class TrajectoryPlanner
         Trajectory trajectory;
     };
 
+    TrajectoryPlanner() = default;
+    virtual ~TrajectoryPlanner() = default;
+
     virtual bool setPath(const Path& path) = 0;
     virtual void clearPath() = 0;
 
     virtual boost::optional<std::string> pathId() const = 0;
     virtual boost::optional<Path> path() const = 0;
 
-    virtual Result plan(const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) = 0;
+    virtual Result plan(const gridmap::AABB& local_region, const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) = 0;
 
     virtual bool valid(const Trajectory& trajectory) const = 0;
     virtual double cost(const Trajectory& trajectory) const = 0;
 
-    virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const gridmap::MapData>& map_data) = 0;
+    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
+    virtual void onMapDataChanged() = 0;
 
-    virtual ~TrajectoryPlanner()
+    void initialize(const XmlRpc::XmlRpcValue& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
     {
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
+        onInitialize(parameters);
+    }
+
+    void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
     }
 
   protected:
-    TrajectoryPlanner()
-    {
-    }
+    std::mutex mutex_;
+    std::shared_ptr<const gridmap::MapData> map_data_;
 };
 }
 

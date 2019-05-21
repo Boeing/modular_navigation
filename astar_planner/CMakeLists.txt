@@ -13,6 +13,7 @@ find_package(catkin REQUIRED
     pluginlib
     roscpp
     tf2_ros
+    hd_map
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -34,6 +35,7 @@ catkin_package(
       pluginlib
       roscpp
       tf2_ros
+      hd_map
   DEPENDS
       EIGEN3
       OpenCV

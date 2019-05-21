@@ -25,12 +25,10 @@ class AStarPlanner : public navigation_interface::PathPlanner
     virtual bool valid(const navigation_interface::Path& path) const override;
     virtual double cost(const navigation_interface::Path& path) const override;
 
-    virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const gridmap::MapData>& map_data) override;
+    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onMapDataChanged() override;
 
   private:
-    std::shared_ptr<const gridmap::MapData> map_data_;
-
     OrientationFilter orientation_filter_;
 
     bool debug_viz_ = false;

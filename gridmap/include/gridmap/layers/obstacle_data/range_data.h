@@ -1,20 +1,13 @@
-#ifndef GRIDMAP_POINT_RANGE_DATA_H
-#define GRIDMAP_POINT_RANGE_DATA_H
+#ifndef GRIDMAP_RANGE_DATA_H
+#define GRIDMAP_RANGE_DATA_H
 
-#include <gridmap/data_source.h>
-#include <gridmap/raytrace.h>
-
-#include <laser_geometry/laser_geometry.h>
+#include <gridmap/layers/obstacle_data/data_source.h>
+#include <gridmap/operations/raytrace.h>
 
 #include <message_filters/subscriber.h>
-
-#include <sensor_msgs/PointCloud2.h>
-#include <sensor_msgs/Range.h>
-#include <sensor_msgs/point_cloud_conversion.h>
-
-#include <opencv2/imgproc.hpp>
-
 #include <tf2_ros/message_filter.h>
+
+#include <sensor_msgs/Range.h>
 
 namespace gridmap
 {
@@ -26,8 +19,6 @@ class RangeData : public DataSource
     virtual ~RangeData() override;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
-
-    virtual void matchSize() override;
 
     void rangeCallback(const sensor_msgs::RangeConstPtr& message);
 

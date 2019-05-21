@@ -11,52 +11,7 @@ PLUGINLIB_DECLARE_CLASS(sim_band_planner, SimBandPlanner, sim_band_planner::SimB
 namespace sim_band_planner
 {
 
-namespace
-{
-
-cv::Mat getPaddedROI(const cv::Mat& input, int top_left_x, int top_left_y, int width, int height, cv::Scalar paddingColor)
-{
-    const int bottom_right_x = top_left_x + width;
-    const int bottom_right_y = top_left_y + height;
-
-    cv::Mat output;
-    if (top_left_x < 0 || top_left_y < 0 || bottom_right_x > input.cols || bottom_right_y > input.rows)
-    {
-        int border_left = 0, border_right = 0, border_top = 0, border_bottom = 0;
-
-        if (top_left_x < 0) {
-            width = width + top_left_x;
-            border_left = -1 * top_left_x;
-            top_left_x = 0;
-        }
-        if (top_left_y < 0) {
-            height = height + top_left_y;
-            border_top = -1 * top_left_y;
-            top_left_y = 0;
-        }
-        if (bottom_right_x > input.cols) {
-            width = width - (bottom_right_x - input.cols);
-            border_right = bottom_right_x - input.cols;
-        }
-        if (bottom_right_y > input.rows) {
-            height = height - (bottom_right_y - input.rows);
-            border_bottom = bottom_right_y - input.rows;
-        }
-
-        cv::Rect R(top_left_x, top_left_y, width, height);
-        cv::copyMakeBorder(input(R), output, border_top, border_bottom, border_left, border_right, cv::BORDER_CONSTANT, paddingColor);
-    }
-    else
-    {
-        cv::Rect R(top_left_x, top_left_y, width, height);
-        input(R).copyTo(output);
-    }
-    return output;
-}
-
-}
-
-SimBandPlanner::SimBandPlanner() : map_data_(nullptr), viz_(nullptr)
+SimBandPlanner::SimBandPlanner() : viz_(nullptr)
 {
 }
 
@@ -95,7 +50,7 @@ boost::optional<navigation_interface::Path> SimBandPlanner::path() const
         return {};
 }
 
-navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom)
+navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom)
 {
     navigation_interface::TrajectoryPlanner::Result result;
 
@@ -112,40 +67,27 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const navig
 
         moving_window_->updateWindow(robot_pose, max_window_length_);
 
-        const int size_x = size_x_ / map_data_->resolution();
-        const int size_y = size_y_ / map_data_->resolution();
+        gridmap::Grid2D<uint8_t> local_grid(map_data_->grid, local_region);
 
-        unsigned int robot_map_x;
-        unsigned int robot_map_y;
-        if (!map_data_->worldToMap(robot_pose.translation().x(), robot_pose.translation().y(), robot_map_x, robot_map_y))
-        {
-            throw std::runtime_error("Robot is not on map!");
-        }
+        // Construct and cv::Mat from the costmap data
+        const cv::Mat cv_im = cv::Mat(local_grid.dimensions().size().y(), local_grid.dimensions().size().x(), CV_8U,
+                                      reinterpret_cast<void*>(local_grid.cells().data()));
 
-        const int top_left_x = static_cast<int>(robot_map_x) - size_x/2;
-        const int top_right_y = static_cast<int>(robot_map_y) - size_y/2;
+//        cv::namedWindow("win", cv::WINDOW_NORMAL);
+//        cv::imshow("win", cv_im);
+//        cv::waitKey(1);
 
-        // Update the world origin for the local costmap
-        double origin_x = map_data_->originX() + top_left_x * map_data_->resolution();
-        double origin_y = map_data_->originY() + top_right_y * map_data_->resolution();
+//        {
+//            // Construct and cv::Mat from the costmap data
+//            const cv::Mat cc = cv::Mat(map_data_->grid.dimensions().size().y(), map_data_->grid.dimensions().size().x(), CV_8U,
+//                                          reinterpret_cast<void*>(const_cast<uint8_t*>(map_data_->grid.cells().data())));
 
-        cv::Mat local_costmap_u8;
-        {
-            auto lock = map_data_->getLock();
+//            cv::namedWindow("win2", cv::WINDOW_NORMAL);
+//            cv::imshow("win2", cc);
+//            cv::waitKey(1);
+//        }
 
-            // Construct and cv::Mat from the costmap data
-            const cv::Mat cv_im = cv::Mat(map_data_->sizeY(), map_data_->sizeX(), CV_64F,
-                                          reinterpret_cast<void*>(const_cast<double*>(map_data_->data())));
-
-            cv::Mat local_costmap = getPaddedROI(cv_im, top_left_x, top_right_y, size_x, size_y, cv::Scalar(254));
-
-            local_costmap_u8 = cv::Mat(local_costmap.size(), CV_8U, cv::Scalar(0));
-
-            const double min_log_odds_occ = map_data_->occupancyThresLog();
-            local_costmap_u8.setTo(255, local_costmap >= min_log_odds_occ);
-        }
-
-        DistanceField distance_field(local_costmap_u8, origin_x, origin_y, map_data_->resolution(), robot_radius_);
+        DistanceField distance_field(cv_im, local_grid.dimensions().origin().x(), local_grid.dimensions().origin().y(), local_grid.dimensions().resolution(), robot_radius_);
 
         Band sim_band;
 
@@ -238,7 +180,7 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const navig
             const int degree = std::min(3, static_cast<int>(sim_band.nodes.size()) - 1);
             const Eigen::Spline<double, 2> spline = Eigen::SplineFitting<Eigen::Spline<double, 2>>::Interpolate(points, degree, chord_lengths);
 
-            const int total_steps = sim_band.length() / (4 * map_data_->resolution());
+            const int total_steps = sim_band.length() / (4 * map_data_->grid.dimensions().resolution());
             for (Eigen::DenseIndex i=0; i<points.cols() - 1; ++i)
             {
                 const double cl = chord_lengths(i);
@@ -302,24 +244,19 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const navig
     return result;
 }
 
-bool SimBandPlanner::valid(const navigation_interface::Trajectory& trajectory) const
+bool SimBandPlanner::valid(const navigation_interface::Trajectory&) const
 {
-
+    return true;
 }
 
-double SimBandPlanner::cost(const navigation_interface::Trajectory& trajectory) const
+double SimBandPlanner::cost(const navigation_interface::Trajectory&) const
 {
-
+    return 0.0;
 }
 
-void SimBandPlanner::initialize(const XmlRpc::XmlRpcValue& parameters,
-                                const std::shared_ptr<const gridmap::MapData>& map_data)
+void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    map_data_ = map_data;
-
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
-    size_x_ = navigation_interface::get_config_with_default_warn<double>(parameters, "size_x", size_x_, XmlRpc::XmlRpcValue::TypeDouble);
-    size_y_ = navigation_interface::get_config_with_default_warn<double>(parameters, "size_y", size_y_, XmlRpc::XmlRpcValue::TypeDouble);
     num_iterations_ = navigation_interface::get_config_with_default_warn<int>(parameters, "num_iterations", num_iterations_, XmlRpc::XmlRpcValue::TypeInt);
     internal_force_gain_ = navigation_interface::get_config_with_default_warn<double>(parameters, "internal_force_gain", internal_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
     external_force_gain_ = navigation_interface::get_config_with_default_warn<double>(parameters, "external_force_gain", external_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
@@ -336,6 +273,11 @@ void SimBandPlanner::initialize(const XmlRpc::XmlRpcValue& parameters,
 
     if (debug_viz_)
         viz_.reset(new rviz_visual_tools::RvizVisualTools("map", "debug"));
+}
+
+void SimBandPlanner::onMapDataChanged()
+{
+
 }
 
 }

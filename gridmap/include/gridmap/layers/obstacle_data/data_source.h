@@ -1,10 +1,11 @@
 #ifndef GRIDMAP_DATA_SOURCE_H
 #define GRIDMAP_DATA_SOURCE_H
 
+#include <mutex>
 #include <memory>
 #include <string>
 
-#include <gridmap/map_data.h>
+#include <gridmap/grids/probability_grid.h>
 
 #include <tf2_ros/buffer.h>
 
@@ -17,17 +18,24 @@ class DataSource
     DataSource() = default;
     virtual ~DataSource() = default;
 
-    void initialize(const std::string& name, const std::string& global_frame, const XmlRpc::XmlRpcValue& parameters,
-                    const std::shared_ptr<MapData>& map_data, const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+    void initialize(const std::string& name,
+                    const std::string& global_frame,
+                    const XmlRpc::XmlRpcValue& parameters,
+                    const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
     {
+        std::lock_guard<std::mutex> lock(mutex_);
         name_ = name;
         global_frame_ = global_frame;
-        map_data_ = map_data;
+        map_data_ = nullptr;
         tf_buffer_ = tf_buffer;
         onInitialize(parameters);
     }
 
-    virtual void matchSize() = 0;
+    void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
+    }
 
     std::string name() const
     {
@@ -37,9 +45,11 @@ class DataSource
   protected:
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
 
+    std::mutex mutex_;
+
     std::string name_;
     std::string global_frame_;
-    std::shared_ptr<MapData> map_data_;
+    std::shared_ptr<ProbabilityGrid> map_data_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 };
 }

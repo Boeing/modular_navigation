@@ -1,6 +1,6 @@
 #include <cmath>
-#include <gridmap/map_data.h>
 #include <cstdio>
+#include <gridmap/map_data.h>
 
 namespace gridmap
 {
@@ -100,7 +100,8 @@ bool MapData::worldToMap(const double wx, const double wy, unsigned int& mx, uns
 
 Eigen::Vector2i MapData::worldToMapNoBounds(const Eigen::Vector2d& world) const
 {
-    return Eigen::Vector2i(static_cast<int>((world.x() - origin_x_) / resolution_), static_cast<int>((world.y() - origin_y_) / resolution_));
+    return Eigen::Vector2i(static_cast<int>((world.x() - origin_x_) / resolution_),
+                           static_cast<int>((world.y() - origin_y_) / resolution_));
 }
 
 void MapData::worldToMapEnforceBounds(const double wx, const double wy, int& mx, int& my) const
@@ -131,5 +132,4 @@ void MapData::worldToMapEnforceBounds(const double wx, const double wy, int& mx,
         my = static_cast<int>((wy - origin_y_) / resolution_);
     }
 }
-
 }

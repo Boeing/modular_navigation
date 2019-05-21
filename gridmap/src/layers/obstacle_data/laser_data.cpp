@@ -1,14 +1,7 @@
+#include <gridmap/layers/obstacle_data/laser_data.h>
 #include <gridmap/params.h>
-#include <gridmap/plugins/laser_data.h>
-
-#include <tf2_ros/message_filter.h>
-#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 
 #include <pluginlib/class_list_macros.h>
-
-#include <sensor_msgs/point_cloud2_iterator.h>
-
-#include <opencv2/highgui.hpp>
 
 #include <chrono>
 
@@ -27,9 +20,9 @@ void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     ros::NodeHandle g_nh;
 
     const std::string topic =
-        get_config_with_default_warn<std::string>(parameters, "topic", "/laser/scan", XmlRpc::XmlRpcValue::TypeString);
+        get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/scan", XmlRpc::XmlRpcValue::TypeString);
     hit_probability_log_ = logodds(
-        get_config_with_default_warn<double>(parameters, "hit_probability", 0.7, XmlRpc::XmlRpcValue::TypeDouble));
+        get_config_with_default_warn<double>(parameters, "hit_probability", 0.8, XmlRpc::XmlRpcValue::TypeDouble));
     miss_probability_log_ = logodds(
         get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
     min_obstacle_height_ =
@@ -60,22 +53,24 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
     {
         sub_sample_count_ = 0;
 
-        const auto t0 = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!map_data_)
+            return;
 
         const auto tr = tf_buffer_->lookupTransform(global_frame_, message->header.frame_id, message->header.stamp);
 
-        const Eigen::Isometry3d t = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y,
-                                                   tr.transform.translation.z) * Eigen::Quaterniond(
-                                                   tr.transform.rotation.w, tr.transform.rotation.x,
-                                                   tr.transform.rotation.y, tr.transform.rotation.z);
+        const Eigen::Isometry3d t =
+            Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z) *
+            Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y,
+                               tr.transform.rotation.z);
 
         const Eigen::Vector3d sensor_pt = t.translation();
         const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
-        const Eigen::Vector2i sensor_pt_map = map_data_->worldToMapNoBounds(sensor_pt_2d);
+        const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
 
         // Check sensor is on map
-        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->sizeX()
-                || sensor_pt_map.y() < 0 || sensor_pt_map.y() >= map_data_->sizeY())
+        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x()
+                || sensor_pt_map.y() < 0 || sensor_pt_map.y() >= map_data_->dimensions().size().y())
         {
             ROS_WARN("Laser sensor is not on gridmap");
             return;
@@ -92,11 +87,12 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
             }
         }
 
-        const unsigned int cell_raytrace_range = raytrace_range_ / map_data_->resolution();
+        const unsigned int cell_raytrace_range = raytrace_range_ / map_data_->dimensions().resolution();
 
         {
             auto lock = map_data_->getLock();
-            AddLogCost marker(map_data_->data(), miss_probability_log_, map_data_->clampingThresMin(), map_data_->clampingThresMax());
+            AddLogCost marker(map_data_->cells().data(), miss_probability_log_, map_data_->clampingThresMinLog(),
+                              map_data_->clampingThresMaxLog());
             for (size_t i = 0; i < message->ranges.size(); i++)
             {
                 double range = static_cast<double>(message->ranges[i]);
@@ -112,26 +108,20 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
                 }
 
                 const Eigen::Vector2d pt_2d(pt.x(), pt.y());
-                Eigen::Vector2i ray_end = map_data_->worldToMapNoBounds(pt_2d);
-                clipRayEnd(sensor_pt_map, ray_end, map_data_->size());
-                raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(), map_data_->sizeX(), cell_raytrace_range);
-                if (range < message->range_max && range < obstacle_range_)
+                Eigen::Array2i ray_end = map_data_->dimensions().getCellIndex(pt_2d);
+                clipRayEnd(sensor_pt_map, ray_end, map_data_->dimensions().size());
+                raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(), map_data_->dimensions().size().x(), cell_raytrace_range);
+                if (range < static_cast<double>(message->range_max) && range < obstacle_range_)
                 {
-                    map_data_->update(ray_end.x(), ray_end.y(), hit_probability_log_);
+                    map_data_->update(ray_end, - miss_probability_log_);
+                    map_data_->update(ray_end, hit_probability_log_);
                 }
             }
         }
 
-        ROS_INFO_STREAM(
-            "laser scan took "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
     }
     else
         ++sub_sample_count_;
-}
-
-void LaserData::matchSize()
-{
 }
 
 }

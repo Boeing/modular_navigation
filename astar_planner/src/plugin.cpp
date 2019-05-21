@@ -1,13 +1,12 @@
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
 
+#include <gridmap/operations/raytrace.h>
+
 #include <navigation_interface/params.h>
 
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-
-#include <tf2/utils.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include <chrono>
 
@@ -22,67 +21,6 @@ namespace astar_planner
 
 namespace
 {
-
-std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen::Vector2i& end)
-{
-    if (start == end)
-        return {end};
-
-    double x1 = start.x();
-    double x2 = end.x();
-
-    double y1 = start.y();
-    double y2 = end.y();
-
-    const bool steep = (std::abs(y2 - y1) > std::abs(x2 - x1));
-    if (steep)
-    {
-        std::swap(x1, y1);
-        std::swap(x2, y2);
-    }
-
-    bool reverse = false;
-    if (x1 > x2)
-    {
-        std::swap(x1, x2);
-        std::swap(y1, y2);
-        reverse = true;
-    }
-
-    const double dx = x2 - x1;
-    const double dy = std::abs(y2 - y1);
-
-    double error = dx / 2.0;
-    const int ystep = (y1 < y2) ? 1 : -1;
-    int y = static_cast<int>(y1);
-
-    const int max_x = static_cast<int>(x2);
-
-    std::vector<Eigen::Vector2i> line;
-    for (int x = static_cast<int>(x1); x < max_x; ++x)
-    {
-        if (steep)
-        {
-            line.push_back({y, x});
-        }
-        else
-        {
-            line.push_back({x, y});
-        }
-
-        error -= dy;
-        if (error < 0)
-        {
-            y += ystep;
-            error += dx;
-        }
-    }
-
-    if (reverse)
-        std::reverse(line.begin(), line.end());
-
-    return line;
-}
 
 struct Costmap
 {
@@ -100,31 +38,28 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
 
     // downsample
     {
-        auto lock = map_data.getLock();
+        auto lock = map_data.grid.getLock();
 
-        grid.resolution = map_data.resolution() * down_sample;
+        grid.resolution = map_data.grid.dimensions().resolution() * down_sample;
 
-        const int size_x = map_data.sizeX() / down_sample;
-        const int size_y = map_data.sizeY() / down_sample;
+        const int size_x = map_data.grid.dimensions().size().x() / down_sample;
+        const int size_y = map_data.grid.dimensions().size().y() / down_sample;
 
-        double wx, wy;
-        map_data.mapToWorld(0, 0, wx, wy);
-        grid.origin_x = map_data.originX();
-        grid.origin_y = map_data.originY();
+        const Eigen::Vector2d world_origin = map_data.grid.dimensions().getCellCenter({0, 0});
+        grid.origin_x = world_origin.x();
+        grid.origin_y = world_origin.y();
 
         grid.obstacle_map = cv::Mat(size_y, size_x, CV_8U, cv::Scalar(0));
 
-        const double min_log_odds_occ = map_data.occupancyThresLog();
-
-        unsigned int index = 0;
-        for (unsigned int i = 0; i < map_data.sizeX(); ++i)
+        int index = 0;
+        for (int i = 0; i < map_data.grid.dimensions().size().x(); ++i)
         {
-            for (unsigned int j = 0; j < map_data.sizeY(); ++j)
+            for (int j = 0; j < map_data.grid.dimensions().size().y(); ++j)
             {
-                const unsigned int sub_i = i / down_sample;
-                const unsigned int sub_j = j / down_sample;
-                const unsigned int sub_index = sub_i * size_x + sub_j;
-                if (map_data.data()[index] > min_log_odds_occ)
+                const int sub_i = i / down_sample;
+                const int sub_j = j / down_sample;
+                const int sub_index = sub_i * size_x + sub_j;
+                if (map_data.grid.cells()[index] == gridmap::OccupancyGrid::OCCUPIED)
                     grid.obstacle_map.at<unsigned char>(sub_index) = 255;
                 ++index;
             }
@@ -147,7 +82,7 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
     cv::distanceTransform(grid.obstacle_map, grid.costmap, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
 
     // inflate
-    grid.costmap = - exponential_weight * grid.costmap * map_data.resolution();
+    grid.costmap = - exponential_weight * grid.costmap * map_data.grid.dimensions().resolution();
 
     // negative exponent maps values to [1,0)
     cv::exp(grid.costmap, grid.costmap);
@@ -169,8 +104,8 @@ double pathCost(const navigation_interface::Path& path, const Costmap& costmap, 
         const int end_cell_x = static_cast<int>((end.x() - costmap.origin_x) / costmap.resolution);
         const int end_cell_y = static_cast<int>((end.y() - costmap.origin_y) / costmap.resolution);
 
-        const std::vector<Eigen::Vector2i> segment =
-            drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
+        const std::vector<Eigen::Array2i> segment =
+            gridmap::drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
 
         line.insert(line.end(), segment.begin(), segment.end());
     }
@@ -323,11 +258,8 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
     return pathCost(path, costmap, neutral_cost_);
 }
 
-void AStarPlanner::initialize(const XmlRpc::XmlRpcValue& parameters,
-                              const std::shared_ptr<const gridmap::MapData>& map_data)
+void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    map_data_ = map_data;
-
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
     neutral_cost_ = navigation_interface::get_config_with_default_warn<double>(parameters, "neutral_cost", neutral_cost_, XmlRpc::XmlRpcValue::TypeDouble);
     robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
@@ -343,6 +275,11 @@ void AStarPlanner::initialize(const XmlRpc::XmlRpcValue& parameters,
         pub_ = nh.advertise<nav_msgs::OccupancyGrid>("astar", 100);
         explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("explore", 100);
     }
+}
+
+void AStarPlanner::onMapDataChanged()
+{
+
 }
 
 }

@@ -7,27 +7,14 @@ trajectory_planner_frequency: 8.0
 controller_frequency: 10.0
 
 AStarPlanner:
-    debug_viz: false
+    debug_viz: true
     neutral_cost: 0.1
     robot_radius: 0.6
     exponential_weight: 2.0
     down_sample: 4
 
 SimBandPlanner:
-    debug_viz: false
-    size_x: 6.0
-    size_y: 6.0
-    num_iterations: 10
-    internal_force_gain: 0.004
-    external_force_gain: 0.004
-    min_distance: 0.02
-    min_distance: 1.0
-    min_overlap: 0.8
-    max_window_length: 4.0
-    robot_radius: 0.7
-    rotation_factor: 1.0
-    velocity_decay: 0.6
-    alpha_decay: 1.4125375446227544
+    debug_viz: true
     desired_speed: 0.2
     spline: true
 
@@ -44,14 +31,30 @@ PurePursuitController:
 
 costmap:
 
-  data_sources:
-    - {name: base_map_data, type: 'gridmap::BaseMapData'}
-    - {name: laser_data, type: 'gridmap::LaserData'}
+  layers:
+    - {name: laser_data, type: 'gridmap::ObstacleLayer'}
+    - {name: sonar_data, type: 'gridmap::ObstacleLayer'}
 
-  base_map_data:
+  base_map:
     lethal_threshold: 100
-    map_topic: map
 
   laser_data:
-    topic: '/laser/scan'
-    sub_sample: 10
+    data_sources:
+      - {name: laser, type: 'gridmap::LaserData'}
+    laser:
+      sub_sample: 10
+
+  sonar_data:
+    data_sources:
+      - {name: range_1, type: 'gridmap::RangeData'}
+      - {name: range_2, type: 'gridmap::RangeData'}
+      - {name: range_3, type: 'gridmap::RangeData'}
+      - {name: range_4, type: 'gridmap::RangeData'}
+      - {name: range_5, type: 'gridmap::RangeData'}
+      - {name: range_6, type: 'gridmap::RangeData'}
+      - {name: range_7, type: 'gridmap::RangeData'}
+      - {name: range_8, type: 'gridmap::RangeData'}
+      - {name: range_9, type: 'gridmap::RangeData'}
+      - {name: range_10, type: 'gridmap::RangeData'}
+      - {name: range_11, type: 'gridmap::RangeData'}
+      - {name: range_12, type: 'gridmap::RangeData'}

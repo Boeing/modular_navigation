@@ -87,7 +87,7 @@ struct DistanceField
           resolution(_resolution)
     {
         // Dilate robot radius
-        cv::Mat dilated_im = cv_im;
+        cv::Mat dilated_im = cv_im;  // TODO see if this can be done in-place
         const int cell_inflation_radius = static_cast<int>(_robot_radius / resolution);
         auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(cv_im, dilated_im, ellipse);

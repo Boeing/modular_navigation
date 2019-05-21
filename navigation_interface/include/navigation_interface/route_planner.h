@@ -30,33 +30,22 @@ class PathPlanner
         Path path;
     };
 
-    PathPlanner() = default;
-    virtual ~PathPlanner() = default;
-
     virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal) = 0;
 
     virtual bool valid(const Path& path) const = 0;
     virtual double cost(const Path& path) const = 0;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
-    virtual void onMapDataChanged() = 0;
+    virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
+                            const std::shared_ptr<const gridmap::MapData>& map_data) = 0;
 
-    void initialize(const XmlRpc::XmlRpcValue& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
+    virtual ~PathPlanner()
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        map_data_ = map_data;
-        onInitialize(parameters);
-    }
-
-    void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        map_data_ = map_data;
     }
 
   protected:
-    std::mutex mutex_;
-    std::shared_ptr<const gridmap::MapData> map_data_;
+    PathPlanner()
+    {
+    }
 };
 }
 

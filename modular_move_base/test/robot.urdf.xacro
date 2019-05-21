@@ -71,7 +71,7 @@
     <gazebo reference="laser">
         <sensor type="ray" name="laser">
             <pose>0 0 0 0 0 0</pose>
-            <visualize>false</visualize>
+            <visualize>true</visualize>
             <update_rate>40</update_rate>
             <ray>
                 <scan>
@@ -99,5 +99,81 @@
             </plugin>
         </sensor>
     </gazebo>
+
+    <xacro:macro name="range_sensor" params="suffix rotation">
+        <joint name="range_${suffix}_joint" type="fixed">
+            <origin xyz="0 0 0.4" rpy="0 0 ${rotation}"/>
+            <child link="range_${suffix}"/>
+            <parent link="base_link"/>
+        </joint>
+        <link name="range_${suffix}">
+            <visual>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <mass value="1"/>
+                <origin xyz="0 0 0"/>
+                <inertia
+                        ixx="1" ixy="0" ixz="0"
+                        iyy="1" iyz="0"
+                        izz="1"/>
+            </inertial>
+        </link>
+        <gazebo reference="range_${suffix}">
+            <sensor type="ray" name="range_${suffix}">
+                <pose>0 0 0 0 0 0</pose>
+                <visualize>true</visualize>
+                <update_rate>10</update_rate>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>10</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.4</min_angle>
+                            <max_angle>0.4</max_angle>
+                        </horizontal>
+                        <vertical>
+                            <samples>10</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.2</min_angle>
+                            <max_angle>0.2</max_angle>
+                        </vertical>
+                    </scan>
+                    <range>
+                        <min>0.1</min>
+                        <max>2.0</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                </ray>
+                <plugin name="gazebo_range_plugin" filename="libgazebo_range_plugin.so">
+                    <robot_namespace>/</robot_namespace>
+                    <field_of_view>0.8</field_of_view>
+                </plugin>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:range_sensor suffix="0" rotation="-3.0"/>
+    <xacro:range_sensor suffix="1" rotation="-2.5"/>
+    <xacro:range_sensor suffix="2" rotation="-2.0"/>
+    <xacro:range_sensor suffix="3" rotation="-1.5"/>
+    <xacro:range_sensor suffix="4" rotation="-1.0"/>
+    <xacro:range_sensor suffix="5" rotation="-0.5"/>
+    <xacro:range_sensor suffix="6" rotation="0.0"/>
+    <xacro:range_sensor suffix="7" rotation="0.5"/>
+    <xacro:range_sensor suffix="8" rotation="1.0"/>
+    <xacro:range_sensor suffix="9" rotation="1.5"/>
+    <xacro:range_sensor suffix="10" rotation="2.0"/>
+    <xacro:range_sensor suffix="11" rotation="2.5"/>
+    <xacro:range_sensor suffix="12" rotation="3.0"/>
 
 </robot>

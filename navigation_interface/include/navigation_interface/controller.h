@@ -34,6 +34,8 @@ class Controller
 
         Eigen::VectorXd command;
     };
+    Controller() = default;
+    virtual ~Controller() = default;
 
     virtual bool setTrajectory(const Trajectory& trajectory) = 0;
     virtual void clearTrajectory() = 0;
@@ -43,17 +45,25 @@ class Controller
 
     virtual Result control(const ros::SteadyTime& time, const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) = 0;
 
-    virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const gridmap::MapData>& map_data) = 0;
+    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
+    virtual void onMapDataChanged() = 0;
 
-    virtual ~Controller()
+    void initialize(const XmlRpc::XmlRpcValue& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
     {
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
+        onInitialize(parameters);
+    }
+
+    void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
     }
 
   protected:
-    Controller()
-    {
-    }
+    std::mutex mutex_;
+    std::shared_ptr<const gridmap::MapData> map_data_;
 };
 
 };

@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.1)
 project(gridmap)
 
-add_definitions(-std=c++11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(catkin REQUIRED COMPONENTS
     cmake_modules
@@ -19,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_ros
     tf2_sensor_msgs
     visualization_msgs
+    hd_map
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -57,19 +60,25 @@ catkin_package(
         tf2_ros
         tf2_sensor_msgs
         visualization_msgs
+        hd_map
     DEPENDS
         Boost
         EIGEN3
 )
 
 add_library(${PROJECT_NAME}
-    src/map_data.cpp
-    src/map_publisher.cpp
-    src/plugins/base_map_data.cpp
-    src/plugins/laser_data.cpp
-    src/plugins/point_cloud_data.cpp
-    src/plugins/range_data.cpp
-    src/plugins/time_decay.cpp
+    src/grids/grid_2d.cpp
+    src/grids/occupancy_grid.cpp
+    src/grids/probability_grid.cpp
+
+    src/layers/obstacle_data/laser_data.cpp
+    src/layers/obstacle_data/point_cloud_data.cpp
+    src/layers/obstacle_data/range_data.cpp
+
+    src/layers/base_map_layer.cpp
+    src/layers/obstacle_layer.cpp
+
+    src/layered_map.cpp
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -92,7 +101,10 @@ add_dependencies(${PROJECT_NAME}_test
 )
 
 if(CATKIN_ENABLE_TESTING)
-    find_package(rostest REQUIRED)
+    find_package(rosunit REQUIRED)
+
+    catkin_add_gtest(unit_test test/unit_test.cpp)
+    target_link_libraries(unit_test ${PROJECT_NAME} ${OpenCV_LIBRARIES})
 endif()
 
 install(TARGETS

@@ -7,11 +7,9 @@
 namespace gridmap
 {
 
-MapPublisher::MapPublisher(const double update_frequency,
-                           const std::shared_ptr<MapData>& map_data,
+MapPublisher::MapPublisher(const double update_frequency, const std::shared_ptr<LayeredMap>& map_data,
                            const std::string& global_frame)
-    : map_data_(map_data),
-      global_frame_(global_frame)
+    : map_data_(map_data), global_frame_(global_frame)
 {
     costmap_pub_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1, true);
     running_ = true;
@@ -82,5 +80,4 @@ void MapPublisher::publishThread(const double frequency)
         rate.sleep();
     }
 }
-
 }

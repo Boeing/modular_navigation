@@ -27,12 +27,10 @@ class PurePursuitController : public navigation_interface::Controller
 
     virtual Result control(const ros::SteadyTime& time, const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) override;
 
-    virtual void initialize(const XmlRpc::XmlRpcValue& parameters,
-                            const std::shared_ptr<const gridmap::MapData>& map_data) override;
+    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onMapDataChanged() override;
 
   private:
-    std::shared_ptr<const gridmap::MapData> map_data_;
-
     // Runtime values
     std::unique_ptr<const navigation_interface::Trajectory> trajectory_;
     ros::SteadyTime last_update_;

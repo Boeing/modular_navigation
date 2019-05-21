@@ -43,7 +43,7 @@ std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose, const 
 }
 }
 
-PurePursuitController::PurePursuitController() : map_data_(nullptr)
+PurePursuitController::PurePursuitController()
 {
 }
 
@@ -232,11 +232,8 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
     return result;
 }
 
-void PurePursuitController::initialize(const XmlRpc::XmlRpcValue& parameters,
-                        const std::shared_ptr<const gridmap::MapData>& map_data)
+void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    map_data_ = map_data;
-
     look_ahead_ = navigation_interface::get_config_with_default_warn<double>(parameters, "look_ahead", look_ahead_, XmlRpc::XmlRpcValue::TypeDouble);
     max_velocity_x_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_velocity_x", max_velocity_x_, XmlRpc::XmlRpcValue::TypeDouble);
     max_velocity_y_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_velocity_y", max_velocity_y_, XmlRpc::XmlRpcValue::TypeDouble);
@@ -259,6 +256,11 @@ void PurePursuitController::initialize(const XmlRpc::XmlRpcValue& parameters,
     goal_d_gain_.x() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_d_gain_x", goal_d_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
     goal_d_gain_.y() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_d_gain_y", goal_d_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
     goal_d_gain_.z() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_d_gain_z", goal_d_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+}
+
+void PurePursuitController::onMapDataChanged()
+{
+
 }
 
 }

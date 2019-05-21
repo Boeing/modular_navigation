@@ -1,7 +1,7 @@
 #ifndef GRIDMAP_MAP_PUBLISHER
 #define GRIDMAP_MAP_PUBLISHER
 
-#include <gridmap/map_data.h>
+#include <gridmap/layered_map.h>
 
 #include <nav_msgs/OccupancyGrid.h>
 

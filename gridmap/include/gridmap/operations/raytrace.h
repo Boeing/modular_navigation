@@ -1,8 +1,6 @@
 #ifndef GRIDMAP_RAYTRACE_H
 #define GRIDMAP_RAYTRACE_H
 
-#include <gridmap/map_data.h>
-
 #include <Eigen/Geometry>
 
 #include <algorithm>
@@ -91,9 +89,9 @@ inline void bresenham2D(ActionType at, unsigned int abs_da, unsigned int abs_db,
     at(offset);
 }
 
-inline std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const Eigen::Vector2i& end)
+inline std::vector<Eigen::Array2i> drawLine(const Eigen::Array2i& start, const Eigen::Array2i& end)
 {
-    if (start == end)
+    if ((start == end).all())
         return {end};
 
     double x1 = start.x();
@@ -126,7 +124,7 @@ inline std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const
 
     const int max_x = static_cast<int>(x2);
 
-    std::vector<Eigen::Vector2i> line;
+    std::vector<Eigen::Array2i> line;
     for (int x = static_cast<int>(x1); x < max_x; ++x)
     {
         if (steep)
@@ -152,9 +150,9 @@ inline std::vector<Eigen::Vector2i> drawLine(const Eigen::Vector2i& start, const
     return line;
 }
 
-inline void clipRayEnd(const Eigen::Vector2i& start, Eigen::Vector2i& end, const Eigen::Vector2i& size)
+inline void clipRayEnd(const Eigen::Array2i& start, Eigen::Array2i& end, const Eigen::Array2i& size)
 {
-    const Eigen::Vector2i dir = end - start;
+    const Eigen::Array2i dir = end - start;
 
     if (end.x() < 0)
     {
@@ -184,7 +182,6 @@ inline void clipRayEnd(const Eigen::Vector2i& start, Eigen::Vector2i& end, const
         end.y() = size.y() - 1;
     }
 }
-
 }
 
 #endif

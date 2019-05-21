@@ -23,9 +23,7 @@
 
 #include <geometry_msgs/PoseStamped.h>
 
-#include <gridmap/map_data.h>
-#include <gridmap/data_source.h>
-#include <gridmap/map_publisher.h>
+#include <gridmap/layered_map.h>
 
 #include <pluginlib/class_loader.h>
 
@@ -87,6 +85,8 @@ class MoveBase
     virtual ~MoveBase();
 
   private:
+    void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& map);
+
     void executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal);
 
     void preemptedCallback();
@@ -102,7 +102,7 @@ class MoveBase
 
     actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> as_;
 
-    pluginlib::ClassLoader<gridmap::DataSource> ds_loader_;
+    pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
     pluginlib::ClassLoader<navigation_interface::TrajectoryPlanner> tp_loader_;
     pluginlib::ClassLoader<navigation_interface::Controller> c_loader_;
@@ -111,9 +111,12 @@ class MoveBase
     std::shared_ptr<navigation_interface::TrajectoryPlanner> trajectory_planner_;
     std::shared_ptr<navigation_interface::Controller> controller_;
 
-    std::shared_ptr<gridmap::MapData> map_data_;
-    std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> map_data_sources_;
-    std::shared_ptr<gridmap::MapPublisher> map_publisher_;
+    std::shared_ptr<gridmap::LayeredMap> layered_map_;
+
+    ros::Subscriber map_sub_;
+
+    ros::Publisher costmap_publisher_;
+    ros::Publisher costmap_updates_publisher_;
 
     ros::Publisher current_goal_pub_;
     ros::Publisher vel_pub_;
@@ -139,10 +142,6 @@ class MoveBase
     const double map_publish_frequency_;
 
     const std::string global_frame_;
-
-    const double clamping_thres_min_;
-    const double clamping_thres_max_;
-    const double occ_prob_thres_;
 
     const double path_planner_frequency_;
     const double trajectory_planner_frequency_;

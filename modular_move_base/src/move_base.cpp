@@ -12,6 +12,8 @@
 
 #include <geometry_msgs/Twist.h>
 
+#include <map_msgs/OccupancyGridUpdate.h>
+
 namespace move_base
 {
 
@@ -76,17 +78,15 @@ std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& c
     return nullptr;
 }
 
-std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> loadDataSources(const ros::NodeHandle& nh,
-                                                                                         const std::string& global_frame,
-                                                                                         pluginlib::ClassLoader<gridmap::DataSource>& loader,
-                                                                                         const std::shared_ptr<gridmap::MapData>& map_data,
-                                                                                         const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+std::vector<std::shared_ptr<gridmap::Layer>> loadDataSources(XmlRpc::XmlRpcValue& parameters,
+                                                             const std::string& global_frame,
+                                                             pluginlib::ClassLoader<gridmap::Layer>& loader,
+                                                             const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
 {
-    std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> plugin_ptrs;
-    if (nh.hasParam("data_sources"))
+    std::vector<std::shared_ptr<gridmap::Layer>> plugin_ptrs;
+    if (parameters.hasMember("layers"))
     {
-        XmlRpc::XmlRpcValue my_list;
-        nh.getParam("data_sources", my_list);
+        XmlRpc::XmlRpcValue my_list = parameters["layers"];
         for (int32_t i = 0; i < my_list.size(); ++i)
         {
             std::string pname = static_cast<std::string>(my_list[i]["name"]);
@@ -95,14 +95,9 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> loadDataSo
             try
             {
                 ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
-                std::shared_ptr<gridmap::DataSource> plugin_ptr = std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
-
-                XmlRpc::XmlRpcValue params;
-                nh.getParam(pname, params);
-
-                plugin_ptr->initialize(pname, global_frame, params, map_data, tf_buffer);
-
-                plugin_ptrs[pname] = plugin_ptr;
+                auto plugin_ptr = std::shared_ptr<gridmap::Layer>(loader.createUnmanagedInstance(type));
+                plugin_ptr->initialize(pname, global_frame, parameters[pname], tf_buffer);
+                plugin_ptrs.push_back(plugin_ptr);
             }
             catch (const pluginlib::PluginlibException& e)
             {
@@ -128,12 +123,10 @@ MoveBase::MoveBase()
 
       as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
 
-      ds_loader_("gridmap", "gridmap::DataSource"),
+      layer_loader_("gridmap", "gridmap::Layer"),
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
-
-      map_data_(nullptr),
 
       running_(false),
       controller_done_(false),
@@ -145,10 +138,6 @@ MoveBase::MoveBase()
 
       global_frame_("map"),
 
-      clamping_thres_min_(get_param_with_default_warn("~clamping_thres_min", 0.1192)),
-      clamping_thres_max_(get_param_with_default_warn("~clamping_thres_max", 0.971)),
-      occ_prob_thres_(get_param_with_default_warn("~occ_prob_thres", 0.8)),
-
       path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 1.0)),
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
@@ -156,11 +145,14 @@ MoveBase::MoveBase()
 {
     ROS_INFO("Starting");
 
-    map_data_ = std::make_shared<gridmap::MapData>(clamping_thres_min_, clamping_thres_max_, occ_prob_thres_);
-    map_data_sources_ = loadDataSources(ros::NodeHandle(nh_, "costmap"), global_frame_, ds_loader_, map_data_, tf_buffer_);
-    map_publisher_ = std::make_shared<gridmap::MapPublisher>(map_publish_frequency_, map_data_, global_frame_);
+    XmlRpc::XmlRpcValue costmap_params;
+    nh_.getParam("costmap", costmap_params);
+    auto layers = loadDataSources(costmap_params, global_frame_, layer_loader_, tf_buffer_);
+    auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
+    base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], tf_buffer_);
+    layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
-//    as_.registerPreemptCallback(boost::bind(&MoveBase::preemptedCallback, this));
+    as_.registerPreemptCallback(boost::bind(&MoveBase::preemptedCallback, this));
 
     const std::string path_planner_name = get_param_or_throw<std::string>("~path_planner");
     const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
@@ -173,9 +165,14 @@ MoveBase::MoveBase()
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
     // Create the path planner
-    path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, map_data_);
-    trajectory_planner_ = load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, map_data_);
-    controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, map_data_);
+    path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, nullptr);
+    trajectory_planner_ = load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
+    controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
+
+    map_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/map", 10, &MoveBase::mapCallback, this);
+
+    costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
+    costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
 
     as_.start();
 
@@ -184,7 +181,21 @@ MoveBase::MoveBase()
 
 MoveBase::~MoveBase()
 {
+}
 
+void MoveBase::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& map)
+{
+    ROS_INFO_STREAM("Received map!");
+
+    // TODO preempt execution
+
+    hd_map::Map hd_map;
+    hd_map.map_info = map->info;
+    layered_map_->setMap(hd_map, *map);
+
+    path_planner_->setMapData(layered_map_->map());
+    trajectory_planner_->setMapData(layered_map_->map());
+    controller_->setMapData(layered_map_->map());
 }
 
 void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal)
@@ -264,6 +275,19 @@ void MoveBase::preemptedCallback()
     ROS_INFO_STREAM("Preempting");
 }
 
+/*
+void MoveBase::idleThread()
+{
+    while (idle_)
+    {
+        // update costmap around robot
+        // once every (N) update full map
+
+        // publish
+    }
+}
+*/
+
 void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
 {
     ros::WallRate rate(path_planner_frequency_);
@@ -278,13 +302,22 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
         }
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
 
-        const auto t0 = std::chrono::steady_clock::now();
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            layered_map_->update();
+            ROS_INFO_STREAM(
+                "global map update took "
+                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        }
 
-        auto result = path_planner_->plan(global_robot_pose, goal);
-
-        ROS_INFO_STREAM(
-            "Path Planner took "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        navigation_interface::PathPlanner::Result result;
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            result = path_planner_->plan(global_robot_pose, goal);
+            ROS_INFO_STREAM(
+                "Path Planner took "
+                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        }
 
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
@@ -364,6 +397,9 @@ void MoveBase::trajectoryPlannerThread()
 {
     ros::WallRate rate(trajectory_planner_frequency_);
 
+    const int size_x = 400;
+    const int size_y = 400;
+
     while (running_)
     {
         // check if a new path is available
@@ -394,14 +430,40 @@ void MoveBase::trajectoryPlannerThread()
             rs = robot_state_;
         }
 
-        const auto t0 = std::chrono::steady_clock::now();
+        // update costmap around robot
+        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
 
-        // optimise path
-        auto result = trajectory_planner_->plan(rs.robot_state, rs.map_to_odom);
+        ROS_INFO_STREAM("robot_map: " << robot_map.transpose());
 
-        ROS_INFO_STREAM(
-            "Trajectory Planner took "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            layered_map_->update(roi);
+            ROS_INFO_STREAM(
+                "local map update took "
+                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        }
+
+        {
+            nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg(roi);
+            grid.header.frame_id = "map";
+            grid.header.stamp = ros::Time::now();
+            costmap_publisher_.publish(grid);
+        }
+
+        navigation_interface::TrajectoryPlanner::Result result;
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+
+            // optimise path
+            result = trajectory_planner_->plan(roi, rs.robot_state, rs.map_to_odom);
+
+            ROS_INFO_STREAM(
+                "Trajectory Planner took "
+                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        }
 
         // update trajectory for the controller
         if (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL
