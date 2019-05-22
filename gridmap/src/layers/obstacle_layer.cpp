@@ -229,7 +229,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
             for (int y = top_left_y; y < y_size; y++)
             {
                 const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
-                const int index_end = probability_grid_->dimensions().size().x() * y + top_left_x + size_x;
+                const int index_end = index_start + size_x;
                 for (int index = index_start; index < index_end; ++index)
                 {
                     grid.data[roi_index] = static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);

@@ -19,6 +19,7 @@ class LaserData : public DataSource
     virtual ~LaserData() override;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onMapDataChanged() override;
 
     void laserScanCallback(const sensor_msgs::LaserScanConstPtr& message);
 

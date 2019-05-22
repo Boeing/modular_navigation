@@ -35,6 +35,7 @@ class DataSource
     {
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
+        onMapDataChanged();
     }
 
     std::string name() const
@@ -44,6 +45,7 @@ class DataSource
 
   protected:
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
+    virtual void onMapDataChanged() = 0;
 
     std::mutex mutex_;
 

@@ -11,6 +11,26 @@
 namespace gridmap
 {
 
+class AddLogCostLookup
+{
+  public:
+    AddLogCostLookup(double* map_data, const double* log_cost_lookup, const double clamping_thres_min_log, const double clamping_thres_max_log)
+        : map_data_(map_data), log_cost_lookup_(log_cost_lookup), clamping_thres_min_log_(clamping_thres_min_log),
+          clamping_thres_max_log_(clamping_thres_max_log)
+    {
+    }
+    inline void operator()(unsigned int offset, const int i)
+    {
+        map_data_[offset] = std::max(clamping_thres_min_log_, std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_lookup_[i]));
+    }
+
+  private:
+    double* map_data_;
+    const double* log_cost_lookup_;
+    double clamping_thres_min_log_;
+    double clamping_thres_max_log_;
+};
+
 class AddLogCost
 {
   public:
@@ -20,7 +40,7 @@ class AddLogCost
           clamping_thres_max_log_(clamping_thres_max_log)
     {
     }
-    inline void operator()(unsigned int offset)
+    inline void operator()(unsigned int offset, const int)
     {
         map_data_[offset] =
             std::max(clamping_thres_min_log_, std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_));
@@ -77,7 +97,7 @@ inline void bresenham2D(ActionType at, unsigned int abs_da, unsigned int abs_db,
     unsigned int end = std::min(max_length, abs_da);
     for (unsigned int i = 0; i < end; ++i)
     {
-        at(offset);
+        at(offset, i);
         offset += offset_a;
         error_b += abs_db;
         if ((unsigned int)error_b >= abs_da)
@@ -86,7 +106,7 @@ inline void bresenham2D(ActionType at, unsigned int abs_da, unsigned int abs_db,
             error_b -= abs_da;
         }
     }
-    at(offset);
+    at(offset, end - 1);
 }
 
 inline std::vector<Eigen::Array2i> drawLine(const Eigen::Array2i& start, const Eigen::Array2i& end)

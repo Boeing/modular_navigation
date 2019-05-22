@@ -43,6 +43,11 @@ void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     message_filter_->registerCallback(boost::bind(&LaserData::laserScanCallback, this, _1));
 }
 
+void LaserData::onMapDataChanged()
+{
+
+}
+
 LaserData::~LaserData()
 {
 }

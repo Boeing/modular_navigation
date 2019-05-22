@@ -19,6 +19,7 @@ class RangeData : public DataSource
     virtual ~RangeData() override;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onMapDataChanged() override;
 
     void rangeCallback(const sensor_msgs::RangeConstPtr& message);
 
@@ -29,11 +30,12 @@ class RangeData : public DataSource
     double min_obstacle_height_;
     double max_obstacle_height_;
 
-    double obstacle_range_;
     double raytrace_range_;
 
     int sub_sample_;
     int sub_sample_count_;
+
+    std::vector<std::vector<double>> log_cost_lookup_;
 
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::Range>> subscriber_;
     std::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::Range>> message_filter_;
