@@ -61,6 +61,7 @@ std::vector<Eigen::Array2i> connectPolygon(const std::vector<Eigen::Array2i>& po
     }
     return connected;
 }
+
 }
 
 #endif

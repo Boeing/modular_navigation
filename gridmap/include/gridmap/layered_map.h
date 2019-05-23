@@ -24,6 +24,8 @@ class LayeredMap
 
     void update(const AABB& bb);
 
+    void clearRadius(const Eigen::Vector2d& pose, const double radius);
+
     void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data);
 
     std::shared_ptr<const MapData> map() const

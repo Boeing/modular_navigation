@@ -138,6 +138,8 @@ MoveBase::MoveBase()
 
       global_frame_("map"),
 
+      clear_radius_(get_param_with_default_warn("~clear_radius", 0.5)),
+
       path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 1.0)),
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
@@ -301,10 +303,12 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
             rs = robot_state_;
         }
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
 
         {
             const auto t0 = std::chrono::steady_clock::now();
             layered_map_->update();
+            layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             ROS_INFO_STREAM(
                 "global map update took "
                 << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
@@ -441,6 +445,7 @@ void MoveBase::trajectoryPlannerThread()
         {
             const auto t0 = std::chrono::steady_clock::now();
             layered_map_->update(roi);
+            layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             ROS_INFO_STREAM(
                 "local map update took "
                 << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());

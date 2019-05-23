@@ -117,6 +117,11 @@ inline std::vector<Eigen::Array2i> drawLine(const Eigen::Array2i& start, const E
     double x1 = start.x();
     double x2 = end.x();
 
+    if (x1 > x2)
+    {
+        return drawLine(end, start);
+    }
+
     double y1 = start.y();
     double y2 = end.y();
 
@@ -125,14 +130,6 @@ inline std::vector<Eigen::Array2i> drawLine(const Eigen::Array2i& start, const E
     {
         std::swap(x1, y1);
         std::swap(x2, y2);
-    }
-
-    bool reverse = false;
-    if (x1 > x2)
-    {
-        std::swap(x1, x2);
-        std::swap(y1, y2);
-        reverse = true;
     }
 
     const double dx = x2 - x1;
@@ -163,9 +160,6 @@ inline std::vector<Eigen::Array2i> drawLine(const Eigen::Array2i& start, const E
             error += dx;
         }
     }
-
-    if (reverse)
-        std::reverse(line.begin(), line.end());
 
     return line;
 }

@@ -143,6 +143,8 @@ class MoveBase
 
     const std::string global_frame_;
 
+    const double clear_radius_;
+
     const double path_planner_frequency_;
     const double trajectory_planner_frequency_;
     const double controller_frequency_;

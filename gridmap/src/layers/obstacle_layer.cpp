@@ -1,6 +1,8 @@
 #include <gridmap/layers/obstacle_layer.h>
 #include <gridmap/params.h>
 
+#include <opencv2/imgproc.hpp>
+
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::ObstacleLayer, gridmap::Layer)
@@ -186,6 +188,14 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
         time_decay_running_ = true;
         time_decay_thread_ = std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, time_decay_step_);
     }
+}
+
+void ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
+{
+    auto lock = probability_grid_->getLock();
+    cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(), CV_64F,
+                            reinterpret_cast<void*>(probability_grid_->cells().data()));
+    cv::circle(cv_im, cv::Point(cell_index.x(), cell_index.y()), cell_radius, cv::Scalar(probability_grid_->clampingThresMinLog()));
 }
 
 void ObstacleLayer::debugVizThread(const double frequency)

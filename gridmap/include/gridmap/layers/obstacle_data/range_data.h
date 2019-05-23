@@ -24,12 +24,14 @@ class RangeData : public DataSource
     void rangeCallback(const sensor_msgs::RangeConstPtr& message);
 
   private:
-    double hit_probability_log_;
-    double miss_probability_log_;
+    void generateLogCostLookup(const double max_range);
 
-    double min_obstacle_height_;
-    double max_obstacle_height_;
+    double hit_probability_;
+    double miss_probability_;
 
+    double std_deviation_;
+
+    double max_range_;
     double raytrace_range_;
 
     int sub_sample_;

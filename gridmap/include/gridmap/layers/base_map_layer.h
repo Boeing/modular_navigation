@@ -26,6 +26,8 @@ class BaseMapLayer : public Layer
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
 
+    virtual void clearRadius(const Eigen::Vector2i&, const int) override {}
+
   private:
     int lethal_threshold_;
     std::shared_ptr<OccupancyGrid> map_;

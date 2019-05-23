@@ -34,6 +34,18 @@ void LayeredMap::update(const AABB& bb)
     }
 }
 
+void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
+{
+    const Eigen::Vector2i cell_index = map_data_->grid.dimensions().getCellIndex(pose);
+    const int cell_radius = radius / map_data_->grid.dimensions().resolution();
+
+    // update from layers
+    for (const auto& layer : layers_)
+    {
+        layer->clearRadius(cell_index, cell_radius);
+    }
+}
+
 void LayeredMap::setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)
 {
     base_map_layer_->setMap(hd_map, map_data);
