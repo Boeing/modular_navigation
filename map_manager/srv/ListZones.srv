@@ -1,0 +1,6 @@
+# an empty map will use the currently loaded map
+string map_name
+---
+map_manager/Zone[] zones
+bool success
+string message

@@ -1,0 +1,10 @@
+# an empty map will use the currently loaded map
+string map_name
+
+string name
+string description
+int32 zone_type
+geometry_msgs/Polygon polygon
+---
+bool success
+string message

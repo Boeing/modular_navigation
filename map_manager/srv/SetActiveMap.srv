@@ -1,0 +1,5 @@
+# an empty map will use the currently loaded map
+string map_name
+---
+bool success
+string message

@@ -1,0 +1,6 @@
+string name
+string description
+nav_msgs/OccupancyGrid map
+---
+bool success
+string message
