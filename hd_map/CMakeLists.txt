@@ -10,9 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(FILES
     Map.msg
     Marker.msg
-    Markers.msg
     Zone.msg
-    Zones.msg
 )
 
 generate_messages(

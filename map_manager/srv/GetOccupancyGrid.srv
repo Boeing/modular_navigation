@@ -1,6 +1,6 @@
 # an empty map will use the currently loaded map
 string map_name
 ---
-nav_msgs/OccupancyGrid map
+nav_msgs/OccupancyGrid grid
 bool success
 string message

@@ -5,42 +5,26 @@ find_package(catkin REQUIRED COMPONENTS
     geometry_msgs
     message_generation
     nav_msgs
+    hd_map
 )
 
 catkin_python_setup()
 
-add_message_files(FILES
-    Map.msg
-    Marker.msg
-    Markers.msg
-    Zone.msg
-    Zones.msg
-)
-
 add_service_files(FILES
     AddMap.srv
-    AddMarker.srv
-    AddZone.srv
     DeleteMap.srv
-    DeleteMarker.srv
-    DeleteZone.srv
     GetMap.srv
-    GetMarker.srv
     GetOccupancyGrid.srv
-    GetZone.srv
     ListMaps.srv
-    ListMarkers.srv
-    ListZones.srv
     SetActiveMap.srv
     UpdateMap.srv
-    UpdateMarker.srv
-    UpdateZone.srv
 )
 
 generate_messages(
     DEPENDENCIES
         geometry_msgs
         nav_msgs
+        hd_map
 )
 
 catkin_package(
@@ -48,6 +32,7 @@ catkin_package(
         geometry_msgs
         message_runtime
         nav_msgs
+        hd_map
 )
 
 catkin_install_python(PROGRAMS

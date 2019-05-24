@@ -1,5 +1,5 @@
 ---
 string active_map
-map_manager/Map[] maps
+hd_map/Map[] maps
 bool success
 string message

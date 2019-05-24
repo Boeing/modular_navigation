@@ -2,8 +2,8 @@
 string map_name
 
 # Update fields
-string description
-nav_msgs/OccupancyGrid map
+hd_map/Map map
+nav_msgs/OccupancyGrid grid
 ---
 bool success
 string message

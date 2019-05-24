@@ -1,1 +1,0 @@
-map_manager/Marker[] markers

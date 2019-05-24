@@ -1,6 +1,0 @@
-# an empty map will use the currently loaded map
-string map_name
----
-map_manager/Marker[] markers
-bool success
-string message

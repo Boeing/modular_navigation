@@ -1,6 +1,6 @@
 # an empty map will use the currently loaded map
 string map_name
 ---
-map_manager/Map map
+hd_map/Map map
 bool success
 string message

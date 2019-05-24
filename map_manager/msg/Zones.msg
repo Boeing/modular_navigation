@@ -1,1 +1,0 @@
-map_manager/Zone[] zones

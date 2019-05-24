@@ -22,11 +22,11 @@ from nav_msgs.msg import MapMetaData as MapMetaDataMsg
 from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
 from std_msgs.msg import Header
 
-from map_manager.msg import Map as MapMsg
-from map_manager.msg import Marker as MarkerMsg
-from map_manager.msg import Markers as MarkersMsg
-from map_manager.msg import Zone as ZoneMsg
-from map_manager.msg import Zones as ZonesMsg
+from hd_map.msg import Map as MapMsg
+from hd_map.msg import Marker as MarkerMsg
+from hd_map.msg import Markers as MarkersMsg
+from hd_map.msg import Zone as ZoneMsg
+from hd_map.msg import Zones as ZonesMsg
 
 logger = logging.getLogger(__name__)
 

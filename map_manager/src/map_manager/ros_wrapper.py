@@ -1,43 +1,29 @@
 import logging
 import traceback
-import typing
 from functools import wraps
 
 import geometry_msgs.msg
 import numpy
 import rospy
 import std_msgs.msg
+import typing
 from PIL import Image
 from mongoengine import DoesNotExist, ValidationError
-from pymongo import MongoClient
+from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
+from std_msgs.msg import String
 from tf2_msgs.msg import TFMessage
 
-from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
-from nav_msgs.msg import MapMetaData as MapMetaDataMsg
-
-from std_msgs.msg import String
-
+from hd_map.msg import Map as MapMsg
+from hd_map.msg import Marker as MarkerMsg
+from hd_map.msg import Zone as ZoneMsg
 from map_manager.documents import Map, Zone, Marker, OccupancyGrid, Pose, Point, Quaternion
-from map_manager.msg import Map as MapMsg
-from map_manager.msg import Markers as MarkersMsg
-from map_manager.msg import Zones as ZonesMsg
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
-from map_manager.srv import AddMarker, AddMarkerRequest, AddMarkerResponse
-from map_manager.srv import AddZone, AddZoneRequest, AddZoneResponse
 from map_manager.srv import DeleteMap, DeleteMapRequest, DeleteMapResponse
-from map_manager.srv import DeleteMarker, DeleteMarkerRequest, DeleteMarkerResponse
-from map_manager.srv import DeleteZone, DeleteZoneRequest, DeleteZoneResponse
 from map_manager.srv import GetMap, GetMapRequest, GetMapResponse
-from map_manager.srv import GetMarker, GetMarkerRequest, GetMarkerResponse
 from map_manager.srv import GetOccupancyGrid, GetOccupancyGridRequest, GetOccupancyGridResponse
-from map_manager.srv import GetZone, GetZoneRequest, GetZoneResponse
 from map_manager.srv import ListMaps, ListMapsRequest, ListMapsResponse
-from map_manager.srv import ListMarkers, ListMarkersRequest, ListMarkersResponse
-from map_manager.srv import ListZones, ListZonesRequest, ListZonesResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
 from map_manager.srv import UpdateMap, UpdateMapResponse, UpdateMapRequest
-from map_manager.srv import UpdateMarker, UpdateMarkerResponse, UpdateMarkerRequest
-from map_manager.srv import UpdateZone, UpdateZoneResponse, UpdateZoneRequest
 
 logger = logging.getLogger(__name__)
 
@@ -73,27 +59,17 @@ class RosWrapper(object):
         self.__map_name = None
 
         self.__add_map = rospy.Service('~add_map', AddMap, handler=self.__add_map_cb)
-        self.__add_marker = rospy.Service('~add_marker', AddMarker, handler=self.__add_marker_cb)
-        self.__add_zone = rospy.Service('~add_zone', AddZone, handler=self.__add_zone_cb)
 
         self.__delete_map = rospy.Service('~delete_map', DeleteMap, handler=self.__delete_map_cb)
-        self.__delete_marker = rospy.Service('~delete_marker', DeleteMarker, handler=self.__delete_marker_cb)
-        self.__delete_zone = rospy.Service('~delete_zone', DeleteZone, handler=self.__delete_zone_cb)
 
         self.__get_map = rospy.Service('~get_map', GetMap, handler=self.__get_map_cb)
-        self.__get_marker = rospy.Service('~get_marker', GetMarker, handler=self.__get_marker_cb)
         self.__get_og = rospy.Service('~get_occupancy_grid', GetOccupancyGrid, handler=self.__get_occupancy_grid_cb)
-        self.__get_zone = rospy.Service('~get_zone', GetZone, handler=self.__get_zone_cb)
 
         self.__list_map = rospy.Service('~list_maps', ListMaps, handler=self.__list_maps_cb)
-        self.__list_marker = rospy.Service('~list_markers', ListMarkers, handler=self.__list_markers_cb)
-        self.__list_zone = rospy.Service('~list_zones', ListZones, handler=self.__list_zones_cb)
 
         self.__list_zone = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
 
         self.__update_map = rospy.Service('~update_map', UpdateMap, handler=self.__update_map_cb)
-        self.__update_marker = rospy.Service('~update_marker', UpdateMarker, handler=self.__update_marker_cb)
-        self.__update_zone = rospy.Service('~update_zone', UpdateZone, handler=self.__update_zone_cb)
 
         # Initialise a unit world->map transform
         self.__static_tf_pub = rospy.Publisher("/tf_static", TFMessage, queue_size=100, latch=True)
@@ -117,9 +93,6 @@ class RosWrapper(object):
         #
         self.__active_map_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__og_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__map_meta_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__markers_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__zones_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__map_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__init_publishers()
 
@@ -148,24 +121,6 @@ class RosWrapper(object):
             latch=True,
             queue_size=1000
         )
-        self.__map_meta_pub = rospy.Publisher(
-            name='~map_metadata',
-            data_class=MapMetaDataMsg,
-            latch=True,
-            queue_size=1000
-        )
-        self.__markers_pub = rospy.Publisher(
-            name='~markers',
-            data_class=MarkersMsg,
-            latch=True,
-            queue_size=1000
-        )
-        self.__zones_pub = rospy.Publisher(
-            name='~zones',
-            data_class=ZonesMsg,
-            latch=True,
-            queue_size=1000
-        )
         self.__map_pub = rospy.Publisher(
             name='~map',
             data_class=MapMsg,
@@ -180,138 +135,79 @@ class RosWrapper(object):
     @exception_wrapper(AddMapResponse)
     def __add_map_cb(self, req):
         # type: (AddMapRequest) -> AddMapResponse
-        logger.info('Request to add a new Map: {}'.format(req.name))
+        logger.info('Request to add a new Map: {}'.format(req.map.name))
 
-        if len(req.map.data) <= 0:
+        if len(req.grid.data) <= 0:
             return AddMapResponse(
                 success=False,
                 message='No map data'
             )
 
+        assert isinstance(req.grid, OccupancyGridMsg)
         og_map = OccupancyGrid()
-        og_map.width = req.map.info.width
-        og_map.height = req.map.info.height
-        og_map.resolution = req.map.info.resolution
+        og_map.width = req.grid.info.width
+        og_map.height = req.grid.info.height
+        og_map.resolution = req.grid.info.resolution
         og_map.origin = Pose(
             position=Point(
-                x=req.map.info.origin.position.x,
-                y=req.map.info.origin.position.y,
-                z=req.map.info.origin.position.z),
+                x=req.grid.info.origin.position.x,
+                y=req.grid.info.origin.position.y,
+                z=req.grid.info.origin.position.z),
             quaternion=Quaternion(
-                x=req.map.info.origin.orientation.x,
-                y=req.map.info.origin.orientation.y,
-                z=req.map.info.origin.orientation.z,
-                w=req.map.info.origin.orientation.w
+                x=req.grid.info.origin.orientation.x,
+                y=req.grid.info.origin.orientation.y,
+                z=req.grid.info.origin.orientation.z,
+                w=req.grid.info.origin.orientation.w
             )
         )
-        im = Image.fromarray(numpy.asarray(req.map.data, dtype=numpy.uint8)
-                             .reshape(req.map.info.height, req.map.info.width))
+        im = Image.fromarray(numpy.asarray(req.grid.data, dtype=numpy.uint8)
+                             .reshape(req.grid.info.height, req.grid.info.width))
         og_map.image.new_file()
         im.save(fp=og_map.image, format='PPM')
         og_map.image.close()
 
         obj = Map(
-            name=req.name,
-            description=req.description,
+            name=req.map.name,
+            description=req.map.description,
             map=og_map
         )
-        obj.save()
 
-        self.__load_map(map_name=req.name)
-
-        return AddMapResponse(
-            success=True
-        )
-
-    @exception_wrapper(AddMarkerResponse)
-    def __add_marker_cb(self, req):
-        # type: (AddMarkerRequest) -> AddMarkerResponse
-        logger.info('Request to add a new Marker: {}'.format(req.name))
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            # First check if there is an existing Marker with this name
-            if any([m.name == req.name for m in map_obj.markers]):
-                return AddMarkerResponse(
-                    success=False,
-                    message='Marker {} already exists'.format(req.name)
-                )
-
-        except DoesNotExist:
-            pass
-
-        obj = Marker(
-            name=req.name,
-            description=req.description,
-            marker_type=req.marker_type,
-            pose=Pose(
-                position=Point(
-                    x=req.pose.position.x,
-                    y=req.pose.position.y,
-                    z=req.pose.position.z
-                ),
-                quaternion=Quaternion(
-                    w=req.pose.orientation.w,
-                    x=req.pose.orientation.x,
-                    y=req.pose.orientation.y,
-                    z=req.pose.orientation.z
+        for marker in req.map.markers:
+            assert isinstance(marker, MarkerMsg)
+            m_obj = Marker(
+                name=marker.name,
+                description=marker.description,
+                marker_type=marker.marker_type,
+                pose=Pose(
+                    position=Point(
+                        x=marker.pose.position.x,
+                        y=marker.pose.position.y,
+                        z=marker.pose.position.z
+                    ),
+                    quaternion=Quaternion(
+                        w=marker.pose.orientation.w,
+                        x=marker.pose.orientation.x,
+                        y=marker.pose.orientation.y,
+                        z=marker.pose.orientation.z
+                    )
                 )
             )
-        )
-        map_obj.markers.append(obj)
-        map_obj.save()
+            obj.markers.append(m_obj)
 
-        if req.map_name == self.__map_name:
-            self.__publish_markers()
-            self.__publish_map()
+        for zone in req.map.zones:
+            assert isinstance(zone, ZoneMsg)
+            obj = Zone(
+                name=zone.name,
+                description=zone.description,
+                zone_type=zone.zone_type,
+                polygon=[Point(x=point.x, y=point.y, z=point.z) for point in zone.polygon.points]
+            )
 
-        return AddMarkerResponse(
-            success=True
-        )
+        obj.save()
 
-    @exception_wrapper(AddZoneResponse)
-    def __add_zone_cb(self, req):
-        # type: (AddZoneRequest) -> AddZoneResponse
-        logger.info('Request to add a new Zone: {}'.format(req.name))
+        self.__load_map(map_name=req.map.name)
 
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            # First check if there is an existing Zone with this name
-            if any([z.name == req.name for z in map_obj.zones]):
-                return AddZoneResponse(
-                    success=False,
-                    message='Zone {} already exists'.format(req.name)
-                )
-
-        except DoesNotExist:
-            pass
-
-        obj = Zone(
-            name=req.name,
-            description=req.description,
-            zone_type=req.zone_type,
-            polygon=[Point(x=point.x, y=point.y, z=point.z) for point in req.polygon.points]
-        )
-        map_obj.zones.append(obj)
-        map_obj.save()
-
-        if req.map_name == self.__map_name:
-            self.__publish_zones()
-            self.__publish_map()
-
-        return AddZoneResponse(
+        return AddMapResponse(
             success=True
         )
 
@@ -332,68 +228,6 @@ class RosWrapper(object):
             self.__map_name = None
 
         return DeleteMapResponse(
-            success=True
-        )
-
-    @exception_wrapper(DeleteMarkerResponse)
-    def __delete_marker_cb(self, req):
-        # type: (DeleteMarkerRequest) -> DeleteMarkerResponse
-        logger.info('Request to delete Marker: {}'.format(req.name))
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            marker = next(m for m in map_obj.markers if m.name == req.name)  # type: Marker
-        except StopIteration:
-            return DeleteMarkerResponse(
-                success=False,
-                message='No Marker matching {}'.format(req.name)
-            )
-
-        map_obj.markers.remove(marker)
-        map_obj.save()
-
-        if req.map_name == self.__map_name:
-            self.__publish_markers()
-            self.__publish_map()
-
-        return DeleteMarkerResponse(
-            success=True
-        )
-
-    @exception_wrapper(DeleteZoneResponse)
-    def __delete_zone_cb(self, req):
-        # type: (DeleteZoneRequest) -> DeleteZoneResponse
-        logger.info('Request to delete Zone: {}'.format(req.name))
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            zone = next(z for z in map_obj.zones if z.name == req.name)  # type: Zone
-        except StopIteration:
-            return DeleteZoneResponse(
-                success=False,
-                message='No Zone matching {}'.format(req.name)
-            )
-
-        map_obj.zones.remove(zone)
-        map_obj.save()
-
-        if req.map_name == self.__map_name:
-            self.__publish_zones()
-            self.__publish_map()
-
-        return DeleteZoneResponse(
             success=True
         )
 
@@ -433,54 +267,6 @@ class RosWrapper(object):
             success=True
         )
 
-    @exception_wrapper(GetMarkerResponse)
-    def __get_marker_cb(self, req):
-        # type: (GetMarkerRequest) -> GetMarkerResponse
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            marker = next(m for m in map_obj.markers if m.name == req.name)  # type: Marker
-        except StopIteration:
-            return GetMarkerResponse(
-                success=False,
-                message='No Marker matching {}'.format(req.name)
-            )
-
-        return GetMarkerResponse(
-            marker=marker.get_msg(),
-            success=True
-        )
-
-    @exception_wrapper(GetZoneResponse)
-    def __get_zone_cb(self, req):
-        # type: (GetZoneRequest) -> GetZoneResponse
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            zone = next(z for z in map_obj.zones if z.name == req.name)  # type: Zone
-        except StopIteration:
-            return GetZoneResponse(
-                success=False,
-                message='No Zone matching {}'.format(req.name)
-            )
-
-        return GetZoneResponse(
-            zone=zone.get_msg(),
-            success=True
-        )
-
     #
     # LIST callbacks
     #
@@ -491,38 +277,6 @@ class RosWrapper(object):
         return ListMapsResponse(
             active_map=self.__map_name if self.__map_name else '',
             maps=[obj.get_msg() for obj in Map.objects],
-            success=True
-        )
-
-    @exception_wrapper(ListMarkersResponse)
-    def __list_markers_cb(self, req):
-        # type: (ListMarkersRequest) -> ListMarkersResponse
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        return ListMarkersResponse(
-            markers=[obj.get_msg() for obj in map_obj.markers],
-            success=True
-        )
-
-    @exception_wrapper(ListZonesResponse)
-    def __list_zones_cb(self, req):
-        # type: (ListZonesRequest) -> ListZonesResponse
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        return ListZonesResponse(
-            zones=[obj.get_msg() for obj in map_obj.zones],
             success=True
         )
 
@@ -558,122 +312,83 @@ class RosWrapper(object):
 
         map_obj = Map.objects(name=req.map_name).get()
 
-        if len(req.map.data) <= 0:
-            return UpdateMapResponse(
-                success=False,
-                message='No map data'
+        if req.map.data:
+            og_map = OccupancyGrid()
+            og_map.width = req.map.info.width
+            og_map.height = req.map.info.height
+            og_map.resolution = req.map.info.resolution
+            og_map.origin = Pose(
+                position=Point(
+                    x=req.map.info.origin.position.x,
+                    y=req.map.info.origin.position.y,
+                    z=req.map.info.origin.position.z),
+                quaternion=Quaternion(
+                    x=req.map.info.origin.orientation.x,
+                    y=req.map.info.origin.orientation.y,
+                    z=req.map.info.origin.orientation.z,
+                    w=req.map.info.origin.orientation.w
+                )
             )
+            im = Image.fromarray(numpy.asarray(req.map.data, dtype=numpy.uint8)
+                                 .reshape(req.map.info.height, req.map.info.width))
+            og_map.image.new_file()
+            im.save(fp=og_map.image, format='PPM')
+            og_map.image.close()
+            map_obj.map = og_map
 
-        og_map = OccupancyGrid()
-        og_map.width = req.map.info.width
-        og_map.height = req.map.info.height
-        og_map.resolution = req.map.info.resolution
-        og_map.origin = Pose(
-            position=Point(
-                x=req.map.info.origin.position.x,
-                y=req.map.info.origin.position.y,
-                z=req.map.info.origin.position.z),
-            quaternion=Quaternion(
-                x=req.map.info.origin.orientation.x,
-                y=req.map.info.origin.orientation.y,
-                z=req.map.info.origin.orientation.z,
-                w=req.map.info.origin.orientation.w
+        for marker_msg in req.map.markers:
+            assert isinstance(marker_msg, MarkerMsg)
+            try:
+                marker = next(m for m in map_obj.markers if m.name == marker_msg.name)  # type: Marker
+            except StopIteration:
+                return UpdateMapResponse(
+                    success=False,
+                    message='No Marker matching {}'.format(marker_msg.name)
+                )
+
+            marker.description = marker_msg.description
+            marker.marker_type = marker_msg.marker_type
+            marker.pose = Pose(
+                position=Point(
+                    x=marker_msg.pose.position.x,
+                    y=marker_msg.pose.position.y,
+                    z=marker_msg.pose.position.z
+                ),
+                quaternion=Quaternion(
+                    w=marker_msg.pose.orientation.w,
+                    x=marker_msg.pose.orientation.x,
+                    y=marker_msg.pose.orientation.y,
+                    z=marker_msg.pose.orientation.z
+                )
             )
-        )
-        im = Image.fromarray(numpy.asarray(req.map.data, dtype=numpy.uint8)
-                             .reshape(req.map.info.height, req.map.info.width))
-        og_map.image.new_file()
-        im.save(fp=og_map.image, format='PPM')
-        og_map.image.close()
+            marker.save()
 
-        map_obj.description = req.description
-        map_obj.map = og_map
+        for zone_msg in req.map.zones:
+            assert isinstance(zone_msg, ZoneMsg)
+            try:
+                zone = next(z for z in map_obj.zones if z.name == zone_msg.name)  # type: Zone
+            except StopIteration:
+                return UpdateMapResponse(
+                    success=False,
+                    message='No Zone matching {}'.format(zone_msg.name)
+                )
+
+            zone.description = zone_msg.description
+            zone.zone_type = zone_msg.zone_type
+            zone.polygon = []
+            for point in zone_msg.polygon.points:
+                zone.polygon.append(Point(x=point.x, y=point.y, z=point.z))
+            zone.save()
+
+        if req.map.description:
+            map_obj.description = req.map.description
+
         map_obj.save()
 
         if req.map_name == self.__map_name:
             self.__publish_map()
 
         return UpdateMapResponse(
-            success=True
-        )
-
-    @exception_wrapper(UpdateMarkerResponse)
-    def __update_marker_cb(self, req):
-        # type: (UpdateMarkerRequest) -> UpdateMarkerResponse
-        logger.info('Request to update Marker: {}'.format(req.name))
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            marker = next(m for m in map_obj.markers if m.name == req.name)  # type: Marker
-        except StopIteration:
-            return UpdateMarkerResponse(
-                success=False,
-                message='No Marker matching {}'.format(req.name)
-            )
-
-        marker.description = req.description
-        marker.marker_type = req.marker_type
-        marker.pose = Pose(
-            position=Point(
-                x=req.pose.position.x,
-                y=req.pose.position.y,
-                z=req.pose.position.z
-            ),
-            quaternion=Quaternion(
-                w=req.pose.orientation.w,
-                x=req.pose.orientation.x,
-                y=req.pose.orientation.y,
-                z=req.pose.orientation.z
-            )
-        )
-        marker.save()
-
-        if req.map_name == self.__map_name:
-            self.__publish_markers()
-            self.__publish_map()
-
-        return UpdateMarkerResponse(
-            success=True
-        )
-
-    @exception_wrapper(UpdateZoneResponse)
-    def __update_zone_cb(self, req):
-        # type: (UpdateZoneRequest) -> UpdateZoneResponse
-        logger.info('Request to update Zone: {}'.format(req.name))
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        try:
-            zone = next(z for z in map_obj.zones if z.name == req.name)  # type: Zone
-        except StopIteration:
-            return UpdateZoneResponse(
-                success=False,
-                message='No Zone matching {}'.format(req.name)
-            )
-
-        zone.description = req.description
-        zone.zone_type = req.zone_type
-        zone.polygon = []
-        for point in req.polygon.points:
-            zone.polygon.append(Point(x=point.x, y=point.y, z=point.z))
-        zone.save()
-
-        if req.map_name == self.__map_name:
-            self.__publish_zones()
-            self.__publish_map()
-
-        return UpdateZoneResponse(
             success=True
         )
 
@@ -691,7 +406,6 @@ class RosWrapper(object):
         self.__active_map_pub.publish(String(data=self.__map_name))
         self.__publish_map()
         self.__publish_occupancy_grid()
-        self.__publish_zones()
 
     def __publish_map(self):
         logger.info('Publishing Map')
@@ -703,26 +417,6 @@ class RosWrapper(object):
         except Exception as e:
             logger.error('Exception publishing Map: {} - {}'.format(e, traceback.format_exc()))
 
-    def __publish_markers(self):
-        logger.info('Publishing Markers')
-
-        try:
-            map_obj = Map.objects(name=self.__map_name).get()  # type: Map
-            self.__markers_pub.publish(map_obj.get_markers_msg())
-
-        except Exception as e:
-            logger.error('Exception publishing Markers: {} - {}'.format(e, traceback.format_exc()))
-
-    def __publish_zones(self):
-        logger.info('Publishing Zones')
-
-        try:
-            map_obj = Map.objects(name=self.__map_name).get()  # type: Map
-            self.__zones_pub.publish(map_obj.get_zones_msg())
-
-        except Exception as e:
-            logger.error('Exception publishing Zones: {} - {}'.format(e, traceback.format_exc()))
-
     def __publish_occupancy_grid(self):
         logger.info('Publishing Occupancy Grid')
 
@@ -731,7 +425,6 @@ class RosWrapper(object):
             map_msg = map_obj.map.get_occupancy_grid_msg()
 
             self.__og_pub.publish(map_msg)
-            self.__map_meta_pub.publish(map_msg.info)
 
         except Exception as e:
             logger.error('Exception publishing OccupancyGrid: {} - {}'.format(e, traceback.format_exc()))
