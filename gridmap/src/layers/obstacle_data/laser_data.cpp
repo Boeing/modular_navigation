@@ -19,8 +19,8 @@ void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     ros::NodeHandle nh("~/" + name_);
     ros::NodeHandle g_nh;
 
-    const std::string topic =
-        get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/scan", XmlRpc::XmlRpcValue::TypeString);
+    const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/scan",
+                                                                        XmlRpc::XmlRpcValue::TypeString);
     hit_probability_log_ = logodds(
         get_config_with_default_warn<double>(parameters, "hit_probability", 0.8, XmlRpc::XmlRpcValue::TypeDouble));
     miss_probability_log_ = logodds(
@@ -45,7 +45,6 @@ void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
 void LaserData::onMapDataChanged()
 {
-
 }
 
 LaserData::~LaserData()
@@ -74,8 +73,8 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
         const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
 
         // Check sensor is on map
-        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x()
-                || sensor_pt_map.y() < 0 || sensor_pt_map.y() >= map_data_->dimensions().size().y())
+        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+            sensor_pt_map.y() >= map_data_->dimensions().size().y())
         {
             ROS_WARN("Laser sensor is not on gridmap");
             return;
@@ -115,18 +114,17 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
                 const Eigen::Vector2d pt_2d(pt.x(), pt.y());
                 Eigen::Array2i ray_end = map_data_->dimensions().getCellIndex(pt_2d);
                 clipRayEnd(sensor_pt_map, ray_end, map_data_->dimensions().size());
-                raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(), map_data_->dimensions().size().x(), cell_raytrace_range);
+                raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
+                             map_data_->dimensions().size().x(), cell_raytrace_range);
                 if (range < static_cast<double>(message->range_max) && range < obstacle_range_)
                 {
-                    map_data_->update(ray_end, - miss_probability_log_);
+                    map_data_->update(ray_end, -miss_probability_log_);
                     map_data_->update(ray_end, hit_probability_log_);
                 }
             }
         }
-
     }
     else
         ++sub_sample_count_;
 }
-
 }

@@ -24,10 +24,14 @@ TEST(test_plugin, test_plugin)
     cv::Mat cv_im = cv::Mat(map_data->sizeY(), map_data->sizeX(), CV_64F,
                             reinterpret_cast<void*>(const_cast<double*>(map_data->data())));
 
-    cv::circle(cv_im, cv::Point(size_x / 4.0, size_y / 2), 116, cv::Scalar(map_data->clampingThresMaxLog()), -1, cv::LINE_8);
-    cv::circle(cv_im, cv::Point(3 * size_x / 4.0, size_y / 2), 80, cv::Scalar(map_data->clampingThresMaxLog()), -1, cv::LINE_8);
-    cv::circle(cv_im, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(map_data->clampingThresMaxLog()), -1, cv::LINE_8);
-    cv::circle(cv_im, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(map_data->clampingThresMaxLog()), -1, cv::LINE_8);
+    cv::circle(cv_im, cv::Point(size_x / 4.0, size_y / 2), 116, cv::Scalar(map_data->clampingThresMaxLog()), -1,
+               cv::LINE_8);
+    cv::circle(cv_im, cv::Point(3 * size_x / 4.0, size_y / 2), 80, cv::Scalar(map_data->clampingThresMaxLog()), -1,
+               cv::LINE_8);
+    cv::circle(cv_im, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(map_data->clampingThresMaxLog()), -1,
+               cv::LINE_8);
+    cv::circle(cv_im, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(map_data->clampingThresMaxLog()), -1,
+               cv::LINE_8);
 
     auto t0 = std::chrono::steady_clock::now();
 
@@ -40,13 +44,17 @@ TEST(test_plugin, test_plugin)
     plugin.initialize(params, map_data);
 
     const Eigen::Isometry2d start = Eigen::Translation2d(0, -(size_y / 3) * resolution) * Eigen::Rotation2Dd(0);
-    const Eigen::Isometry2d goal = Eigen::Translation2d(-(size_x / 4) * resolution, (size_y / 3) * resolution) * Eigen::Rotation2Dd(1.0);
+    const Eigen::Isometry2d goal =
+        Eigen::Translation2d(-(size_x / 4) * resolution, (size_y / 3) * resolution) * Eigen::Rotation2Dd(1.0);
 
     t0 = std::chrono::steady_clock::now();
 
     const auto result = plugin.plan(start, goal);
 
-    std::cout << "planner took: " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count() << std::endl;
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
 
     std::cout << "path size: " << result.path.nodes.size() << std::endl;
     std::cout << "path cost: " << result.cost << std::endl;

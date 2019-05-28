@@ -18,21 +18,20 @@ struct Point2D
 
 inline int min3(int x, int y, int z)
 {
-  return x < y ? (x < z ? x : z) : (y < z ? y : z);
+    return x < y ? (x < z ? x : z) : (y < z ? y : z);
 }
 
 inline int max3(int x, int y, int z)
 {
-  return x > y ? (x > z ? x : z) : (y > z ? y : z);
+    return x > y ? (x > z ? x : z) : (y > z ? y : z);
 }
 
 inline int orient2d(const Point2D& a, const Point2D& b, const Point2D& c)
 {
-    return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
+    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
-template <class ActionType>
-void drawTri(ActionType at, const Point2D& v0, const Point2D& v1, const Point2D& v2)
+template <class ActionType> void drawTri(ActionType at, const Point2D& v0, const Point2D& v1, const Point2D& v2)
 {
     // Compute triangle bounding box
     int minX = min3(v0.x, v1.x, v2.x);
@@ -46,7 +45,7 @@ void drawTri(ActionType at, const Point2D& v0, const Point2D& v1, const Point2D&
     int A20 = v2.y - v0.y, B20 = v0.x - v2.x;
 
     // Barycentric coordinates at minX/minY corner
-    Point2D p = { minX, minY };
+    Point2D p = {minX, minY};
     int w0_row = orient2d(v1, v2, p);
     int w1_row = orient2d(v2, v0, p);
     int w2_row = orient2d(v0, v1, p);
@@ -79,10 +78,8 @@ void drawTri(ActionType at, const Point2D& v0, const Point2D& v1, const Point2D&
 }
 
 template <class ActionType>
-inline void rasterPolygonFill(ActionType at,
-                              const std::vector<Eigen::Array2i>& polygon,
-                              const int min_x, const int max_x,
-                              const int min_y, const int max_y)
+inline void rasterPolygonFill(ActionType at, const std::vector<Eigen::Array2i>& polygon, const int min_x,
+                              const int max_x, const int min_y, const int max_y)
 {
     int n_nodes;
     std::size_t j;
@@ -97,8 +94,8 @@ inline void rasterPolygonFill(ActionType at,
                 (polygon[j].y() < cell_y && polygon[i].y() >= cell_y))
             {
                 nodes_x[n_nodes++] = (static_cast<int>(polygon[i].x() + static_cast<double>(cell_y - polygon[i].y()) /
-                                                                        (polygon[j].y() - polygon[i].y()) *
-                                                                        (polygon[j].x() - polygon[i].x())));
+                                                                            (polygon[j].y() - polygon[i].y()) *
+                                                                            (polygon[j].x() - polygon[i].x())));
             }
             j = i;
         }
@@ -129,7 +126,8 @@ inline std::vector<Eigen::Array2i> connectPolygon(const std::vector<Eigen::Array
     std::vector<Eigen::Array2i> connected;
     for (int i = 0; i < static_cast<int>(polygon.size()) - 1; ++i)
     {
-        std::vector<Eigen::Array2i> segment = drawLine(polygon[i].x(), polygon[i].y(), polygon[i + 1].x(), polygon[i + 1].y());
+        std::vector<Eigen::Array2i> segment =
+            drawLine(polygon[i].x(), polygon[i].y(), polygon[i + 1].x(), polygon[i + 1].y());
         if (!segment.empty())
         {
             if (!connected.empty() && (segment.front() == connected.back()).all())
@@ -145,7 +143,6 @@ inline std::vector<Eigen::Array2i> connectPolygon(const std::vector<Eigen::Array
     }
     return connected;
 }
-
 }
 
 #endif

@@ -6,8 +6,10 @@
 namespace sim_band_planner
 {
 
-void simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap, const double min_distance, const double internal_force_gain, const double external_force_gain, const double rotation_factor,
-              const double velocity_decay, const double alpha_start, const double alpha_decay, const double max_distance)
+void simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap,
+              const double min_distance, const double internal_force_gain, const double external_force_gain,
+              const double rotation_factor, const double velocity_decay, const double alpha_start,
+              const double alpha_decay, const double max_distance)
 {
     updateDistances(path, distance_field, max_distance);
     refine(path, distance_field, min_distance, min_overlap);
@@ -23,7 +25,8 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
         std::vector<Eigen::Vector3d> forces(path.nodes.size(), Eigen::Vector3d::Zero());
         for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
         {
-            forces[i] = force(path.nodes[i - 1], path.nodes[i], path.nodes[i + 1], internal_force_gain, external_force_gain, rotation_factor);
+            forces[i] = force(path.nodes[i - 1], path.nodes[i], path.nodes[i + 1], internal_force_gain,
+                              external_force_gain, rotation_factor);
         }
 
         // a = f / m
@@ -45,7 +48,7 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
 
         refine(path, distance_field, min_distance, min_overlap);
 
-        alpha -= alpha*alpha_decay;
+        alpha -= alpha * alpha_decay;
     }
 }
 
@@ -105,8 +108,10 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
             const double fraction = iter_exp / distance_to_next;
 
             Node new_node;
-            new_node.pose = Eigen::Translation2d(iter->pose.translation() + fraction * (next->pose.translation() - iter->pose.translation()))
-                    * Eigen::Rotation2Dd(iter->pose.linear()).slerp(fraction, Eigen::Rotation2Dd(next->pose.linear()));
+            new_node.pose =
+                Eigen::Translation2d(iter->pose.translation() +
+                                     fraction * (next->pose.translation() - iter->pose.translation())) *
+                Eigen::Rotation2Dd(iter->pose.linear()).slerp(fraction, Eigen::Rotation2Dd(next->pose.linear()));
 
             {
                 unsigned int mx;
@@ -200,14 +205,16 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
     }
 }
 
-Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain, const double external_force_gain, const double rotation_factor)
+Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
+                      const double external_force_gain, const double rotation_factor)
 {
     const auto internal_force = internalForce(prev, curr, next, internal_force_gain, rotation_factor);
     const auto external_force = externalForce(curr, external_force_gain);
     return internal_force + external_force;
 }
 
-Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain, const double rotation_factor)
+Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
+                              const double rotation_factor)
 {
     const Eigen::Vector2d d_1 = prev.pose.translation() - curr.pose.translation();
     const Eigen::Vector2d d_2 = next.pose.translation() - curr.pose.translation();
@@ -233,7 +240,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         const double exp_1 = d_1.norm() < dis_1 ? 0.001 * std::exp(1.0 * (dis_1 - d_1.norm())) : 0.0;
 
         // repelling force
-        force.topRows(2) += - exp_1 * d_1_norm;
+        force.topRows(2) += -exp_1 * d_1_norm;
 
         // attracting force
         force.topRows(2) += 0.004 * (d_1 * gap_1).normalized();
@@ -243,7 +250,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         const double exp_2 = d_2.norm() < dis_2 ? 0.001 * std::exp(1.0 * (dis_2 - d_2.norm())) : 0.0;
 
         // repelling force
-        force.topRows(2) += - exp_2 * d_2_norm;
+        force.topRows(2) += -exp_2 * d_2_norm;
 
         // attracting force
         force.topRows(2) += 0.004 * (d_2 * gap_2).normalized();
@@ -266,11 +273,12 @@ Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain
 {
     Eigen::Vector3d force;
     const double avoid_distance = 0.1;
-    const double decay = (curr.distance > avoid_distance ? std::exp(-curr.distance - avoid_distance) : 1.0 / avoid_distance) * std::min(1.0, curr.distance_to_saddle);
+    const double decay =
+        (curr.distance > avoid_distance ? std::exp(-curr.distance - avoid_distance) : 1.0 / avoid_distance) *
+        std::min(1.0, curr.distance_to_saddle);
     force[0] = -external_force_gain * curr.gradient.x() * decay;
     force[1] = -external_force_gain * curr.gradient.y() * decay;
     force[2] = 0.0;
     return force;
 }
-
 }

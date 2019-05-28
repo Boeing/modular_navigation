@@ -1,5 +1,5 @@
-#include <pure_pursuit_controller/plugin.h>
 #include <navigation_interface/params.h>
+#include <pure_pursuit_controller/plugin.h>
 
 #include <pluginlib/class_list_macros.h>
 
@@ -13,12 +13,14 @@ namespace pure_pursuit_controller
 namespace
 {
 
-std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose, const navigation_interface::Trajectory& trajectory, const double lookahead)
+std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
+                                           const navigation_interface::Trajectory& trajectory, const double lookahead)
 {
     std::vector<double> distances;
-    std::transform(trajectory.states.begin(), trajectory.states.end(), std::back_inserter(distances), [&pose](const navigation_interface::KinodynamicState& state){
-        return (state.pose.translation() - pose.translation()).norm();
-    });
+    std::transform(trajectory.states.begin(), trajectory.states.end(), std::back_inserter(distances),
+                   [&pose](const navigation_interface::KinodynamicState& state) {
+                       return (state.pose.translation() - pose.translation()).norm();
+                   });
     auto it = std::min_element(distances.begin(), distances.end());
     long dist = std::distance(distances.begin(), it);
     {
@@ -30,8 +32,9 @@ std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose, const 
 
         if (dist < static_cast<int>(trajectory.states.size()) - 1)
         {
-            const double fut_seg = (trajectory.states[dist+1].pose.translation() - trajectory.states[dist].pose.translation()).norm();
-            if (distances[dist+1] < fut_seg)
+            const double fut_seg =
+                (trajectory.states[dist + 1].pose.translation() - trajectory.states[dist].pose.translation()).norm();
+            if (distances[dist + 1] < fut_seg)
             {
                 it++;
                 dist = std::distance(distances.begin(), it);
@@ -84,7 +87,10 @@ boost::optional<navigation_interface::Trajectory> PurePursuitController::traject
         return {};
 }
 
-navigation_interface::Controller::Result PurePursuitController::control(const ros::SteadyTime& time, const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom)
+navigation_interface::Controller::Result
+    PurePursuitController::control(const ros::SteadyTime& time,
+                                   const navigation_interface::KinodynamicState& robot_state,
+                                   const Eigen::Isometry2d& map_to_odom)
 {
     navigation_interface::Controller::Result result;
     result.command = Eigen::Vector3d::Zero();
@@ -107,7 +113,9 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
     std::size_t target_i = closest_i.first;
 
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
-    const double angle_to_goal = std::abs(Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * trajectory_->states.back().pose.linear()).smallestAngle());
+    const double angle_to_goal =
+        std::abs(Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * trajectory_->states.back().pose.linear())
+                     .smallestAngle());
 
     if (dist_to_goal < goal_radius_)
     {
@@ -115,16 +123,20 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
     }
 
     Eigen::Vector3d control_error;
-    control_error.topRows(2) = robot_state.pose.linear().inverse() * (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation());
+    control_error.topRows(2) = robot_state.pose.linear().inverse() *
+                               (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation());
     const auto diff = robot_state.pose.linear().inverse() * trajectory_->states[target_i].pose.linear();
     control_error[2] = Eigen::Rotation2Dd(diff).smallestAngle();
 
-    const Eigen::Vector2d goal_direction = (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).normalized();
+    const Eigen::Vector2d goal_direction =
+        (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).normalized();
     const Eigen::Vector2d goal_direction_wrt_robot = robot_state.pose.linear().inverse() * goal_direction;
 
     Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
     target_velocity.topRows(2) = (trajectory_->states[target_i].velocity.topRows(2).norm() * goal_direction_wrt_robot);
-    const double finish_time = (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).norm() / target_velocity.topRows(2).norm();
+    const double finish_time =
+        (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).norm() /
+        target_velocity.topRows(2).norm();
     target_velocity[2] = control_error[2] / finish_time;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
@@ -146,7 +158,8 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
     if (dist_to_goal < goal_radius_)
     {
         control_integral_ += control_error;
-        target_velocity = goal_p_gain_.cwiseProduct(control_error) + goal_i_gain_.cwiseProduct(control_integral_) + goal_d_gain_.cwiseProduct(control_dot_);
+        target_velocity = goal_p_gain_.cwiseProduct(control_error) + goal_i_gain_.cwiseProduct(control_integral_) +
+                          goal_d_gain_.cwiseProduct(control_dot_);
     }
     else
     {
@@ -237,33 +250,50 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
 
 void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    look_ahead_ = navigation_interface::get_config_with_default_warn<double>(parameters, "look_ahead", look_ahead_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_x_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_velocity_x", max_velocity_x_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_y_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_velocity_y", max_velocity_y_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_w_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_velocity_w", max_velocity_w_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_x_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_acceleration_x", max_acceleration_x_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_y_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_acceleration_y", max_acceleration_y_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_w_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_acceleration_w", max_acceleration_w_, XmlRpc::XmlRpcValue::TypeDouble);
-    goal_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_radius", goal_radius_, XmlRpc::XmlRpcValue::TypeDouble);
-    xy_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(parameters, "xy_goal_tolerance", xy_goal_tolerance_, XmlRpc::XmlRpcValue::TypeDouble);
-    yaw_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(parameters, "yaw_goal_tolerance", yaw_goal_tolerance_, XmlRpc::XmlRpcValue::TypeDouble);
+    look_ahead_ = navigation_interface::get_config_with_default_warn<double>(parameters, "look_ahead", look_ahead_,
+                                                                             XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_x_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_velocity_x", max_velocity_x_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_y_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_velocity_y", max_velocity_y_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_w_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_velocity_w", max_velocity_w_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_acceleration_x_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_acceleration_x", max_acceleration_x_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_acceleration_y_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_acceleration_y", max_acceleration_y_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_acceleration_w_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_acceleration_w", max_acceleration_w_, XmlRpc::XmlRpcValue::TypeDouble);
+    goal_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_radius", goal_radius_,
+                                                                              XmlRpc::XmlRpcValue::TypeDouble);
+    xy_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "xy_goal_tolerance", xy_goal_tolerance_, XmlRpc::XmlRpcValue::TypeDouble);
+    yaw_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "yaw_goal_tolerance", yaw_goal_tolerance_, XmlRpc::XmlRpcValue::TypeDouble);
 
-    goal_p_gain_.x() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_p_gain_x", goal_p_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_p_gain_.y() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_p_gain_y", goal_p_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_p_gain_.z() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_p_gain_z", goal_p_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_p_gain_.x() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_p_gain_x", goal_p_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_p_gain_.y() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_p_gain_y", goal_p_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_p_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_p_gain_z", goal_p_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
 
-    goal_i_gain_.x() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_i_gain_x", goal_i_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_i_gain_.y() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_i_gain_y", goal_i_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_i_gain_.z() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_i_gain_z", goal_i_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_i_gain_.x() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_i_gain_x", goal_i_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_i_gain_.y() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_i_gain_y", goal_i_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_i_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_i_gain_z", goal_i_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
 
-    goal_d_gain_.x() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_d_gain_x", goal_d_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_d_gain_.y() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_d_gain_y", goal_d_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_d_gain_.z() = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_d_gain_z", goal_d_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_d_gain_.x() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_d_gain_x", goal_d_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_d_gain_.y() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_d_gain_y", goal_d_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_d_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "goal_d_gain_z", goal_d_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
 }
 
 void PurePursuitController::onMapDataChanged()
 {
-
 }
-
 }

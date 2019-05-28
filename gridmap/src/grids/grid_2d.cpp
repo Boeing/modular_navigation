@@ -4,9 +4,7 @@ namespace gridmap
 {
 
 template <class CellType>
-Grid2D<CellType>::Grid2D(const MapDimensions& map_dims)
-    : map_dimensions_(map_dims),
-      cells_(map_dims.cells(), 0)
+Grid2D<CellType>::Grid2D(const MapDimensions& map_dims) : map_dimensions_(map_dims), cells_(map_dims.cells(), 0)
 {
 }
 
@@ -14,7 +12,7 @@ template <class CellType>
 Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB bb)
     : map_dimensions_(grid.dimensions().resolution(),
                       {grid.dimensions().origin().x() + bb.roi_start.x() * grid.dimensions().resolution(),
-                      grid.dimensions().origin().y() + bb.roi_start.y() * grid.dimensions().resolution()},
+                       grid.dimensions().origin().y() + bb.roi_start.y() * grid.dimensions().resolution()},
                       bb.roi_size)
 {
     ROS_ASSERT((bb.roi_start <= grid.dimensions().size()).all());
@@ -37,15 +35,13 @@ Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB bb)
     }
 }
 
-template <class CellType>
-void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid) const
+template <class CellType> void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid) const
 {
     ROS_ASSERT((grid.dimensions().size() == map_dimensions_.size()).all());
     std::copy(cells_.begin(), cells_.end(), grid.cells().begin());
 }
 
-template <class CellType>
-void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid, const AABB& bb) const
+template <class CellType> void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid, const AABB& bb) const
 {
     ROS_ASSERT((grid.dimensions().size() == map_dimensions_.size()).all());
 

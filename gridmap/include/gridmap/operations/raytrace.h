@@ -14,12 +14,8 @@ namespace gridmap
 class AddLogCostLookup
 {
   public:
-    AddLogCostLookup(double* map_data,
-            const double* log_cost_lookup,
-            const double clamping_thres_min_log,
-            const double clamping_thres_max_log,
-            const int size_x,
-            const Eigen::Array2i origin)
+    AddLogCostLookup(double* map_data, const double* log_cost_lookup, const double clamping_thres_min_log,
+                     const double clamping_thres_max_log, const int size_x, const Eigen::Array2i origin)
         : map_data_(map_data), log_cost_lookup_(log_cost_lookup), clamping_thres_min_log_(clamping_thres_min_log),
           clamping_thres_max_log_(clamping_thres_max_log), size_x_(size_x), origin_(origin)
     {
@@ -31,7 +27,8 @@ class AddLogCostLookup
 
         const Eigen::Vector2i diff = (Eigen::Array2i(mx, my) - origin_);
         const int dist = diff.norm();
-        map_data_[offset] = std::max(clamping_thres_min_log_, std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_lookup_[dist]));
+        map_data_[offset] = std::max(clamping_thres_min_log_,
+                                     std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_lookup_[dist]));
     }
 
   private:
@@ -158,52 +155,61 @@ inline void clipRayEnd(const Eigen::Array2i& start, Eigen::Array2i& end, const E
 inline std::vector<Eigen::Array2i> drawLine(int x, int y, int x2, int y2)
 {
     std::vector<Eigen::Array2i> line;
-    bool yLonger=false;
-    int shortLen=y2-y;
-    int longLen=x2-x;
-    if (abs(shortLen)>abs(longLen)) {
-        int swap=shortLen;
-        shortLen=longLen;
-        longLen=swap;
-        yLonger=true;
+    bool yLonger = false;
+    int shortLen = y2 - y;
+    int longLen = x2 - x;
+    if (abs(shortLen) > abs(longLen))
+    {
+        int swap = shortLen;
+        shortLen = longLen;
+        longLen = swap;
+        yLonger = true;
     }
     int decInc;
-    if (longLen==0) decInc=0;
-    else decInc = (shortLen << 16) / longLen;
+    if (longLen == 0)
+        decInc = 0;
+    else
+        decInc = (shortLen << 16) / longLen;
 
-    if (yLonger) {
-        if (longLen>0) {
-            longLen+=y;
-            for (int j=0x8000+(x<<16);y<=longLen;++y) {
-                line.push_back({j >> 16,y});
-                j+=decInc;
+    if (yLonger)
+    {
+        if (longLen > 0)
+        {
+            longLen += y;
+            for (int j = 0x8000 + (x << 16); y <= longLen; ++y)
+            {
+                line.push_back({j >> 16, y});
+                j += decInc;
             }
             return line;
         }
-        longLen+=y;
-        for (int j=0x8000+(x<<16);y>=longLen;--y) {
-            line.push_back({j >> 16,y});
-            j-=decInc;
+        longLen += y;
+        for (int j = 0x8000 + (x << 16); y >= longLen; --y)
+        {
+            line.push_back({j >> 16, y});
+            j -= decInc;
         }
         return line;
     }
 
-    if (longLen>0) {
-        longLen+=x;
-        for (int j=0x8000+(y<<16);x<=longLen;++x) {
-            line.push_back({x,j >> 16});
-            j+=decInc;
+    if (longLen > 0)
+    {
+        longLen += x;
+        for (int j = 0x8000 + (y << 16); x <= longLen; ++x)
+        {
+            line.push_back({x, j >> 16});
+            j += decInc;
         }
         return line;
     }
-    longLen+=x;
-    for (int j=0x8000+(y<<16);x>=longLen;--x) {
-        line.push_back({x,j >> 16});
-        j-=decInc;
+    longLen += x;
+    for (int j = 0x8000 + (y << 16); x >= longLen; --x)
+    {
+        line.push_back({x, j >> 16});
+        j -= decInc;
     }
     return line;
 }
-
 }
 
 #endif

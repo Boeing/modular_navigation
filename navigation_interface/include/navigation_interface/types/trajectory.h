@@ -1,9 +1,9 @@
 #ifndef NAVIGATION_INTERFACE_TRAJECTORY_H
 #define NAVIGATION_INTERFACE_TRAJECTORY_H
 
-#include <vector>
-#include <std_msgs/Header.h>
 #include <Eigen/Geometry>
+#include <std_msgs/Header.h>
+#include <vector>
 
 namespace navigation_interface
 {
@@ -21,7 +21,6 @@ struct Trajectory
     std_msgs::Header header;
     std::vector<KinodynamicState> states;
 };
-
 };
 
 #endif

@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <gridmap/grids/grid_2d.h>
-#include <gridmap/operations/raytrace.h>
 #include <gridmap/operations/rasterize.h>
+#include <gridmap/operations/raytrace.h>
 
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -27,7 +27,8 @@ TEST(test_raytrace, test_raytrace)
 
         ROS_INFO_STREAM(
                         "efla took "
-                        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+                        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() -
+t0).count());
 
         for (std::size_t i=0; i<255; ++i)
         {
@@ -53,17 +54,17 @@ TEST(test_polyfill, test_polyfill)
     polygon.push_back({600, 600});
     polygon.push_back({400, 800});
 
-    auto lambda = [&cv_im] (int x, int y) { cv_im.at<uint8_t>(y, x) = 255; };
+    auto lambda = [&cv_im](int x, int y) { cv_im.at<uint8_t>(y, x) = 255; };
 
-    for (int t=0; t<40; ++t)
+    for (int t = 0; t < 40; ++t)
     {
         const auto t0 = std::chrono::steady_clock::now();
 
         gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 800);
 
-        ROS_INFO_STREAM(
-                        "rasterPolygonFill took "
-                        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        ROS_INFO_STREAM("rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                         std::chrono::steady_clock::now() - t0)
+                                                         .count());
     }
 
     cv::imwrite("grid.png", cv_im);

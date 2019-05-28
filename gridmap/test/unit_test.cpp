@@ -23,7 +23,7 @@ TEST(test_plugin, test_plugin)
     const Eigen::Array2i roi_size(900, 900);
     gridmap::AABB roi{grid.dimensions().size() / 2 - roi_size / 2, roi_size};
 
-    gridmap::Grid2D<uint8_t> roi_grid(map_dims); // {1, {0, 0}, roi_size});
+    gridmap::Grid2D<uint8_t> roi_grid(map_dims);  // {1, {0, 0}, roi_size});
 
     ROS_INFO_STREAM("roi_start: " << roi.roi_start.transpose());
     ROS_INFO_STREAM("roi_size: " << roi.roi_size.transpose());
@@ -31,7 +31,7 @@ TEST(test_plugin, test_plugin)
     grid.copyTo(roi_grid, roi);
 
     cv::Mat cv_im_roi = cv::Mat(roi_grid.dimensions().size().y(), roi_grid.dimensions().size().x(), CV_8U,
-                            reinterpret_cast<void*>(roi_grid.cells().data()));
+                                reinterpret_cast<void*>(roi_grid.cells().data()));
 
     cv::imwrite("grid.png", cv_im);
     cv::imwrite("grid_roi.png", cv_im_roi);

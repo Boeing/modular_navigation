@@ -26,7 +26,7 @@ std::string uuid()
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 65536 - 1);
-    for(std::size_t i = 0; i < 32; i++)
+    for (std::size_t i = 0; i < 32; i++)
     {
         const auto rc = static_cast<std::uint16_t>(dis(gen));
         ss << std::hex << int(rc);
@@ -37,25 +37,24 @@ std::string uuid()
 Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
 {
     const Eigen::Quaterniond qt(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
-    const double yaw = std::atan2(
-        2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
-        - 1.0 + 2.0 * (pose.orientation.w * pose.orientation.w + pose.orientation.x * pose.orientation.x)
-    );
+    const double yaw =
+        std::atan2(2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
+                   -1.0 + 2.0 * (pose.orientation.w * pose.orientation.w + pose.orientation.x * pose.orientation.x));
     return Eigen::Translation2d(pose.position.x, pose.position.y) * Eigen::Rotation2Dd(yaw);
 }
 
 Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
 {
     const Eigen::Quaterniond qt(tr.rotation.w, tr.rotation.x, tr.rotation.y, tr.rotation.z);
-    const double yaw = std::atan2(
-        2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
-        - 1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x)
-    );
+    const double yaw = std::atan2(2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
+                                  -1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x));
     return Eigen::Translation2d(tr.translation.x, tr.translation.y) * Eigen::Rotation2Dd(yaw);
 }
 
 template <class PluginType>
-std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& class_name, pluginlib::ClassLoader<PluginType>& loader, const std::shared_ptr<const gridmap::MapData>& costmap)
+std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& class_name,
+                                 pluginlib::ClassLoader<PluginType>& loader,
+                                 const std::shared_ptr<const gridmap::MapData>& costmap)
 {
     try
     {
@@ -120,14 +119,12 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadDataSources(XmlRpc::XmlRpcValue
 
     return plugin_ptrs;
 }
-
 }
 
 MoveBase::MoveBase()
     : nh_("~"),
 
-      tf_buffer_(std::make_shared<tf2_ros::Buffer>()),
-      tf_listener_(*tf_buffer_),
+      tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
 
       as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
 
@@ -136,11 +133,9 @@ MoveBase::MoveBase()
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
 
-      running_(false),
-      controller_done_(false),
+      running_(false), controller_done_(false),
 
-      current_path_(nullptr),
-      current_trajectory_(nullptr),
+      current_path_(nullptr), current_trajectory_(nullptr),
 
       map_publish_frequency_(get_param_with_default_warn("~map_publish_frequency", 1.0)),
 
@@ -176,7 +171,8 @@ MoveBase::MoveBase()
 
     // Create the path planner
     path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, nullptr);
-    trajectory_planner_ = load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
+    trajectory_planner_ =
+        load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
     controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
 
     map_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/map", 10, &MoveBase::mapCallback, this);
@@ -232,7 +228,8 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(new std::thread(&MoveBase::pathPlannerThread, this, convert(move_base_goal->target_pose.pose)));
+    path_planner_thread_.reset(
+        new std::thread(&MoveBase::pathPlannerThread, this, convert(move_base_goal->target_pose.pose)));
     trajectory_planner_thread_.reset(new std::thread(&MoveBase::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&MoveBase::controllerThread, this));
 
@@ -317,18 +314,18 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
             const auto t0 = std::chrono::steady_clock::now();
             layered_map_->update();
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
-            ROS_INFO_STREAM(
-                "global map update took "
-                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+            ROS_INFO_STREAM("global map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                             std::chrono::steady_clock::now() - t0)
+                                                             .count());
         }
 
         navigation_interface::PathPlanner::Result result;
         {
             const auto t0 = std::chrono::steady_clock::now();
             result = path_planner_->plan(global_robot_pose, goal);
-            ROS_INFO_STREAM(
-                "Path Planner took "
-                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+            ROS_INFO_STREAM("Path Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                        std::chrono::steady_clock::now() - t0)
+                                                        .count());
         }
 
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
@@ -374,7 +371,8 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
                 gui_path.header.frame_id = global_frame_;
                 for (const auto& node : result.path.nodes)
                 {
-                    const Eigen::Quaterniond qt(Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).smallestAngle(), Eigen::Vector3d::UnitZ()));
+                    const Eigen::Quaterniond qt(
+                        Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).smallestAngle(), Eigen::Vector3d::UnitZ()));
 
                     geometry_msgs::PoseStamped p;
                     p.header.frame_id = global_frame_;
@@ -389,7 +387,6 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
                 }
                 path_pub_.publish(gui_path);
             }
-
         }
         else
         {
@@ -458,9 +455,9 @@ void MoveBase::trajectoryPlannerThread()
             const auto t0 = std::chrono::steady_clock::now();
             layered_map_->update(roi);
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
-            ROS_INFO_STREAM(
-                "local map update took "
-                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+            ROS_INFO_STREAM("local map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                            std::chrono::steady_clock::now() - t0)
+                                                            .count());
         }
 
         {
@@ -477,19 +474,19 @@ void MoveBase::trajectoryPlannerThread()
             // optimise path
             result = trajectory_planner_->plan(roi, rs.robot_state, rs.map_to_odom);
 
-            ROS_INFO_STREAM(
-                "Trajectory Planner took "
-                << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+            ROS_INFO_STREAM("Trajectory Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                              std::chrono::steady_clock::now() - t0)
+                                                              .count());
         }
 
         // update trajectory for the controller
-        if (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL
-                || result.outcome == navigation_interface::TrajectoryPlanner::Outcome::PARTIAL)
+        if (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL ||
+            result.outcome == navigation_interface::TrajectoryPlanner::Outcome::PARTIAL)
         {
             std::lock_guard<std::mutex> lock(trajectory_mutex_);
             result.trajectory.id = uuid();
-            bool final_goal = (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL)
-                    && (trajectory_planner_->path().get().nodes.size() == result.path_end_i);
+            bool final_goal = (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL) &&
+                              (trajectory_planner_->path().get().nodes.size() == result.path_end_i);
             current_trajectory_.reset(new ControlTrajectory({final_goal, result.trajectory}));
 
             // publish
@@ -497,7 +494,8 @@ void MoveBase::trajectoryPlannerThread()
             gui_path.header.frame_id = "odom";
             for (const auto& state : result.trajectory.states)
             {
-                const Eigen::Quaterniond qt(Eigen::AngleAxisd(Eigen::Rotation2Dd(state.pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
+                const Eigen::Quaterniond qt(
+                    Eigen::AngleAxisd(Eigen::Rotation2Dd(state.pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
 
                 geometry_msgs::PoseStamped p;
                 p.header.frame_id = "odom";
@@ -543,7 +541,8 @@ void MoveBase::controllerThread()
         RobotState rs;
         {
             std::unique_lock<std::mutex> lock(robot_state_mutex_);
-            if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) == std::cv_status::timeout)
+            if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) ==
+                std::cv_status::timeout)
             {
                 ROS_WARN_STREAM("Did not receive an odom message at the desired frequency");
                 vel_pub_.publish(geometry_msgs::Twist());
@@ -570,7 +569,8 @@ void MoveBase::controllerThread()
 
         // Update feedback to correspond to our current position
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
-        const Eigen::Quaterniond qt = Eigen::Quaterniond(Eigen::AngleAxisd(Eigen::Rotation2Dd(global_robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(
+            Eigen::AngleAxisd(Eigen::Rotation2Dd(global_robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
         move_base_msgs::MoveBaseFeedback feedback;
         feedback.base_position.header.frame_id = global_frame_;
         feedback.base_position.pose.position.x = global_robot_pose.translation().x();
@@ -595,7 +595,8 @@ void MoveBase::controllerThread()
         vel_pub_.publish(cmd_vel);
 
         // finish if end of path
-        if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE && current_trajectory_->goal_trajectory)
+        if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE &&
+            current_trajectory_->goal_trajectory)
         {
             ROS_INFO("Final trajectory complete");
             break;
@@ -615,12 +616,12 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     robot_state_.time = ros::SteadyTime::now();
 
     robot_state_.robot_state.pose = convert(msg->pose.pose);
-    robot_state_.robot_state.velocity = Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
+    robot_state_.robot_state.velocity =
+        Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
 
     const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
     robot_state_.map_to_odom = convert(tr.transform);
 
     robot_state_conditional_.notify_all();
 }
-
 }

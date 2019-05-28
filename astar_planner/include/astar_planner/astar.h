@@ -65,8 +65,7 @@ struct PathResult
 class PathFinder
 {
   public:
-    PathFinder(const int width, const int height, const float* data,
-               const double neutral_cost = 0.1);
+    PathFinder(const int width, const int height, const float* data, const double neutral_cost = 0.1);
     ~PathFinder();
 
     PathResult findPath(Coord2D source_, Coord2D target_);
@@ -121,7 +120,6 @@ inline double linf_norm(const Coord2D& source, const Coord2D& target)
 {
     return std::max(std::abs(source.x - target.x), std::abs(source.y - target.y));
 }
-
 }
 
 #endif

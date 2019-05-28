@@ -25,7 +25,8 @@ class PurePursuitController : public navigation_interface::Controller
     virtual boost::optional<std::string> trajectoryId() const override;
     virtual boost::optional<navigation_interface::Trajectory> trajectory() const override;
 
-    virtual Result control(const ros::SteadyTime& time, const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) override;
+    virtual Result control(const ros::SteadyTime& time, const navigation_interface::KinodynamicState& robot_state,
+                           const Eigen::Isometry2d& map_to_odom) override;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapDataChanged() override;

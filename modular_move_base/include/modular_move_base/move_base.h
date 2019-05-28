@@ -1,13 +1,13 @@
 #ifndef MOVE_BASE_MOVE_BASE_H
 #define MOVE_BASE_MOVE_BASE_H
 
-#include <string>
-#include <vector>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include <ros/ros.h>
 
@@ -16,8 +16,8 @@
 
 #include <navigation_interface/controller.h>
 #include <navigation_interface/path_planner.h>
-#include <navigation_interface/trajectory_planner.h>
 #include <navigation_interface/recovery_behavior.h>
+#include <navigation_interface/trajectory_planner.h>
 
 #include <nav_msgs/Odometry.h>
 
@@ -156,7 +156,6 @@ class MoveBase
     ros::Subscriber odom_sub_;
     void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
 };
-
 }
 
 #endif

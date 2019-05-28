@@ -50,7 +50,9 @@ boost::optional<navigation_interface::Path> SimBandPlanner::path() const
         return {};
 }
 
-navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom)
+navigation_interface::TrajectoryPlanner::Result
+    SimBandPlanner::plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
+                         const Eigen::Isometry2d& map_to_odom)
 {
     navigation_interface::TrajectoryPlanner::Result result;
 
@@ -73,21 +75,23 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridm
         const cv::Mat cv_im = cv::Mat(local_grid.dimensions().size().y(), local_grid.dimensions().size().x(), CV_8U,
                                       reinterpret_cast<void*>(local_grid.cells().data()));
 
-//        cv::namedWindow("win", cv::WINDOW_NORMAL);
-//        cv::imshow("win", cv_im);
-//        cv::waitKey(1);
+        //        cv::namedWindow("win", cv::WINDOW_NORMAL);
+        //        cv::imshow("win", cv_im);
+        //        cv::waitKey(1);
 
-//        {
-//            // Construct and cv::Mat from the costmap data
-//            const cv::Mat cc = cv::Mat(map_data_->grid.dimensions().size().y(), map_data_->grid.dimensions().size().x(), CV_8U,
-//                                          reinterpret_cast<void*>(const_cast<uint8_t*>(map_data_->grid.cells().data())));
+        //        {
+        //            // Construct and cv::Mat from the costmap data
+        //            const cv::Mat cc = cv::Mat(map_data_->grid.dimensions().size().y(),
+        //            map_data_->grid.dimensions().size().x(), CV_8U,
+        //                                          reinterpret_cast<void*>(const_cast<uint8_t*>(map_data_->grid.cells().data())));
 
-//            cv::namedWindow("win2", cv::WINDOW_NORMAL);
-//            cv::imshow("win2", cc);
-//            cv::waitKey(1);
-//        }
+        //            cv::namedWindow("win2", cv::WINDOW_NORMAL);
+        //            cv::imshow("win2", cc);
+        //            cv::waitKey(1);
+        //        }
 
-        DistanceField distance_field(cv_im, local_grid.dimensions().origin().x(), local_grid.dimensions().origin().y(), local_grid.dimensions().resolution(), robot_radius_);
+        DistanceField distance_field(cv_im, local_grid.dimensions().origin().x(), local_grid.dimensions().origin().y(),
+                                     local_grid.dimensions().resolution(), robot_radius_);
 
         Band sim_band;
 
@@ -96,22 +100,13 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridm
 
         // The first moving window node is the previous segment (exclude from optimization)
         if (moving_window_->window.nodes.size() > 1)
-            sim_band.nodes.insert(sim_band.nodes.end(), moving_window_->window.nodes.begin() + 1, moving_window_->window.nodes.end());
+            sim_band.nodes.insert(sim_band.nodes.end(), moving_window_->window.nodes.begin() + 1,
+                                  moving_window_->window.nodes.end());
         else
             sim_band.nodes.push_back(moving_window_->window.nodes.front());
 
-        simulate(sim_band,
-                 distance_field,
-                 num_iterations_,
-                 min_overlap_,
-                 min_distance_,
-                 internal_force_gain_,
-                 external_force_gain_,
-                 rotation_factor_,
-                 velocity_decay_,
-                 1.0,
-                 alpha_decay_,
-                 max_distance_);
+        simulate(sim_band, distance_field, num_iterations_, min_overlap_, min_distance_, internal_force_gain_,
+                 external_force_gain_, rotation_factor_, velocity_decay_, 1.0, alpha_decay_, max_distance_);
 
         // debug viz
         if (viz_)
@@ -119,8 +114,9 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridm
             viz_->deleteAllMarkers();
             for (const auto& node : sim_band.nodes)
             {
-                const Eigen::Affine3d p = Eigen::Translation3d(node.pose.translation().x(), node.pose.translation().y(), 0.0)
-                        * Eigen::AngleAxisd(Eigen::Rotation2Dd(node.pose.rotation()).angle(), Eigen::Vector3d::UnitZ());
+                const Eigen::Affine3d p =
+                    Eigen::Translation3d(node.pose.translation().x(), node.pose.translation().y(), 0.0) *
+                    Eigen::AngleAxisd(Eigen::Rotation2Dd(node.pose.rotation()).angle(), Eigen::Vector3d::UnitZ());
                 viz_->publishAxis(p, 0.1, 0.02);
 
                 geometry_msgs::Point start;
@@ -139,11 +135,12 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridm
 
         // copy the nodes back to the moving window
         moving_window_->window.nodes.clear();
-        moving_window_->window.nodes.insert(moving_window_->window.nodes.end(), sim_band.nodes.begin(), sim_band.nodes.end());
+        moving_window_->window.nodes.insert(moving_window_->window.nodes.end(), sim_band.nodes.begin(),
+                                            sim_band.nodes.end());
 
         // trim to valid
         result.outcome = navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL;
-        for (std::size_t i=0; i < sim_band.nodes.size(); ++i)
+        for (std::size_t i = 0; i < sim_band.nodes.size(); ++i)
         {
             if (sim_band.nodes[i].distance < 0)
             {
@@ -178,35 +175,37 @@ navigation_interface::TrajectoryPlanner::Result SimBandPlanner::plan(const gridm
             Eigen::ChordLengths(points, chord_lengths);
 
             const int degree = std::min(3, static_cast<int>(sim_band.nodes.size()) - 1);
-            const Eigen::Spline<double, 2> spline = Eigen::SplineFitting<Eigen::Spline<double, 2>>::Interpolate(points, degree, chord_lengths);
+            const Eigen::Spline<double, 2> spline =
+                Eigen::SplineFitting<Eigen::Spline<double, 2>>::Interpolate(points, degree, chord_lengths);
 
             const int total_steps = sim_band.length() / (4 * map_data_->grid.dimensions().resolution());
-            for (Eigen::DenseIndex i=0; i<points.cols() - 1; ++i)
+            for (Eigen::DenseIndex i = 0; i < points.cols() - 1; ++i)
             {
                 const double cl = chord_lengths(i);
-                const double ncl = chord_lengths(i+1);
+                const double ncl = chord_lengths(i + 1);
 
                 auto rot = Eigen::Rotation2Dd(sim_band.nodes[i].pose.rotation());
-                auto next_rot = Eigen::Rotation2Dd(sim_band.nodes[i+1].pose.rotation());
+                auto next_rot = Eigen::Rotation2Dd(sim_band.nodes[i + 1].pose.rotation());
 
                 const double diff = ncl - cl;
                 const int steps = diff * total_steps;
 
-                for (int j=0; j<steps; ++j)
+                for (int j = 0; j < steps; ++j)
                 {
                     const double fraction = static_cast<double>(j) / static_cast<double>(steps);
-                    auto spline_p = spline(cl + fraction*diff);
-                    const Eigen::Isometry2d p = Eigen::Translation2d(spline_p.x(), spline_p.y()) * rot.slerp(fraction, next_rot);
+                    auto spline_p = spline(cl + fraction * diff);
+                    const Eigen::Isometry2d p =
+                        Eigen::Translation2d(spline_p.x(), spline_p.y()) * rot.slerp(fraction, next_rot);
                     auto node = Node(p);
                     splined.nodes.push_back(node);
                 }
-                splined.nodes.push_back(sim_band.nodes[i+1]);
+                splined.nodes.push_back(sim_band.nodes[i + 1]);
             }
 
             updateDistances(splined, distance_field, max_distance_);
 
             // check the splined path
-            for (std::size_t i=0; i < splined.nodes.size(); ++i)
+            for (std::size_t i = 0; i < splined.nodes.size(); ++i)
             {
                 if (splined.nodes[i].distance < 0)
                 {
@@ -256,20 +255,34 @@ double SimBandPlanner::cost(const navigation_interface::Trajectory&) const
 
 void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
-    num_iterations_ = navigation_interface::get_config_with_default_warn<int>(parameters, "num_iterations", num_iterations_, XmlRpc::XmlRpcValue::TypeInt);
-    internal_force_gain_ = navigation_interface::get_config_with_default_warn<double>(parameters, "internal_force_gain", internal_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
-    external_force_gain_ = navigation_interface::get_config_with_default_warn<double>(parameters, "external_force_gain", external_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
-    min_distance_ = navigation_interface::get_config_with_default_warn<double>(parameters, "min_distance", min_distance_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_distance_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_distance", max_distance_, XmlRpc::XmlRpcValue::TypeDouble);
-    min_overlap_ = navigation_interface::get_config_with_default_warn<double>(parameters, "min_overlap", min_overlap_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_window_length_ = navigation_interface::get_config_with_default_warn<double>(parameters, "max_window_length", max_window_length_, XmlRpc::XmlRpcValue::TypeDouble);
-    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
-    rotation_factor_ = navigation_interface::get_config_with_default_warn<double>(parameters, "rotation_factor", rotation_factor_, XmlRpc::XmlRpcValue::TypeDouble);
-    velocity_decay_ = navigation_interface::get_config_with_default_warn<double>(parameters, "velocity_decay", velocity_decay_, XmlRpc::XmlRpcValue::TypeDouble);
-    alpha_decay_ = navigation_interface::get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_, XmlRpc::XmlRpcValue::TypeDouble);
-    desired_speed_ = navigation_interface::get_config_with_default_warn<double>(parameters, "desired_speed", desired_speed_, XmlRpc::XmlRpcValue::TypeDouble);
-    spline_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "spline", spline_, XmlRpc::XmlRpcValue::TypeBoolean);
+    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
+                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
+    num_iterations_ = navigation_interface::get_config_with_default_warn<int>(
+        parameters, "num_iterations", num_iterations_, XmlRpc::XmlRpcValue::TypeInt);
+    internal_force_gain_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "internal_force_gain", internal_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
+    external_force_gain_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "external_force_gain", external_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
+    min_distance_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "min_distance", min_distance_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_distance_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_distance", max_distance_, XmlRpc::XmlRpcValue::TypeDouble);
+    min_overlap_ = navigation_interface::get_config_with_default_warn<double>(parameters, "min_overlap", min_overlap_,
+                                                                              XmlRpc::XmlRpcValue::TypeDouble);
+    max_window_length_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_window_length", max_window_length_, XmlRpc::XmlRpcValue::TypeDouble);
+    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    rotation_factor_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "rotation_factor", rotation_factor_, XmlRpc::XmlRpcValue::TypeDouble);
+    velocity_decay_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "velocity_decay", velocity_decay_, XmlRpc::XmlRpcValue::TypeDouble);
+    alpha_decay_ = navigation_interface::get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
+                                                                              XmlRpc::XmlRpcValue::TypeDouble);
+    desired_speed_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "desired_speed", desired_speed_, XmlRpc::XmlRpcValue::TypeDouble);
+    spline_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "spline", spline_,
+                                                                       XmlRpc::XmlRpcValue::TypeBoolean);
 
     if (debug_viz_)
         viz_.reset(new rviz_visual_tools::RvizVisualTools("map", "debug"));
@@ -277,7 +290,5 @@ void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
 void SimBandPlanner::onMapDataChanged()
 {
-
 }
-
 }

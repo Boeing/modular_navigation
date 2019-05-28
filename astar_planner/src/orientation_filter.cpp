@@ -32,7 +32,6 @@ void set_angle(Eigen::Isometry2d& pose, double angle)
 {
     pose.linear() = Eigen::Rotation2Dd(angle).matrix();
 }
-
 }
 
 void OrientationFilter::processPath(std::vector<Eigen::Isometry2d>& path) const
@@ -99,7 +98,7 @@ void OrientationFilter::processPath(std::vector<Eigen::Isometry2d>& path) const
                 const double last = Eigen::Rotation2Dd(path[i].linear()).angle();
                 while (i > 0)
                 {
-                    const double new_angle = Eigen::Rotation2Dd(path[i-1].linear()).angle();
+                    const double new_angle = Eigen::Rotation2Dd(path[i - 1].linear()).angle();
                     double diff = fabs(shortest_angular_distance(new_angle, last));
                     if (diff > 0.35)
                         break;
@@ -115,7 +114,8 @@ void OrientationFilter::processPath(std::vector<Eigen::Isometry2d>& path) const
     }
 }
 
-void OrientationFilter::setAngleBasedOnPositionDerivative(std::vector<Eigen::Isometry2d>& path, const std::size_t index) const
+void OrientationFilter::setAngleBasedOnPositionDerivative(std::vector<Eigen::Isometry2d>& path,
+                                                          const std::size_t index) const
 {
     assert(index < path.size());
 
@@ -131,7 +131,8 @@ void OrientationFilter::setAngleBasedOnPositionDerivative(std::vector<Eigen::Iso
     set_angle(path[index], angle);
 }
 
-void OrientationFilter::interpolate(std::vector<Eigen::Isometry2d>& path, const std::size_t start_index, const std::size_t end_index) const
+void OrientationFilter::interpolate(std::vector<Eigen::Isometry2d>& path, const std::size_t start_index,
+                                    const std::size_t end_index) const
 {
     assert(start_index < path.size());
     assert(end_index < path.size());

@@ -26,7 +26,7 @@ inline void getRidgeFilteredImage(cv::InputArray _img, cv::OutputArray out)
     cv::Mat img = _img.getMat();
     CV_Assert(img.channels() == 1 || img.channels() == 3);
 
-    if(img.channels() == 3)
+    if (img.channels() == 3)
         cvtColor(img, img, cv::COLOR_BGR2GRAY);
 
     cv::Mat sbx, sby;
@@ -47,11 +47,11 @@ inline void getRidgeFilteredImage(cv::InputArray _img, cv::OutputArray out)
     multiply(sbxx, sbyy, sbxxyy);
 
     cv::Mat rootex;
-    rootex = (sb2xx +  (sb2xy + sb2xy + sb2xy + sb2xy)  - (sbxxyy + sbxxyy) + sb2yy );
+    rootex = (sb2xx + (sb2xy + sb2xy + sb2xy + sb2xy) - (sbxxyy + sbxxyy) + sb2yy);
     cv::Mat root;
     sqrt(rootex, root);
     cv::Mat ridgexp;
-    ridgexp = ( (sbxx + sbyy) + root );
+    ridgexp = ((sbxx + sbyy) + root);
     ridgexp.convertTo(out, _out_dtype, 0.5);
 }
 
@@ -75,21 +75,15 @@ struct DistanceField
 
     DistanceField() = default;
 
-    DistanceField(const cv::Mat& cv_im,
-                  const double _origin_x,
-                  const double _origin_y,
-                  const double _resolution,
+    DistanceField(const cv::Mat& cv_im, const double _origin_x, const double _origin_y, const double _resolution,
                   const double _robot_radius)
-        : size_x(cv_im.cols),
-          size_y(cv_im.rows),
-          origin_x(_origin_x),
-          origin_y(_origin_y),
-          resolution(_resolution)
+        : size_x(cv_im.cols), size_y(cv_im.rows), origin_x(_origin_x), origin_y(_origin_y), resolution(_resolution)
     {
         // Dilate robot radius
         cv::Mat dilated_im = cv_im;  // TODO see if this can be done in-place
         const int cell_inflation_radius = static_cast<int>(_robot_radius / resolution);
-        auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+        auto ellipse =
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(cv_im, dilated_im, ellipse);
 
         // Invert the costmap data such that all objects are considered zeros
@@ -103,7 +97,8 @@ struct DistanceField
 
         // Calcualte the distance transform to all non-objects from within objects
         cv::Mat dist_inv_u8;
-        cv::distanceTransform(dilated_im, dist_inv, labels_inv, cv::DIST_L2, cv::DIST_MASK_PRECISE, cv::DIST_LABEL_PIXEL);
+        cv::distanceTransform(dilated_im, dist_inv, labels_inv, cv::DIST_L2, cv::DIST_MASK_PRECISE,
+                              cv::DIST_LABEL_PIXEL);
         dist_inv.convertTo(dist_inv_u8, CV_8U, 1.0, 0);
 
         // Construct label lookup vectors

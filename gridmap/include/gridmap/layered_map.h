@@ -17,8 +17,7 @@ namespace gridmap
 class LayeredMap
 {
   public:
-    LayeredMap(const std::shared_ptr<BaseMapLayer> base_map_layer,
-               const std::vector<std::shared_ptr<Layer>>& layers);
+    LayeredMap(const std::shared_ptr<BaseMapLayer> base_map_layer, const std::vector<std::shared_ptr<Layer>>& layers);
 
     void update();
 

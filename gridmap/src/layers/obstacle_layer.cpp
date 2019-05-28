@@ -13,10 +13,10 @@ namespace gridmap
 namespace
 {
 
-std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> loadDataSources(XmlRpc::XmlRpcValue parameters,
-                                                                                      const std::string& global_frame,
-                                                                                      pluginlib::ClassLoader<gridmap::DataSource>& loader,
-                                                                                      const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
+    loadDataSources(XmlRpc::XmlRpcValue parameters, const std::string& global_frame,
+                    pluginlib::ClassLoader<gridmap::DataSource>& loader,
+                    const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
 {
     std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> plugin_ptrs;
     const std::string param_name = "data_sources";
@@ -36,7 +36,8 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> loadDataSo
             try
             {
                 ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
-                std::shared_ptr<gridmap::DataSource> plugin_ptr = std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
+                std::shared_ptr<gridmap::DataSource> plugin_ptr =
+                    std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
                 XmlRpc::XmlRpcValue params = parameters[pname];
                 plugin_ptr->initialize(pname, global_frame, params, tf_buffer);
                 plugin_ptrs[pname] = plugin_ptr;
@@ -54,15 +55,11 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> loadDataSo
 
     return plugin_ptrs;
 }
-
 }
 
 ObstacleLayer::ObstacleLayer()
-    : ds_loader_("gridmap", "gridmap::DataSource"),
-      debug_viz_running_(false),
-      time_decay_running_(false)
+    : ds_loader_("gridmap", "gridmap::DataSource"), debug_viz_running_(false), time_decay_running_(false)
 {
-
 }
 
 ObstacleLayer::~ObstacleLayer()
@@ -142,8 +139,10 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", false, XmlRpc::XmlRpcValue::TypeBoolean);
     if (time_decay_)
     {
-        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 0.1, XmlRpc::XmlRpcValue::TypeDouble);
-        time_decay_step_ = get_config_with_default_warn<double>(parameters, "time_decay_step", 0.1, XmlRpc::XmlRpcValue::TypeDouble);
+        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 0.1,
+                                                                     XmlRpc::XmlRpcValue::TypeDouble);
+        time_decay_step_ =
+            get_config_with_default_warn<double>(parameters, "time_decay_step", 0.1, XmlRpc::XmlRpcValue::TypeDouble);
     }
 
     data_sources_ = loadDataSources(parameters, globalFrame(), ds_loader_, tfBuffer());
@@ -151,7 +150,8 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     debug_viz_ = get_config_with_default_warn<bool>(parameters, "debug_viz", true, XmlRpc::XmlRpcValue::TypeBoolean);
     if (debug_viz_)
     {
-        debug_viz_rate_ = get_config_with_default_warn<double>(parameters, "debug_viz_rate", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
+        debug_viz_rate_ =
+            get_config_with_default_warn<double>(parameters, "debug_viz_rate", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
     }
 }
 
@@ -186,16 +186,18 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
             time_decay_thread_.join();
         }
         time_decay_running_ = true;
-        time_decay_thread_ = std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, time_decay_step_);
+        time_decay_thread_ =
+            std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, time_decay_step_);
     }
 }
 
 void ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
 {
     auto lock = probability_grid_->getLock();
-    cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(), CV_64F,
-                            reinterpret_cast<void*>(probability_grid_->cells().data()));
-    cv::circle(cv_im, cv::Point(cell_index.x(), cell_index.y()), cell_radius, cv::Scalar(probability_grid_->clampingThresMinLog()));
+    cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(),
+                            CV_64F, reinterpret_cast<void*>(probability_grid_->cells().data()));
+    cv::circle(cv_im, cv::Point(cell_index.x(), cell_index.y()), cell_radius,
+               cv::Scalar(probability_grid_->clampingThresMinLog()));
 }
 
 void ObstacleLayer::debugVizThread(const double frequency)
@@ -218,15 +220,19 @@ void ObstacleLayer::debugVizThread(const double frequency)
         if (debug_viz_pub_.getNumSubscribers() != 0)
         {
             // Get robot pose
-            const geometry_msgs::TransformStamped tr = tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
+            const geometry_msgs::TransformStamped tr =
+                tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
 
-            const Eigen::Array2i robot_map = probability_grid_->dimensions().getCellIndex({tr.transform.translation.x, tr.transform.translation.y});
+            const Eigen::Array2i robot_map =
+                probability_grid_->dimensions().getCellIndex({tr.transform.translation.x, tr.transform.translation.y});
 
             const int top_left_x = robot_map.x() - size_x / 2;
             const int top_left_y = robot_map.y() - size_y / 2;
 
-            grid.info.origin.position.x = probability_grid_->dimensions().origin().x() + top_left_x * probability_grid_->dimensions().resolution();
-            grid.info.origin.position.y = probability_grid_->dimensions().origin().y() + top_left_y * probability_grid_->dimensions().resolution();
+            grid.info.origin.position.x = probability_grid_->dimensions().origin().x() +
+                                          top_left_x * probability_grid_->dimensions().resolution();
+            grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
+                                          top_left_y * probability_grid_->dimensions().resolution();
 
             grid.header.stamp = ros::Time::now();
 
@@ -250,7 +256,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
             }
 
             const int max_occ = 100.0 * probability_grid_->ocupancyThres();
-            for (int i=0; i<grid.data.size(); ++i)
+            for (int i = 0; i < grid.data.size(); ++i)
             {
                 if (grid.data[i] >= max_occ)
                     grid.data[i] = 101;
@@ -271,5 +277,4 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double log_odd
         rate.sleep();
     }
 }
-
 }

@@ -1,8 +1,8 @@
 #ifndef NAVIGATION_INTERFACE_BASE_LOCAL_PLANNER_H
 #define NAVIGATION_INTERFACE_BASE_LOCAL_PLANNER_H
 
-#include <navigation_interface/types/trajectory.h>
 #include <navigation_interface/types/path.h>
+#include <navigation_interface/types/trajectory.h>
 
 #include <gridmap/map_data.h>
 
@@ -18,7 +18,6 @@ namespace navigation_interface
 class TrajectoryPlanner
 {
   public:
-
     enum class Outcome
     {
         FAILED,
@@ -48,7 +47,8 @@ class TrajectoryPlanner
     virtual boost::optional<std::string> pathId() const = 0;
     virtual boost::optional<Path> path() const = 0;
 
-    virtual Result plan(const gridmap::AABB& local_region, const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) = 0;
+    virtual Result plan(const gridmap::AABB& local_region, const KinodynamicState& robot_state,
+                        const Eigen::Isometry2d& map_to_odom) = 0;
 
     virtual bool valid(const Trajectory& trajectory) const = 0;
     virtual double cost(const Trajectory& trajectory) const = 0;

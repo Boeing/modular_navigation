@@ -64,7 +64,7 @@ nav_msgs::OccupancyGrid OccupancyGrid::toMsg(const AABB bb) const
     for (int y = bb.roi_start.y(); y < y_size; y++)
     {
         const int index_start = map_dimensions_.size().x() * y + bb.roi_start.x();
-        const int index_end =index_start + bb.roi_size.x();
+        const int index_end = index_start + bb.roi_size.x();
         for (int index = index_start; index < index_end; ++index)
         {
             grid.data[roi_index] = (cells_[index] == OCCUPIED) ? 100 : 0;
@@ -73,5 +73,4 @@ nav_msgs::OccupancyGrid OccupancyGrid::toMsg(const AABB bb) const
     }
     return grid;
 }
-
 }

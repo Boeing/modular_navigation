@@ -5,7 +5,6 @@
 
 namespace navigation_interface
 {
-
 };
 
 #endif

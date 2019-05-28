@@ -11,15 +11,13 @@ namespace gridmap
 
 struct MapData
 {
-    MapData(const hd_map::Map& _hd_map, const MapDimensions& map_dims)
-        : hd_map(_hd_map), grid(map_dims)
+    MapData(const hd_map::Map& _hd_map, const MapDimensions& map_dims) : hd_map(_hd_map), grid(map_dims)
     {
     }
 
     hd_map::Map hd_map;
     OccupancyGrid grid;
 };
-
 }
 
 #endif

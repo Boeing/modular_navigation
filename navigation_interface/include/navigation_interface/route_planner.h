@@ -15,7 +15,6 @@ namespace navigation_interface
 class PathPlanner
 {
   public:
-
     enum class Outcome
     {
         FAILED,

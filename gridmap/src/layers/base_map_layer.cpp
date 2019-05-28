@@ -49,7 +49,8 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
     const std::size_t size = dimensions().cells();
     for (std::size_t index = 0; index < size; ++index)
     {
-        map_->cells()[index] = ((int)new_map.data[index]) >= ((int)lethal_threshold_) ? OccupancyGrid::OCCUPIED : OccupancyGrid::FREE;
+        map_->cells()[index] =
+            ((int)new_map.data[index]) >= ((int)lethal_threshold_) ? OccupancyGrid::OCCUPIED : OccupancyGrid::FREE;
     }
 
     //
@@ -74,14 +75,15 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
             if (!map_polygon.empty())
                 map_polygon.push_back(map_polygon.front());
 
-//            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
-//            const std::vector<Eigen::Array2i> fill_cells = rasterPolygonFill(connected, min_y - 1, max_y + 1);
+            //            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
+            //            const std::vector<Eigen::Array2i> fill_cells = rasterPolygonFill(connected, min_y - 1, max_y +
+            //            1);
 
-//            for (const Eigen::Array2i& p : fill_cells)
-//            {
-//                if (map_->dimensions().contains(p))
-//                    map_->setOccupied(p);
-//            }
+            //            for (const Eigen::Array2i& p : fill_cells)
+            //            {
+            //                if (map_->dimensions().contains(p))
+            //                    map_->setOccupied(p);
+            //            }
         }
     }
 }

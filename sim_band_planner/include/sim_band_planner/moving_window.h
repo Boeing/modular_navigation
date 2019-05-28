@@ -19,8 +19,7 @@ struct MovingWindow
     std::size_t end_i;
     Band window;
 
-    MovingWindow(const navigation_interface::Path& _path)
-        : nominal_path(_path), end_i(0)
+    MovingWindow(const navigation_interface::Path& _path) : nominal_path(_path), end_i(0)
     {
     }
 
@@ -45,19 +44,20 @@ struct MovingWindow
         while (distance < max_length && end_append != nominal_path.nodes.size())
         {
             if (end_append != 0)
-                distance += ((nominal_path.nodes[end_append - 1]).translation() - (nominal_path.nodes[end_append]).translation()).norm();
+                distance += ((nominal_path.nodes[end_append - 1]).translation() -
+                             (nominal_path.nodes[end_append]).translation())
+                                .norm();
             ++end_append;
         }
 
         end_i = end_append;
 
-        for (std::size_t i=start_append; i<end_append; ++i)
+        for (std::size_t i = start_append; i < end_append; ++i)
         {
             window.nodes.push_back(Node(nominal_path.nodes[i]));
         }
     }
 };
-
 }
 
 #endif

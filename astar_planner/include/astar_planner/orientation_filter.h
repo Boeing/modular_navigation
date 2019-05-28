@@ -30,7 +30,8 @@ class OrientationFilter
 
     void setAngleBasedOnPositionDerivative(std::vector<Eigen::Isometry2d>& path, const std::size_t index) const;
 
-    void interpolate(std::vector<Eigen::Isometry2d>& path, const std::size_t start_index, const std::size_t end_index) const;
+    void interpolate(std::vector<Eigen::Isometry2d>& path, const std::size_t start_index,
+                     const std::size_t end_index) const;
 
     void setMode(OrientationMode new_mode)
     {

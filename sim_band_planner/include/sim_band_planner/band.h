@@ -52,17 +52,16 @@ struct Band
     std::pair<std::size_t, double> closestSegment(const Eigen::Isometry2d& pose) const
     {
         std::vector<double> distances;
-        std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances), [&pose](const Node& node){
-            return (node.pose.translation() - pose.translation()).norm();
-        });
+        std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
+                       [&pose](const Node& node) { return (node.pose.translation() - pose.translation()).norm(); });
         const auto it = std::min_element(distances.begin(), distances.end());
         const long dist = std::distance(distances.begin(), it);
         if (dist > 0 && dist < nodes.size() - 1)
         {
-            const double prev_seg = (nodes[dist].pose.translation() - nodes[dist-1].pose.translation()).norm();
-            if (distances[dist-1] < prev_seg)
+            const double prev_seg = (nodes[dist].pose.translation() - nodes[dist - 1].pose.translation()).norm();
+            if (distances[dist - 1] < prev_seg)
             {
-                return {dist-1, distances[dist-1]};
+                return {dist - 1, distances[dist - 1]};
             }
             else
                 return {dist, *it};
@@ -86,12 +85,12 @@ struct Band
         }
 
         const int degree = std::max(3, static_cast<int>(nodes.size()) - 1);
-        const Eigen::Spline<double, 3> spline = Eigen::SplineFitting<Eigen::Spline<double, 3>>::Interpolate(points, degree);
+        const Eigen::Spline<double, 3> spline =
+            Eigen::SplineFitting<Eigen::Spline<double, 3>>::Interpolate(points, degree);
 
         return spline;
     }
 };
-
 }
 
 #endif

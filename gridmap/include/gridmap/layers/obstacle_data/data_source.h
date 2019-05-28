@@ -1,8 +1,8 @@
 #ifndef GRIDMAP_DATA_SOURCE_H
 #define GRIDMAP_DATA_SOURCE_H
 
-#include <mutex>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include <gridmap/grids/probability_grid.h>
@@ -18,9 +18,7 @@ class DataSource
     DataSource() = default;
     virtual ~DataSource() = default;
 
-    void initialize(const std::string& name,
-                    const std::string& global_frame,
-                    const XmlRpc::XmlRpcValue& parameters,
+    void initialize(const std::string& name, const std::string& global_frame, const XmlRpc::XmlRpcValue& parameters,
                     const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
     {
         std::lock_guard<std::mutex> lock(mutex_);

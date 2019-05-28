@@ -4,7 +4,7 @@ namespace gridmap
 {
 
 LayeredMap::LayeredMap(const std::shared_ptr<BaseMapLayer> base_map_layer,
-           const std::vector<std::shared_ptr<Layer>>& layers)
+                       const std::vector<std::shared_ptr<Layer>>& layers)
     : base_map_layer_(base_map_layer), layers_(layers)
 {
 }
@@ -56,5 +56,4 @@ void LayeredMap::setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid
     map_data_ = std::make_shared<MapData>(hd_map, base_map_layer_->dimensions());
     update();
 }
-
 }

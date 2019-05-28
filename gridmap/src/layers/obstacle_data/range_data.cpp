@@ -2,12 +2,12 @@
 #include <gridmap/params.h>
 
 #include <chrono>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 #include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <gridmap/operations/rasterize.h>
 
@@ -31,17 +31,23 @@ void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     ros::NodeHandle nh("~/" + name_);
     ros::NodeHandle g_nh;
 
-    const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/range", XmlRpc::XmlRpcValue::TypeString);
+    const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/range",
+                                                                        XmlRpc::XmlRpcValue::TypeString);
 
-    hit_probability_ = get_config_with_default_warn<double>(parameters, "hit_probability", 0.90, XmlRpc::XmlRpcValue::TypeDouble);
-    miss_probability_ = get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
+    hit_probability_ =
+        get_config_with_default_warn<double>(parameters, "hit_probability", 0.90, XmlRpc::XmlRpcValue::TypeDouble);
+    miss_probability_ =
+        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
 
-    std_deviation_ = get_config_with_default_warn<double>(parameters, "std_deviation", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
+    std_deviation_ =
+        get_config_with_default_warn<double>(parameters, "std_deviation", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
 
     max_range_ = get_config_with_default_warn<double>(parameters, "max_range", 1.5, XmlRpc::XmlRpcValue::TypeDouble);
 
-    obstacle_range_ = get_config_with_default_warn<double>(parameters, "obstacle_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
-    raytrace_range_ = get_config_with_default_warn<double>(parameters, "raytrace_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
+    obstacle_range_ =
+        get_config_with_default_warn<double>(parameters, "obstacle_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
+    raytrace_range_ =
+        get_config_with_default_warn<double>(parameters, "raytrace_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
 
     sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
 
@@ -51,7 +57,8 @@ void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     ROS_INFO_STREAM("Subscribing to range sensor: " << topic);
 
     subscriber_.reset(new message_filters::Subscriber<sensor_msgs::Range>(g_nh, topic, 50));
-    message_filter_.reset(new tf2_ros::MessageFilter<sensor_msgs::Range>(*subscriber_, *tf_buffer_, global_frame_, 50, g_nh));
+    message_filter_.reset(
+        new tf2_ros::MessageFilter<sensor_msgs::Range>(*subscriber_, *tf_buffer_, global_frame_, 50, g_nh));
     message_filter_->registerCallback(boost::bind(&RangeData::rangeCallback, this, _1));
 }
 
@@ -64,23 +71,24 @@ void RangeData::onMapDataChanged()
     std::ofstream csv(name_ + "_data.csv");
 
     log_cost_lookup_.resize(max_range_cells);
-    for (int c=0; c<max_range_cells; ++c)
+    for (int c = 0; c < max_range_cells; ++c)
     {
         log_cost_lookup_[c].resize(max_range_cells);
         const double range = c * map_data_->dimensions().resolution();
 
-        for (int i=0; i<max_range_cells; ++i)
+        for (int i = 0; i < max_range_cells; ++i)
         {
             const double x = i * map_data_->dimensions().resolution();
 
             if (x < range + std_deviation_)
             {
-                const double pdf_gaussian = hit_probability_ * std::exp(-0.5 * std::pow((x - range)/std_deviation_, 2.0));
+                const double pdf_gaussian =
+                    hit_probability_ * std::exp(-0.5 * std::pow((x - range) / std_deviation_, 2.0));
                 const double r_dist_scale = std::max(0.0, static_cast<double>(raytrace_cells - i) / raytrace_cells);
                 const double o_dist_scale = std::max(0.0, static_cast<double>(obstacle_cells - i) / obstacle_cells);
 
-                const double hit = i < obstacle_cells ? pdf_gaussian: 0.5;
-                const double miss = i < raytrace_cells ? miss_probability_: 0.5;
+                const double hit = i < obstacle_cells ? pdf_gaussian : 0.5;
+                const double miss = i < raytrace_cells ? miss_probability_ : 0.5;
 
                 log_cost_lookup_[c][i] = o_dist_scale * logodds(hit) + r_dist_scale * r_dist_scale * logodds(miss);
             }
@@ -122,8 +130,8 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
         const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
 
         // Check sensor is on map
-        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x()
-                || sensor_pt_map.y() < 0 || sensor_pt_map.y() >= map_data_->dimensions().size().y())
+        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+            sensor_pt_map.y() >= map_data_->dimensions().size().y())
         {
             ROS_WARN("Range sensor is not on gridmap");
             return;
@@ -145,8 +153,8 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
 
         const int cell_range = range / map_data_->dimensions().resolution();
 
-        auto shader = [this, sensor_pt_map, cell_range] (const int x, const int y, const int w0, const int w1, const int w2)
-        {
+        auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1,
+                                                        const int w2) {
             const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
             const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
             const double _w2 = static_cast<double>(w2) / static_cast<double>(w0 + w1 + w2);
@@ -154,10 +162,10 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
             int dist = cell_range * (1 - _w0);
 
             if (_w2 > 0.75)
-                dist += dist*(_w2 - 0.75);
+                dist += dist * (_w2 - 0.75);
 
             if (_w1 > 0.75)
-                dist += dist*(_w1 - 0.75);
+                dist += dist * (_w1 - 0.75);
 
             map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
         };
@@ -167,13 +175,15 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
 
             const auto t0 = std::chrono::steady_clock::now();
 
-            drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()}, {right_pt_map.x(), right_pt_map.y()});
+            drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
+                    {right_pt_map.x(), right_pt_map.y()});
 
-            ROS_INFO_STREAM("drawTriangle took "<< std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+            ROS_INFO_STREAM("drawTriangle took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                        std::chrono::steady_clock::now() - t0)
+                                                        .count());
         }
     }
     else
         ++sub_sample_count_;
 }
-
 }

@@ -21,13 +21,11 @@ Coord2D operator+(const Coord2D& left_, const Coord2D& right_)
     return {left_.x + right_.x, left_.y + right_.y};
 }
 
-PathFinder::PathFinder(const int width, const int height, const float* data,
-                       const double neutral_cost)
+PathFinder::PathFinder(const int width, const int height, const float* data, const double neutral_cost)
     : world_width_(width), world_height_(height),
       directions_({{{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}}}),
       direction_cost_({std::sqrt(2.0), 1.0, std::sqrt(2.0), 1.0, 1.0, std::sqrt(2.0), 1.0, std::sqrt(2.0)}),
-      neutral_cost_(neutral_cost),
-      heuristic_(std::bind(&euclidean, std::placeholders::_1, std::placeholders::_2)),
+      neutral_cost_(neutral_cost), heuristic_(std::bind(&euclidean, std::placeholders::_1, std::placeholders::_2)),
       open_set_(CompareScore())
 {
     const std::size_t size = static_cast<std::size_t>(width * height);

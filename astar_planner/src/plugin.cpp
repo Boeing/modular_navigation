@@ -32,7 +32,8 @@ struct Costmap
     double origin_y;
 };
 
-Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius, const double exponential_weight, const int down_sample)
+Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius, const double exponential_weight,
+                     const int down_sample)
 {
     Costmap grid;
 
@@ -82,7 +83,7 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
     cv::distanceTransform(grid.obstacle_map, grid.costmap, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
 
     // inflate
-    grid.costmap = - exponential_weight * grid.costmap * map_data.grid.dimensions().resolution();
+    grid.costmap = -exponential_weight * grid.costmap * map_data.grid.dimensions().resolution();
 
     // negative exponent maps values to [1,0)
     cv::exp(grid.costmap, grid.costmap);
@@ -93,9 +94,9 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
 double pathCost(const navigation_interface::Path& path, const Costmap& costmap, const double neutral_cost)
 {
     std::vector<Eigen::Vector2i> line;
-    for (std::size_t i=1; i < path.nodes.size(); ++i)
+    for (std::size_t i = 1; i < path.nodes.size(); ++i)
     {
-        const auto start = path.nodes[i-1].translation();
+        const auto start = path.nodes[i - 1].translation();
         const auto end = path.nodes[i].translation();
 
         const int start_cell_x = static_cast<int>((start.x() - costmap.origin_x) / costmap.resolution);
@@ -115,8 +116,7 @@ double pathCost(const navigation_interface::Path& path, const Costmap& costmap, 
     {
         const Eigen::Vector2i& p = line.at(j);
 
-        if (p.x() > costmap.costmap.size().width || p.x() < 0
-                || p.y() > costmap.costmap.size().height || p.y() < 0)
+        if (p.x() > costmap.costmap.size().width || p.x() < 0 || p.y() > costmap.costmap.size().height || p.y() < 0)
             return std::numeric_limits<double>::max();
 
         double world = static_cast<double>(costmap.costmap.at<float>(p.y(), p.x()));
@@ -130,14 +130,13 @@ double pathCost(const navigation_interface::Path& path, const Costmap& costmap, 
         }
         else
         {
-            const double direction = (line.at(j) - line.at(j-1)).cast<double>().norm();
+            const double direction = (line.at(j) - line.at(j - 1)).cast<double>().norm();
             cost += direction * (world + neutral_cost);
         }
     }
 
     return cost;
 }
-
 }
 
 AStarPlanner::AStarPlanner()
@@ -148,7 +147,8 @@ AStarPlanner::~AStarPlanner()
 {
 }
 
-navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal)
+navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isometry2d& start,
+                                                             const Eigen::Isometry2d& goal)
 {
     navigation_interface::PathPlanner::Result result;
 
@@ -182,14 +182,16 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     if (start_x < 0 || start_x > costmap.costmap.size().width || start_y < 0 || start_y > costmap.costmap.size().height)
     {
         ROS_WARN("The robot's start position is outside the costmap");
-        result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;;
+        result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
+        ;
         return result;
     }
 
     if (goal_x < 0 || goal_x > costmap.costmap.size().width || goal_y < 0 || goal_y > costmap.costmap.size().height)
     {
         ROS_WARN("The goal position is outside the costmap");
-        result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;;
+        result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
+        ;
         return result;
     }
 
@@ -213,7 +215,7 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
         grid.info.origin.position.y = costmap.origin_y;
         grid.info.origin.orientation.w = 1.0;
         grid.data.resize(grid.info.width * grid.info.height);
-        for (std::size_t i=0; i<grid.data.size(); ++i)
+        for (std::size_t i = 0; i < grid.data.size(); ++i)
         {
             unsigned char cost = 100;
             if (astar.gridMap()[i])
@@ -264,11 +266,16 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
 
 void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
-    neutral_cost_ = navigation_interface::get_config_with_default_warn<double>(parameters, "neutral_cost", neutral_cost_, XmlRpc::XmlRpcValue::TypeDouble);
-    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
-    exponential_weight_ = navigation_interface::get_config_with_default_warn<double>(parameters, "exponential_weight", exponential_weight_, XmlRpc::XmlRpcValue::TypeDouble);
-    down_sample_ = navigation_interface::get_config_with_default_warn<int>(parameters, "down_sample", down_sample_, XmlRpc::XmlRpcValue::TypeInt);
+    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
+                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
+    neutral_cost_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "neutral_cost", neutral_cost_, XmlRpc::XmlRpcValue::TypeDouble);
+    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    exponential_weight_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "exponential_weight", exponential_weight_, XmlRpc::XmlRpcValue::TypeDouble);
+    down_sample_ = navigation_interface::get_config_with_default_warn<int>(parameters, "down_sample", down_sample_,
+                                                                           XmlRpc::XmlRpcValue::TypeInt);
 
     orientation_filter_.setMode(1);
     orientation_filter_.setWindowSize(1);
@@ -283,7 +290,5 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
 void AStarPlanner::onMapDataChanged()
 {
-
 }
-
 }

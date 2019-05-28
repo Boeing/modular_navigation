@@ -7,10 +7,10 @@
 
 #include <pluginlib/class_loader.h>
 
-#include <unordered_map>
-#include <vector>
 #include <atomic>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace gridmap
 {

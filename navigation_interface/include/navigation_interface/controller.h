@@ -18,7 +18,6 @@ namespace navigation_interface
 class Controller
 {
   public:
-
     enum class Outcome
     {
         FAILED,
@@ -43,7 +42,8 @@ class Controller
     virtual boost::optional<std::string> trajectoryId() const = 0;
     virtual boost::optional<Trajectory> trajectory() const = 0;
 
-    virtual Result control(const ros::SteadyTime& time, const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) = 0;
+    virtual Result control(const ros::SteadyTime& time, const KinodynamicState& robot_state,
+                           const Eigen::Isometry2d& map_to_odom) = 0;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
     virtual void onMapDataChanged() = 0;
@@ -65,7 +65,6 @@ class Controller
     std::mutex mutex_;
     std::shared_ptr<const gridmap::MapData> map_data_;
 };
-
 };
 
 #endif

@@ -79,21 +79,21 @@ int main(int argc, char** argv)
     auto tf_buffer = std::make_shared<tf2_ros::Buffer>();
     tf2_ros::TransformListener tf_listener(*tf_buffer);
 
-/*
-    gridmap::LaserData laser_data;
-    laser_data.initialize("laser_data", global_frame, parameters, map_data, tf_buffer);
+    /*
+        gridmap::LaserData laser_data;
+        laser_data.initialize("laser_data", global_frame, parameters, map_data, tf_buffer);
 
-    std::vector<std::shared_ptr<gridmap::RangeData>> rds;
-    for (int i = 1; i <= 16; ++i)
-    {
-        auto rd = std::make_shared<gridmap::RangeData>();
-        rd->initialize("sonar_" + std::to_string(i) + "_link", global_frame, parameters, map_data, tf_buffer);
-        rds.push_back(rd);
-    }
+        std::vector<std::shared_ptr<gridmap::RangeData>> rds;
+        for (int i = 1; i <= 16; ++i)
+        {
+            auto rd = std::make_shared<gridmap::RangeData>();
+            rd->initialize("sonar_" + std::to_string(i) + "_link", global_frame, parameters, map_data, tf_buffer);
+            rds.push_back(rd);
+        }
 
-    const double map_publish_frequency = 1.0;
-    gridmap::MapPublisher map_publisher(map_publish_frequency, map_data, global_frame);
-    */
+        const double map_publish_frequency = 1.0;
+        gridmap::MapPublisher map_publisher(map_publish_frequency, map_data, global_frame);
+        */
 
     std::vector<std::shared_ptr<gridmap::Layer>> layers;
 
@@ -144,11 +144,11 @@ int main(int argc, char** argv)
 
     ROS_INFO_STREAM("map size: " << layered_map->map()->grid.dimensions().size().transpose());
 
-//    std::thread update_thread(updateThread, 1.0, layered_map);
+    //    std::thread update_thread(updateThread, 1.0, layered_map);
 
     ros::spin();
 
-//    update_thread.join();
+    //    update_thread.join();
 
     return EXIT_SUCCESS;
 }
