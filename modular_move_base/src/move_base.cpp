@@ -37,13 +37,21 @@ std::string uuid()
 Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
 {
     const Eigen::Quaterniond qt(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
-    return Eigen::Translation2d(pose.position.x, pose.position.y) * Eigen::Rotation2Dd(qt.toRotationMatrix().eulerAngles(0, 1, 2)[2]);
+    const double yaw = std::atan2(
+        2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
+        - 1.0 + 2.0 * (pose.orientation.w * pose.orientation.w + pose.orientation.x * pose.orientation.x)
+    );
+    return Eigen::Translation2d(pose.position.x, pose.position.y) * Eigen::Rotation2Dd(yaw);
 }
 
 Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
 {
     const Eigen::Quaterniond qt(tr.rotation.w, tr.rotation.x, tr.rotation.y, tr.rotation.z);
-    return Eigen::Translation2d(tr.translation.x, tr.translation.y) * Eigen::Rotation2Dd(qt.toRotationMatrix().eulerAngles(0, 1, 2)[2]);
+    const double yaw = std::atan2(
+        2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
+        - 1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x)
+    );
+    return Eigen::Translation2d(tr.translation.x, tr.translation.y) * Eigen::Rotation2Dd(yaw);
 }
 
 template <class PluginType>
@@ -366,7 +374,7 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
                 gui_path.header.frame_id = global_frame_;
                 for (const auto& node : result.path.nodes)
                 {
-                    const Eigen::Quaterniond qt(Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).angle(), Eigen::Vector3d::UnitZ()));
+                    const Eigen::Quaterniond qt(Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).smallestAngle(), Eigen::Vector3d::UnitZ()));
 
                     geometry_msgs::PoseStamped p;
                     p.header.frame_id = global_frame_;
@@ -386,6 +394,10 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
         else
         {
             ROS_WARN("Failed to find a path");
+            if (!current_path_)
+            {
+                layered_map_->clearRadius(robot_pose.translation(), clear_radius_ * 10);
+            }
         }
 
         rate.sleep();

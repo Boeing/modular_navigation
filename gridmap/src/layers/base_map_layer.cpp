@@ -74,14 +74,14 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
             if (!map_polygon.empty())
                 map_polygon.push_back(map_polygon.front());
 
-            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
-            const std::vector<Eigen::Array2i> fill_cells = rasterPolygonFill(connected, min_y - 1, max_y + 1);
+//            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
+//            const std::vector<Eigen::Array2i> fill_cells = rasterPolygonFill(connected, min_y - 1, max_y + 1);
 
-            for (const Eigen::Array2i& p : fill_cells)
-            {
-                if (map_->dimensions().contains(p))
-                    map_->setOccupied(p);
-            }
+//            for (const Eigen::Array2i& p : fill_cells)
+//            {
+//                if (map_->dimensions().contains(p))
+//                    map_->setOccupied(p);
+//            }
         }
     }
 }

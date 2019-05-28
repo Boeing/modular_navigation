@@ -98,6 +98,7 @@ int main(int argc, char** argv)
     std::vector<std::shared_ptr<gridmap::Layer>> layers;
 
     // add laser data
+    if (false)
     {
         auto laser_layer = std::make_shared<gridmap::ObstacleLayer>();
         XmlRpc::XmlRpcValue obs_parameters;
@@ -117,10 +118,9 @@ int main(int argc, char** argv)
         for (int i = 0; i <= 12; ++i)
         {
             XmlRpc::XmlRpcValue source;
-            source["name"] = "sonar_data_" + std::to_string(i);
+            source["name"] = "sonar_" + std::to_string(i);
             source["type"] = "gridmap::RangeData";
             obs_parameters["data_sources"][i] = source;
-            obs_parameters[std::string(source["name"])]["topic"] = "range_" + std::to_string(i) + "/range";
         }
 
         sonar_layer->initialize("sonar_layer", global_frame, obs_parameters, tf_buffer);

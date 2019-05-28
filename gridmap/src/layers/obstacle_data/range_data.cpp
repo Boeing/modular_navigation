@@ -9,6 +9,8 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
+#include <gridmap/operations/rasterize.h>
+
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::RangeData, gridmap::DataSource)
@@ -32,14 +34,19 @@ void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/range", XmlRpc::XmlRpcValue::TypeString);
 
     hit_probability_ = get_config_with_default_warn<double>(parameters, "hit_probability", 0.90, XmlRpc::XmlRpcValue::TypeDouble);
-    miss_probability_ = get_config_with_default_warn<double>(parameters, "miss_probability", 0.2, XmlRpc::XmlRpcValue::TypeDouble);
+    miss_probability_ = get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
 
-    std_deviation_ = get_config_with_default_warn<double>(parameters, "std_deviation", 0.08, XmlRpc::XmlRpcValue::TypeDouble);
+    std_deviation_ = get_config_with_default_warn<double>(parameters, "std_deviation", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
 
     max_range_ = get_config_with_default_warn<double>(parameters, "max_range", 1.5, XmlRpc::XmlRpcValue::TypeDouble);
-    raytrace_range_ = get_config_with_default_warn<double>(parameters, "raytrace_range", 3.0, XmlRpc::XmlRpcValue::TypeDouble);
+
+    obstacle_range_ = get_config_with_default_warn<double>(parameters, "obstacle_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
+    raytrace_range_ = get_config_with_default_warn<double>(parameters, "raytrace_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
 
     sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
+
+    ROS_ASSERT(obstacle_range_ <= max_range_);
+    ROS_ASSERT(raytrace_range_ <= max_range_);
 
     ROS_INFO_STREAM("Subscribing to range sensor: " << topic);
 
@@ -50,36 +57,45 @@ void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
 void RangeData::onMapDataChanged()
 {
-    const int max_cells = raytrace_range_ / map_data_->dimensions().resolution();
-    const int max_range_cells = max_range_ / map_data_->dimensions().resolution();
+    const int obstacle_cells = obstacle_range_ / map_data_->dimensions().resolution();
+    const int raytrace_cells = raytrace_range_ / map_data_->dimensions().resolution();
+    const int max_range_cells = max_range_ / map_data_->dimensions().resolution() + 1;
 
-    log_cost_lookup_.resize(max_cells);
-    for (int c=0; c<max_cells; ++c)
+    std::ofstream csv(name_ + "_data.csv");
+
+    log_cost_lookup_.resize(max_range_cells);
+    for (int c=0; c<max_range_cells; ++c)
     {
-        log_cost_lookup_[c].resize(max_cells);
+        log_cost_lookup_[c].resize(max_range_cells);
         const double range = c * map_data_->dimensions().resolution();
 
-        for (int i=0; i<max_cells; ++i)
+        for (int i=0; i<max_range_cells; ++i)
         {
             const double x = i * map_data_->dimensions().resolution();
-            const double dist_scale = std::max(0.2, (raytrace_range_ - x) / raytrace_range_);
 
             if (x < range + std_deviation_)
             {
-                double pdf_gaussian = 0;
-                if (c < max_range_cells)
-                {
-                    pdf_gaussian = hit_probability_ * std::exp(-0.5 * std::pow((x - range)/std_deviation_, 2.0));
-                }
+                const double pdf_gaussian = hit_probability_ * std::exp(-0.5 * std::pow((x - range)/std_deviation_, 2.0));
+                const double r_dist_scale = std::max(0.0, static_cast<double>(raytrace_cells - i) / raytrace_cells);
+                const double o_dist_scale = std::max(0.0, static_cast<double>(obstacle_cells - i) / obstacle_cells);
 
-                log_cost_lookup_[c][i] = dist_scale * logodds(std::max(pdf_gaussian, miss_probability_));
+                const double hit = i < obstacle_cells ? pdf_gaussian: 0.5;
+                const double miss = i < raytrace_cells ? miss_probability_: 0.5;
+
+                log_cost_lookup_[c][i] = o_dist_scale * logodds(hit) + r_dist_scale * r_dist_scale * logodds(miss);
             }
             else
             {
                 log_cost_lookup_[c][i] = 0;
             }
+
+            csv << log_cost_lookup_[c][i] << ",";
         }
+
+        csv << "\n";
     }
+
+    csv.close();
 }
 
 void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
@@ -116,7 +132,7 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
         const double half_fov = static_cast<double>(message->field_of_view / 2.0f);
         const double range = std::max(message->min_range, std::min(message->max_range, message->range));
 
-        const Eigen::Vector3d centre_pt = t * Eigen::Vector3d(range, 0.0, 0.0);
+        const Eigen::Vector3d centre_pt = t * Eigen::Vector3d((1.0 / std::cos(half_fov)) * range, 0.0, 0.0);
         const Eigen::Vector2d centre_pt_2d(centre_pt.x(), centre_pt.y());
 
         const Eigen::Vector2d sensor_vec = (centre_pt_2d - sensor_pt_2d);
@@ -127,18 +143,33 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
         const Eigen::Vector2i left_pt_map = map_data_->dimensions().getCellIndex(left_pt_2d);
         const Eigen::Vector2i right_pt_map = map_data_->dimensions().getCellIndex(right_pt_2d);
 
-        const std::vector<Eigen::Array2i> line = drawLine(left_pt_map, right_pt_map);
+        const int cell_range = range / map_data_->dimensions().resolution();
+
+        auto shader = [this, sensor_pt_map, cell_range] (const int x, const int y, const int w0, const int w1, const int w2)
+        {
+            const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
+            const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
+            const double _w2 = static_cast<double>(w2) / static_cast<double>(w0 + w1 + w2);
+
+            int dist = cell_range * (1 - _w0);
+
+            if (_w2 > 0.75)
+                dist += dist*(_w2 - 0.75);
+
+            if (_w1 > 0.75)
+                dist += dist*(_w1 - 0.75);
+
+            map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
+        };
 
         {
             auto lock = map_data_->getLock();
-            const int cell_range = range / map_data_->dimensions().resolution();
-            AddLogCostLookup marker(map_data_->cells().data(), log_cost_lookup_[cell_range].data(), map_data_->clampingThresMinLog(), map_data_->clampingThresMaxLog());
-            for (std::size_t i = 0; i < line.size(); ++i)
-            {
-                auto ray_end = line[i];
-                clipRayEnd(sensor_pt_map, ray_end, map_data_->dimensions().size());
-                raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(), map_data_->dimensions().size().x(), log_cost_lookup_[cell_range].size());
-            }
+
+            const auto t0 = std::chrono::steady_clock::now();
+
+            drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()}, {right_pt_map.x(), right_pt_map.y()});
+
+            ROS_INFO_STREAM("drawTriangle took "<< std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
         }
     }
     else

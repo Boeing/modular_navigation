@@ -32,6 +32,7 @@ class RangeData : public DataSource
     double std_deviation_;
 
     double max_range_;
+    double obstacle_range_;
     double raytrace_range_;
 
     int sub_sample_;

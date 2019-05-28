@@ -151,7 +151,7 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     debug_viz_ = get_config_with_default_warn<bool>(parameters, "debug_viz", true, XmlRpc::XmlRpcValue::TypeBoolean);
     if (debug_viz_)
     {
-        debug_viz_rate_ = get_config_with_default_warn<double>(parameters, "debug_viz_rate", 1.0, XmlRpc::XmlRpcValue::TypeDouble);
+        debug_viz_rate_ = get_config_with_default_warn<double>(parameters, "debug_viz_rate", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
     }
 }
 

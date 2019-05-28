@@ -105,6 +105,9 @@ if(CATKIN_ENABLE_TESTING)
 
     catkin_add_gtest(unit_test test/unit_test.cpp)
     target_link_libraries(unit_test ${PROJECT_NAME} ${OpenCV_LIBRARIES})
+
+    catkin_add_gtest(test_raytrace test/test_raytrace.cpp)
+    target_link_libraries(test_raytrace ${PROJECT_NAME} ${OpenCV_LIBRARIES})
 endif()
 
 install(TARGETS

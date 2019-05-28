@@ -105,7 +105,7 @@ double pathCost(const navigation_interface::Path& path, const Costmap& costmap, 
         const int end_cell_y = static_cast<int>((end.y() - costmap.origin_y) / costmap.resolution);
 
         const std::vector<Eigen::Array2i> segment =
-            gridmap::drawLine(Eigen::Vector2i(start_cell_x, start_cell_y), Eigen::Vector2i(end_cell_x, end_cell_y));
+            gridmap::drawLine(start_cell_x, start_cell_y, end_cell_x, end_cell_y);
 
         line.insert(line.end(), segment.begin(), segment.end());
     }
@@ -225,6 +225,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     if (astar_result.success)
     {
+        ROS_INFO_STREAM("astar found path of length: " << astar_result.path.size());
+
         for (auto r_it = astar_result.path.crbegin(); r_it != astar_result.path.crend(); ++r_it)
         {
             const double x = costmap.origin_x + (r_it->x + 0.5) * costmap.resolution;
@@ -232,6 +234,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
             const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(0);
             result.path.nodes.push_back(p);
         }
+
+        result.path.nodes.push_back(goal);
 
         orientation_filter_.processPath(result.path.nodes);
 

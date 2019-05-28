@@ -14,14 +14,24 @@ namespace gridmap
 class AddLogCostLookup
 {
   public:
-    AddLogCostLookup(double* map_data, const double* log_cost_lookup, const double clamping_thres_min_log, const double clamping_thres_max_log)
+    AddLogCostLookup(double* map_data,
+            const double* log_cost_lookup,
+            const double clamping_thres_min_log,
+            const double clamping_thres_max_log,
+            const int size_x,
+            const Eigen::Array2i origin)
         : map_data_(map_data), log_cost_lookup_(log_cost_lookup), clamping_thres_min_log_(clamping_thres_min_log),
-          clamping_thres_max_log_(clamping_thres_max_log)
+          clamping_thres_max_log_(clamping_thres_max_log), size_x_(size_x), origin_(origin)
     {
     }
     inline void operator()(unsigned int offset, const int i)
     {
-        map_data_[offset] = std::max(clamping_thres_min_log_, std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_lookup_[i]));
+        const unsigned int my = offset / size_x_;
+        const unsigned int mx = offset - (my * size_x_);
+
+        const Eigen::Vector2i diff = (Eigen::Array2i(mx, my) - origin_);
+        const int dist = diff.norm();
+        map_data_[offset] = std::max(clamping_thres_min_log_, std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_lookup_[dist]));
     }
 
   private:
@@ -29,6 +39,8 @@ class AddLogCostLookup
     const double* log_cost_lookup_;
     double clamping_thres_min_log_;
     double clamping_thres_max_log_;
+    const unsigned int size_x_;
+    const Eigen::Array2i origin_;
 };
 
 class AddLogCost
@@ -109,61 +121,6 @@ inline void bresenham2D(ActionType at, unsigned int abs_da, unsigned int abs_db,
     at(offset, end - 1);
 }
 
-inline std::vector<Eigen::Array2i> drawLine(const Eigen::Array2i& start, const Eigen::Array2i& end)
-{
-    if ((start == end).all())
-        return {end};
-
-    double x1 = start.x();
-    double x2 = end.x();
-
-    if (x1 > x2)
-    {
-        return drawLine(end, start);
-    }
-
-    double y1 = start.y();
-    double y2 = end.y();
-
-    const bool steep = (std::abs(y2 - y1) > std::abs(x2 - x1));
-    if (steep)
-    {
-        std::swap(x1, y1);
-        std::swap(x2, y2);
-    }
-
-    const double dx = x2 - x1;
-    const double dy = std::abs(y2 - y1);
-
-    double error = dx / 2.0;
-    const int ystep = (y1 < y2) ? 1 : -1;
-    int y = static_cast<int>(y1);
-
-    const int max_x = static_cast<int>(x2);
-
-    std::vector<Eigen::Array2i> line;
-    for (int x = static_cast<int>(x1); x < max_x; ++x)
-    {
-        if (steep)
-        {
-            line.push_back({y, x});
-        }
-        else
-        {
-            line.push_back({x, y});
-        }
-
-        error -= dy;
-        if (error < 0)
-        {
-            y += ystep;
-            error += dx;
-        }
-    }
-
-    return line;
-}
-
 inline void clipRayEnd(const Eigen::Array2i& start, Eigen::Array2i& end, const Eigen::Array2i& size)
 {
     const Eigen::Array2i dir = end - start;
@@ -196,6 +153,57 @@ inline void clipRayEnd(const Eigen::Array2i& start, Eigen::Array2i& end, const E
         end.y() = size.y() - 1;
     }
 }
+
+// THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
+inline std::vector<Eigen::Array2i> drawLine(int x, int y, int x2, int y2)
+{
+    std::vector<Eigen::Array2i> line;
+    bool yLonger=false;
+    int shortLen=y2-y;
+    int longLen=x2-x;
+    if (abs(shortLen)>abs(longLen)) {
+        int swap=shortLen;
+        shortLen=longLen;
+        longLen=swap;
+        yLonger=true;
+    }
+    int decInc;
+    if (longLen==0) decInc=0;
+    else decInc = (shortLen << 16) / longLen;
+
+    if (yLonger) {
+        if (longLen>0) {
+            longLen+=y;
+            for (int j=0x8000+(x<<16);y<=longLen;++y) {
+                line.push_back({j >> 16,y});
+                j+=decInc;
+            }
+            return line;
+        }
+        longLen+=y;
+        for (int j=0x8000+(x<<16);y>=longLen;--y) {
+            line.push_back({j >> 16,y});
+            j-=decInc;
+        }
+        return line;
+    }
+
+    if (longLen>0) {
+        longLen+=x;
+        for (int j=0x8000+(y<<16);x<=longLen;++x) {
+            line.push_back({x,j >> 16});
+            j+=decInc;
+        }
+        return line;
+    }
+    longLen+=x;
+    for (int j=0x8000+(y<<16);x>=longLen;--x) {
+        line.push_back({x,j >> 16});
+        j-=decInc;
+    }
+    return line;
+}
+
 }
 
 #endif

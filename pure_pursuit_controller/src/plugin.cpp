@@ -107,7 +107,7 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
     std::size_t target_i = closest_i.first;
 
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
-    const double angle_to_goal = std::abs(Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * trajectory_->states.back().pose.linear()).angle());
+    const double angle_to_goal = std::abs(Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * trajectory_->states.back().pose.linear()).smallestAngle());
 
     if (dist_to_goal < goal_radius_)
     {
@@ -115,9 +115,9 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
     }
 
     Eigen::Vector3d control_error;
-    control_error.topRows(2) = robot_state.pose.linear() * (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation());
+    control_error.topRows(2) = robot_state.pose.linear().inverse() * (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation());
     const auto diff = robot_state.pose.linear().inverse() * trajectory_->states[target_i].pose.linear();
-    control_error[2] = Eigen::Rotation2Dd(diff).angle();
+    control_error[2] = Eigen::Rotation2Dd(diff).smallestAngle();
 
     const Eigen::Vector2d goal_direction = (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).normalized();
     const Eigen::Vector2d goal_direction_wrt_robot = robot_state.pose.linear().inverse() * goal_direction;
@@ -165,26 +165,29 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
         double acc_factor_x = 1.0;
         if (std::abs(ddx) > max_acceleration_x_ && std::signbit(robot_state.velocity.x()) == std::signbit(ddx))
         {
+            ROS_INFO_STREAM("max x acceleration: " << ddx);
             acc_factor_x = std::abs(ddx / max_acceleration_x_);
         }
 
         double acc_factor_y = 1.0;
         if (std::abs(ddy) > max_acceleration_y_ && std::signbit(robot_state.velocity.y()) == std::signbit(ddy))
         {
+            ROS_INFO_STREAM("max y acceleration: " << ddy);
             acc_factor_y = std::abs(ddy / max_acceleration_y_);
         }
 
         double acc_factor_w = 1.0;
         if (std::abs(ddw) > max_acceleration_w_ && std::signbit(robot_state.velocity.z()) == std::signbit(ddw))
         {
+            ROS_INFO_STREAM("max w acceleration: " << ddw);
             acc_factor_w = std::abs(ddw / max_acceleration_w_);
         }
 
-        const double acc_factor = std::max(acc_factor_x, std::max(acc_factor_y, acc_factor_w));
+        const double acc_factor_xy = std::max(acc_factor_x, acc_factor_y);
 
-        ddx /= acc_factor;
-        ddy /= acc_factor;
-        ddw /= acc_factor;
+        ddx /= acc_factor_xy;
+        ddy /= acc_factor_xy;
+        ddw /= acc_factor_w;
     }
 
     //
@@ -220,10 +223,10 @@ navigation_interface::Controller::Result PurePursuitController::control(const ro
             velocity_factor_w = std::abs(x_dot_command.z() / max_velocity_w_);
         }
 
-        const double velocity_factor = std::max(velocity_factor_x, std::max(velocity_factor_y, velocity_factor_w));
-        x_dot_command.x() /= velocity_factor;
-        x_dot_command.y() /= velocity_factor;
-        x_dot_command.z() /= velocity_factor;
+        const double velocity_factor_xy = std::max(velocity_factor_x, velocity_factor_y);
+        x_dot_command.x() /= velocity_factor_xy;
+        x_dot_command.y() /= velocity_factor_xy;
+        x_dot_command.z() /= velocity_factor_w;
     }
 
     result.command = x_dot_command;
