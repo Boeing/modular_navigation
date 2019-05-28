@@ -62,7 +62,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     double robot_radius_ = 0.7;
     double rotation_factor_ = 1.0;
     double velocity_decay_ = 0.6;
-    double alpha_decay_ = 1.0 / std::pow(0.001, 1.0 / 20.0);
+    double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 10.0);
     double desired_speed_ = 0.2;
     bool spline_ = true;
 };

@@ -46,15 +46,16 @@ costmap:
 
   sonar_data:
     data_sources:
-      - {name: range_1, type: 'gridmap::RangeData'}
-      - {name: range_2, type: 'gridmap::RangeData'}
-      - {name: range_3, type: 'gridmap::RangeData'}
-      - {name: range_4, type: 'gridmap::RangeData'}
-      - {name: range_5, type: 'gridmap::RangeData'}
-      - {name: range_6, type: 'gridmap::RangeData'}
-      - {name: range_7, type: 'gridmap::RangeData'}
-      - {name: range_8, type: 'gridmap::RangeData'}
-      - {name: range_9, type: 'gridmap::RangeData'}
-      - {name: range_10, type: 'gridmap::RangeData'}
-      - {name: range_11, type: 'gridmap::RangeData'}
-      - {name: range_12, type: 'gridmap::RangeData'}
+      - {name: sonar_0, type: 'gridmap::RangeData'}
+      - {name: sonar_1, type: 'gridmap::RangeData'}
+      - {name: sonar_2, type: 'gridmap::RangeData'}
+      - {name: sonar_3, type: 'gridmap::RangeData'}
+      - {name: sonar_4, type: 'gridmap::RangeData'}
+      - {name: sonar_5, type: 'gridmap::RangeData'}
+      - {name: sonar_6, type: 'gridmap::RangeData'}
+      - {name: sonar_7, type: 'gridmap::RangeData'}
+      - {name: sonar_8, type: 'gridmap::RangeData'}
+      - {name: sonar_9, type: 'gridmap::RangeData'}
+      - {name: sonar_10, type: 'gridmap::RangeData'}
+      - {name: sonar_11, type: 'gridmap::RangeData'}
+      - {name: sonar_12, type: 'gridmap::RangeData'}

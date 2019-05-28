@@ -52,9 +52,9 @@ class ObstacleLayer : public Layer
     bool time_decay_;
     std::atomic<bool> time_decay_running_;
     double time_decay_frequency_;
-    double time_decay_step_;
+    double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 20.0);
     std::thread time_decay_thread_;
-    void timeDecayThread(const double frequency, const double log_odds_decay);
+    void timeDecayThread(const double frequency, const double alpha_decay);
 };
 }
 

@@ -75,21 +75,6 @@ navigation_interface::TrajectoryPlanner::Result
         const cv::Mat cv_im = cv::Mat(local_grid.dimensions().size().y(), local_grid.dimensions().size().x(), CV_8U,
                                       reinterpret_cast<void*>(local_grid.cells().data()));
 
-        //        cv::namedWindow("win", cv::WINDOW_NORMAL);
-        //        cv::imshow("win", cv_im);
-        //        cv::waitKey(1);
-
-        //        {
-        //            // Construct and cv::Mat from the costmap data
-        //            const cv::Mat cc = cv::Mat(map_data_->grid.dimensions().size().y(),
-        //            map_data_->grid.dimensions().size().x(), CV_8U,
-        //                                          reinterpret_cast<void*>(const_cast<uint8_t*>(map_data_->grid.cells().data())));
-
-        //            cv::namedWindow("win2", cv::WINDOW_NORMAL);
-        //            cv::imshow("win2", cc);
-        //            cv::waitKey(1);
-        //        }
-
         DistanceField distance_field(cv_im, local_grid.dimensions().origin().x(), local_grid.dimensions().origin().y(),
                                      local_grid.dimensions().resolution(), robot_radius_);
 

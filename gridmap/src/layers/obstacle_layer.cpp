@@ -136,13 +136,13 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     occ_prob_thres_ =
         get_config_with_default_warn<double>(parameters, "occ_prob_thres", 0.8, XmlRpc::XmlRpcValue::TypeDouble);
 
-    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", false, XmlRpc::XmlRpcValue::TypeBoolean);
+    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", true, XmlRpc::XmlRpcValue::TypeBoolean);
     if (time_decay_)
     {
-        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 0.1,
+        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 1.0 / 30.0,
                                                                      XmlRpc::XmlRpcValue::TypeDouble);
-        time_decay_step_ =
-            get_config_with_default_warn<double>(parameters, "time_decay_step", 0.1, XmlRpc::XmlRpcValue::TypeDouble);
+        alpha_decay_ =
+            get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_, XmlRpc::XmlRpcValue::TypeDouble);
     }
 
     data_sources_ = loadDataSources(parameters, globalFrame(), ds_loader_, tfBuffer());
@@ -180,14 +180,14 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
 
     if (time_decay_)
     {
-        if (debug_viz_running_)
+        if (time_decay_running_)
         {
             time_decay_running_ = false;
             time_decay_thread_.join();
         }
         time_decay_running_ = true;
         time_decay_thread_ =
-            std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, time_decay_step_);
+            std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, alpha_decay_);
     }
 }
 
@@ -269,11 +269,29 @@ void ObstacleLayer::debugVizThread(const double frequency)
     }
 }
 
-void ObstacleLayer::timeDecayThread(const double frequency, const double log_odds_decay)
+void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
     ros::Rate rate(frequency);
     while (time_decay_running_ && ros::ok())
     {
+
+        {
+            auto lock = probability_grid_->getLock();
+
+            const auto t0 = std::chrono::steady_clock::now();
+
+            const int cells = probability_grid_->dimensions().cells();
+            for (int i = 0; i < cells; ++i)
+            {
+                if (std::abs(probability_grid_->cell(i)) > 0.1)
+                    probability_grid_->cell(i) -= probability_grid_->cell(i) * alpha_decay;
+            }
+
+            ROS_INFO_STREAM("alpha_decay took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                                    std::chrono::steady_clock::now() - t0)
+                                                                    .count());
+        }
+
         rate.sleep();
     }
 }
