@@ -10,8 +10,7 @@
 
 #include <ompl/geometric/PathSimplifier.h>
 
-PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner,
-                        navigation_interface::BaseGlobalPlanner)
+PLUGINLIB_EXPORT_CLASS(omni_rrt_planner::OmniRRTPlanner, navigation_interface::BaseGlobalPlanner)
 
 namespace omni_rrt_planner
 {

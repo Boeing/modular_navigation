@@ -17,7 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
-find_package(OMPL REQUIRED)
+find_package(ompl REQUIRED)
 
 catkin_package(
     INCLUDE_DIRS
@@ -33,11 +33,14 @@ catkin_package(
         roscpp
         rviz_visual_tools
         tf2_ros
+    DEPENDS
+        OMPL
 )
 
 include_directories(SYSTEM
     ${catkin_INCLUDE_DIRS}
     ${Eigen3_INCLUDE_DIRS}
+    ${OMPL_INCLUDE_DIRS}
 )
 
 include_directories(
@@ -50,8 +53,8 @@ add_library(${PROJECT_NAME}
 )
 
 target_link_libraries(${PROJECT_NAME}
-    ${catkin_LIBRARIES}
     ${OMPL_LIBRARIES}
+    ${catkin_LIBRARIES}
 )
 
 install(TARGETS ${PROJECT_NAME}

@@ -10,8 +10,7 @@
 
 #include <ompl/geometric/PathSimplifier.h>
 
-PLUGINLIB_DECLARE_CLASS(rrt_local_planner, RRTLocalPlanner, rrt_local_planner::RRTLocalPlanner,
-                        navigation_interface::BaseLocalPlanner)
+PLUGINLIB_EXPORT_CLASS(rrt_local_planner::RRTLocalPlanner, navigation_interface::BaseLocalPlanner)
 
 namespace rrt_local_planner
 {

@@ -7,8 +7,7 @@
 
 #include <navigation_interface/base_local_planner.h>
 
-PLUGINLIB_DECLARE_CLASS(eband_local_planner, EBandPlannerROS, eband_local_planner::EBandPlannerROS,
-                        navigation_interface::BaseLocalPlanner)
+PLUGINLIB_EXPORT_CLASS(eband_local_planner::EBandPlannerROS, navigation_interface::BaseLocalPlanner)
 
 namespace eband_local_planner
 {

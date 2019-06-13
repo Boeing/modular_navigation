@@ -10,8 +10,7 @@
 
 #include <ompl/geometric/PathSimplifier.h>
 
-PLUGINLIB_DECLARE_CLASS(omni_pid_controller, OmniPIDController, omni_pid_controller::OmniPIDController,
-                        navigation_interface::BaseLocalPlanner)
+PLUGINLIB_EXPORT_CLASS(omni_pid_controller::OmniPIDController, navigation_interface::BaseLocalPlanner)
 
 namespace omni_pid_controller
 {
