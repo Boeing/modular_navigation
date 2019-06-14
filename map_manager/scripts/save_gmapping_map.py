@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def task(map_name):
-    save_map = rospy.ServiceProxy(name='map_manager/add_map', service_class=AddMap)
+    save_map = rospy.ServiceProxy(name='/map_manager/add_map', service_class=AddMap)
     get_map = rospy.ServiceProxy(name='modular_gmapping/get_map', service_class=GetMap)
 
     save_map.wait_for_service(timeout=30)

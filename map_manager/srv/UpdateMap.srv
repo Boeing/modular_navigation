@@ -1,9 +1,9 @@
 # an empty map will use the currently loaded map
 string map_name
 
-# Update fields
-hd_map/Map map
-nav_msgs/OccupancyGrid grid
+hd_map/Marker[] markers
+hd_map/Zone[] zones
+
 ---
 bool success
 string message

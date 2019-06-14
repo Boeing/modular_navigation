@@ -13,6 +13,7 @@
     <depend>hd_map</depend>
     <depend>message_generation</depend>
     <depend>nav_msgs</depend>
+    <depend>sensor_msgs</depend>
 
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>python-blinker</exec_depend>

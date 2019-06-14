@@ -2,7 +2,7 @@
     <world name='default'>
 
         <plugin name="disable_physics" filename="libgazebo_no_physics_plugin.so"></plugin>
-        <plugin name="occupancy_grid" filename="libgazebo_occupancy_grid_plugin.so"></plugin>
+        <!--<plugin name="occupancy_grid" filename="libgazebo_occupancy_grid_plugin.so"></plugin>-->
 
         <model name='ground_plane'>
             <static>1</static>
@@ -85,6 +85,26 @@
             <heading_deg>0</heading_deg>
         </spherical_coordinates>
         <state world_name='default'>
+            <model name='aruco_0'>
+                <pose frame=''>-14.7766 6.56387 0.720865 3.14159 1.50876 3.14159</pose>
+                <scale>1 1 1</scale>
+                <link name='root'>
+                    <pose frame=''>-14.7766 6.56387 0.720865 3.14159 1.50876 3.14159</pose>
+                    <velocity>0 0 0 0 -0 0</velocity>
+                    <acceleration>0 0 0 0 -0 0</acceleration>
+                    <wrench>0 0 0 0 -0 0</wrench>
+                </link>
+            </model>
+            <model name='aruco_1'>
+                <pose frame=''>-12.7612 8.53366 0.630156 -1.73537 1.51167 3.14159</pose>
+                <scale>1 1 1</scale>
+                <link name='root'>
+                    <pose frame=''>-12.7612 8.53366 0.630156 -1.73537 1.51167 3.14159</pose>
+                    <velocity>0 0 0 0 -0 0</velocity>
+                    <acceleration>0 0 0 0 -0 0</acceleration>
+                    <wrench>0 0 0 0 -0 0</wrench>
+                </link>
+            </model>
             <model name='walls'>
                 <pose frame=''>1.57522 -0.716332 0 0 -0 0</pose>
                 <scale>1 1 1</scale>
@@ -2184,6 +2204,102 @@
             <static>1</static>
             <allow_auto_disable>1</allow_auto_disable>
             <pose frame=''>1.57522 -0.716332 0 0 -0 0</pose>
+        </model>
+        <model name='aruco_1'>
+            <link name='root'>
+                <pose frame=''>0 0 0 0 -0 0</pose>
+                <inertial>
+                    <mass>0.1</mass>
+                    <inertia>
+                        <ixx>1</ixx>
+                        <ixy>0</ixy>
+                        <ixz>0</ixz>
+                        <iyy>1</iyy>
+                        <iyz>0</iyz>
+                        <izz>1</izz>
+                    </inertia>
+                </inertial>
+                <collision name='aruco_collision'>
+                    <geometry>
+                        <mesh>
+                            <uri>model://aruco_1/meshes/aruco.dae</uri>
+                        </mesh>
+                    </geometry>
+                    <max_contacts>10</max_contacts>
+                    <surface>
+                        <contact>
+                            <ode/>
+                        </contact>
+                        <bounce/>
+                        <friction>
+                            <torsional>
+                                <ode/>
+                            </torsional>
+                            <ode/>
+                        </friction>
+                    </surface>
+                </collision>
+                <visual name='aruco_visual'>
+                    <geometry>
+                        <mesh>
+                            <uri>model://aruco_1/meshes/aruco.dae</uri>
+                        </mesh>
+                    </geometry>
+                    <material/>
+                </visual>
+                <gravity>0</gravity>
+                <self_collide>0</self_collide>
+                <kinematic>0</kinematic>
+            </link>
+            <pose frame=''>-12.6026 7.77552 0 0 -0 0</pose>
+        </model>
+        <model name='aruco_0'>
+            <link name='root'>
+                <pose frame=''>0 0 0 0 -0 0</pose>
+                <inertial>
+                    <mass>0.1</mass>
+                    <inertia>
+                        <ixx>1</ixx>
+                        <ixy>0</ixy>
+                        <ixz>0</ixz>
+                        <iyy>1</iyy>
+                        <iyz>0</iyz>
+                        <izz>1</izz>
+                    </inertia>
+                </inertial>
+                <collision name='aruco_collision'>
+                    <geometry>
+                        <mesh>
+                            <uri>model://aruco_0/meshes/aruco.dae</uri>
+                        </mesh>
+                    </geometry>
+                    <max_contacts>10</max_contacts>
+                    <surface>
+                        <contact>
+                            <ode/>
+                        </contact>
+                        <bounce/>
+                        <friction>
+                            <torsional>
+                                <ode/>
+                            </torsional>
+                            <ode/>
+                        </friction>
+                    </surface>
+                </collision>
+                <visual name='aruco_visual'>
+                    <geometry>
+                        <mesh>
+                            <uri>model://aruco_0/meshes/aruco.dae</uri>
+                        </mesh>
+                    </geometry>
+                    <material/>
+                </visual>
+                <gravity>0</gravity>
+                <self_collide>0</self_collide>
+                <kinematic>0</kinematic>
+            </link>
+            <pose frame=''>-14.3573 6.56387 0 0 -0 0</pose>
         </model>
     </world>
 </sdf>

@@ -9,7 +9,9 @@ find_package(catkin REQUIRED COMPONENTS
 
 add_message_files(FILES
     Map.msg
+    MapInfo.msg
     Marker.msg
+    OccupancyGridCompressed.msg
     Zone.msg
 )
 

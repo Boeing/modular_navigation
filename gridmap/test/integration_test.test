@@ -1,11 +1,11 @@
 <?xml version="1.0" ?>
 <launch>
 
-    <!--<param name="/use_sim_time" value="true"/>-->
+    <param name="/use_sim_time" value="true"/>
 
     <!-- Gazebo Arguments -->
     <arg name="gui" default="false"/>
-    <arg name="world_name" default="$(find modular_move_base)/test/test.world"/>
+    <arg name="world_name" default="$(find gridmap)/test/test.world"/>
     <arg name="extra_gazebo_args" default=""/>
     <arg name="debug" default="false"/>
     <arg name="physics" default="ode"/>
@@ -48,19 +48,41 @@
         output="screen">
     </node>
 
-    <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />
+    <!--<node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />-->
 
     <!-- costmap -->
-    <node pkg="gridmap" type="gridmap_test" respawn="true" name="gridmap" launch-prefix="xterm -e gdb --args">
-        <remap from="map" to="gazebo/map"/>
-    </node>
+    <!--<node pkg="gridmap" type="gridmap_test" respawn="true" name="gridmap" launch-prefix="xterm -e gdb &#45;&#45;args">-->
+        <!--<remap from="map" to="gazebo/map"/>-->
+    <!--</node>-->
 
     <!--<node name="cartographer_node" pkg="cartographer_ros"-->
       <!--type="cartographer_node" args="-->
-           <!-- -configuration_directory $(find gridmap)/test/cartographer-->
-           <!-- -configuration_basename cartographer.lua"-->
+            <!-- -configuration_directory $(find gridmap)/test/cartographer-->
+            <!-- -configuration_basename cartographer.lua"-->
       <!--output="screen">-->
     <!--<remap from="scan" to="laser/scan" />-->
   <!--</node>-->
+
+     <!--Web Interface-->
+    <node name="tf2_web_republisher" pkg="tf2_web_republisher" type="tf2_web_republisher" respawn="true"/>
+
+    <!-- rosbridge_websocket -->
+    <node name="rosbridge_websocket" pkg="rosbridge_server" type="rosbridge_websocket" respawn="true">
+        <param name="authenticate" value="false"/>
+        <param name="port" value="9090"/>
+        <param name="address" value=""/>
+        <param name="retry_startup_delay" value="5"/>
+        <param name="fragment_timeout" value="600"/>
+        <param name="delay_between_messages" value="0"/>
+        <param name="max_message_size" value="None"/>
+        <param name="binary_encoder" value="b64" />
+    </node>
+
+    <!--rosapi -->
+    <node name="rosapi" pkg="rosapi" type="rosapi_node" respawn="true">
+        <param name="topics_glob" value="[*]"/>
+        <param name="services_glob" value="[*]"/>
+        <param name="params_glob" value="[*]"/>
+    </node>
 
 </launch>

@@ -1,29 +1,32 @@
 import logging
 import traceback
+import zlib
 from functools import wraps
 
 import geometry_msgs.msg
-import numpy
 import rospy
 import std_msgs.msg
 import typing
-from PIL import Image
 from mongoengine import DoesNotExist, ValidationError
 from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
-from std_msgs.msg import String
+from std_msgs.msg import UInt8MultiArray
 from tf2_msgs.msg import TFMessage
+from visualization_msgs.msg import MarkerArray, Marker
 
-from hd_map.msg import Map as MapMsg
+from hd_map.msg import MapInfo as MapInfoMsg
 from hd_map.msg import Marker as MarkerMsg
+from hd_map.msg import OccupancyGridCompressed
 from hd_map.msg import Zone as ZoneMsg
-from map_manager.documents import Map, Zone, Marker, OccupancyGrid, Pose, Point, Quaternion
+from map_manager.documents import Map, Zone, Marker, Pose, Point, Quaternion
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.srv import DeleteMap, DeleteMapRequest, DeleteMapResponse
+from map_manager.srv import GetActiveMap, GetActiveMapRequest, GetActiveMapResponse
 from map_manager.srv import GetMap, GetMapRequest, GetMapResponse
 from map_manager.srv import GetOccupancyGrid, GetOccupancyGridRequest, GetOccupancyGridResponse
 from map_manager.srv import ListMaps, ListMapsRequest, ListMapsResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
 from map_manager.srv import UpdateMap, UpdateMapResponse, UpdateMapRequest
+from map_manager.visualise import build_marker_array
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +70,8 @@ class RosWrapper(object):
 
         self.__list_map = rospy.Service('~list_maps', ListMaps, handler=self.__list_maps_cb)
 
-        self.__list_zone = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
+        self.__set_active_map = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
+        self.__get_active_map = rospy.Service('~get_active_map', GetActiveMap, handler=self.__get_active_map_cb)
 
         self.__update_map = rospy.Service('~update_map', UpdateMap, handler=self.__update_map_cb)
 
@@ -93,7 +97,8 @@ class RosWrapper(object):
         #
         self.__active_map_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__og_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__map_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__data_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__marker_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__init_publishers()
 
         # Load the most recently modified Map by default
@@ -102,7 +107,7 @@ class RosWrapper(object):
             map_obj = map_query.first()
             self.__load_map(map_name=str(map_obj.name))
         else:
-            self.__active_map_pub.publish(String(data=''))
+            self.__active_map_pub.publish(MapInfoMsg())
 
         logger.info('Successfully started')
 
@@ -111,21 +116,33 @@ class RosWrapper(object):
 
         self.__active_map_pub = rospy.Publisher(
             name='~active_map',
-            data_class=String,
+            data_class=MapInfoMsg,
             latch=True,
-            queue_size=1000
+            queue_size=100
         )
         self.__og_pub = rospy.Publisher(
             name='~occupancy_grid',
             data_class=OccupancyGridMsg,
             latch=True,
-            queue_size=1000
+            queue_size=100
         )
-        self.__map_pub = rospy.Publisher(
-            name='~map',
-            data_class=MapMsg,
+        self.__og_compressed_pub = rospy.Publisher(
+            name='~occupancy_grid_compressed',
+            data_class=OccupancyGridCompressed,
             latch=True,
-            queue_size=1000
+            queue_size=100
+        )
+        self.__data_pub = rospy.Publisher(
+            name='~map_data',
+            data_class=UInt8MultiArray,
+            latch=True,
+            queue_size=100
+        )
+        self.__marker_pub = rospy.Publisher(
+            name='~markers',
+            data_class=MarkerArray,
+            latch=True,
+            queue_size=100
         )
 
     #
@@ -135,77 +152,24 @@ class RosWrapper(object):
     @exception_wrapper(AddMapResponse)
     def __add_map_cb(self, req):
         # type: (AddMapRequest) -> AddMapResponse
-        logger.info('Request to add a new Map: {}'.format(req.map.name))
+        logger.info('Request to add a new Map: {}'.format(req.map.info.name))
 
-        if len(req.grid.data) <= 0:
+        if len(req.occupancy_grid.data) <= 0:
             return AddMapResponse(
                 success=False,
                 message='No map data'
             )
 
-        assert isinstance(req.grid, OccupancyGridMsg)
-        og_map = OccupancyGrid()
-        og_map.width = req.grid.info.width
-        og_map.height = req.grid.info.height
-        og_map.resolution = req.grid.info.resolution
-        og_map.origin = Pose(
-            position=Point(
-                x=req.grid.info.origin.position.x,
-                y=req.grid.info.origin.position.y,
-                z=req.grid.info.origin.position.z),
-            quaternion=Quaternion(
-                x=req.grid.info.origin.orientation.x,
-                y=req.grid.info.origin.orientation.y,
-                z=req.grid.info.origin.orientation.z,
-                w=req.grid.info.origin.orientation.w
-            )
-        )
-        im = Image.fromarray(numpy.asarray(req.grid.data, dtype=numpy.uint8)
-                             .reshape(req.grid.info.height, req.grid.info.width))
-        og_map.image.new_file()
-        im.save(fp=og_map.image, format='PPM')
-        og_map.image.close()
+        map_obj = Map.from_msg(map_msg=req.map, occupancy_grid_msg=req.occupancy_grid)
 
-        obj = Map(
-            name=req.map.name,
-            description=req.map.description,
-            map=og_map
-        )
+        if req.map_data:
+            map_obj.map_data.new_file()
+            map_obj.map_data.write(req.map_data)
+            map_obj.map_data.close()
 
-        for marker in req.map.markers:
-            assert isinstance(marker, MarkerMsg)
-            m_obj = Marker(
-                name=marker.name,
-                description=marker.description,
-                marker_type=marker.marker_type,
-                pose=Pose(
-                    position=Point(
-                        x=marker.pose.position.x,
-                        y=marker.pose.position.y,
-                        z=marker.pose.position.z
-                    ),
-                    quaternion=Quaternion(
-                        w=marker.pose.orientation.w,
-                        x=marker.pose.orientation.x,
-                        y=marker.pose.orientation.y,
-                        z=marker.pose.orientation.z
-                    )
-                )
-            )
-            obj.markers.append(m_obj)
+        map_obj.save()
 
-        for zone in req.map.zones:
-            assert isinstance(zone, ZoneMsg)
-            obj = Zone(
-                name=zone.name,
-                description=zone.description,
-                zone_type=zone.zone_type,
-                polygon=[Point(x=point.x, y=point.y, z=point.z) for point in zone.polygon.points]
-            )
-
-        obj.save()
-
-        self.__load_map(map_name=req.map.name)
+        self.__load_map(map_name=req.map.info.name)
 
         return AddMapResponse(
             success=True
@@ -263,7 +227,7 @@ class RosWrapper(object):
         map_obj = Map.objects(name=req.map_name).get()
 
         return GetMapResponse(
-            map=map_obj.get_msg(),
+            map=map_obj.get_map_msg(),
             success=True
         )
 
@@ -276,12 +240,12 @@ class RosWrapper(object):
         # type: (ListMapsRequest) -> ListMapsResponse
         return ListMapsResponse(
             active_map=self.__map_name if self.__map_name else '',
-            maps=[obj.get_msg() for obj in Map.objects],
+            maps=[obj.get_map_info_msg() for obj in Map.objects],
             success=True
         )
 
     #
-    # SET callbacks
+    # Active map callbacks
     #
 
     @exception_wrapper(SetActiveMapResponse)
@@ -293,6 +257,14 @@ class RosWrapper(object):
         self.__load_map(map_name=req.map_name)
 
         return SetActiveMapResponse(
+            success=True
+        )
+
+    @exception_wrapper(GetActiveMapResponse)
+    def __get_active_map_cb(self, req):
+        # type: (GetActiveMapRequest) -> GetActiveMapResponse
+        return GetActiveMapResponse(
+            active_map=self.__map_name,
             success=True
         )
 
@@ -312,39 +284,13 @@ class RosWrapper(object):
 
         map_obj = Map.objects(name=req.map_name).get()
 
-        if req.map.data:
-            og_map = OccupancyGrid()
-            og_map.width = req.map.info.width
-            og_map.height = req.map.info.height
-            og_map.resolution = req.map.info.resolution
-            og_map.origin = Pose(
-                position=Point(
-                    x=req.map.info.origin.position.x,
-                    y=req.map.info.origin.position.y,
-                    z=req.map.info.origin.position.z),
-                quaternion=Quaternion(
-                    x=req.map.info.origin.orientation.x,
-                    y=req.map.info.origin.orientation.y,
-                    z=req.map.info.origin.orientation.z,
-                    w=req.map.info.origin.orientation.w
-                )
-            )
-            im = Image.fromarray(numpy.asarray(req.map.data, dtype=numpy.uint8)
-                                 .reshape(req.map.info.height, req.map.info.width))
-            og_map.image.new_file()
-            im.save(fp=og_map.image, format='PPM')
-            og_map.image.close()
-            map_obj.map = og_map
-
-        for marker_msg in req.map.markers:
+        for marker_msg in req.markers:
             assert isinstance(marker_msg, MarkerMsg)
             try:
                 marker = next(m for m in map_obj.markers if m.name == marker_msg.name)  # type: Marker
             except StopIteration:
-                return UpdateMapResponse(
-                    success=False,
-                    message='No Marker matching {}'.format(marker_msg.name)
-                )
+                marker = Marker(name=marker_msg.name)
+                map_obj.markers.append(marker)
 
             marker.description = marker_msg.description
             marker.marker_type = marker_msg.marker_type
@@ -361,32 +307,25 @@ class RosWrapper(object):
                     z=marker_msg.pose.orientation.z
                 )
             )
-            marker.save()
 
-        for zone_msg in req.map.zones:
+        for zone_msg in req.zones:
             assert isinstance(zone_msg, ZoneMsg)
             try:
                 zone = next(z for z in map_obj.zones if z.name == zone_msg.name)  # type: Zone
             except StopIteration:
-                return UpdateMapResponse(
-                    success=False,
-                    message='No Zone matching {}'.format(zone_msg.name)
-                )
+                zone = Zone(name=zone_msg.name)
+                map_obj.zones.append(zone)
 
             zone.description = zone_msg.description
             zone.zone_type = zone_msg.zone_type
             zone.polygon = []
             for point in zone_msg.polygon.points:
                 zone.polygon.append(Point(x=point.x, y=point.y, z=point.z))
-            zone.save()
-
-        if req.map.description:
-            map_obj.description = req.map.description
 
         map_obj.save()
 
         if req.map_name == self.__map_name:
-            self.__publish_map()
+            self.__load_map(self.__map_name)
 
         return UpdateMapResponse(
             success=True
@@ -403,28 +342,28 @@ class RosWrapper(object):
         # Set as the current map
         self.__map_name = str(map_name)
 
-        self.__active_map_pub.publish(String(data=self.__map_name))
-        self.__publish_map()
-        self.__publish_occupancy_grid()
-
-    def __publish_map(self):
-        logger.info('Publishing Map')
-
         try:
             map_obj = Map.objects(name=self.__map_name).get()  # type: Map
-            self.__map_pub.publish(map_obj.get_msg())
+
+            self.__active_map_pub.publish(map_obj.get_map_info_msg())
+
+            grid = map_obj.get_occupancy_grid_msg()
+            self.__og_pub.publish(grid)
+
+            comp_grid = OccupancyGridCompressed(
+                header=grid.header,
+                meta_data=grid.info,
+                format='zlib',
+                data=zlib.compress(grid.data, 1)
+            )
+            self.__og_compressed_pub.publish(comp_grid)
+
+            if map_obj.map_data:
+                self.__data_pub.publish(UInt8MultiArray(data=map_obj.map_data.read()))
+            else:
+                self.__data_pub.publish(UInt8MultiArray())
+
+            self.__marker_pub.publish(build_marker_array(map_obj))
 
         except Exception as e:
-            logger.error('Exception publishing Map: {} - {}'.format(e, traceback.format_exc()))
-
-    def __publish_occupancy_grid(self):
-        logger.info('Publishing Occupancy Grid')
-
-        try:
-            map_obj = Map.objects(name=self.__map_name).get()  # type: Map
-            map_msg = map_obj.map.get_occupancy_grid_msg()
-
-            self.__og_pub.publish(map_msg)
-
-        except Exception as e:
-            logger.error('Exception publishing OccupancyGrid: {} - {}'.format(e, traceback.format_exc()))
+            logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))

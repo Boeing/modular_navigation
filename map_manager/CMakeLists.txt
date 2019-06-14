@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
     geometry_msgs
     message_generation
     nav_msgs
+    sensor_msgs
     hd_map
 )
 
@@ -13,6 +14,7 @@ catkin_python_setup()
 add_service_files(FILES
     AddMap.srv
     DeleteMap.srv
+    GetActiveMap.srv
     GetMap.srv
     GetOccupancyGrid.srv
     ListMaps.srv
@@ -24,6 +26,7 @@ generate_messages(
     DEPENDENCIES
         geometry_msgs
         nav_msgs
+        sensor_msgs
         hd_map
 )
 
