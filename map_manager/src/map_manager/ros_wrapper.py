@@ -15,7 +15,6 @@ from visualization_msgs.msg import MarkerArray, Marker
 
 from hd_map.msg import MapInfo as MapInfoMsg
 from hd_map.msg import Marker as MarkerMsg
-from hd_map.msg import OccupancyGridCompressed
 from hd_map.msg import Zone as ZoneMsg
 from map_manager.documents import Map, Zone, Marker, Pose, Point, Quaternion
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
@@ -123,12 +122,6 @@ class RosWrapper(object):
         self.__og_pub = rospy.Publisher(
             name='~occupancy_grid',
             data_class=OccupancyGridMsg,
-            latch=True,
-            queue_size=100
-        )
-        self.__og_compressed_pub = rospy.Publisher(
-            name='~occupancy_grid_compressed',
-            data_class=OccupancyGridCompressed,
             latch=True,
             queue_size=100
         )
@@ -349,14 +342,6 @@ class RosWrapper(object):
 
             grid = map_obj.get_occupancy_grid_msg()
             self.__og_pub.publish(grid)
-
-            comp_grid = OccupancyGridCompressed(
-                header=grid.header,
-                meta_data=grid.info,
-                format='zlib',
-                data=zlib.compress(grid.data, 1)
-            )
-            self.__og_compressed_pub.publish(comp_grid)
 
             if map_obj.map_data:
                 self.__data_pub.publish(UInt8MultiArray(data=map_obj.map_data.read()))

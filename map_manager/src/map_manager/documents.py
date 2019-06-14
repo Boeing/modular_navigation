@@ -200,10 +200,14 @@ class Map(Document, DocumentMixin):
             )
             map_obj.zones.append(z_obj)
 
-        b = BytesIO(occupancy_grid_msg.data)
-        im = Image.open(b)  # type: Image
-        if im.size != (map_msg.info.meta_data.width, map_msg.info.meta_data.height):
-            raise Exception('Map info size does not match compressed data')
+        if occupancy_grid_msg.format == 'raw':
+            im = Image.fromarray(numpy.asarray(occupancy_grid_msg.data, dtype=numpy.uint8)
+                                 .reshape(map_msg.info.height, map_msg.info.width))
+        else:
+            b = BytesIO(occupancy_grid_msg.data)
+            im = Image.open(b)  # type: Image
+            if im.size != (map_msg.info.meta_data.width, map_msg.info.meta_data.height):
+                raise Exception('Map info size does not match compressed data')
         map_obj.image.new_file()
         im.save(fp=map_obj.image, format='PPM')
         map_obj.image.close()

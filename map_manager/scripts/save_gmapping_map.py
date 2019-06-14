@@ -6,8 +6,9 @@ import logging
 import rospy
 import rospy.impl.rosout
 from nav_msgs.srv import GetMap, GetMapRequest, GetMapResponse
+from sensor_msgs.msg import CompressedImage
 
-from hd_map.msg import Map
+from hd_map.msg import Map, MapInfo
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from sm_core.state import COMPLETED, FAILED
 
@@ -25,14 +26,22 @@ def task(map_name):
     try:
         get_map_response = get_map.call(GetMapRequest())  # type: GetMapResponse
     except rospy.ServiceException as e:
-        logger.error('Failed to get map from gmapping')
+        logger.error('Failed to get map from gmapping: {}'.format(e))
         return FAILED
 
     # Save the map
     save_map_response = save_map.call(
         AddMapRequest(
-            map=Map(name=map_name),
-            grid=get_map_response.map
+            map=Map(
+                info=MapInfo(
+                    name=map_name,
+                    meta_data=get_map_response.map.info
+                )
+            ),
+            occupancy_grid=CompressedImage(
+                format='raw',
+                data=get_map_response.map.data
+            )
         )
     )  # type: AddMapResponse
 
