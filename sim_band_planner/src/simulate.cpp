@@ -49,7 +49,6 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
         refine(path, distance_field, min_distance, min_overlap);
 
         alpha -= alpha * alpha_decay;
-        ROS_INFO_STREAM("it: " << it << " alpha: " << alpha);
     }
 }
 

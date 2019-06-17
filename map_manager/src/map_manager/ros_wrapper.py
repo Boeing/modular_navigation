@@ -204,7 +204,7 @@ class RosWrapper(object):
         map_obj = Map.objects(name=req.map_name).get()
 
         return GetOccupancyGridResponse(
-            map=map_obj.map.get_occupancy_grid_msg(),
+            grid=map_obj.get_occupancy_grid_msg(),
             success=True
         )
 

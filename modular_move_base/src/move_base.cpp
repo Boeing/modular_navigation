@@ -137,7 +137,7 @@ MoveBase::MoveBase()
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
 
-      running_(false), controller_done_(false),
+      running_(false), execution_thread_running_(false), controller_done_(false),
 
       current_path_(nullptr), current_trajectory_(nullptr),
 
@@ -184,6 +184,7 @@ MoveBase::MoveBase()
 
     as_.start();
 
+    execution_thread_running_ = true;
     execution_thread_ = std::thread(&MoveBase::executionThread, this);
 
     ROS_INFO("Successfully started");
@@ -191,6 +192,11 @@ MoveBase::MoveBase()
 
 MoveBase::~MoveBase()
 {
+    if (execution_thread_running_)
+    {
+        execution_thread_running_ = false;
+        execution_thread_.join();
+    }
     if (running_)
     {
         running_ = false;
@@ -206,6 +212,10 @@ void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     {
         running_ = false;
     }
+
+    // wait for goal completion
+    std::unique_lock<std::mutex> lock(goal_mutex_);
+    ROS_ASSERT(goal_ == nullptr);
 
     auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
     map_manager::GetMapRequest map_req;
@@ -229,7 +239,7 @@ void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 
 void MoveBase::executionThread()
 {
-    while (running_)
+    while (execution_thread_running_)
     {
         std::unique_lock<std::mutex> lock(goal_mutex_);
         if (execution_condition_.wait_for(lock, std::chrono::milliseconds(100)) == std::cv_status::no_timeout)
@@ -306,31 +316,43 @@ void MoveBase::executeGoal(GoalHandle& goal)
     path_planner_thread_.reset();
     trajectory_planner_thread_.reset();
     controller_thread_.reset();
+
+    ROS_INFO_STREAM("Goal " << goal_->getGoalID().id << " execution complete");
 }
 
 void MoveBase::goalCallback(GoalHandle goal)
 {
-    std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
-    if(!lock.owns_lock())
+    ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x << ", " << goal.getGoal()->target_pose.pose.position.x << ")");
     {
-        // A Goal is already running... preempt
-        if (goal_)
+        std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
+        if(!lock.owns_lock())
         {
-            goal.setCanceled();
-            ROS_ASSERT(lock.try_lock());
-        }
-        else
-        {
+            // A Goal is already running... preempt
+            if (goal_ && goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::ACTIVE)
+            {
+                ROS_INFO("Goal already executing. Cancelling...");
+                goal_->setCanceled();
+            }
             lock.lock();
         }
-    }
 
-    goal_ = std::make_unique<GoalHandle>(goal);
+        ROS_INFO_STREAM("Accepted new goal: " << goal.getGoalID().id);
+        goal.setAccepted();
+        goal_ = std::make_unique<GoalHandle>(goal);
+    }
+    execution_condition_.notify_all();
 }
 
 void MoveBase::cancelCallback(GoalHandle goal)
 {
-    std::lock_guard<std::mutex> lock(goal_mutex_);
+    std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
+    if(!lock.owns_lock())
+    {
+        if (goal_ && goal.getGoalID().id == goal_->getGoalID().id)
+        {
+            goal.setCanceled();
+        }
+    }
 }
 
 void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
@@ -485,9 +507,7 @@ void MoveBase::trajectoryPlannerThread()
         const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
 
-        ROS_INFO_STREAM("robot_map: " << robot_map.transpose());
-
-        gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+        const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
 
         {
             const auto t0 = std::chrono::steady_clock::now();
@@ -617,10 +637,8 @@ void MoveBase::controllerThread()
         feedback.base_position.pose.orientation.x = qt.x();
         feedback.base_position.pose.orientation.y = qt.y();
         feedback.base_position.pose.orientation.z = qt.z();
-        {
-            std::unique_lock<std::mutex> lock(goal_mutex_);
-            goal_->publishFeedback(feedback);
-        }
+        ROS_ASSERT(goal_);
+        goal_->publishFeedback(feedback);
 
         // control
         const auto result = controller_->control(rs.time, rs.robot_state, rs.map_to_odom);

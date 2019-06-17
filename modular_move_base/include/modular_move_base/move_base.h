@@ -134,6 +134,7 @@ class MoveBase
     ros::Publisher trajectory_pub_;
 
     std::atomic<bool> running_;
+    std::atomic<bool> execution_thread_running_;
 
     std::unique_ptr<std::thread> path_planner_thread_;
     std::unique_ptr<std::thread> trajectory_planner_thread_;

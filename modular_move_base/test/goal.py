@@ -29,5 +29,5 @@ if __name__ == '__main__':
     rospy.init_node('client')
 
     while not rospy.is_shutdown():
-        _ = run(0, 0)
-        _ = run(4, 4)
+        # _ = run(0, 0)
+        _ = run(1, -1)
