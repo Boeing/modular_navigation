@@ -14,7 +14,7 @@ def run(x, y):
         target_pose=PoseStamped(
             header=Header(frame_id='map'),
             pose=Pose(
-                position=Point(x=x, y=x),
+                position=Point(x=x, y=y),
                 orientation=Quaternion(w=1)
             )
         )

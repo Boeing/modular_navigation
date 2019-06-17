@@ -121,6 +121,9 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
                     map_data_->update(ray_end, -miss_probability_log_);
                     map_data_->update(ray_end, hit_probability_log_);
                 }
+
+                // TODO something about ranges at zero
+                map_data_->setMinThres(sensor_pt_map);
             }
         }
     }
