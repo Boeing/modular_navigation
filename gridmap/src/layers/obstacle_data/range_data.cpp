@@ -173,14 +173,10 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
         {
             auto lock = map_data_->getLock();
 
-//            const auto t0 = std::chrono::steady_clock::now();
-
             drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
                     {right_pt_map.x(), right_pt_map.y()});
 
-//            ROS_INFO_STREAM("drawTriangle took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-//                                                        std::chrono::steady_clock::now() - t0)
-//                                                        .count());
+            map_data_->setMinThres(sensor_pt_map);
         }
     }
     else
