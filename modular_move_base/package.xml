@@ -13,6 +13,7 @@
     <depend>cmake_modules</depend>
     <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
+    <depend>map_manager</depend>
     <depend>message_generation</depend>
     <depend>move_base_msgs</depend>
     <depend>nav_msgs</depend>

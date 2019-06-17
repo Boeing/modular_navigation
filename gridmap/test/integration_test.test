@@ -64,25 +64,25 @@
   <!--</node>-->
 
      <!--Web Interface-->
-    <node name="tf2_web_republisher" pkg="tf2_web_republisher" type="tf2_web_republisher" respawn="true"/>
+    <!--<node name="tf2_web_republisher" pkg="tf2_web_republisher" type="tf2_web_republisher" respawn="true"/>-->
 
-    <!-- rosbridge_websocket -->
-    <node name="rosbridge_websocket" pkg="rosbridge_server" type="rosbridge_websocket" respawn="true">
-        <param name="authenticate" value="false"/>
-        <param name="port" value="9090"/>
-        <param name="address" value=""/>
-        <param name="retry_startup_delay" value="5"/>
-        <param name="fragment_timeout" value="600"/>
-        <param name="delay_between_messages" value="0"/>
-        <param name="max_message_size" value="None"/>
-        <param name="binary_encoder" value="b64" />
-    </node>
+    <!--&lt;!&ndash; rosbridge_websocket &ndash;&gt;-->
+    <!--<node name="rosbridge_websocket" pkg="rosbridge_server" type="rosbridge_websocket" respawn="true">-->
+        <!--<param name="authenticate" value="false"/>-->
+        <!--<param name="port" value="9090"/>-->
+        <!--<param name="address" value=""/>-->
+        <!--<param name="retry_startup_delay" value="5"/>-->
+        <!--<param name="fragment_timeout" value="600"/>-->
+        <!--<param name="delay_between_messages" value="0"/>-->
+        <!--<param name="max_message_size" value="None"/>-->
+        <!--<param name="binary_encoder" value="b64" />-->
+    <!--</node>-->
 
-    <!--rosapi -->
-    <node name="rosapi" pkg="rosapi" type="rosapi_node" respawn="true">
-        <param name="topics_glob" value="[*]"/>
-        <param name="services_glob" value="[*]"/>
-        <param name="params_glob" value="[*]"/>
-    </node>
+    <!--&lt;!&ndash;rosapi &ndash;&gt;-->
+    <!--<node name="rosapi" pkg="rosapi" type="rosapi_node" respawn="true">-->
+        <!--<param name="topics_glob" value="[*]"/>-->
+        <!--<param name="services_glob" value="[*]"/>-->
+        <!--<param name="params_glob" value="[*]"/>-->
+    <!--</node>-->
 
 </launch>

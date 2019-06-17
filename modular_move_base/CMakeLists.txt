@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(modular_move_base)
 
-add_definitions(-std=c++11)
+add_definitions(-std=c++14)
 
 find_package(catkin REQUIRED COMPONENTS
     actionlib
     cmake_modules
     gridmap
     geometry_msgs
+    map_manager
     message_generation
     move_base_msgs
     nav_msgs
@@ -35,6 +36,7 @@ generate_messages(
 catkin_package(
     CATKIN_DEPENDS
         geometry_msgs
+        map_manager
         message_runtime
         move_base_msgs
         nav_msgs

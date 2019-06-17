@@ -138,7 +138,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
 
     hd_map::Map hd_map;
-    hd_map.map_info = map->info;
+    hd_map.info.meta_data = map->info;
 
     layered_map->setMap(hd_map, *map);
 

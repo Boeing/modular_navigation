@@ -12,6 +12,8 @@
 
 #include <geometry_msgs/Twist.h>
 
+#include <map_manager/GetOccupancyGrid.h>
+#include <map_manager/GetMap.h>
 #include <map_msgs/OccupancyGridUpdate.h>
 
 namespace move_base
@@ -36,7 +38,6 @@ std::string uuid()
 
 Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
 {
-    const Eigen::Quaterniond qt(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
     const double yaw =
         std::atan2(2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
                    -1.0 + 2.0 * (pose.orientation.w * pose.orientation.w + pose.orientation.x * pose.orientation.x));
@@ -45,7 +46,6 @@ Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
 
 Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
 {
-    const Eigen::Quaterniond qt(tr.rotation.w, tr.rotation.x, tr.rotation.y, tr.rotation.z);
     const double yaw = std::atan2(2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
                                   -1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x));
     return Eigen::Translation2d(tr.translation.x, tr.translation.y) * Eigen::Rotation2Dd(yaw);
@@ -126,7 +126,11 @@ MoveBase::MoveBase()
 
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
 
-      as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
+      as_(nh_,
+          "/move_base",
+          boost::bind(&MoveBase::goalCallback, this, _1),
+          boost::bind(&MoveBase::cancelCallback, this, _1),
+          false),
 
       layer_loader_("gridmap", "gridmap::Layer"),
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
@@ -157,8 +161,6 @@ MoveBase::MoveBase()
     base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], tf_buffer_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
-    as_.registerPreemptCallback(boost::bind(&MoveBase::preemptedCallback, this));
-
     const std::string path_planner_name = get_param_or_throw<std::string>("~path_planner");
     const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
     const std::string controller_name = get_param_or_throw<std::string>("~controller");
@@ -175,48 +177,82 @@ MoveBase::MoveBase()
         load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
     controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
 
-    map_sub_ = nh_.subscribe<nav_msgs::OccupancyGrid>("/map", 10, &MoveBase::mapCallback, this);
+    active_map_sub_ = nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &MoveBase::activeMapCallback, this);
 
     costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
 
     as_.start();
 
+    execution_thread_ = std::thread(&MoveBase::executionThread, this);
+
     ROS_INFO("Successfully started");
 }
 
 MoveBase::~MoveBase()
 {
+    if (running_)
+    {
+        running_ = false;
+    }
 }
 
-void MoveBase::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& map)
+void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 {
     ROS_INFO_STREAM("Received map!");
 
-    // TODO preempt execution
+    // preempt execution
+    if (running_)
+    {
+        running_ = false;
+    }
 
-    hd_map::Map hd_map;
-    hd_map.map_info = map->info;
-    layered_map_->setMap(hd_map, *map);
+    auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
+    map_manager::GetMapRequest map_req;
+    map_req.map_name = map->name;
+    map_manager::GetMapResponse map_res;
+    ROS_ASSERT(map_client.call(map_req, map_res));
+    ROS_ASSERT(map_res.success);
 
+    auto og_client = nh_.serviceClient<map_manager::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+    map_manager::GetOccupancyGridRequest og_req;
+    og_req.map_name = map->name;
+    map_manager::GetOccupancyGridResponse og_res;
+    ROS_ASSERT(og_client.call(og_req, og_res));
+    ROS_ASSERT(og_res.success);
+
+    layered_map_->setMap(map_res.map, og_res.grid);
     path_planner_->setMapData(layered_map_->map());
     trajectory_planner_->setMapData(layered_map_->map());
     controller_->setMapData(layered_map_->map());
 }
 
-void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal)
+void MoveBase::executionThread()
+{
+    while (running_)
+    {
+        std::unique_lock<std::mutex> lock(goal_mutex_);
+        if (execution_condition_.wait_for(lock, std::chrono::milliseconds(100)) == std::cv_status::no_timeout)
+        {
+            executeGoal(*goal_);
+            goal_ = nullptr;
+        }
+    }
+}
+
+void MoveBase::executeGoal(GoalHandle& goal)
 {
     ROS_INFO_STREAM("Received New Goal");
 
-    if (move_base_goal->target_pose.header.frame_id != global_frame_)
+    if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
     {
         const std::string msg = "Goal must be in the global frame";
         ROS_WARN_STREAM(msg);
-        as_.setAborted(move_base_msgs::MoveBaseResult(), msg);
+        goal.setAborted(move_base_msgs::MoveBaseResult(), msg);
         return;
     }
 
-    current_goal_pub_.publish(move_base_goal->target_pose);
+    current_goal_pub_.publish(goal.getGoal()->target_pose);
 
     // make sure no threads are running
     ROS_ASSERT(!running_);
@@ -228,23 +264,22 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(
-        new std::thread(&MoveBase::pathPlannerThread, this, convert(move_base_goal->target_pose.pose)));
+    path_planner_thread_.reset(new std::thread(&MoveBase::pathPlannerThread, this, convert(goal.getGoal()->target_pose.pose)));
     trajectory_planner_thread_.reset(new std::thread(&MoveBase::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&MoveBase::controllerThread, this));
 
     // wait till all threads are done
-    while (ros::ok())
+    while (running_)
     {
-        if (as_.isPreemptRequested())
+        if (goal.getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
         {
-            as_.setPreempted();
+            goal.setCanceled();
             break;
         }
 
         if (controller_done_)
         {
-            as_.setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached");
+            goal.setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached");
             break;
         }
 
@@ -252,6 +287,7 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
     }
 
     running_ = false;
+    controller_done_ = false;
 
     {
         std::lock_guard<std::mutex> lock(path_mutex_);
@@ -263,37 +299,39 @@ void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_
         current_trajectory_.reset();
     }
 
-    ROS_INFO("waiting for path_planner_thread_");
     path_planner_thread_->join();
-    ROS_INFO("waiting for trajectory_planner_thread_");
     trajectory_planner_thread_->join();
-    ROS_INFO("waiting for controller_thread_");
     controller_thread_->join();
 
     path_planner_thread_.reset();
     trajectory_planner_thread_.reset();
     controller_thread_.reset();
-
-    ROS_INFO("Main loop exiting");
 }
 
-void MoveBase::preemptedCallback()
+void MoveBase::goalCallback(GoalHandle goal)
 {
-    ROS_INFO_STREAM("Preempting");
-}
-
-/*
-void MoveBase::idleThread()
-{
-    while (idle_)
+    std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
+    if(!lock.owns_lock())
     {
-        // update costmap around robot
-        // once every (N) update full map
-
-        // publish
+        // A Goal is already running... preempt
+        if (goal_)
+        {
+            goal.setCanceled();
+            ROS_ASSERT(lock.try_lock());
+        }
+        else
+        {
+            lock.lock();
+        }
     }
+
+    goal_ = std::make_unique<GoalHandle>(goal);
 }
-*/
+
+void MoveBase::cancelCallback(GoalHandle goal)
+{
+    std::lock_guard<std::mutex> lock(goal_mutex_);
+}
 
 void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
 {
@@ -579,7 +617,10 @@ void MoveBase::controllerThread()
         feedback.base_position.pose.orientation.x = qt.x();
         feedback.base_position.pose.orientation.y = qt.y();
         feedback.base_position.pose.orientation.z = qt.z();
-        as_.publishFeedback(feedback);
+        {
+            std::unique_lock<std::mutex> lock(goal_mutex_);
+            goal_->publishFeedback(feedback);
+        }
 
         // control
         const auto result = controller_->control(rs.time, rs.robot_state, rs.map_to_odom);

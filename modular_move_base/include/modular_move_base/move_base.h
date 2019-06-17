@@ -8,6 +8,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <condition_variable>
 
 #include <ros/ros.h>
 
@@ -81,15 +82,19 @@ struct ControlTrajectory
 class MoveBase
 {
   public:
+    typedef actionlib::ServerGoalHandle<move_base_msgs::MoveBaseAction> GoalHandle;
+
     MoveBase();
     virtual ~MoveBase();
 
   private:
-    void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& map);
+    void activeMapCallback(const hd_map::MapInfo::ConstPtr& map);
 
-    void executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal);
+    void executionThread();
+    void executeGoal(GoalHandle& goal);
 
-    void preemptedCallback();
+    void goalCallback(GoalHandle goal);
+    void cancelCallback(GoalHandle goal);
 
     void pathPlannerThread(const Eigen::Isometry2d& goal);
     void trajectoryPlannerThread();
@@ -100,7 +105,11 @@ class MoveBase
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     tf2_ros::TransformListener tf_listener_;
 
-    actionlib::SimpleActionServer<move_base_msgs::MoveBaseAction> as_;
+    std::mutex goal_mutex_;
+    std::unique_ptr<GoalHandle> goal_;
+    std::condition_variable execution_condition_;
+    std::thread execution_thread_;
+    actionlib::ActionServer<move_base_msgs::MoveBaseAction> as_;
 
     pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
@@ -113,7 +122,7 @@ class MoveBase
 
     std::shared_ptr<gridmap::LayeredMap> layered_map_;
 
-    ros::Subscriber map_sub_;
+    ros::Subscriber active_map_sub_;
 
     ros::Publisher costmap_publisher_;
     ros::Publisher costmap_updates_publisher_;
