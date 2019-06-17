@@ -201,8 +201,9 @@ class Map(Document, DocumentMixin):
             map_obj.zones.append(z_obj)
 
         if occupancy_grid_msg.format == 'raw':
-            im = Image.fromarray(numpy.asarray(occupancy_grid_msg.data, dtype=numpy.uint8)
-                                 .reshape(map_msg.info.height, map_msg.info.width))
+            assert (len(occupancy_grid_msg.data) == map_msg.info.meta_data.width * map_msg.info.meta_data.height)
+            im = Image.fromarray(numpy.fromstring(occupancy_grid_msg.data, dtype='uint8').reshape(
+                map_msg.info.meta_data.height, map_msg.info.meta_data.width))
         else:
             b = BytesIO(occupancy_grid_msg.data)
             im = Image.open(b)  # type: Image
