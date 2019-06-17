@@ -8,7 +8,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-#include <condition_variable>
 
 #include <ros/ros.h>
 

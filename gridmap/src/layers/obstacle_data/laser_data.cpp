@@ -1,6 +1,8 @@
 #include <gridmap/layers/obstacle_data/laser_data.h>
 #include <gridmap/params.h>
 
+#include <gridmap/operations/clip_line.h>
+
 #include <pluginlib/class_list_macros.h>
 
 #include <chrono>
@@ -113,7 +115,9 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
 
                 const Eigen::Vector2d pt_2d(pt.x(), pt.y());
                 Eigen::Array2i ray_end = map_data_->dimensions().getCellIndex(pt_2d);
-                clipRayEnd(sensor_pt_map, ray_end, map_data_->dimensions().size());
+                cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
+                                           map_data_->dimensions().size().x() - 1,
+                                           map_data_->dimensions().size().y() - 1);
                 raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
                              map_data_->dimensions().size().x(), cell_raytrace_range);
                 if (range < static_cast<double>(message->range_max) && range < obstacle_range_)

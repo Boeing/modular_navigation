@@ -12,8 +12,8 @@
 
 #include <geometry_msgs/Twist.h>
 
-#include <map_manager/GetOccupancyGrid.h>
 #include <map_manager/GetMap.h>
+#include <map_manager/GetOccupancyGrid.h>
 #include <map_msgs/OccupancyGridUpdate.h>
 
 namespace move_base
@@ -126,11 +126,8 @@ MoveBase::MoveBase()
 
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
 
-      as_(nh_,
-          "/move_base",
-          boost::bind(&MoveBase::goalCallback, this, _1),
-          boost::bind(&MoveBase::cancelCallback, this, _1),
-          false),
+      as_(nh_, "/move_base", boost::bind(&MoveBase::goalCallback, this, _1),
+          boost::bind(&MoveBase::cancelCallback, this, _1), false),
 
       layer_loader_("gridmap", "gridmap::Layer"),
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
@@ -274,7 +271,8 @@ void MoveBase::executeGoal(GoalHandle& goal)
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(new std::thread(&MoveBase::pathPlannerThread, this, convert(goal.getGoal()->target_pose.pose)));
+    path_planner_thread_.reset(
+        new std::thread(&MoveBase::pathPlannerThread, this, convert(goal.getGoal()->target_pose.pose)));
     trajectory_planner_thread_.reset(new std::thread(&MoveBase::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&MoveBase::controllerThread, this));
 
@@ -322,10 +320,11 @@ void MoveBase::executeGoal(GoalHandle& goal)
 
 void MoveBase::goalCallback(GoalHandle goal)
 {
-    ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x << ", " << goal.getGoal()->target_pose.pose.position.x << ")");
+    ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x
+                                      << ", " << goal.getGoal()->target_pose.pose.position.x << ")");
     {
         std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
-        if(!lock.owns_lock())
+        if (!lock.owns_lock())
         {
             // A Goal is already running... preempt
             if (goal_ && goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::ACTIVE)
@@ -346,7 +345,7 @@ void MoveBase::goalCallback(GoalHandle goal)
 void MoveBase::cancelCallback(GoalHandle goal)
 {
     std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
-    if(!lock.owns_lock())
+    if (!lock.owns_lock())
     {
         if (goal_ && goal.getGoalID().id == goal_->getGoalID().id)
         {

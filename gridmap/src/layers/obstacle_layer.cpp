@@ -141,8 +141,8 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     {
         time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 1.0 / 30.0,
                                                                      XmlRpc::XmlRpcValue::TypeDouble);
-        alpha_decay_ =
-            get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_, XmlRpc::XmlRpcValue::TypeDouble);
+        alpha_decay_ = get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
+                                                            XmlRpc::XmlRpcValue::TypeDouble);
     }
 
     data_sources_ = loadDataSources(parameters, globalFrame(), ds_loader_, tfBuffer());
@@ -186,8 +186,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
             time_decay_thread_.join();
         }
         time_decay_running_ = true;
-        time_decay_thread_ =
-            std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, alpha_decay_);
+        time_decay_thread_ = std::thread(&ObstacleLayer::timeDecayThread, this, time_decay_frequency_, alpha_decay_);
     }
 }
 
@@ -288,8 +287,8 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
             }
 
             ROS_INFO_STREAM("alpha_decay took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                                    std::chrono::steady_clock::now() - t0)
-                                                                    .count());
+                                                       std::chrono::steady_clock::now() - t0)
+                                                       .count());
         }
 
         rate.sleep();

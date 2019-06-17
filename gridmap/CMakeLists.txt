@@ -78,6 +78,9 @@ add_library(${PROJECT_NAME}
     src/layers/base_map_layer.cpp
     src/layers/obstacle_layer.cpp
 
+    src/operations/clip_line.cpp
+    src/operations/raytrace.cpp
+
     src/layered_map.cpp
 )
 

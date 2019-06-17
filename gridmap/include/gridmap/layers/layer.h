@@ -34,9 +34,10 @@ class Layer
     void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)
     {
         hd_map_ = std::make_shared<hd_map::Map>(hd_map);
-        map_dimensions_.reset(new MapDimensions(hd_map.info.meta_data.resolution,
-                                                {hd_map.info.meta_data.origin.position.x, hd_map.info.meta_data.origin.position.y},
-                                                {hd_map.info.meta_data.width, hd_map.info.meta_data.height}));
+        map_dimensions_.reset(
+            new MapDimensions(hd_map.info.meta_data.resolution,
+                              {hd_map.info.meta_data.origin.position.x, hd_map.info.meta_data.origin.position.y},
+                              {hd_map.info.meta_data.width, hd_map.info.meta_data.height}));
         onMapChanged(map_data);
     }
 
