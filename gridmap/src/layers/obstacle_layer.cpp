@@ -136,11 +136,12 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     occ_prob_thres_ =
         get_config_with_default_warn<double>(parameters, "occ_prob_thres", 0.8, XmlRpc::XmlRpcValue::TypeDouble);
 
-    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", true, XmlRpc::XmlRpcValue::TypeBoolean);
+    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", false, XmlRpc::XmlRpcValue::TypeBoolean);
     if (time_decay_)
     {
         time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 1.0 / 30.0,
                                                                      XmlRpc::XmlRpcValue::TypeDouble);
+        ROS_ASSERT(time_decay_frequency_ > 0);
         alpha_decay_ = get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
                                                             XmlRpc::XmlRpcValue::TypeDouble);
     }
@@ -152,6 +153,7 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     {
         debug_viz_rate_ =
             get_config_with_default_warn<double>(parameters, "debug_viz_rate", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
+        ROS_ASSERT(debug_viz_rate_ > 0);
     }
 }
 
@@ -211,7 +213,6 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
     grid.info.width = size_x;
     grid.info.height = size_y;
-    grid.data.resize(grid.info.width * grid.info.height);
 
     ros::Rate rate(frequency);
     while (debug_viz_running_ && ros::ok())
@@ -224,11 +225,20 @@ void ObstacleLayer::debugVizThread(const double frequency)
                 const geometry_msgs::TransformStamped tr =
                     tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
 
-                const Eigen::Array2i robot_map =
-                    probability_grid_->dimensions().getCellIndex({tr.transform.translation.x, tr.transform.translation.y});
+                const Eigen::Array2i robot_map = probability_grid_->dimensions().getCellIndex(
+                    {tr.transform.translation.x, tr.transform.translation.y});
 
-                const int top_left_x = robot_map.x() - size_x / 2;
-                const int top_left_y = robot_map.y() - size_y / 2;
+                const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
+                const int top_left_y = std::max(0, robot_map.y() - size_y / 2);
+
+                const int actual_size_x =
+                    std::min(probability_grid_->dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
+                const int actual_size_y =
+                    std::min(probability_grid_->dimensions().size().y() - 1, top_left_x + size_y) - top_left_y;
+
+                const std::size_t capacity = actual_size_x * actual_size_y;
+                if (grid.data.size() != capacity)
+                    grid.data.resize(capacity);
 
                 grid.info.origin.position.x = probability_grid_->dimensions().origin().x() +
                                               top_left_x * probability_grid_->dimensions().resolution();
@@ -239,19 +249,16 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
                 auto lock = probability_grid_->getLock();
 
-                int8_t max = 0;
-
                 int roi_index = 0;
-                const int y_size = top_left_y + size_y;
+                const int y_size = top_left_y + actual_size_y;
                 for (int y = top_left_y; y < y_size; y++)
                 {
                     const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
-                    const int index_end = index_start + size_x;
+                    const int index_end = index_start + actual_size_x;
                     for (int index = index_start; index < index_end; ++index)
                     {
-                        grid.data[roi_index] = static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
-
-                        max = std::max(grid.data[roi_index], max);
+                        grid.data[roi_index] =
+                            static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
                         ++roi_index;
                     }
                 }
@@ -280,7 +287,6 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     ros::Rate rate(frequency);
     while (time_decay_running_ && ros::ok())
     {
-
         {
             auto lock = probability_grid_->getLock();
 

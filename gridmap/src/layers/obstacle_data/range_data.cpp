@@ -9,6 +9,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include <gridmap/operations/clip_line.h>
 #include <gridmap/operations/rasterize.h>
 
 #include <pluginlib/class_list_macros.h>
@@ -148,8 +149,14 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
         const Eigen::Vector2d left_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(-half_fov) * sensor_vec);
         const Eigen::Vector2d right_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(half_fov) * sensor_vec);
 
-        const Eigen::Vector2i left_pt_map = map_data_->dimensions().getCellIndex(left_pt_2d);
-        const Eigen::Vector2i right_pt_map = map_data_->dimensions().getCellIndex(right_pt_2d);
+        Eigen::Vector2i left_pt_map = map_data_->dimensions().getCellIndex(left_pt_2d);
+        Eigen::Vector2i right_pt_map = map_data_->dimensions().getCellIndex(right_pt_2d);
+
+        cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), left_pt_map.x(), left_pt_map.y(),
+                                   map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+
+        cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), right_pt_map.x(), right_pt_map.y(),
+                                   map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
 
         const int cell_range = range / map_data_->dimensions().resolution();
 
@@ -166,6 +173,8 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
 
             if (_w1 > 0.85)
                 return;
+
+            ROS_ASSERT(dist < log_cost_lookup_[cell_range].size());
 
             map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
         };
