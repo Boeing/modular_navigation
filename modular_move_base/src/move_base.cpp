@@ -148,7 +148,7 @@ MoveBase::MoveBase()
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
       path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.95)),
-      localisation_timeout_(get_param_with_default_warn("~path_swap_fraction", 0.2))
+      localisation_timeout_(get_param_with_default_warn("~localisation_timeout", 4.0))
 {
     ROS_INFO("Starting");
 
@@ -233,6 +233,14 @@ void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     path_planner_->setMapData(layered_map_->map());
     trajectory_planner_->setMapData(layered_map_->map());
     controller_->setMapData(layered_map_->map());
+
+    {
+        nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+        grid.header.frame_id = "map";
+        grid.header.stamp = ros::Time::now();
+        costmap_publisher_.publish(grid);
+    }
+
 }
 
 void MoveBase::executionThread()
@@ -759,9 +767,9 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
         robot_state_.localised = true;
 
         if (tr.header.stamp > ros::Time(0) &&
-            std::abs((tr.header.stamp - msg->header.stamp).toSec()) > localisation_timeout_)
+            std::abs((msg->header.stamp - tr.header.stamp).toSec()) > localisation_timeout_)
         {
-            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is stale");
+            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is stale: " << (msg->header.stamp - tr.header.stamp).toSec() << "s");
             robot_state_.localised = false;
         }
     }
