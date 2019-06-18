@@ -52,7 +52,7 @@ class PurePursuitController : public navigation_interface::Controller
     double xy_goal_tolerance_ = 0.002;
     double yaw_goal_tolerance_ = 0.01;
 
-    Eigen::Vector3d goal_p_gain_ = {1.0, 1.0, 1.0};
+    Eigen::Vector3d goal_p_gain_ = {10.0, 10.0, 10.0};
     Eigen::Vector3d goal_i_gain_ = {0.0, 0.0, 0.0};
     Eigen::Vector3d goal_d_gain_ = {0.2, 0.2, 0.2};
 

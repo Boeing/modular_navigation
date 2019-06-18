@@ -235,33 +235,37 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
             grid.header.stamp = ros::Time::now();
 
-            auto lock = probability_grid_->getLock();
-
-            int8_t max = 0;
-
-            int roi_index = 0;
-            const int y_size = top_left_y + size_y;
-            for (int y = top_left_y; y < y_size; y++)
+            if (top_left_x >= 0 && top_left_y >= 0)
             {
-                const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
-                const int index_end = index_start + size_x;
-                for (int index = index_start; index < index_end; ++index)
+                auto lock = probability_grid_->getLock();
+
+                int8_t max = 0;
+
+                int roi_index = 0;
+                const int y_size = top_left_y + size_y;
+                for (int y = top_left_y; y < y_size; y++)
                 {
-                    grid.data[roi_index] = static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
+                    const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
+                    const int index_end = index_start + size_x;
+                    for (int index = index_start; index < index_end; ++index)
+                    {
+                        grid.data[roi_index] =
+                            static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
 
-                    max = std::max(grid.data[roi_index], max);
-                    ++roi_index;
+                        max = std::max(grid.data[roi_index], max);
+                        ++roi_index;
+                    }
                 }
-            }
 
-            const int max_occ = 100.0 * probability_grid_->ocupancyThres();
-            for (int i = 0; i < grid.data.size(); ++i)
-            {
-                if (grid.data[i] >= max_occ)
-                    grid.data[i] = 101;
-            }
+                const int max_occ = 100.0 * probability_grid_->ocupancyThres();
+                for (int i = 0; i < grid.data.size(); ++i)
+                {
+                    if (grid.data[i] >= max_occ)
+                        grid.data[i] = 101;
+                }
 
-            debug_viz_pub_.publish(grid);
+                debug_viz_pub_.publish(grid);
+            }
         }
 
         rate.sleep();

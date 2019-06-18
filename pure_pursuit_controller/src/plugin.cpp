@@ -145,6 +145,7 @@ navigation_interface::Controller::Result
     //
     // Goal condition
     //
+
     if (angle_to_goal < yaw_goal_tolerance_ && dist_to_goal < xy_goal_tolerance_)
     {
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
@@ -178,21 +179,18 @@ navigation_interface::Controller::Result
         double acc_factor_x = 1.0;
         if (std::abs(ddx) > max_acceleration_x_ && std::signbit(robot_state.velocity.x()) == std::signbit(ddx))
         {
-            ROS_INFO_STREAM("max x acceleration: " << ddx);
             acc_factor_x = std::abs(ddx / max_acceleration_x_);
         }
 
         double acc_factor_y = 1.0;
         if (std::abs(ddy) > max_acceleration_y_ && std::signbit(robot_state.velocity.y()) == std::signbit(ddy))
         {
-            ROS_INFO_STREAM("max y acceleration: " << ddy);
             acc_factor_y = std::abs(ddy / max_acceleration_y_);
         }
 
         double acc_factor_w = 1.0;
         if (std::abs(ddw) > max_acceleration_w_ && std::signbit(robot_state.velocity.z()) == std::signbit(ddw))
         {
-            ROS_INFO_STREAM("max w acceleration: " << ddw);
             acc_factor_w = std::abs(ddw / max_acceleration_w_);
         }
 
