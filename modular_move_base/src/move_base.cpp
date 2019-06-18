@@ -147,7 +147,8 @@ MoveBase::MoveBase()
       path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 1.0)),
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
-      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.95))
+      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.95)),
+      localisation_timeout_(get_param_with_default_warn("~path_swap_fraction", 0.2))
 {
     ROS_INFO("Starting");
 
@@ -271,8 +272,9 @@ void MoveBase::executeGoal(GoalHandle& goal)
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(
-        new std::thread(&MoveBase::pathPlannerThread, this, convert(goal.getGoal()->target_pose.pose)));
+    path_planner_thread_.reset(new std::thread(&MoveBase::pathPlannerThread, this,
+                                               convert(goal.getGoal()->target_pose.pose),
+                                               goal.getGoal()->target_pose.header.frame_id));
     trajectory_planner_thread_.reset(new std::thread(&MoveBase::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&MoveBase::controllerThread, this));
 
@@ -354,7 +356,33 @@ void MoveBase::cancelCallback(GoalHandle goal)
     }
 }
 
-void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
+std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry2d& goal, const std::string frame_id)
+{
+    try
+    {
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, frame_id, ros::Time(0));
+
+        if (tr.header.stamp > ros::Time(0) &&
+            std::abs((tr.header.stamp - ros::Time::now()).toSec()) > localisation_timeout_)
+        {
+            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->" << frame_id
+                                                                              << ") is stale");
+            return nullptr;
+        }
+
+        const auto transform = convert(tr.transform);
+        return std::make_unique<Eigen::Isometry2d>(transform * goal);
+    }
+    catch (const tf2::TransformException&)
+    {
+        ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->" << frame_id
+                                                                          << ") is missing");
+    }
+
+    return nullptr;
+}
+
+void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string frame_id)
 {
     ros::WallRate rate(path_planner_frequency_);
 
@@ -366,6 +394,22 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
             std::lock_guard<std::mutex> lock(robot_state_mutex_);
             rs = robot_state_;
         }
+
+        if (!rs.localised)
+        {
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            current_path_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = global_frame_;
+            path_pub_.publish(gui_path);
+
+            rate.sleep();
+
+            continue;
+        }
+
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
 
@@ -378,10 +422,26 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal)
                                                              .count());
         }
 
+        const auto transformed_goal = transformGoal(goal, frame_id);
+        if (!transformed_goal)
+        {
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            current_path_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = global_frame_;
+            path_pub_.publish(gui_path);
+
+            rate.sleep();
+
+            continue;
+        }
+
         navigation_interface::PathPlanner::Result result;
         {
             const auto t0 = std::chrono::steady_clock::now();
-            result = path_planner_->plan(global_robot_pose, goal);
+            result = path_planner_->plan(global_robot_pose, *transformed_goal);
             ROS_INFO_STREAM("Path Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                         std::chrono::steady_clock::now() - t0)
                                                         .count());
@@ -491,6 +551,14 @@ void MoveBase::trajectoryPlannerThread()
 
         if (!has_path)
         {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            current_trajectory_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            trajectory_pub_.publish(gui_path);
+
             rate.sleep();
             continue;
         }
@@ -500,6 +568,21 @@ void MoveBase::trajectoryPlannerThread()
         {
             std::lock_guard<std::mutex> lock(robot_state_mutex_);
             rs = robot_state_;
+        }
+
+        if (!rs.localised)
+        {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            current_trajectory_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            trajectory_pub_.publish(gui_path);
+
+            rate.sleep();
+
+            continue;
         }
 
         // update costmap around robot
@@ -610,7 +693,7 @@ void MoveBase::controllerThread()
 
         // check if a new trajectory is available
         std::lock_guard<std::mutex> lock(trajectory_mutex_);
-        if (current_trajectory_)
+        if (current_trajectory_ && rs.localised)
         {
             const auto p = controller_->trajectoryId();
             if (!p || current_trajectory_->trajectory.id != p.get())
@@ -677,8 +760,24 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     robot_state_.robot_state.velocity =
         Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
 
-    const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
-    robot_state_.map_to_odom = convert(tr.transform);
+    try
+    {
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
+        robot_state_.map_to_odom = convert(tr.transform);
+        robot_state_.localised = true;
+
+        if (tr.header.stamp > ros::Time(0) &&
+            std::abs((tr.header.stamp - msg->header.stamp).toSec()) > localisation_timeout_)
+        {
+            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is stale");
+            robot_state_.localised = false;
+        }
+    }
+    catch (const tf2::TransformException&)
+    {
+        ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is missing");
+        robot_state_.localised = false;
+    }
 
     robot_state_conditional_.notify_all();
 }

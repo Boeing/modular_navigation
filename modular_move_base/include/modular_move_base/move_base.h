@@ -69,6 +69,8 @@ struct RobotState
 {
     ros::SteadyTime time;
     navigation_interface::KinodynamicState robot_state;
+
+    bool localised;  // true if map_to_odom is valid
     Eigen::Isometry2d map_to_odom;
 };
 
@@ -95,7 +97,9 @@ class MoveBase
     void goalCallback(GoalHandle goal);
     void cancelCallback(GoalHandle goal);
 
-    void pathPlannerThread(const Eigen::Isometry2d& goal);
+    std::unique_ptr<Eigen::Isometry2d> transformGoal(const Eigen::Isometry2d& goal, const std::string frame_id);
+
+    void pathPlannerThread(const Eigen::Isometry2d& goal, const std::string frame_id);
     void trajectoryPlannerThread();
     void controllerThread();
 
@@ -158,6 +162,7 @@ class MoveBase
     const double trajectory_planner_frequency_;
     const double controller_frequency_;
     const double path_swap_fraction_;
+    const double localisation_timeout_;
 
     std::mutex robot_state_mutex_;
     std::condition_variable robot_state_conditional_;
