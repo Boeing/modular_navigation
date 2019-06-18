@@ -218,50 +218,57 @@ void ObstacleLayer::debugVizThread(const double frequency)
     {
         if (debug_viz_pub_.getNumSubscribers() != 0)
         {
-            // Get robot pose
-            const geometry_msgs::TransformStamped tr =
-                tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
-
-            const Eigen::Array2i robot_map =
-                probability_grid_->dimensions().getCellIndex({tr.transform.translation.x, tr.transform.translation.y});
-
-            const int top_left_x = robot_map.x() - size_x / 2;
-            const int top_left_y = robot_map.y() - size_y / 2;
-
-            grid.info.origin.position.x = probability_grid_->dimensions().origin().x() +
-                                          top_left_x * probability_grid_->dimensions().resolution();
-            grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
-                                          top_left_y * probability_grid_->dimensions().resolution();
-
-            grid.header.stamp = ros::Time::now();
-
-            auto lock = probability_grid_->getLock();
-
-            int8_t max = 0;
-
-            int roi_index = 0;
-            const int y_size = top_left_y + size_y;
-            for (int y = top_left_y; y < y_size; y++)
+            try
             {
-                const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
-                const int index_end = index_start + size_x;
-                for (int index = index_start; index < index_end; ++index)
+                // Get robot pose
+                const geometry_msgs::TransformStamped tr =
+                    tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
+
+                const Eigen::Array2i robot_map =
+                    probability_grid_->dimensions().getCellIndex({tr.transform.translation.x, tr.transform.translation.y});
+
+                const int top_left_x = robot_map.x() - size_x / 2;
+                const int top_left_y = robot_map.y() - size_y / 2;
+
+                grid.info.origin.position.x = probability_grid_->dimensions().origin().x() +
+                                              top_left_x * probability_grid_->dimensions().resolution();
+                grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
+                                              top_left_y * probability_grid_->dimensions().resolution();
+
+                grid.header.stamp = ros::Time::now();
+
+                auto lock = probability_grid_->getLock();
+
+                int8_t max = 0;
+
+                int roi_index = 0;
+                const int y_size = top_left_y + size_y;
+                for (int y = top_left_y; y < y_size; y++)
                 {
-                    grid.data[roi_index] = static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
+                    const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
+                    const int index_end = index_start + size_x;
+                    for (int index = index_start; index < index_end; ++index)
+                    {
+                        grid.data[roi_index] = static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
 
-                    max = std::max(grid.data[roi_index], max);
-                    ++roi_index;
+                        max = std::max(grid.data[roi_index], max);
+                        ++roi_index;
+                    }
                 }
-            }
 
-            const int max_occ = 100.0 * probability_grid_->ocupancyThres();
-            for (int i = 0; i < grid.data.size(); ++i)
+                const int max_occ = 100.0 * probability_grid_->ocupancyThres();
+                for (int i = 0; i < grid.data.size(); ++i)
+                {
+                    if (grid.data[i] >= max_occ)
+                        grid.data[i] = 101;
+                }
+
+                debug_viz_pub_.publish(grid);
+            }
+            catch (const tf2::TransformException& e)
             {
-                if (grid.data[i] >= max_occ)
-                    grid.data[i] = 101;
+                ROS_WARN("Failed to publish debug. Unknown robot pose");
             }
-
-            debug_viz_pub_.publish(grid);
         }
 
         rate.sleep();

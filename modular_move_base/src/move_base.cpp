@@ -252,14 +252,6 @@ void MoveBase::executeGoal(GoalHandle& goal)
 {
     ROS_INFO_STREAM("Received New Goal");
 
-    if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
-    {
-        const std::string msg = "Goal must be in the global frame";
-        ROS_WARN_STREAM(msg);
-        goal.setAborted(move_base_msgs::MoveBaseResult(), msg);
-        return;
-    }
-
     current_goal_pub_.publish(goal.getGoal()->target_pose);
 
     // make sure no threads are running
