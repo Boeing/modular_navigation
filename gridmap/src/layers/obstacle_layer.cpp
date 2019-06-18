@@ -211,9 +211,6 @@ void ObstacleLayer::debugVizThread(const double frequency)
     const int size_x = 400;
     const int size_y = 400;
 
-    grid.info.width = size_x;
-    grid.info.height = size_y;
-
     ros::Rate rate(frequency);
     while (debug_viz_running_ && ros::ok())
     {
@@ -235,6 +232,9 @@ void ObstacleLayer::debugVizThread(const double frequency)
                     std::min(probability_grid_->dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
                 const int actual_size_y =
                     std::min(probability_grid_->dimensions().size().y() - 1, top_left_x + size_y) - top_left_y;
+
+                grid.info.width = actual_size_x;
+                grid.info.height = actual_size_y;
 
                 const std::size_t capacity = actual_size_x * actual_size_y;
                 if (grid.data.size() != capacity)
