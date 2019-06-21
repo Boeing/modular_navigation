@@ -5,7 +5,7 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED
   COMPONENTS
-    costmap_2d
+    gridmap
     cv_bridge
     geometry_msgs
     nav_msgs
@@ -13,6 +13,7 @@ find_package(catkin REQUIRED
     pluginlib
     roscpp
     tf2_ros
+    hd_map
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -26,7 +27,7 @@ catkin_package(
   LIBRARIES
       ${PROJECT_NAME}
   CATKIN_DEPENDS
-      costmap_2d
+      gridmap
       cv_bridge
       geometry_msgs
       nav_msgs
@@ -34,6 +35,7 @@ catkin_package(
       pluginlib
       roscpp
       tf2_ros
+      hd_map
   DEPENDS
       EIGEN3
       OpenCV
@@ -56,6 +58,13 @@ add_library(${PROJECT_NAME}
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
+if(CATKIN_ENABLE_TESTING)
+    find_package(rosunit REQUIRED)
+
+    catkin_add_gtest(unit_test test/unit_test.cpp)
+    target_link_libraries(unit_test ${PROJECT_NAME} ${OpenCV_LIBRARIES})
+endif()
 
 install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

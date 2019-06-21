@@ -1,0 +1,5 @@
+---
+string active_map
+hd_map/MapInfo[] maps
+bool success
+string message

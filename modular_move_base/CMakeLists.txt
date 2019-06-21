@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(modular_move_base)
 
-add_definitions(-std=c++11)
+add_definitions(-std=c++14)
 
 find_package(catkin REQUIRED COMPONENTS
     actionlib
     cmake_modules
-    costmap_2d
+    gridmap
     geometry_msgs
+    map_manager
     message_generation
     move_base_msgs
     nav_msgs
@@ -17,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
     std_srvs
     tf2_geometry_msgs
     tf2_ros
+    rviz_visual_tools
 )
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
@@ -34,6 +36,7 @@ generate_messages(
 catkin_package(
     CATKIN_DEPENDS
         geometry_msgs
+        map_manager
         message_runtime
         move_base_msgs
         nav_msgs
