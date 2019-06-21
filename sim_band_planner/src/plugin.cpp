@@ -4,9 +4,7 @@
 
 #include <pluginlib/class_list_macros.h>
 
-PLUGINLIB_DECLARE_CLASS(sim_band_planner, SimBandPlanner, sim_band_planner::SimBandPlanner,
-                        navigation_interface::TrajectoryPlanner)
-
+PLUGINLIB_EXPORT_CLASS(sim_band_planner::SimBandPlanner, navigation_interface::TrajectoryPlanner)
 
 namespace sim_band_planner
 {
