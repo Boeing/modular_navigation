@@ -1,0 +1,3 @@
+- git:
+    local-name: rviz_visual_tools
+    uri: 'https://git.web.boeing.com/robotics/ros/rviz_visual_tools.git'
