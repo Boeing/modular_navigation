@@ -240,7 +240,6 @@ void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
         grid.header.stamp = ros::Time::now();
         costmap_publisher_.publish(grid);
     }
-
 }
 
 void MoveBase::executionThread()
@@ -252,6 +251,32 @@ void MoveBase::executionThread()
         {
             executeGoal(*goal_);
             goal_ = nullptr;
+        }
+
+        // copy the current robot state
+        RobotState rs;
+        {
+            std::lock_guard<std::mutex> lock(robot_state_mutex_);
+            rs = robot_state_;
+        }
+
+        if (layered_map_->map())
+        {
+            if (rs.localised)
+            {
+                const auto t0 = std::chrono::steady_clock::now();
+                const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
+                const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+                layered_map_->update();
+            }
+
+            {
+                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                grid.header.frame_id = "map";
+                grid.header.stamp = ros::Time::now();
+                costmap_publisher_.publish(grid);
+            }
         }
     }
 }
@@ -267,6 +292,7 @@ void MoveBase::executeGoal(GoalHandle& goal)
     ROS_ASSERT(!path_planner_thread_);
     ROS_ASSERT(!trajectory_planner_thread_);
     ROS_ASSERT(!controller_thread_);
+    ROS_ASSERT(layered_map_->map());
 
     controller_done_ = false;
     running_ = true;
@@ -337,9 +363,18 @@ void MoveBase::goalCallback(GoalHandle goal)
             lock.lock();
         }
 
-        ROS_INFO_STREAM("Accepted new goal: " << goal.getGoalID().id);
-        goal.setAccepted();
-        goal_ = std::make_unique<GoalHandle>(goal);
+        if (layered_map_->map())
+        {
+            ROS_INFO_STREAM("Accepted new goal: " << goal.getGoalID().id);
+            goal.setAccepted();
+            goal_ = std::make_unique<GoalHandle>(goal);
+        }
+        else
+        {
+            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - No Map!");
+            goal.setRejected();
+            return;
+        }
     }
     execution_condition_.notify_all();
 }
@@ -415,8 +450,8 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
 
         {
             const auto t0 = std::chrono::steady_clock::now();
-            layered_map_->update();
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+            layered_map_->update();
             ROS_INFO_STREAM("global map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                              std::chrono::steady_clock::now() - t0)
                                                              .count());
@@ -593,8 +628,8 @@ void MoveBase::trajectoryPlannerThread()
 
         {
             const auto t0 = std::chrono::steady_clock::now();
-            layered_map_->update(roi);
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+            layered_map_->update(roi);
             ROS_INFO_STREAM("local map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                             std::chrono::steady_clock::now() - t0)
                                                             .count());
@@ -769,7 +804,9 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
         if (tr.header.stamp > ros::Time(0) &&
             std::abs((msg->header.stamp - tr.header.stamp).toSec()) > localisation_timeout_)
         {
-            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is stale: " << (msg->header.stamp - tr.header.stamp).toSec() << "s");
+            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform ("
+                                            << global_frame_ << "->odom) is stale: "
+                                            << (msg->header.stamp - tr.header.stamp).toSec() << "s");
             robot_state_.localised = false;
         }
     }
