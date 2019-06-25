@@ -72,16 +72,22 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
         }
         else
         {
-            obstacle_map = cv::Mat(size_y, size_x, CV_8U, reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
+            obstacle_map = cv::Mat(size_y, size_x, CV_8U,
+                                   reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
         }
-        ROS_INFO_STREAM("downsampling took " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        ROS_INFO_STREAM("downsampling took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                    std::chrono::steady_clock::now() - t0)
+                                                    .count());
 
         // dilate robot radius
         t0 = std::chrono::steady_clock::now();
         const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / grid.resolution);
-        auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+        auto ellipse =
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(obstacle_map, dilated, ellipse);
-        ROS_INFO_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+        ROS_INFO_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                std::chrono::steady_clock::now() - t0)
+                                                .count());
     }
 
     t0 = std::chrono::steady_clock::now();
@@ -101,7 +107,9 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
     // negative exponent maps values to [1,0)
     cv::exp(grid.costmap, grid.costmap);
 
-    ROS_INFO_STREAM("inflation took " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+    ROS_INFO_STREAM(
+        "inflation took "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
     return grid;
 }
@@ -218,7 +226,9 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     PathResult astar_result = astar.findPath(start_coord, goal_coord);
 
-    ROS_INFO_STREAM("astar took " << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
+    ROS_INFO_STREAM(
+        "astar took "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
     if (debug_viz_)
     {
@@ -261,19 +271,19 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
         // Rotation guestimation
         // This is expensive and most of the time the trajectory planner has a better idea anyway
-//        const int window_size = 4;
-//        for (std::size_t i=1; i < result.path.nodes.size() - 1; ++i)
-//        {
-//            const std::size_t index1 = std::min(result.path.nodes.size() - 1, i + window_size);
+        //        const int window_size = 4;
+        //        for (std::size_t i=1; i < result.path.nodes.size() - 1; ++i)
+        //        {
+        //            const std::size_t index1 = std::min(result.path.nodes.size() - 1, i + window_size);
 
-//            const double x0 = result.path.nodes[i].translation().x();
-//            const double y0 = result.path.nodes[i].translation().y();
-//            const double x1 = result.path.nodes[index1].translation().x();
-//            const double y1 = result.path.nodes[index1].translation().y();
+        //            const double x0 = result.path.nodes[i].translation().x();
+        //            const double y0 = result.path.nodes[i].translation().y();
+        //            const double x1 = result.path.nodes[index1].translation().x();
+        //            const double y1 = result.path.nodes[index1].translation().y();
 
-//            const double angle = atan2(y1 - y0, x1 - x0);
-//            result.path.nodes[i].linear() = Eigen::Rotation2Dd(angle).matrix();
-//        }
+        //            const double angle = atan2(y1 - y0, x1 - x0);
+        //            result.path.nodes[i].linear() = Eigen::Rotation2Dd(angle).matrix();
+        //        }
 
         result.cost = astar_result.cost;
         result.outcome = navigation_interface::PathPlanner::Outcome::SUCCESSFUL;
