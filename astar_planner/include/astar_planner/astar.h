@@ -113,7 +113,7 @@ inline double manhattan(const Coord2D& source, const Coord2D& target)
 
 inline double euclidean(const Coord2D& source, const Coord2D& target)
 {
-    return 0.5 * std::sqrt(std::pow((source.x - target.x), 2) + std::pow((source.y - target.y), 2));
+    return 0.9 * std::sqrt(std::pow((source.x - target.x), 2) + std::pow((source.y - target.y), 2));
 }
 
 inline double linf_norm(const Coord2D& source, const Coord2D& target)

@@ -52,7 +52,6 @@ include_directories(
 
 add_library(${PROJECT_NAME}
     src/astar.cpp
-    src/orientation_filter.cpp
     src/plugin.cpp
 )
 

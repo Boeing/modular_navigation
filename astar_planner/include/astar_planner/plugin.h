@@ -1,8 +1,6 @@
 #ifndef ASTAR_PLANNER_PLUGIN_H
 #define ASTAR_PLANNER_PLUGIN_H
 
-#include <astar_planner/orientation_filter.h>
-
 #include <gridmap/map_data.h>
 
 #include <opencv2/core.hpp>
@@ -29,11 +27,9 @@ class AStarPlanner : public navigation_interface::PathPlanner
     virtual void onMapDataChanged() override;
 
   private:
-    OrientationFilter orientation_filter_;
-
     bool debug_viz_ = false;
     double neutral_cost_ = 0.1;
-    double robot_radius_ = 0.7;
+    double robot_radius_ = 0.5;
     double exponential_weight_ = 2.0;
     int down_sample_ = 4;
 
