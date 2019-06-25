@@ -1,5 +1,7 @@
 #include <gridmap/layered_map.h>
 
+#include <ros/assert.h>
+
 namespace gridmap
 {
 
@@ -48,6 +50,11 @@ void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
 
 void LayeredMap::setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)
 {
+    ROS_ASSERT(hd_map.info.meta_data.width == map_data.info.width);
+    ROS_ASSERT(hd_map.info.meta_data.height == map_data.info.height);
+    ROS_ASSERT(std::abs(hd_map.info.meta_data.resolution - map_data.info.resolution) <
+               std::numeric_limits<float>::epsilon());
+
     base_map_layer_->setMap(hd_map, map_data);
     for (const auto& layer : layers_)
     {
