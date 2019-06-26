@@ -85,10 +85,10 @@ std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& c
     return nullptr;
 }
 
-std::vector<std::shared_ptr<gridmap::Layer>> loadDataSources(XmlRpc::XmlRpcValue& parameters,
-                                                             const std::string& global_frame,
-                                                             pluginlib::ClassLoader<gridmap::Layer>& loader,
-                                                             const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& parameters,
+                                                           const std::string& global_frame,
+                                                           pluginlib::ClassLoader<gridmap::Layer>& loader,
+                                                           const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
 {
     std::vector<std::shared_ptr<gridmap::Layer>> plugin_ptrs;
     if (parameters.hasMember("layers"))
@@ -144,17 +144,17 @@ MoveBase::MoveBase()
 
       clear_radius_(get_param_with_default_warn("~clear_radius", 0.5)),
 
-      path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 1.0)),
+      path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 0.5)),
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
-      controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
-      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.95)),
+      controller_frequency_(get_param_with_default_warn("~controller_frequency", 10.0)),
+      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.60)),
       localisation_timeout_(get_param_with_default_warn("~localisation_timeout", 4.0))
 {
     ROS_INFO("Starting");
 
     XmlRpc::XmlRpcValue costmap_params;
     nh_.getParam("costmap", costmap_params);
-    auto layers = loadDataSources(costmap_params, global_frame_, layer_loader_, tf_buffer_);
+    auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, tf_buffer_);
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
     base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], tf_buffer_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
@@ -163,7 +163,8 @@ MoveBase::MoveBase()
     const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
     const std::string controller_name = get_param_or_throw<std::string>("~controller");
 
-    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &MoveBase::odomCallback, this);
+    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &MoveBase::odomCallback, this,
+                                                  ros::TransportHints().tcpNoDelay());
     vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
     current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 0);
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
@@ -473,6 +474,8 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             continue;
         }
 
+        // TODO - if transformed goal has changed (gt res) then force a path swap
+
         navigation_interface::PathPlanner::Result result;
         {
             const auto t0 = std::chrono::steady_clock::now();
@@ -501,7 +504,7 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
                 // get the current path cost
                 const double cost = path_planner_->cost(path);
 
-                if (result.cost < path_swap_fraction_ * cost)
+                if (result.path.length() > 2.0 && result.cost < path_swap_fraction_ * cost)
                 {
                     ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
@@ -545,10 +548,6 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
         else
         {
             ROS_WARN("Failed to find a path");
-            if (!current_path_)
-            {
-                layered_map_->clearRadius(robot_pose.translation(), clear_radius_ * 10);
-            }
         }
 
         rate.sleep();
@@ -564,8 +563,9 @@ void MoveBase::trajectoryPlannerThread()
 {
     ros::WallRate rate(trajectory_planner_frequency_);
 
-    const int size_x = 400;
-    const int size_y = 400;
+    ROS_ASSERT(layered_map_);
+    const int size_x = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
+    const int size_y = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
 
     while (running_)
     {
@@ -623,16 +623,10 @@ void MoveBase::trajectoryPlannerThread()
         // update costmap around robot
         const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
-
         const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
-
         {
-            const auto t0 = std::chrono::steady_clock::now();
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             layered_map_->update(roi);
-            ROS_INFO_STREAM("local map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                            std::chrono::steady_clock::now() - t0)
-                                                            .count());
         }
 
         {
@@ -709,6 +703,11 @@ void MoveBase::trajectoryPlannerThread()
 void MoveBase::controllerThread()
 {
     const long period_ms = static_cast<long>(1000.0 / controller_frequency_);
+    ros::SteadyTime last_odom_time;
+
+    ROS_ASSERT(layered_map_);
+    const int size_x = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
+    const int size_y = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
 
     while (running_)
     {
@@ -716,14 +715,23 @@ void MoveBase::controllerThread()
         RobotState rs;
         {
             std::unique_lock<std::mutex> lock(robot_state_mutex_);
-            if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) ==
-                std::cv_status::timeout)
+            if (robot_state_.time == last_odom_time)
             {
-                ROS_WARN_STREAM("Did not receive an odom message at the desired frequency");
-                vel_pub_.publish(geometry_msgs::Twist());
-                continue;
+                const auto t0 = std::chrono::steady_clock::now();
+                if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) ==
+                    std::cv_status::timeout)
+                {
+                    const double wait_time =
+                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                            .count();
+                    ROS_WARN_STREAM("Did not receive an odom message at the desired frequency: last: "
+                                    << robot_state_.time << " waited: " << wait_time);
+                    vel_pub_.publish(geometry_msgs::Twist());
+                    continue;
+                }
             }
             rs = robot_state_;
+            last_odom_time = robot_state_.time;
         }
 
         // check if a new trajectory is available
@@ -740,6 +748,14 @@ void MoveBase::controllerThread()
         {
             vel_pub_.publish(geometry_msgs::Twist());
             continue;
+        }
+
+        // update costmap around robot
+        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
+        const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+        {
+            layered_map_->update(roi);
         }
 
         // Update feedback to correspond to our current position
@@ -764,6 +780,7 @@ void MoveBase::controllerThread()
         geometry_msgs::Twist cmd_vel;
         if (result.outcome == navigation_interface::Controller::Outcome::SUCCESSFUL)
         {
+            ROS_ASSERT(result.command.allFinite());
             cmd_vel.linear.x = result.command.x();
             cmd_vel.linear.y = result.command.y();
             cmd_vel.angular.z = result.command.z();
@@ -787,19 +804,18 @@ void MoveBase::controllerThread()
 
 void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
-    std::lock_guard<std::mutex> lock(robot_state_mutex_);
+    RobotState robot_state;
+    robot_state.time = ros::SteadyTime::now();
 
-    robot_state_.time = ros::SteadyTime::now();
-
-    robot_state_.robot_state.pose = convert(msg->pose.pose);
-    robot_state_.robot_state.velocity =
+    robot_state.robot_state.pose = convert(msg->pose.pose);
+    robot_state.robot_state.velocity =
         Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
 
     try
     {
         const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
-        robot_state_.map_to_odom = convert(tr.transform);
-        robot_state_.localised = true;
+        robot_state.map_to_odom = convert(tr.transform);
+        robot_state.localised = true;
 
         if (tr.header.stamp > ros::Time(0) &&
             std::abs((msg->header.stamp - tr.header.stamp).toSec()) > localisation_timeout_)
@@ -807,15 +823,19 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
             ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform ("
                                             << global_frame_ << "->odom) is stale: "
                                             << (msg->header.stamp - tr.header.stamp).toSec() << "s");
-            robot_state_.localised = false;
+            robot_state.localised = false;
         }
     }
     catch (const tf2::TransformException&)
     {
         ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is missing");
-        robot_state_.localised = false;
+        robot_state.localised = false;
     }
 
+    {
+        std::lock_guard<std::mutex> lock(robot_state_mutex_);
+        robot_state_ = robot_state;
+    }
     robot_state_conditional_.notify_all();
 }
 }
