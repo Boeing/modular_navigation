@@ -75,9 +75,9 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
             obstacle_map = cv::Mat(size_y, size_x, CV_8U,
                                    reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
         }
-        ROS_INFO_STREAM("downsampling took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                    std::chrono::steady_clock::now() - t0)
-                                                    .count());
+        ROS_DEBUG_STREAM("downsampling took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                     std::chrono::steady_clock::now() - t0)
+                                                     .count());
 
         // dilate robot radius
         t0 = std::chrono::steady_clock::now();
@@ -85,9 +85,9 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
         auto ellipse =
             cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(obstacle_map, dilated, ellipse);
-        ROS_INFO_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                std::chrono::steady_clock::now() - t0)
-                                                .count());
+        ROS_DEBUG_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                 std::chrono::steady_clock::now() - t0)
+                                                 .count());
     }
 
     t0 = std::chrono::steady_clock::now();
@@ -107,7 +107,7 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
     // negative exponent maps values to [1,0)
     cv::exp(grid.costmap, grid.costmap);
 
-    ROS_INFO_STREAM(
+    ROS_DEBUG_STREAM(
         "inflation took "
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
@@ -226,7 +226,7 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     PathResult astar_result = astar.findPath(start_coord, goal_coord);
 
-    ROS_INFO_STREAM(
+    ROS_DEBUG_STREAM(
         "astar took "
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
@@ -254,7 +254,7 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     if (astar_result.success)
     {
-        ROS_INFO_STREAM("astar found path of length: " << astar_result.path.size());
+        ROS_DEBUG_STREAM("astar found path of length: " << astar_result.path.size());
 
         result.path.nodes.push_back(start);
 

@@ -126,8 +126,6 @@ TEST(test_plugin, test_plugin)
     cv::circle(cv_im, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(gridmap::OccupancyGrid::OCCUPIED), -1,
                cv::LINE_8);
 
-    auto t0 = std::chrono::steady_clock::now();
-
     astar_planner::AStarPlanner plugin;
 
     XmlRpc::XmlRpcValue params;
@@ -141,7 +139,7 @@ TEST(test_plugin, test_plugin)
     const Eigen::Isometry2d goal =
         Eigen::Translation2d(-(size_x / 4) * resolution, (size_y / 3) * resolution) * Eigen::Rotation2Dd(1.0);
 
-    t0 = std::chrono::steady_clock::now();
+    auto t0 = std::chrono::steady_clock::now();
 
     auto result = plugin.plan(start, goal);
 
@@ -175,7 +173,6 @@ TEST(test_plugin, test_plugin)
             Eigen::Vector2d(mp.x(), mp.y()) + Eigen::Vector2d(Eigen::Rotation2Dd(n.rotation()) * Eigen::Vector2d(0, 6));
 
         cv::line(disp, cv::Point(mp.x(), mp.y()), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 255), 1);
-
         cv::line(disp, cv::Point(mp.x(), mp.y()), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 255, 0), 1);
     }
 
