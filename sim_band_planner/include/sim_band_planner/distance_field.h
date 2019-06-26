@@ -81,7 +81,7 @@ struct DistanceField
     {
         // Dilate robot radius
         cv::Mat dilated_im = cv_im;  // TODO see if this can be done in-place
-        const int cell_inflation_radius = static_cast<int>(_robot_radius / resolution);
+        const int cell_inflation_radius = static_cast<int>(2.0 * _robot_radius / resolution);
         auto ellipse =
             cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(cv_im, dilated_im, ellipse);
@@ -90,12 +90,12 @@ struct DistanceField
         cv::Mat inv_cv_im;
         cv::bitwise_not(dilated_im, inv_cv_im);
 
-        // Calcualte the distance transform to all objects (zero pixels)
+        // Calculate the distance transform to all objects (zero pixels)
         cv::Mat dist_u8;
         cv::distanceTransform(inv_cv_im, dist, labels, cv::DIST_L2, cv::DIST_MASK_PRECISE, cv::DIST_LABEL_PIXEL);
         dist.convertTo(dist_u8, CV_8U, 1.0, 0);
 
-        // Calcualte the distance transform to all non-objects from within objects
+        // Calculate the distance transform to all non-objects from within objects
         cv::Mat dist_inv_u8;
         cv::distanceTransform(dilated_im, dist_inv, labels_inv, cv::DIST_L2, cv::DIST_MASK_PRECISE,
                               cv::DIST_LABEL_PIXEL);

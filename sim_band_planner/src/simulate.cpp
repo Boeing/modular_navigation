@@ -6,10 +6,10 @@
 namespace sim_band_planner
 {
 
-void simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap,
-              const double min_distance, const double internal_force_gain, const double external_force_gain,
-              const double rotation_factor, const double velocity_decay, const double alpha_start,
-              const double alpha_decay, const double max_distance)
+double simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap,
+                const double min_distance, const double internal_force_gain, const double external_force_gain,
+                const double rotation_factor, const bool reverse_direction, const double velocity_decay,
+                const double alpha_start, const double alpha_decay, const double max_distance)
 {
     updateDistances(path, distance_field, max_distance);
     refine(path, distance_field, min_distance, min_overlap);
@@ -26,7 +26,7 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
         for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
         {
             forces[i] = force(path.nodes[i - 1], path.nodes[i], path.nodes[i + 1], internal_force_gain,
-                              external_force_gain, rotation_factor);
+                              external_force_gain, rotation_factor, reverse_direction);
         }
 
         // a = f / m
@@ -50,6 +50,8 @@ void simulate(Band& path, const DistanceField& distance_field, const int num_ite
 
         alpha -= alpha * alpha_decay;
     }
+
+    return alpha;
 }
 
 void updateDistances(Band& path, const DistanceField& distance_field, const double max_distance)
@@ -206,15 +208,16 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
 }
 
 Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
-                      const double external_force_gain, const double rotation_factor)
+                      const double external_force_gain, const double rotation_factor, const bool reverse_direction)
 {
-    const auto internal_force = internalForce(prev, curr, next, internal_force_gain, rotation_factor);
+    const auto internal_force =
+        internalForce(prev, curr, next, internal_force_gain, rotation_factor, reverse_direction);
     const auto external_force = externalForce(curr, external_force_gain);
     return internal_force + external_force;
 }
 
 Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
-                              const double rotation_factor)
+                              const double rotation_factor, const bool reverse_direction)
 {
     const Eigen::Vector2d d_1 = prev.pose.translation() - curr.pose.translation();
     const Eigen::Vector2d d_2 = next.pose.translation() - curr.pose.translation();
@@ -260,7 +263,8 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     force[2] = -10 * internal_force_gain * (rot_1.smallestAngle() + rot_2.smallestAngle()) / 2.0;
 
     // face forward force
-    const Eigen::Vector2d pose_dir = curr.pose.linear() * Eigen::Vector2d::UnitX();
+    const double dir = reverse_direction ? -1.0 : 1.0;
+    const Eigen::Vector2d pose_dir = dir * curr.pose.linear() * Eigen::Vector2d::UnitX();
     const double dot = pose_dir.dot(d_2_norm);
     const double det = pose_dir.x() * d_2_norm.y() - pose_dir.y() * d_2_norm.x();
     const double fwd_angle = std::atan2(det, dot);

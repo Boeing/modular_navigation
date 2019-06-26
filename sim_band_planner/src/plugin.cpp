@@ -90,8 +90,24 @@ navigation_interface::TrajectoryPlanner::Result
         else
             sim_band.nodes.push_back(moving_window_->window.nodes.front());
 
+        bool long_path = true;
+        bool reverse_direction = false;
+        const double path_length = moving_window_->nominal_path.length();
+        const auto goal_wrt_robot = robot_pose.inverse() * moving_window_->nominal_path.nodes.back();
+        const double rotation = std::abs(Eigen::Rotation2Dd(goal_wrt_robot.linear()).smallestAngle());
+
+        if (path_length < max_holonomic_distance_)
+        {
+            long_path = false;
+        }
+        else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance_ && rotation < M_PI / 2.0)
+        {
+            reverse_direction = true;
+        }
+
         simulate(sim_band, distance_field, num_iterations_, min_overlap_, min_distance_, internal_force_gain_,
-                 external_force_gain_, rotation_factor_, velocity_decay_, 1.0, alpha_decay_, max_distance_);
+                 external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction, velocity_decay_, 1.0,
+                 alpha_decay_, max_distance_);
 
         // debug viz
         if (viz_)
@@ -211,7 +227,8 @@ navigation_interface::TrajectoryPlanner::Result
         const Eigen::Isometry2d odom_to_map = map_to_odom.inverse();
         for (const auto& node : splined.nodes)
         {
-            const double velocity = desired_speed_ * std::sqrt(std::min(1.0, node.distance));
+            const double velocity =
+                desired_speed_ * std::max(0.1, node.distance >= max_distance_ ? 1.0 : node.distance);
             result.trajectory.states.push_back({odom_to_map * node.pose, Eigen::Vector3d(velocity, 0, 0)});
         }
 
@@ -256,6 +273,10 @@ void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
                                                                               XmlRpc::XmlRpcValue::TypeDouble);
     max_window_length_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "max_window_length", max_window_length_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_holonomic_distance_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_holonomic_distance", max_holonomic_distance_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_reverse_distance_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_reverse_distance", max_reverse_distance_, XmlRpc::XmlRpcValue::TypeDouble);
     robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
     rotation_factor_ = navigation_interface::get_config_with_default_warn<double>(
