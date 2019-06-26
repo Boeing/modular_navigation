@@ -29,6 +29,7 @@ class Layer
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) = 0;
 
+    virtual void clear() = 0;
     virtual void clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) = 0;
 
     void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)

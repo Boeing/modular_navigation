@@ -128,7 +128,6 @@ void ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
 
 void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-
     clamping_thres_min_ =
         get_config_with_default_warn<double>(parameters, "clamping_thres_min", 0.1192, XmlRpc::XmlRpcValue::TypeDouble);
     clamping_thres_max_ =
@@ -136,10 +135,10 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     occ_prob_thres_ =
         get_config_with_default_warn<double>(parameters, "occ_prob_thres", 0.8, XmlRpc::XmlRpcValue::TypeDouble);
 
-    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", false, XmlRpc::XmlRpcValue::TypeBoolean);
+    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", true, XmlRpc::XmlRpcValue::TypeBoolean);
     if (time_decay_)
     {
-        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 1.0 / 30.0,
+        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 1.0 / 10.0,
                                                                      XmlRpc::XmlRpcValue::TypeDouble);
         ROS_ASSERT(time_decay_frequency_ > 0);
         alpha_decay_ = get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
@@ -192,6 +191,12 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     }
 }
 
+void ObstacleLayer::clear()
+{
+    auto lock = probability_grid_->getLock();
+    std::fill(probability_grid_->cells().begin(), probability_grid_->cells().end(), 0.0);
+}
+
 void ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
 {
     auto lock = probability_grid_->getLock();
@@ -208,8 +213,8 @@ void ObstacleLayer::debugVizThread(const double frequency)
     grid.info.resolution = probability_grid_->dimensions().resolution();
     grid.info.origin.orientation.w = 1.0;
 
-    const int size_x = 400;
-    const int size_y = 400;
+    const int size_x = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
+    const int size_y = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
 
     ros::Rate rate(frequency);
     while (debug_viz_running_ && ros::ok())
@@ -231,7 +236,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                 const int actual_size_x =
                     std::min(probability_grid_->dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
                 const int actual_size_y =
-                    std::min(probability_grid_->dimensions().size().y() - 1, top_left_x + size_y) - top_left_y;
+                    std::min(probability_grid_->dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
 
                 grid.info.width = actual_size_x;
                 grid.info.height = actual_size_y;
@@ -289,19 +294,12 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     {
         {
             auto lock = probability_grid_->getLock();
-
-            const auto t0 = std::chrono::steady_clock::now();
-
             const int cells = probability_grid_->dimensions().cells();
             for (int i = 0; i < cells; ++i)
             {
                 if (std::abs(probability_grid_->cell(i)) > 0.1)
                     probability_grid_->cell(i) -= probability_grid_->cell(i) * alpha_decay;
             }
-
-            ROS_INFO_STREAM("alpha_decay took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                       std::chrono::steady_clock::now() - t0)
-                                                       .count());
         }
 
         rate.sleep();

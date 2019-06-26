@@ -30,6 +30,7 @@ class ObstacleLayer : public Layer
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
 
+    virtual void clear() override;
     virtual void clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) override;
 
   private:
