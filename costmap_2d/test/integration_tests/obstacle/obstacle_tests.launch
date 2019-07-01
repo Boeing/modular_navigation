@@ -1,4 +1,0 @@
-<launch>
-    <node name="publish_map" pkg="map_io" type="publish_map" args="$(find costmap_2d)/test/test_data/map.yaml"/>
-    <test time-limit="300" test-name="obstacle_tests" pkg="costmap_2d" type="obstacle_tests"/>
-</launch>

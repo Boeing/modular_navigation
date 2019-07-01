@@ -1,0 +1,54 @@
+path_planner: "astar_planner/AStarPlanner"
+trajectory_planner: "sim_band_planner/SimBandPlanner"
+controller: "pure_pursuit_controller/PurePursuitController"
+
+path_planner_frequency: 0.5
+trajectory_planner_frequency: 8.0
+controller_frequency: 10.0
+
+AStarPlanner:
+    debug_viz: true
+    neutral_cost: 0.4
+    robot_radius: 0.5
+    exponential_weight: 2.0
+    down_sample: 1
+
+SimBandPlanner:
+    debug_viz: true
+    robot_radius: 0.5
+    desired_speed: 0.15
+    spline: true
+
+PurePursuitController:
+    look_ahead: 0.1
+
+costmap:
+
+  layers:
+    - {name: laser_data, type: 'gridmap::ObstacleLayer'}
+    - {name: sonar_data, type: 'gridmap::ObstacleLayer'}
+
+  base_map:
+    lethal_threshold: 50
+
+  laser_data:
+    data_sources:
+      - {name: laser, type: 'gridmap::LaserData'}
+    laser:
+      sub_sample: 10
+
+  sonar_data:
+    data_sources:
+      - {name: sonar_0, type: 'gridmap::RangeData'}
+      - {name: sonar_1, type: 'gridmap::RangeData'}
+      - {name: sonar_2, type: 'gridmap::RangeData'}
+      - {name: sonar_3, type: 'gridmap::RangeData'}
+      - {name: sonar_4, type: 'gridmap::RangeData'}
+      - {name: sonar_5, type: 'gridmap::RangeData'}
+      - {name: sonar_6, type: 'gridmap::RangeData'}
+      - {name: sonar_7, type: 'gridmap::RangeData'}
+      - {name: sonar_8, type: 'gridmap::RangeData'}
+      - {name: sonar_9, type: 'gridmap::RangeData'}
+      - {name: sonar_10, type: 'gridmap::RangeData'}
+      - {name: sonar_11, type: 'gridmap::RangeData'}
+      - {name: sonar_12, type: 'gridmap::RangeData'}
