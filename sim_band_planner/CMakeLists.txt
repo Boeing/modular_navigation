@@ -4,12 +4,13 @@ project(sim_band_planner)
 add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
-    gridmap
     geometry_msgs
+    gridmap
     nav_msgs
     navigation_interface
     pluginlib
     roscpp
+    rviz_visual_tools
     tf2_geometry_msgs
     tf2_ros
     rviz_visual_tools
@@ -28,8 +29,8 @@ include_directories(SYSTEM
 
 catkin_package(
     CATKIN_DEPENDS
-        gridmap
         geometry_msgs
+        gridmap
         nav_msgs
         navigation_interface
         pluginlib
@@ -43,25 +44,23 @@ catkin_package(
 )
 
 add_library(${PROJECT_NAME}
+    include/${PROJECT_NAME}/band.h
+    include/${PROJECT_NAME}/distance_field.h
+    include/${PROJECT_NAME}/moving_window.h
+    include/${PROJECT_NAME}/plugin.h
+    include/${PROJECT_NAME}/simulate.h
     include/${PROJECT_NAME}/spline/Spline.h
     include/${PROJECT_NAME}/spline/SplineFitting.h
     include/${PROJECT_NAME}/spline/SplineFwd.h
 
-    include/${PROJECT_NAME}/band.h
-    include/${PROJECT_NAME}/distance_field.h
-    include/${PROJECT_NAME}/moving_window.h
-    include/${PROJECT_NAME}/simulate.h
-    include/${PROJECT_NAME}/plugin.h
-
-    src/simulate.cpp
     src/plugin.cpp
+    src/simulate.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 if(CATKIN_ENABLE_TESTING)
     find_package(rosunit REQUIRED)
-
     catkin_add_gtest(unit_test test/unit_test.cpp)
     target_link_libraries(unit_test ${PROJECT_NAME} ${OpenCV_LIBRARIES})
 endif()

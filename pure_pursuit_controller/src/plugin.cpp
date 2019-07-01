@@ -3,9 +3,7 @@
 
 #include <pluginlib/class_list_macros.h>
 
-PLUGINLIB_DECLARE_CLASS(pure_pursuit_controller, PurePursuitController, pure_pursuit_controller::PurePursuitController,
-                        navigation_interface::Controller)
-
+PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
 namespace pure_pursuit_controller
 {

@@ -9,15 +9,18 @@
 
     <buildtool_depend>catkin</buildtool_depend>
 
-    <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
+    <depend>gridmap</depend>
     <depend>nav_msgs</depend>
     <depend>navigation_interface</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
+    <depend>rviz_visual_tools</depend>
     <depend>tf2_geometry_msgs</depend>
     <depend>tf2_ros</depend>
     <depend>rviz_visual_tools</depend>
+
+    <test_depend>rosunit</test_depend>
 
     <test_depend>rosunit</test_depend>
 
