@@ -12,7 +12,8 @@ int main(int argc, char** argv)
     }
     catch (const std::exception& e)
     {
-        ROS_FATAL_STREAM("Exception in MoveBase: " << e.what());
+        ROS_FATAL_STREAM("Exception: " << e.what());
+        std::cout << "Exception: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 

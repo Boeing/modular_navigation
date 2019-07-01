@@ -11,8 +11,9 @@
 
     <depend>actionlib</depend>
     <depend>cmake_modules</depend>
-    <depend>costmap_2d</depend>
+    <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
+    <depend>map_manager</depend>
     <depend>message_generation</depend>
     <depend>move_base_msgs</depend>
     <depend>nav_msgs</depend>
@@ -22,6 +23,7 @@
     <depend>std_srvs</depend>
     <depend>tf2_ros</depend>
     <depend>tf2_geometry_msgs</depend>
+    <depend>rviz_visual_tools</depend>
 
     <exec_depend>message_runtime</exec_depend>
 

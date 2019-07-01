@@ -9,7 +9,7 @@
 
     <buildtool_depend>catkin</buildtool_depend>
 
-    <depend>costmap_2d</depend>
+    <depend>gridmap</depend>
     <depend>cv_bridge</depend>
     <depend>eigen</depend>
     <depend>geometry_msgs</depend>
@@ -19,6 +19,9 @@
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
     <depend>tf2_ros</depend>
+    <depend>hd_map</depend>
+
+    <test_depend>rosunit</test_depend>
 
     <export>
         <navigation_interface plugin="${prefix}/plugin.xml"/>

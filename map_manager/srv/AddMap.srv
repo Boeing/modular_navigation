@@ -1,0 +1,9 @@
+hd_map/Map map
+
+sensor_msgs/CompressedImage occupancy_grid
+
+uint8[] map_data
+
+---
+bool success
+string message

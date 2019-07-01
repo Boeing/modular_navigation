@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/tokenizer.hpp>
+
 #include <modular_move_base/move_base.h>
 
 #include <boost/algorithm/string.hpp>
@@ -10,667 +12,830 @@
 
 #include <geometry_msgs/Twist.h>
 
+#include <map_manager/GetMap.h>
+#include <map_manager/GetOccupancyGrid.h>
+#include <map_msgs/OccupancyGridUpdate.h>
+
 namespace move_base
 {
 
 namespace
 {
 
-double getYaw(const double w, const double x, const double y, const double z)
+std::string uuid()
 {
-    double yaw;
-
-    const double sqw = w * w;
-    const double sqx = x * x;
-    const double sqy = y * y;
-    const double sqz = z * z;
-
-    // Cases derived from https://orbitalstation.wordpress.com/tag/quaternion/
-    double sarg = -2 * (x * z - w * y) / (sqx + sqy + sqz + sqw); /* normalization added from urdfom_headers */
-
-    if (sarg <= -0.99999)
+    std::stringstream ss;
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 65536 - 1);
+    for (std::size_t i = 0; i < 32; i++)
     {
-        yaw = -2 * atan2(y, x);
+        const auto rc = static_cast<std::uint16_t>(dis(gen));
+        ss << std::hex << int(rc);
     }
-    else if (sarg >= 0.99999)
+    return ss.str();
+}
+
+Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
+{
+    const double yaw =
+        std::atan2(2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
+                   -1.0 + 2.0 * (pose.orientation.w * pose.orientation.w + pose.orientation.x * pose.orientation.x));
+    return Eigen::Translation2d(pose.position.x, pose.position.y) * Eigen::Rotation2Dd(yaw);
+}
+
+Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
+{
+    const double yaw = std::atan2(2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
+                                  -1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x));
+    return Eigen::Translation2d(tr.translation.x, tr.translation.y) * Eigen::Rotation2Dd(yaw);
+}
+
+template <class PluginType>
+std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& class_name,
+                                 pluginlib::ClassLoader<PluginType>& loader,
+                                 const std::shared_ptr<const gridmap::MapData>& costmap)
+{
+    try
     {
-        yaw = 2 * atan2(y, x);
+        ROS_INFO_STREAM("Starting: " << class_name);
+        std::shared_ptr<PluginType> sp(loader.createUnmanagedInstance(class_name));
+
+        XmlRpc::XmlRpcValue params;
+        nh.getParam(loader.getName(class_name), params);
+
+        try
+        {
+            ROS_INFO_STREAM("Initialising: " << class_name << "...");
+            sp->initialize(params, costmap);
+            ROS_INFO_STREAM("Successfully initialise: " << class_name);
+        }
+        catch (const std::exception& e)
+        {
+            throw std::runtime_error("Failed to initialize: " + std::string(e.what()));
+        }
+
+        return sp;
     }
-    else
+    catch (const pluginlib::PluginlibException& e)
     {
-        yaw = atan2(2 * (x * y + w * z), sqw + sqx - sqy - sqz);
+        throw std::runtime_error("Failed to create: " + std::string(e.what()));
     }
-    return yaw;
-};
+
+    return nullptr;
+}
+
+std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& parameters,
+                                                           const std::string& global_frame,
+                                                           pluginlib::ClassLoader<gridmap::Layer>& loader,
+                                                           const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+{
+    std::vector<std::shared_ptr<gridmap::Layer>> plugin_ptrs;
+    if (parameters.hasMember("layers"))
+    {
+        XmlRpc::XmlRpcValue my_list = parameters["layers"];
+        for (int32_t i = 0; i < my_list.size(); ++i)
+        {
+            std::string pname = static_cast<std::string>(my_list[i]["name"]);
+            std::string type = static_cast<std::string>(my_list[i]["type"]);
+
+            try
+            {
+                ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
+                auto plugin_ptr = std::shared_ptr<gridmap::Layer>(loader.createUnmanagedInstance(type));
+                plugin_ptr->initialize(pname, global_frame, parameters[pname], tf_buffer);
+                plugin_ptrs.push_back(plugin_ptr);
+            }
+            catch (const pluginlib::PluginlibException& e)
+            {
+                throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
+            }
+            catch (const std::exception& e)
+            {
+                throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
+            }
+        }
+    }
+
+    return plugin_ptrs;
+}
 }
 
 MoveBase::MoveBase()
-    : nh_("~"), tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
-      as_(nh_, "/move_base", boost::bind(&MoveBase::executeCallback, this, _1), false),
+    : nh_("~"),
 
-      global_costmap_(std::make_shared<costmap_2d::Costmap2DROS>("global_costmap", *tf_buffer_)),
-      local_costmap_(std::make_shared<costmap_2d::Costmap2DROS>("local_costmap", *tf_buffer_)),
+      tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
 
-      clear_costmaps_service_(nh_.advertiseService("clear_costmaps", &MoveBase::clearCostmapsCallback, this)),
-      bgp_loader_("navigation_interface", "navigation_interface::BaseGlobalPlanner"),
-      blp_loader_("navigation_interface", "navigation_interface::BaseLocalPlanner"),
-      recovery_loader_("navigation_interface", "navigation_interface::RecoveryBehavior"), new_global_plan_(false),
-      planner_frequency_(get_param_with_default_warn("~planner_frequency", 0.2)),
-      controller_frequency_(get_param_with_default_warn("~controller_frequency", 20.0)),
-      planner_patience_(get_param_with_default_warn("~planner_patience", 5.0)),
-      controller_patience_(get_param_with_default_warn("~controller_patience", 15.0))
+      as_(nh_, "/move_base", boost::bind(&MoveBase::goalCallback, this, _1),
+          boost::bind(&MoveBase::cancelCallback, this, _1), false),
+
+      layer_loader_("gridmap", "gridmap::Layer"),
+      pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
+      tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
+      c_loader_("navigation_interface", "navigation_interface::Controller"),
+
+      running_(false), execution_thread_running_(false), controller_done_(false),
+
+      current_path_(nullptr), current_trajectory_(nullptr),
+
+      map_publish_frequency_(get_param_with_default_warn("~map_publish_frequency", 1.0)),
+
+      global_frame_("map"),
+
+      clear_radius_(get_param_with_default_warn("~clear_radius", 0.5)),
+
+      path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 0.5)),
+      trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
+      controller_frequency_(get_param_with_default_warn("~controller_frequency", 10.0)),
+      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.60)),
+      localisation_timeout_(get_param_with_default_warn("~localisation_timeout", 4.0))
 {
     ROS_INFO("Starting");
 
-    const std::string global_planner = get_param_or_throw<std::string>("~base_global_planner");
-    const std::string local_planner = get_param_or_throw<std::string>("~base_local_planner");
+    XmlRpc::XmlRpcValue costmap_params;
+    nh_.getParam("costmap", costmap_params);
+    auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, tf_buffer_);
+    auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
+    base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], tf_buffer_);
+    layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
-    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &MoveBase::odomCallback, this);
+    const std::string path_planner_name = get_param_or_throw<std::string>("~path_planner");
+    const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
+    const std::string controller_name = get_param_or_throw<std::string>("~controller");
+
+    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &MoveBase::odomCallback, this,
+                                                  ros::TransportHints().tcpNoDelay());
     vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
     current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 0);
+    path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
+    trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
-    // Pause the global costmap
-    global_costmap_->pause();
+    // Create the path planner
+    path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, nullptr);
+    trajectory_planner_ =
+        load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
+    controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
 
-    // Create the global planner
-    try
-    {
-        ROS_INFO_STREAM("Starting global planner: " << global_planner);
-        planner_ = bgp_loader_.createInstance(global_planner);
-        ROS_INFO_STREAM("Created global planner: " << global_planner);
+    active_map_sub_ = nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &MoveBase::activeMapCallback, this);
 
-        try
-        {
-            planner_->initialize(bgp_loader_.getName(global_planner), tf_buffer_, global_costmap_, local_costmap_);
-        }
-        catch (const std::exception& e)
-        {
-            throw std::runtime_error("Failed to initialize the global planner: " + std::string(e.what()));
-        }
-    }
-    catch (const pluginlib::PluginlibException& e)
-    {
-        throw std::runtime_error("Failed to create the global planner: " + std::string(e.what()));
-    }
-
-    // Pause the local costmap
-    local_costmap_->pause();
-
-    // Create the local planner
-    try
-    {
-        ROS_INFO_STREAM("Starting local planner: " << local_planner);
-        tc_ = blp_loader_.createInstance(local_planner);
-        ROS_INFO_STREAM("Created local planner: " << local_planner);
-
-        try
-        {
-            tc_->initialize(blp_loader_.getName(local_planner), tf_buffer_, local_costmap_);
-        }
-        catch (const std::exception& e)
-        {
-            throw std::runtime_error("Failed to initialize the global planner: " + std::string(e.what()));
-        }
-    }
-    catch (const pluginlib::PluginlibException& e)
-    {
-        throw std::runtime_error("Failed to create the local planner: " + std::string(e.what()));
-    }
-
-    // Start actively updating costmaps based on sensor data
-    global_costmap_->start();
-    local_costmap_->start();
-
-    // Load recovery behaviors
-    if (!loadRecoveryBehaviors(nh_))
-    {
-        throw std::runtime_error("Failed to load recovery behaviours");
-    }
-
-    state_ = MoveBaseState::PLANNING;
-    recovery_index_ = 0;
+    costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
+    costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
 
     as_.start();
 
-    planner_thread_ = std::thread(&MoveBase::planThread, this);
-
-    plan_service_ = nh_.advertiseService("plan", &MoveBase::planCallback, this);
+    execution_thread_running_ = true;
+    execution_thread_ = std::thread(&MoveBase::executionThread, this);
 
     ROS_INFO("Successfully started");
 }
 
 MoveBase::~MoveBase()
 {
-    recovery_behaviors_.clear();
-
-    planner_cond_.notify_one();
-    planner_thread_.join();
-
-    planner_.reset();
-    tc_.reset();
-}
-
-bool MoveBase::clearCostmapsCallback(std_srvs::Empty::Request&, std_srvs::Empty::Response&)
-{
-    ROS_INFO("Executing clear costmaps service");
-    global_costmap_->resetLayers();
-    local_costmap_->resetLayers();
-    return true;
-}
-
-bool MoveBase::planCallback(modular_move_base::Plan::Request& req, modular_move_base::Plan::Response& res)
-{
-    ROS_INFO("Executing Plan service");
-
-    geometry_msgs::PoseStamped goal;
-    if (!goalToGlobalFrame(req.goal, goal))
+    if (execution_thread_running_)
     {
-        ROS_WARN("Failed to transform goal into global frame");
-        return true;
+        execution_thread_running_ = false;
+        execution_thread_.join();
+    }
+    if (running_)
+    {
+        running_ = false;
+    }
+}
+
+void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
+{
+    ROS_INFO_STREAM("Received map!");
+
+    // preempt execution
+    if (running_)
+    {
+        running_ = false;
     }
 
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_->getCostmap()->getMutex()));
+    // wait for goal completion
+    std::unique_lock<std::mutex> lock(goal_mutex_);
+    ROS_ASSERT(goal_ == nullptr);
 
-    // Get the starting pose of the robot
-    geometry_msgs::PoseStamped start;
-    if (req.start.header.frame_id.empty())
+    auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
+    map_manager::GetMapRequest map_req;
+    map_req.map_name = map->name;
+    map_manager::GetMapResponse map_res;
+    ROS_ASSERT(map_client.call(map_req, map_res));
+    ROS_ASSERT(map_res.success);
+
+    auto og_client = nh_.serviceClient<map_manager::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+    map_manager::GetOccupancyGridRequest og_req;
+    og_req.map_name = map->name;
+    map_manager::GetOccupancyGridResponse og_res;
+    ROS_ASSERT(og_client.call(og_req, og_res));
+    ROS_ASSERT(og_res.success);
+
+    layered_map_->setMap(map_res.map, og_res.grid);
+    path_planner_->setMapData(layered_map_->map());
+    trajectory_planner_->setMapData(layered_map_->map());
+    controller_->setMapData(layered_map_->map());
+
     {
-        ROS_INFO_STREAM("Empty frame_id for start pose - using current robot position");
+        nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+        grid.header.frame_id = "map";
+        grid.header.stamp = ros::Time::now();
+        costmap_publisher_.publish(grid);
+    }
+}
 
-        if (!global_costmap_->getRobotPose(start))
+void MoveBase::executionThread()
+{
+    while (execution_thread_running_)
+    {
+        std::unique_lock<std::mutex> lock(goal_mutex_);
+        if (execution_condition_.wait_for(lock, std::chrono::milliseconds(100)) == std::cv_status::no_timeout)
         {
-            ROS_WARN("Unable to get starting pose of robot, unable to create global plan");
-            return true;
-        }
-    }
-    else
-    {
-        start = req.start;
-    }
-
-    // Run planner
-    const navigation_interface::PlanResult result = planner_->makePlan(start, goal);
-    if (result.success)
-    {
-        ROS_INFO_STREAM("Global plan found with length: " << result.plan.size() << " and cost: " << result.cost);
-        res.plan.poses = result.plan;
-        res.plan.header.frame_id = global_costmap_->getGlobalFrameID();
-        res.success = true;
-    }
-    else
-    {
-        res.success = false;
-    }
-
-    ROS_INFO("Plan service complete");
-    return true;
-}
-
-void MoveBase::publishZeroVelocity()
-{
-    geometry_msgs::Twist cmd_vel;
-    cmd_vel.linear.x = 0.0;
-    cmd_vel.linear.y = 0.0;
-    cmd_vel.angular.z = 0.0;
-    vel_pub_.publish(cmd_vel);
-}
-
-bool MoveBase::goalToGlobalFrame(const geometry_msgs::PoseStamped& goal_pose_msg,
-                                 geometry_msgs::PoseStamped& global_goal)
-{
-    const std::string global_frame = global_costmap_->getGlobalFrameID();
-
-    try
-    {
-        ROS_INFO_STREAM("Transforming goal from " << goal_pose_msg.header.frame_id << " to " << global_frame);
-        global_goal = tf_buffer_->transform(goal_pose_msg, global_frame, ros::Duration(1.0));
-    }
-    catch (const tf2::TransformException& ex)
-    {
-        ROS_WARN_STREAM("Failed to transform the goal pose from " << goal_pose_msg.header.frame_id << " to "
-                                                                  << global_frame << " - " << ex.what());
-        return false;
-    }
-
-    const double yaw = getYaw(global_goal.pose.orientation.w, global_goal.pose.orientation.x,
-                              global_goal.pose.orientation.y, global_goal.pose.orientation.z);
-    ROS_DEBUG_STREAM("Goal: x: " << global_goal.pose.position.x << " y: " << global_goal.pose.position.y
-                                 << " yaw: " << yaw);
-
-    return true;
-}
-
-void MoveBase::wakePlanner(const ros::TimerEvent&)
-{
-    std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-    if (state_ != MoveBaseState::GOAL_COMPLETE && state_ != MoveBaseState::GOAL_FAILED)
-    {
-        ROS_DEBUG_STREAM("Requesting planner: state=" << toString(state_));
-        planner_cond_.notify_one();
-    }
-}
-
-void MoveBase::planThread()
-{
-    ROS_DEBUG_NAMED("move_base_plan_thread", "Starting planner thread...");
-    ros::Timer timer;
-
-    while (nh_.ok())
-    {
-        geometry_msgs::PoseStamped goal;
-        {
-            std::unique_lock<std::mutex> planning_lock(planner_mutex_);
-
-            ROS_DEBUG_NAMED("move_base_plan_thread", "Waiting for plan request");
-            planner_cond_.wait(planning_lock);
-
-            if (!nh_.ok())
-                break;
-
-            goal = planner_goal_;
-            new_global_plan_ = false;
-
-            ROS_DEBUG_STREAM("Request to plan to: " << goal.header.frame_id << " " << goal.pose.position.x << " "
-                                                    << goal.pose.position.y);
-            const std::string global_frame = global_costmap_->getGlobalFrameID();
-            assert(goal.header.frame_id == global_frame);
+            executeGoal(*goal_);
+            goal_ = nullptr;
         }
 
-        ros::Time start_time = ros::Time::now();
-
-        ROS_DEBUG("Planning");
-
-        // Run planner
+        // copy the current robot state
+        RobotState rs;
         {
-            boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(global_costmap_->getCostmap()->getMutex()));
-
-            // Get the starting pose of the robot
-            geometry_msgs::PoseStamped start;
-            if (global_costmap_->getRobotPose(start))
-            {
-                // If the planner fails or returns a zero length plan, planning failed
-                const navigation_interface::PlanResult result = planner_->makePlan(start, goal);
-                if (result.success && !result.plan.empty())
-                {
-                    ROS_INFO_STREAM("Global plan found with length: " << result.plan.size()
-                                                                      << " and cost: " << result.cost);
-                    std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-                    planner_plan_ = result.plan;
-                    last_valid_plan_ = ros::Time::now();
-                    new_global_plan_ = true;
-                }
-                else
-                {
-                    ROS_WARN("Failed to plan");
-                }
-            }
-            else
-            {
-                ROS_WARN("Unable to get starting pose of robot, unable to create global plan");
-            }
+            std::lock_guard<std::mutex> lock(robot_state_mutex_);
+            rs = robot_state_;
         }
 
-        // Setup sleep notify
+        if (layered_map_->map())
         {
-            std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-            if (state_ != MoveBaseState::GOAL_COMPLETE && state_ != MoveBaseState::GOAL_FAILED &&
-                planner_frequency_ > 0)
+            if (rs.localised)
             {
-                ros::Duration sleep_time = (start_time + ros::Duration(1.0 / planner_frequency_)) - ros::Time::now();
-                if (sleep_time > ros::Duration(0.0))
-                {
-                    timer = nh_.createTimer(sleep_time, &MoveBase::wakePlanner, this);
-                }
+                const auto t0 = std::chrono::steady_clock::now();
+                const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
+                const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+                layered_map_->update();
             }
-            else
+
             {
-                timer.stop();
+                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                grid.header.frame_id = "map";
+                grid.header.stamp = ros::Time::now();
+                costmap_publisher_.publish(grid);
             }
         }
     }
 }
 
-void MoveBase::executeCallback(const move_base_msgs::MoveBaseGoalConstPtr& move_base_goal)
+void MoveBase::executeGoal(GoalHandle& goal)
 {
     ROS_INFO_STREAM("Received New Goal");
 
-    geometry_msgs::PoseStamped goal;
-    if (!goalToGlobalFrame(move_base_goal->target_pose, goal))
-    {
-        const std::string msg = "Failed to transform goal into global frame";
-        ROS_WARN_STREAM(msg);
+    current_goal_pub_.publish(goal.getGoal()->target_pose);
 
+    // make sure no threads are running
+    ROS_ASSERT(!running_);
+    ROS_ASSERT(!path_planner_thread_);
+    ROS_ASSERT(!trajectory_planner_thread_);
+    ROS_ASSERT(!controller_thread_);
+    ROS_ASSERT(layered_map_->map());
+
+    controller_done_ = false;
+    running_ = true;
+
+    // start the threads
+    path_planner_thread_.reset(new std::thread(&MoveBase::pathPlannerThread, this,
+                                               convert(goal.getGoal()->target_pose.pose),
+                                               goal.getGoal()->target_pose.header.frame_id));
+    trajectory_planner_thread_.reset(new std::thread(&MoveBase::trajectoryPlannerThread, this));
+    controller_thread_.reset(new std::thread(&MoveBase::controllerThread, this));
+
+    // wait till all threads are done
+    while (running_)
+    {
+        if (goal.getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
         {
-            std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-            state_ = MoveBaseState::GOAL_FAILED;
+            goal.setCanceled();
+            break;
         }
 
-        as_.setAborted(move_base_msgs::MoveBaseResult(), msg);
-        return;
-    }
-
-    current_goal_pub_.publish(goal);
-
-    // Update the planner goal
-    {
-        std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-        new_global_plan_ = false;
-        planner_goal_ = goal;
-    }
-
-    last_valid_plan_ = ros::Time::now();
-
-    recovery_index_ = 0;
-    state_ = MoveBaseState::PLANNING;
-
-    ros::Rate rate(controller_frequency_);
-    while (nh_.ok())
-    {
-        // For timing that gives real time even in simulation
-        const ros::SteadyTime steady_time = ros::SteadyTime::now();
-        const ros::Time ros_time = ros::Time::now();
-
-        if (as_.isPreemptRequested())
+        if (controller_done_)
         {
-            ROS_INFO("Preempting goal");
-            publishZeroVelocity();
+            goal.setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached");
+            break;
+        }
 
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    running_ = false;
+    controller_done_ = false;
+
+    {
+        std::lock_guard<std::mutex> lock(path_mutex_);
+        current_path_.reset();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(trajectory_mutex_);
+        current_trajectory_.reset();
+    }
+
+    path_planner_thread_->join();
+    trajectory_planner_thread_->join();
+    controller_thread_->join();
+
+    path_planner_thread_.reset();
+    trajectory_planner_thread_.reset();
+    controller_thread_.reset();
+
+    ROS_INFO_STREAM("Goal " << goal_->getGoalID().id << " execution complete");
+}
+
+void MoveBase::goalCallback(GoalHandle goal)
+{
+    ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x
+                                      << ", " << goal.getGoal()->target_pose.pose.position.x << ")");
+    {
+        std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
+        if (!lock.owns_lock())
+        {
+            // A Goal is already running... preempt
+            if (goal_ && goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::ACTIVE)
             {
-                std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-                state_ = MoveBaseState::GOAL_FAILED;
+                ROS_INFO("Goal already executing. Cancelling...");
+                goal_->setCanceled();
             }
+            lock.lock();
+        }
 
-            as_.setPreempted();
-            tc_->clearPlan();
+        if (layered_map_->map())
+        {
+            ROS_INFO_STREAM("Accepted new goal: " << goal.getGoalID().id);
+            goal.setAccepted();
+            goal_ = std::make_unique<GoalHandle>(goal);
+        }
+        else
+        {
+            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - No Map!");
+            goal.setRejected();
             return;
         }
+    }
+    execution_condition_.notify_all();
+}
 
-        // Run state machine
-        MoveBaseState new_state = executeState(state_, steady_time, ros_time);
+void MoveBase::cancelCallback(GoalHandle goal)
+{
+    std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
+    if (!lock.owns_lock())
+    {
+        if (goal_ && goal.getGoalID().id == goal_->getGoalID().id)
         {
-            std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-            if (state_ != new_state)
+            goal.setCanceled();
+        }
+    }
+}
+
+std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry2d& goal, const std::string frame_id)
+{
+    try
+    {
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, frame_id, ros::Time(0));
+
+        if (tr.header.stamp > ros::Time(0) &&
+            std::abs((tr.header.stamp - ros::Time::now()).toSec()) > localisation_timeout_)
+        {
+            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->" << frame_id
+                                                                              << ") is stale");
+            return nullptr;
+        }
+
+        const auto transform = convert(tr.transform);
+        return std::make_unique<Eigen::Isometry2d>(transform * goal);
+    }
+    catch (const tf2::TransformException&)
+    {
+        ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->" << frame_id
+                                                                          << ") is missing");
+    }
+
+    return nullptr;
+}
+
+void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string frame_id)
+{
+    ros::WallRate rate(path_planner_frequency_);
+
+    while (running_)
+    {
+        // copy the current robot state
+        RobotState rs;
+        {
+            std::lock_guard<std::mutex> lock(robot_state_mutex_);
+            rs = robot_state_;
+        }
+
+        if (!rs.localised)
+        {
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            current_path_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = global_frame_;
+            path_pub_.publish(gui_path);
+
+            rate.sleep();
+
+            continue;
+        }
+
+        const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+            layered_map_->update();
+            ROS_INFO_STREAM("global map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                             std::chrono::steady_clock::now() - t0)
+                                                             .count());
+        }
+
+        const auto transformed_goal = transformGoal(goal, frame_id);
+        if (!transformed_goal)
+        {
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            current_path_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = global_frame_;
+            path_pub_.publish(gui_path);
+
+            rate.sleep();
+
+            continue;
+        }
+
+        // TODO - if transformed goal has changed (gt res) then force a path swap
+
+        navigation_interface::PathPlanner::Result result;
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            result = path_planner_->plan(global_robot_pose, *transformed_goal);
+            ROS_INFO_STREAM("Path Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                        std::chrono::steady_clock::now() - t0)
+                                                        .count());
+        }
+
+        if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
+        {
+            bool update = false;
+
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            if (current_path_)
             {
-                ROS_DEBUG_STREAM("Transitioning from " << toString(state_) << " to " << toString(new_state));
-                state_ = new_state;
+                // trim the current path to the robot pose
+                navigation_interface::Path path = *current_path_;
+                if (!path.nodes.empty())
+                {
+                    const auto closest = path.closestSegment(global_robot_pose);
+                    if (closest.first != 0)
+                        path.nodes.erase(path.nodes.begin(), path.nodes.begin() + static_cast<long>(closest.first));
+                }
+
+                // get the current path cost
+                const double cost = path_planner_->cost(path);
+
+                if (result.path.length() > 2.0 && result.cost < path_swap_fraction_ * cost)
+                {
+                    ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
+                    update = true;
+                }
+
+                // TODO also swap if tracking error is too high or control has failed
+            }
+            else
+            {
+                ROS_INFO_STREAM("First path found");
+                update = true;
             }
 
-            if (state_ == MoveBaseState::GOAL_COMPLETE)
+            if (update)
             {
-                as_.setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached");
-                tc_->clearPlan();
-                return;
+                result.path.id = uuid();
+                current_path_.reset(new navigation_interface::Path(result.path));
+
+                // publish
+                nav_msgs::Path gui_path;
+                gui_path.header.frame_id = global_frame_;
+                for (const auto& node : result.path.nodes)
+                {
+                    const Eigen::Quaterniond qt(
+                        Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).smallestAngle(), Eigen::Vector3d::UnitZ()));
+
+                    geometry_msgs::PoseStamped p;
+                    p.header.frame_id = global_frame_;
+                    p.pose.position.x = node.translation().x();
+                    p.pose.position.y = node.translation().y();
+                    p.pose.orientation.w = qt.w();
+                    p.pose.orientation.x = qt.x();
+                    p.pose.orientation.y = qt.y();
+                    p.pose.orientation.z = qt.z();
+
+                    gui_path.poses.push_back(p);
+                }
+                path_pub_.publish(gui_path);
             }
+        }
+        else
+        {
+            ROS_WARN("Failed to find a path");
+        }
+
+        rate.sleep();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(path_mutex_);
+        current_path_.reset();
+    }
+}
+
+void MoveBase::trajectoryPlannerThread()
+{
+    ros::WallRate rate(trajectory_planner_frequency_);
+
+    ROS_ASSERT(layered_map_);
+    const int size_x = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
+    const int size_y = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
+
+    while (running_)
+    {
+        // check if a new path is available
+        bool has_path = false;
+        {
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            if (current_path_)
+            {
+                const auto p = trajectory_planner_->pathId();
+                if (!p || current_path_->id != p.get())
+                {
+                    trajectory_planner_->setPath(*current_path_);
+                }
+                has_path = true;
+            }
+        }
+
+        if (!has_path)
+        {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            current_trajectory_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            trajectory_pub_.publish(gui_path);
+
+            rate.sleep();
+            continue;
+        }
+
+        // copy the current robot state
+        RobotState rs;
+        {
+            std::lock_guard<std::mutex> lock(robot_state_mutex_);
+            rs = robot_state_;
+        }
+
+        if (!rs.localised)
+        {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            current_trajectory_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            trajectory_pub_.publish(gui_path);
+
+            rate.sleep();
+
+            continue;
+        }
+
+        // update costmap around robot
+        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
+        const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+        {
+            layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+            layered_map_->update(roi);
+        }
+
+        {
+            nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg(roi);
+            grid.header.frame_id = "map";
+            grid.header.stamp = ros::Time::now();
+            costmap_publisher_.publish(grid);
+        }
+
+        navigation_interface::TrajectoryPlanner::Result result;
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+
+            // optimise path
+            result = trajectory_planner_->plan(roi, rs.robot_state, rs.map_to_odom);
+
+            ROS_INFO_STREAM("Trajectory Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                              std::chrono::steady_clock::now() - t0)
+                                                              .count());
+        }
+
+        // update trajectory for the controller
+        if (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL ||
+            result.outcome == navigation_interface::TrajectoryPlanner::Outcome::PARTIAL)
+        {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            result.trajectory.id = uuid();
+            bool final_goal = (result.outcome == navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL) &&
+                              (trajectory_planner_->path().get().nodes.size() == result.path_end_i);
+            current_trajectory_.reset(new ControlTrajectory({final_goal, result.trajectory}));
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            for (const auto& state : result.trajectory.states)
+            {
+                const Eigen::Quaterniond qt(
+                    Eigen::AngleAxisd(Eigen::Rotation2Dd(state.pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
+
+                geometry_msgs::PoseStamped p;
+                p.header.frame_id = "odom";
+                p.pose.position.x = state.pose.translation().x();
+                p.pose.position.y = state.pose.translation().y();
+                p.pose.orientation.w = qt.w();
+                p.pose.orientation.x = qt.x();
+                p.pose.orientation.y = qt.y();
+                p.pose.orientation.z = qt.z();
+
+                gui_path.poses.push_back(p);
+            }
+            trajectory_pub_.publish(gui_path);
+        }
+        // clear the trajectory from the controller
+        else
+        {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            current_trajectory_.reset();
+
+            // publish
+            nav_msgs::Path gui_path;
+            gui_path.header.frame_id = "odom";
+            trajectory_pub_.publish(gui_path);
+        }
+
+        rate.sleep();
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(trajectory_mutex_);
+        current_trajectory_.reset();
+    }
+}
+
+void MoveBase::controllerThread()
+{
+    const long period_ms = static_cast<long>(1000.0 / controller_frequency_);
+    ros::SteadyTime last_odom_time;
+
+    ROS_ASSERT(layered_map_);
+    const int size_x = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
+    const int size_y = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
+
+    while (running_)
+    {
+        // wait for a new odom (or timeout)
+        RobotState rs;
+        {
+            std::unique_lock<std::mutex> lock(robot_state_mutex_);
+            if (robot_state_.time == last_odom_time)
+            {
+                const auto t0 = std::chrono::steady_clock::now();
+                if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) ==
+                    std::cv_status::timeout)
+                {
+                    const double wait_time =
+                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                            .count();
+                    ROS_WARN_STREAM("Did not receive an odom message at the desired frequency: last: "
+                                    << robot_state_.time << " waited: " << wait_time);
+                    vel_pub_.publish(geometry_msgs::Twist());
+                    continue;
+                }
+            }
+            rs = robot_state_;
+            last_odom_time = robot_state_.time;
+        }
+
+        // check if a new trajectory is available
+        std::lock_guard<std::mutex> lock(trajectory_mutex_);
+        if (current_trajectory_ && rs.localised)
+        {
+            const auto p = controller_->trajectoryId();
+            if (!p || current_trajectory_->trajectory.id != p.get())
+            {
+                controller_->setTrajectory(current_trajectory_->trajectory);
+            }
+        }
+        else
+        {
+            vel_pub_.publish(geometry_msgs::Twist());
+            continue;
+        }
+
+        // update costmap around robot
+        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
+        const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+        {
+            layered_map_->update(roi);
         }
 
         // Update feedback to correspond to our current position
-        geometry_msgs::PoseStamped current_position;
-        global_costmap_->getRobotPose(current_position);
+        const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Quaterniond qt = Eigen::Quaterniond(
+            Eigen::AngleAxisd(Eigen::Rotation2Dd(global_robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
         move_base_msgs::MoveBaseFeedback feedback;
-        feedback.base_position = current_position;
-        as_.publishFeedback(feedback);
+        feedback.base_position.header.frame_id = global_frame_;
+        feedback.base_position.pose.position.x = global_robot_pose.translation().x();
+        feedback.base_position.pose.position.y = global_robot_pose.translation().y();
+        feedback.base_position.pose.orientation.w = qt.w();
+        feedback.base_position.pose.orientation.x = qt.x();
+        feedback.base_position.pose.orientation.y = qt.y();
+        feedback.base_position.pose.orientation.z = qt.z();
+        ROS_ASSERT(goal_);
+        goal_->publishFeedback(feedback);
 
-        const double t_diff = ros::SteadyTime::now().toSec() - steady_time.toSec();
-        ROS_DEBUG_STREAM("Cycle time: " << t_diff);
+        // control
+        const auto result = controller_->control(rs.time, rs.robot_state, rs.map_to_odom);
 
-        rate.sleep();
-
-        if (rate.cycleTime() > ros::Duration(1 / controller_frequency_) && state_ == MoveBaseState::CONTROLLING)
+        // send cmd_vel
+        geometry_msgs::Twist cmd_vel;
+        if (result.outcome == navigation_interface::Controller::Outcome::SUCCESSFUL)
         {
-            ROS_WARN("Control loop missed desired rate of %.4fHz... took %.4f seconds", controller_frequency_,
-                     rate.cycleTime().toSec());
+            ROS_ASSERT(result.command.allFinite());
+            cmd_vel.linear.x = result.command.x();
+            cmd_vel.linear.y = result.command.y();
+            cmd_vel.angular.z = result.command.z();
+        }
+        vel_pub_.publish(cmd_vel);
+
+        // finish if end of path
+        if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE &&
+            current_trajectory_->goal_trajectory)
+        {
+            ROS_INFO("Final trajectory complete");
+            break;
         }
     }
 
-    as_.setAborted(move_base_msgs::MoveBaseResult());
-    tc_->clearPlan();
-    return;
-}
+    geometry_msgs::Twist cmd_vel;
+    vel_pub_.publish(cmd_vel);
 
-MoveBaseState MoveBase::executeState(const MoveBaseState state, const ros::SteadyTime& steady_time,
-                                     const ros::Time& ros_time)
-{
-    ROS_DEBUG_STREAM("Executing state: " << state);
-
-    if (state == MoveBaseState::PLANNING)
-    {
-        // If we didn't get a plan before timeout
-        if (ros::Time::now() > last_valid_plan_ + ros::Duration(planner_patience_))
-        {
-            ROS_WARN("Timeout finding a valid global plan");
-            publishZeroVelocity();
-            return MoveBaseState::RECOVERING;
-        }
-
-        // Check for a new plan
-        std::lock_guard<std::mutex> planning_lock(planner_mutex_);
-        if (new_global_plan_)
-        {
-            ROS_DEBUG("Got a new plan");
-            new_global_plan_ = false;
-
-            boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(local_costmap_->getCostmap()->getMutex()));
-
-            if (!tc_->setPlan(planner_plan_))
-            {
-                ROS_WARN("Could not initialise local planner with global plan");
-                recovery_index_ = 0;
-                return MoveBaseState::RECOVERING;
-            }
-
-            last_valid_plan_ = ros::Time::now();
-            return MoveBaseState::CONTROLLING;
-        }
-        else
-        {
-            // Request the planner
-            planner_cond_.notify_one();
-
-            return MoveBaseState::PLANNING;
-        }
-    }
-    else if (state == MoveBaseState::CONTROLLING)
-    {
-        boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(local_costmap_->getCostmap()->getMutex()));
-
-        {
-            std::unique_lock<std::mutex> lock(planner_mutex_);
-            if (new_global_plan_)
-            {
-                ROS_DEBUG("Got a new plan");
-                new_global_plan_ = false;
-
-                if (!tc_->setPlan(planner_plan_))
-                {
-                    ROS_WARN("Could not initialise local planner with global plan");
-                    recovery_index_ = 0;
-                    return MoveBaseState::RECOVERING;
-                }
-
-                last_valid_plan_ = ros::Time::now();
-            }
-        }
-
-        if (!local_costmap_->isCurrent())
-        {
-            ROS_WARN("[%s]:Sensor data is out of date, we're not going to allow commanding of the base for safety",
-                     ros::this_node::getName().c_str());
-            publishZeroVelocity();
-            return MoveBaseState::CONTROLLING;
-        }
-
-        navigation_interface::Control control;
-        {
-            std::lock_guard<std::mutex> lock(odom_mutex_);
-            control = tc_->computeControl(steady_time, ros_time, base_odom_);
-        }
-
-        if (control.state == navigation_interface::ControlState::RUNNING)
-        {
-            vel_pub_.publish(control.cmd_vel);
-            recovery_index_ = 0;
-            return MoveBaseState::CONTROLLING;
-        }
-        else if (control.state == navigation_interface::ControlState::EMERGENCY_BRAKING)
-        {
-            ROS_WARN_STREAM("ControlState == EMERGENCY_BRAKING");
-            publishZeroVelocity();
-            return MoveBaseState::CONTROLLING;
-        }
-        else if (control.state == navigation_interface::ControlState::COMPLETE)
-        {
-            publishZeroVelocity();
-            return MoveBaseState::GOAL_COMPLETE;
-        }
-        else if (control.state == navigation_interface::ControlState::FAILED)
-        {
-            ROS_WARN_STREAM("ControlState == FAILED");
-            publishZeroVelocity();
-            return MoveBaseState::RECOVERING;
-        }
-        else
-        {
-            throw std::runtime_error("Unknown navigation_interface::ControlState: " +
-                                     std::to_string(static_cast<int>(control.state)));
-        }
-    }
-    else if (state == MoveBaseState::RECOVERING)
-    {
-        if (recovery_behaviors_.empty())
-            return MoveBaseState::PLANNING;
-
-        if (recovery_index_ >= recovery_behaviors_.size())
-        {
-            ROS_INFO("Executed all recovery behaviours - restarting from first recovery behaviour");
-            recovery_index_ = 0;
-        }
-
-        ROS_INFO_STREAM("Executing behavior " << recovery_index_ + 1 << " of " << recovery_behaviors_.size());
-        recovery_behaviors_[recovery_index_]->runBehavior();
-
-        recovery_index_++;
-        last_valid_plan_ = ros::Time::now();
-        return MoveBaseState::PLANNING;
-    }
-    else if (state == MoveBaseState::GOAL_COMPLETE)
-    {
-        publishZeroVelocity();
-        return MoveBaseState::GOAL_COMPLETE;
-    }
-    else
-    {
-        throw std::runtime_error("Unknown state: " + std::to_string(static_cast<int>(state)));
-    }
-}
-
-bool MoveBase::loadRecoveryBehaviors(ros::NodeHandle node)
-{
-    XmlRpc::XmlRpcValue behavior_list;
-    if (node.getParam("recovery_behaviors", behavior_list))
-    {
-        if (behavior_list.getType() == XmlRpc::XmlRpcValue::TypeArray)
-        {
-            for (int i = 0; i < behavior_list.size(); ++i)
-            {
-                if (behavior_list[i].getType() == XmlRpc::XmlRpcValue::TypeStruct)
-                {
-                    if (behavior_list[i].hasMember("name") && behavior_list[i].hasMember("type"))
-                    {
-                        // check for recovery behaviors with the same name
-                        for (int j = i + 1; j < behavior_list.size(); j++)
-                        {
-                            if (behavior_list[j].getType() == XmlRpc::XmlRpcValue::TypeStruct)
-                            {
-                                if (behavior_list[j].hasMember("name") && behavior_list[j].hasMember("type"))
-                                {
-                                    std::string name_i = behavior_list[i]["name"];
-                                    std::string name_j = behavior_list[j]["name"];
-                                    if (name_i == name_j)
-                                    {
-                                        ROS_ERROR("A recovery behavior with the name %s already exists, this is not "
-                                                  "allowed. Using the default recovery behaviors instead.",
-                                                  name_i.c_str());
-                                        return false;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        ROS_ERROR("Recovery behaviors must have a name and a type and this does not");
-                        return false;
-                    }
-                }
-                else
-                {
-                    ROS_ERROR("Recovery behaviors must be specified as maps, but they are XmlRpcType %d",
-                              behavior_list[i].getType());
-                    return false;
-                }
-            }
-
-            // if we've made it to this point, we know that the list is legal so we'll create all the recovery behaviors
-            for (int i = 0; i < behavior_list.size(); ++i)
-            {
-                try
-                {
-                    // check if a non fully qualified name has potentially been passed in
-                    if (!recovery_loader_.isClassAvailable(behavior_list[i]["type"]))
-                    {
-                        std::vector<std::string> classes = recovery_loader_.getDeclaredClasses();
-                        for (unsigned int i = 0; i < classes.size(); ++i)
-                        {
-                            if (behavior_list[i]["type"] == recovery_loader_.getName(classes[i]))
-                            {
-                                // if we've found a match... we'll get the fully qualified name and break out of the
-                                // loop
-                                ROS_WARN("Recovery behavior specifications should now include the package name. You "
-                                         "are using a deprecated API. Please switch from %s to %s in your yaml file.",
-                                         std::string(behavior_list[i]["type"]).c_str(), classes[i].c_str());
-                                behavior_list[i]["type"] = classes[i];
-                                break;
-                            }
-                        }
-                    }
-
-                    boost::shared_ptr<navigation_interface::RecoveryBehavior> behavior(
-                        recovery_loader_.createInstance(behavior_list[i]["type"]));
-
-                    // shouldn't be possible, but it won't hurt to check
-                    if (behavior.get() == nullptr)
-                    {
-                        ROS_ERROR("The ClassLoader returned a null pointer without throwing an exception. This should "
-                                  "not happen");
-                        return false;
-                    }
-
-                    // initialize the recovery behavior with its name
-                    behavior->initialize(behavior_list[i]["name"], tf_buffer_, global_costmap_, local_costmap_);
-                    recovery_behaviors_.push_back(behavior);
-                }
-                catch (const pluginlib::PluginlibException& ex)
-                {
-                    ROS_ERROR("Failed to load a plugin. Error: %s", ex.what());
-                    return false;
-                }
-            }
-        }
-        else
-        {
-            ROS_ERROR("The recovery behavior specification must be a list, but is of XmlRpcType %d",
-                      behavior_list.getType());
-            return false;
-        }
-    }
-
-    return true;
+    controller_done_ = true;
 }
 
 void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
-    std::lock_guard<std::mutex> lock(odom_mutex_);
-    base_odom_ = *msg;
-}
+    RobotState robot_state;
+    robot_state.time = ros::SteadyTime::now();
 
-}  // namespace move_base
+    robot_state.robot_state.pose = convert(msg->pose.pose);
+    robot_state.robot_state.velocity =
+        Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
+
+    try
+    {
+        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
+        robot_state.map_to_odom = convert(tr.transform);
+        robot_state.localised = true;
+
+        if (tr.header.stamp > ros::Time(0) &&
+            std::abs((msg->header.stamp - tr.header.stamp).toSec()) > localisation_timeout_)
+        {
+            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform ("
+                                            << global_frame_ << "->odom) is stale: "
+                                            << (msg->header.stamp - tr.header.stamp).toSec() << "s");
+            robot_state.localised = false;
+        }
+    }
+    catch (const tf2::TransformException&)
+    {
+        ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is missing");
+        robot_state.localised = false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(robot_state_mutex_);
+        robot_state_ = robot_state;
+    }
+    robot_state_conditional_.notify_all();
+}
+}
