@@ -18,7 +18,6 @@
     <depend>rviz_visual_tools</depend>
     <depend>tf2_geometry_msgs</depend>
     <depend>tf2_ros</depend>
-    <depend>rviz_visual_tools</depend>
 
     <test_depend>rosunit</test_depend>
 
