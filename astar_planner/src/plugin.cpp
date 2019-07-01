@@ -25,7 +25,6 @@ namespace
 struct Costmap
 {
     cv::Mat costmap;
-    cv::Mat obstacle_map;
 
     double resolution;
     double origin_x;
@@ -37,7 +36,10 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
 {
     Costmap grid;
 
+    std::chrono::steady_clock::time_point t0;
+
     // downsample
+    cv::Mat dilated;
     {
         auto lock = map_data.grid.getLock();
 
@@ -46,47 +48,68 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
         const int size_x = map_data.grid.dimensions().size().x() / down_sample;
         const int size_y = map_data.grid.dimensions().size().y() / down_sample;
 
-        const Eigen::Vector2d world_origin = map_data.grid.dimensions().getCellCenter({0, 0});
-        grid.origin_x = world_origin.x();
-        grid.origin_y = world_origin.y();
+        grid.origin_x = map_data.grid.dimensions().origin().x();
+        grid.origin_y = map_data.grid.dimensions().origin().y();
 
-        grid.obstacle_map = cv::Mat(size_y, size_x, CV_8U, cv::Scalar(0));
-
-        int index = 0;
-        for (int i = 0; i < map_data.grid.dimensions().size().x(); ++i)
+        cv::Mat obstacle_map;
+        t0 = std::chrono::steady_clock::now();
+        if (down_sample > 1)
         {
+            obstacle_map = cv::Mat(size_y, size_x, CV_8U, cv::Scalar(0));
+            int index = 0;
             for (int j = 0; j < map_data.grid.dimensions().size().y(); ++j)
             {
-                const int sub_i = i / down_sample;
-                const int sub_j = j / down_sample;
-                const int sub_index = sub_i * size_x + sub_j;
-                if (map_data.grid.cells()[index] == gridmap::OccupancyGrid::OCCUPIED)
-                    grid.obstacle_map.at<unsigned char>(sub_index) = 255;
-                ++index;
+                for (int i = 0; i < map_data.grid.dimensions().size().x(); ++i)
+                {
+                    const int sub_i = i / down_sample;
+                    const int sub_j = j / down_sample;
+                    const int sub_index = sub_j * size_x + sub_i;
+                    if (map_data.grid.cells()[index] == gridmap::OccupancyGrid::OCCUPIED)
+                        obstacle_map.at<unsigned char>(sub_index) = 255;
+                    ++index;
+                }
             }
         }
+        else
+        {
+            obstacle_map = cv::Mat(size_y, size_x, CV_8U,
+                                   reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
+        }
+        ROS_DEBUG_STREAM("downsampling took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                     std::chrono::steady_clock::now() - t0)
+                                                     .count());
+
+        // dilate robot radius
+        t0 = std::chrono::steady_clock::now();
+        const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / grid.resolution);
+        auto ellipse =
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+        cv::dilate(obstacle_map, dilated, ellipse);
+        ROS_DEBUG_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                 std::chrono::steady_clock::now() - t0)
+                                                 .count());
     }
 
-    // dilate robot radius
-    cv::Mat dilated;
-    const int cell_inflation_radius = static_cast<int>(robot_radius / grid.resolution);
-    auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
-    cv::dilate(grid.obstacle_map, dilated, ellipse);
+    t0 = std::chrono::steady_clock::now();
 
     // flip
-    cv::bitwise_not(dilated, grid.obstacle_map);
+    cv::bitwise_not(dilated, dilated);
 
     // allocate
-    grid.costmap = cv::Mat(grid.obstacle_map.size(), CV_32F);
+    grid.costmap = cv::Mat(dilated.size(), CV_32F);
 
     // find obstacle distances
-    cv::distanceTransform(grid.obstacle_map, grid.costmap, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
+    cv::distanceTransform(dilated, grid.costmap, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
 
     // inflate
     grid.costmap = -exponential_weight * grid.costmap * map_data.grid.dimensions().resolution();
 
     // negative exponent maps values to [1,0)
     cv::exp(grid.costmap, grid.costmap);
+
+    ROS_DEBUG_STREAM(
+        "inflation took "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
     return grid;
 }
@@ -183,7 +206,6 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     {
         ROS_WARN("The robot's start position is outside the costmap");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
-        ;
         return result;
     }
 
@@ -191,7 +213,6 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     {
         ROS_WARN("The goal position is outside the costmap");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
-        ;
         return result;
     }
 
@@ -201,7 +222,13 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     const Coord2D start_coord(static_cast<int>(start_x), static_cast<int>(start_y));
     const Coord2D goal_coord(static_cast<int>(goal_x), static_cast<int>(goal_y));
 
+    const auto t0 = std::chrono::steady_clock::now();
+
     PathResult astar_result = astar.findPath(start_coord, goal_coord);
+
+    ROS_DEBUG_STREAM(
+        "astar took "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
 
     if (debug_viz_)
     {
@@ -227,19 +254,36 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     if (astar_result.success)
     {
-        ROS_INFO_STREAM("astar found path of length: " << astar_result.path.size());
+        ROS_DEBUG_STREAM("astar found path of length: " << astar_result.path.size());
+
+        result.path.nodes.push_back(start);
 
         for (auto r_it = astar_result.path.crbegin(); r_it != astar_result.path.crend(); ++r_it)
         {
-            const double x = costmap.origin_x + (r_it->x + 0.5) * costmap.resolution;
-            const double y = costmap.origin_y + (r_it->y + 0.5) * costmap.resolution;
-            const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(0);
+            Eigen::Isometry2d p;
+            p.translation().x() = costmap.origin_x + (r_it->x + 0.5) * costmap.resolution;
+            p.translation().y() = costmap.origin_y + (r_it->y + 0.5) * costmap.resolution;
+            p.linear() = start.linear();
             result.path.nodes.push_back(p);
         }
 
         result.path.nodes.push_back(goal);
 
-        orientation_filter_.processPath(result.path.nodes);
+        // Rotation guestimation
+        // This is expensive and most of the time the trajectory planner has a better idea anyway
+        //        const int window_size = 4;
+        //        for (std::size_t i=1; i < result.path.nodes.size() - 1; ++i)
+        //        {
+        //            const std::size_t index1 = std::min(result.path.nodes.size() - 1, i + window_size);
+
+        //            const double x0 = result.path.nodes[i].translation().x();
+        //            const double y0 = result.path.nodes[i].translation().y();
+        //            const double x1 = result.path.nodes[index1].translation().x();
+        //            const double y1 = result.path.nodes[index1].translation().y();
+
+        //            const double angle = atan2(y1 - y0, x1 - x0);
+        //            result.path.nodes[i].linear() = Eigen::Rotation2Dd(angle).matrix();
+        //        }
 
         result.cost = astar_result.cost;
         result.outcome = navigation_interface::PathPlanner::Outcome::SUCCESSFUL;
@@ -276,9 +320,6 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
         parameters, "exponential_weight", exponential_weight_, XmlRpc::XmlRpcValue::TypeDouble);
     down_sample_ = navigation_interface::get_config_with_default_warn<int>(parameters, "down_sample", down_sample_,
                                                                            XmlRpc::XmlRpcValue::TypeInt);
-
-    orientation_filter_.setMode(1);
-    orientation_filter_.setWindowSize(1);
 
     if (debug_viz_)
     {

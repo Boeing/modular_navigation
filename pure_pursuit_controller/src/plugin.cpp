@@ -11,6 +11,26 @@ namespace pure_pursuit_controller
 namespace
 {
 
+bool robotInCollision(const gridmap::MapData& map_data, const int map_x, const int map_y, const double robot_radius)
+{
+    const int robot_radius_cells = static_cast<int>(robot_radius / map_data.grid.dimensions().resolution());
+    const int r2 = robot_radius_cells * robot_radius_cells;
+    for (int j = -robot_radius_cells; j <= robot_radius_cells; ++j)
+    {
+        for (int i = -robot_radius_cells; i <= robot_radius_cells; ++i)
+        {
+            if (j * j + i * i < r2)
+            {
+                if (map_data.grid.occupied({map_x + i, map_y + j}))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
                                            const navigation_interface::Trajectory& trajectory, const double lookahead)
 {
@@ -60,6 +80,7 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     trajectory_.reset(new navigation_interface::Trajectory(trajectory));
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
+    last_update_ = ros::SteadyTime(0);
 
     return true;
 }
@@ -99,9 +120,9 @@ navigation_interface::Controller::Result
         return result;
     }
 
-    double dt = time.toSec() - last_update_.toSec();
-    if (last_update_.toSec() < 0.001)
-        dt = 0.1;
+    double dt = std::max(0.01, time.toSec() - last_update_.toSec());
+    if (last_update_ == ros::SteadyTime(0))
+        dt = 0.05;
     last_update_ = time;
 
     //
@@ -120,25 +141,60 @@ navigation_interface::Controller::Result
         target_i = trajectory_->states.size() - 1;
     }
 
-    Eigen::Vector3d control_error;
-    control_error.topRows(2) = robot_state.pose.linear().inverse() *
-                               (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation());
-    const auto diff = robot_state.pose.linear().inverse() * trajectory_->states[target_i].pose.linear();
-    control_error[2] = Eigen::Rotation2Dd(diff).smallestAngle();
+    ROS_ASSERT(robot_state.pose.linear().allFinite());
+    ROS_ASSERT(robot_state.pose.translation().allFinite());
 
-    const Eigen::Vector2d goal_direction =
-        (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).normalized();
+    const Eigen::Vector2d goal_vec = trajectory_->states[target_i].pose.translation() - robot_state.pose.translation();
+    const Eigen::Vector2d goal_vec_wrt_robot = robot_state.pose.linear().inverse() * goal_vec;
+
+    const auto rot_diff = robot_state.pose.linear().inverse() * trajectory_->states[target_i].pose.linear();
+
+    Eigen::Vector3d control_error;
+    control_error.topRows(2) = goal_vec_wrt_robot;
+    control_error[2] = Eigen::Rotation2Dd(rot_diff).smallestAngle();
+
+    ROS_ASSERT(control_error.allFinite());
+
+    const Eigen::Vector2d goal_direction = goal_vec.normalized();
     const Eigen::Vector2d goal_direction_wrt_robot = robot_state.pose.linear().inverse() * goal_direction;
 
     Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
     target_velocity.topRows(2) = (trajectory_->states[target_i].velocity.topRows(2).norm() * goal_direction_wrt_robot);
-    const double finish_time =
-        (trajectory_->states[target_i].pose.translation() - robot_state.pose.translation()).norm() /
-        target_velocity.topRows(2).norm();
+    const double finish_time = goal_vec.norm() / target_velocity.topRows(2).norm();
     target_velocity[2] = control_error[2] / finish_time;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
     control_error_ = control_error;
+
+    ROS_ASSERT(control_error_.allFinite());
+
+    //
+    // Check immediate collisions
+    //
+    {
+        auto lock = map_data_->grid.getLock();
+
+        const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
+        const Eigen::Isometry2d map_goal_pose = map_to_odom * trajectory_->states[target_i].pose;
+
+        const Eigen::Array2i robot_map_index = map_data_->grid.dimensions().getCellIndex(map_robot_pose.translation());
+        const Eigen::Array2i goal_map_index = map_data_->grid.dimensions().getCellIndex(map_goal_pose.translation());
+
+        if (robotInCollision(*map_data_, robot_map_index.x(), robot_map_index.y(), robot_radius_))
+        {
+            ROS_WARN_STREAM("Current robot pose is in collision!");
+            result.outcome = navigation_interface::Controller::Outcome::FAILED;
+            last_update_ = ros::SteadyTime(0);
+            return result;
+        }
+        if (robotInCollision(*map_data_, goal_map_index.x(), goal_map_index.y(), robot_radius_))
+        {
+            ROS_WARN_STREAM("Target robot pose is in collision!");
+            result.outcome = navigation_interface::Controller::Outcome::FAILED;
+            last_update_ = ros::SteadyTime(0);
+            return result;
+        }
+    }
 
     //
     // Goal condition

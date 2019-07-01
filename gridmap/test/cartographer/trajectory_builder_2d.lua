@@ -13,13 +13,18 @@
 -- limitations under the License.
 
 TRAJECTORY_BUILDER_2D = {
-  use_imu_data = true,
+  use_imu_data = false,
   min_range = 0.,
   max_range = 30.,
   min_z = -0.8,
   max_z = 2.,
   missing_data_ray_length = 5.,
-  num_accumulated_range_data = 1,
+
+  -- this is quite important
+  -- it combines a number of laser scans (transformed by the pose extrapolator) into a single pose graph node
+  -- this helps the submap have dense enough information for scan matching scores to work
+  num_accumulated_range_data = 8,
+
   voxel_filter_size = 0.01,
 
   adaptive_voxel_filter = {
@@ -54,15 +59,15 @@ TRAJECTORY_BUILDER_2D = {
   },
 
   motion_filter = {
-    max_time_seconds = 5.,
-    max_distance_meters = 0.2,
-    max_angle_radians = math.rad(1.),
+    max_time_seconds = 50000000000.,
+    max_distance_meters = 0.1,
+    max_angle_radians = math.rad(0.5),
   },
 
   imu_gravity_time_constant = 10.,
 
   submaps = {
-    num_range_data = 40,
+    num_range_data = 20,
     grid_options_2d = {
       grid_type = "PROBABILITY_GRID",
       resolution = 0.02,

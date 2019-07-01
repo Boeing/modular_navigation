@@ -22,13 +22,13 @@
         <visual>
             <origin xyz="0 0 0.05"/>
             <geometry>
-                <box size="0.5 0.5 0.1"/>
+                <box size="1.0 1.0 0.1"/>
             </geometry>
         </visual>
         <collision>
             <origin xyz="0 0 0.05"/>
             <geometry>
-                <box size="0.5 0.5 0.1"/>
+                <box size="1.0 1.0 0.1"/>
             </geometry>
         </collision>
         <inertial>
@@ -71,7 +71,7 @@
     <gazebo reference="laser">
         <sensor type="ray" name="laser">
             <pose>0 0 0 0 0 0</pose>
-            <visualize>true</visualize>
+            <visualize>false</visualize>
             <update_rate>40</update_rate>
             <ray>
                 <scan>
@@ -131,7 +131,7 @@
         <gazebo reference="sonar_${suffix}">
             <sensor type="ray" name="sonar_${suffix}">
                 <pose>0 0 0 0 0 0</pose>
-                <visualize>true</visualize>
+                <visualize>false</visualize>
                 <update_rate>10</update_rate>
                 <ray>
                     <scan>

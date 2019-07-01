@@ -23,6 +23,11 @@ struct MovingWindow
     {
     }
 
+    bool atEnd() const
+    {
+        return end_i == nominal_path.nodes.size();
+    }
+
     void updateWindow(const Eigen::Isometry2d& pose, const double max_length)
     {
         if (!window.nodes.empty())

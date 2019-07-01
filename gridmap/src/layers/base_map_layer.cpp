@@ -36,7 +36,7 @@ void BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb)
 void BaseMapLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     lethal_threshold_ =
-        get_config_with_default_warn<int>(parameters, "lethal_threshold", 100, XmlRpc::XmlRpcValue::TypeInt);
+        get_config_with_default_warn<int>(parameters, "lethal_threshold", 50, XmlRpc::XmlRpcValue::TypeInt);
 }
 
 void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)

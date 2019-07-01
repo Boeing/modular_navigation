@@ -36,7 +36,7 @@ void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
                                                                         XmlRpc::XmlRpcValue::TypeString);
 
     hit_probability_ =
-        get_config_with_default_warn<double>(parameters, "hit_probability", 0.90, XmlRpc::XmlRpcValue::TypeDouble);
+        get_config_with_default_warn<double>(parameters, "hit_probability", 0.99, XmlRpc::XmlRpcValue::TypeDouble);
     miss_probability_ =
         get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
 

@@ -15,18 +15,29 @@
 POSE_GRAPH = {
   optimize_every_n_nodes = 1,
   constraint_builder = {
-    sampling_ratio = 0.2,
+    sampling_ratio = 0.05,
+
     max_constraint_distance = 15.,
-    min_score = 0.55,
-    global_localization_min_score = 0.6,
+
+    -- fast_correlative_scan_matcher min score for local constraint
+    min_score = 0.60,
+
+    -- fast_correlative_scan_matcher min score for global constraint
+    global_localization_min_score = 0.60,
+
     loop_closure_translation_weight = 1.1e4,
     loop_closure_rotation_weight = 1e5,
+
     log_matches = true,
+
+    -- global contraints are found using this matcher
     fast_correlative_scan_matcher = {
-      linear_search_window = 7.,
-      angular_search_window = math.rad(30.),
+      linear_search_window = 0.2,
+      angular_search_window = math.rad(10.),
       branch_and_bound_depth = 7,
     },
+
+    -- global contraints are refined with this matcher
     ceres_scan_matcher = {
       occupied_space_weight = 20.,
       translation_weight = 10.,
@@ -37,6 +48,7 @@ POSE_GRAPH = {
         num_threads = 1,
       },
     },
+
     fast_correlative_scan_matcher_3d = {
       branch_and_bound_depth = 8,
       full_resolution_depth = 3,
@@ -46,6 +58,7 @@ POSE_GRAPH = {
       linear_z_search_window = 1.,
       angular_search_window = math.rad(15.),
     },
+
     ceres_scan_matcher_3d = {
       occupied_space_weight_0 = 5.,
       occupied_space_weight_1 = 30.,
@@ -59,21 +72,31 @@ POSE_GRAPH = {
       },
     },
   },
+
+  -- used when adding intra submap constraints
   matcher_translation_weight = 5e2,
   matcher_rotation_weight = 1.6e3,
+
   optimization_problem = {
-    huber_scale = 1e1,
-    acceleration_weight = 1e3,
-    rotation_weight = 3e5,
+    huber_scale = 1e1,  -- only for inter-submap constraints
+
+    acceleration_weight = 1e3, -- only in 3d
+    rotation_weight = 3e5, -- only in 3d
+
     local_slam_pose_translation_weight = 1e5,
     local_slam_pose_rotation_weight = 1e5,
+
     odometry_translation_weight = 1e5,
     odometry_rotation_weight = 1e5,
-    fixed_frame_pose_translation_weight = 1e1,
-    fixed_frame_pose_rotation_weight = 1e2,
+
+    fixed_frame_pose_translation_weight = 1e1, -- only in 3d
+    fixed_frame_pose_rotation_weight = 1e2, -- only in 3d
+
     log_solver_summary = false,
-    use_online_imu_extrinsics_in_3d = true,
-    fix_z_in_3d = false,
+
+    use_online_imu_extrinsics_in_3d = true, -- only in 3d
+    fix_z_in_3d = false, -- only in 3d
+
     ceres_solver_options = {
       use_nonmonotonic_steps = false,
       max_num_iterations = 50,
@@ -82,6 +105,7 @@ POSE_GRAPH = {
   },
   max_num_final_iterations = 200,
   global_sampling_ratio = 0.01,
+
   log_residual_histograms = true,
   global_constraint_search_after_n_seconds = 10.,
   --  overlapping_submaps_trimmer_2d = {
