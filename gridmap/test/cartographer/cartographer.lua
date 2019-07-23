@@ -24,11 +24,10 @@ options = {
     odom_frame = "odom",
     provide_odom_frame = false,
     publish_frame_projected_to_2d = true,
-    use_pose_extrapolator = false,
     use_odometry = true,
     use_nav_sat = false,
     use_landmarks = false,
-    num_laser_scans = 1,
+    num_laser_scans = 2,
     num_multi_echo_laser_scans = 0,
     num_subdivisions_per_laser_scan = 1,
     num_point_clouds = 0,
@@ -42,7 +41,5 @@ options = {
     imu_sampling_ratio = 1.,
     landmarks_sampling_ratio = 1.,
 }
-
-MAP_BUILDER.use_trajectory_builder_2d = true
 
 return options

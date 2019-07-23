@@ -41,64 +41,69 @@
         </inertial>
     </link>
 
-    <joint name="laser_joint" type="fixed">
-        <origin xyz="0 0 0.2"/>
-        <child link="laser"/>
-        <parent link="base_link"/>
-    </joint>
-    <link name="laser">
-        <visual>
-            <origin xyz="0 0 0"/>
-            <geometry>
-                <cylinder length="0.05" radius="0.05"/>
-            </geometry>
-        </visual>
-        <collision>
-            <origin xyz="0 0 0"/>
-            <geometry>
-                <cylinder length="0.05" radius="0.05"/>
-            </geometry>
-        </collision>
-        <inertial>
-            <mass value="1"/>
-            <origin xyz="0 0 0"/>
-            <inertia
-                    ixx="1" ixy="0" ixz="0"
-                    iyy="1" iyz="0"
-                    izz="1"/>
-        </inertial>
-    </link>
-    <gazebo reference="laser">
-        <sensor type="ray" name="laser">
-            <pose>0 0 0 0 0 0</pose>
-            <visualize>false</visualize>
-            <update_rate>40</update_rate>
-            <ray>
-                <scan>
-                    <horizontal>
-                        <samples>540</samples>
-                        <resolution>1</resolution>
-                        <min_angle>-2.35619</min_angle>
-                        <max_angle>2.35619</max_angle>
-                    </horizontal>
-                </scan>
-                <range>
-                    <min>0.1</min>
-                    <max>30.0</max>
-                    <resolution>0.01</resolution>
-                </range>
-                <noise>
-                    <type>gaussian</type>
-                    <mean>0.0</mean>
-                    <stddev>0.001</stddev>
-                </noise>
-            </ray>
-            <plugin name="gazebo_laser_plugin" filename="libgazebo_laser_plugin.so">
-                <frame_name>laser</frame_name>
-                <robot_namespace>/</robot_namespace>
-            </plugin>
-        </sensor>
-    </gazebo>
+    <xacro:macro name="laser_sensor" params="suffix rotation">
+        <joint name="laser_joint_${suffix}" type="fixed">
+            <origin xyz="0 0 0.4" rpy="0 0 ${rotation}"/>
+            <child link="laser_${suffix}"/>
+            <parent link="base_link"/>
+        </joint>
+        <link name="laser_${suffix}">
+            <visual>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <mass value="1"/>
+                <origin xyz="0 0 0"/>
+                <inertia
+                        ixx="1" ixy="0" ixz="0"
+                        iyy="1" iyz="0"
+                        izz="1"/>
+            </inertial>
+        </link>
+        <gazebo reference="laser_${suffix}">
+            <sensor type="ray" name="laser_${suffix}">
+                <pose>0 0 0 0 0 0</pose>
+                <visualize>false</visualize>
+                <update_rate>40</update_rate>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>540</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-2.35619</min_angle>
+                            <max_angle>2.35619</max_angle>
+                        </horizontal>
+                    </scan>
+                    <range>
+                        <min>0.1</min>
+                        <max>30.0</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                    <noise>
+                        <type>gaussian</type>
+                        <mean>0.0</mean>
+                        <stddev>0.001</stddev>
+                    </noise>
+                </ray>
+                <plugin name="gazebo_laser_plugin" filename="libgazebo_laser_plugin.so">
+                    <frame_name>laser_${suffix}</frame_name>
+                    <robot_namespace>/</robot_namespace>
+                </plugin>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:laser_sensor suffix="front" rotation="0.0"/>
+    <xacro:laser_sensor suffix="back" rotation="${pi}"/>
 
     <xacro:macro name="sonar_sensor" params="suffix rotation">
         <joint name="sonar_${suffix}_joint" type="fixed">

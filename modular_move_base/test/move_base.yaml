@@ -32,6 +32,8 @@ costmap:
     lethal_threshold: 50
 
   laser_data:
+    time_decay: true
+    time_decay_frequency: 0.25
     data_sources:
       - {name: laser, type: 'gridmap::LaserData'}
     laser:

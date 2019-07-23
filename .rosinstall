@@ -1,3 +1,6 @@
 - git:
     local-name: rviz_visual_tools
     uri: 'https://git.web.boeing.com/robotics/ros/rviz_visual_tools.git'
+- git:
+    local-name: modular_cartographer
+    uri: 'https://git.web.boeing.com/brta-robotics/ros/modular_cartographer.git'
