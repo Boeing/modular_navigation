@@ -172,7 +172,8 @@ navigation_interface::Controller::Result
     // Check immediate collisions
     //
     {
-        auto lock = map_data_->grid.getLock();
+        // TODO need a more intelligent way to lock read access without waiting for path planning
+        // auto lock = map_data_->grid.getLock();
 
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
         const Eigen::Isometry2d map_goal_pose = map_to_odom * trajectory_->states[target_i].pose;

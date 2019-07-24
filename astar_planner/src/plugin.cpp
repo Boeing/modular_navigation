@@ -41,40 +41,44 @@ Costmap buildCostmap(const gridmap::MapData& map_data, const double robot_radius
     // downsample
     cv::Mat dilated;
     {
-        auto lock = map_data.grid.getLock();
-
-        grid.resolution = map_data.grid.dimensions().resolution() * down_sample;
-
-        const int size_x = map_data.grid.dimensions().size().x() / down_sample;
-        const int size_y = map_data.grid.dimensions().size().y() / down_sample;
-
-        grid.origin_x = map_data.grid.dimensions().origin().x();
-        grid.origin_y = map_data.grid.dimensions().origin().y();
-
         cv::Mat obstacle_map;
-        t0 = std::chrono::steady_clock::now();
-        if (down_sample > 1)
         {
-            obstacle_map = cv::Mat(size_y, size_x, CV_8U, cv::Scalar(0));
-            int index = 0;
-            for (int j = 0; j < map_data.grid.dimensions().size().y(); ++j)
+            auto lock = map_data.grid.getLock();
+
+            grid.resolution = map_data.grid.dimensions().resolution() * down_sample;
+
+            const int size_x = map_data.grid.dimensions().size().x() / down_sample;
+            const int size_y = map_data.grid.dimensions().size().y() / down_sample;
+
+            grid.origin_x = map_data.grid.dimensions().origin().x();
+            grid.origin_y = map_data.grid.dimensions().origin().y();
+
+            t0 = std::chrono::steady_clock::now();
+            if (down_sample > 1)
             {
-                for (int i = 0; i < map_data.grid.dimensions().size().x(); ++i)
+                obstacle_map = cv::Mat(size_y, size_x, CV_8U, cv::Scalar(0));
+                int index = 0;
+                for (int j = 0; j < map_data.grid.dimensions().size().y(); ++j)
                 {
-                    const int sub_i = i / down_sample;
-                    const int sub_j = j / down_sample;
-                    const int sub_index = sub_j * size_x + sub_i;
-                    if (map_data.grid.cells()[index] == gridmap::OccupancyGrid::OCCUPIED)
-                        obstacle_map.at<unsigned char>(sub_index) = 255;
-                    ++index;
+                    for (int i = 0; i < map_data.grid.dimensions().size().x(); ++i)
+                    {
+                        const int sub_i = i / down_sample;
+                        const int sub_j = j / down_sample;
+                        const int sub_index = sub_j * size_x + sub_i;
+                        if (map_data.grid.cells()[index] == gridmap::OccupancyGrid::OCCUPIED)
+                            obstacle_map.at<unsigned char>(sub_index) = 255;
+                        ++index;
+                    }
                 }
             }
+            else
+            {
+                const cv::Mat raw(size_y, size_x, CV_8U,
+                                  reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
+                obstacle_map = raw.clone();
+            }
         }
-        else
-        {
-            obstacle_map = cv::Mat(size_y, size_x, CV_8U,
-                                   reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
-        }
+
         ROS_DEBUG_STREAM("downsampling took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                      std::chrono::steady_clock::now() - t0)
                                                      .count());

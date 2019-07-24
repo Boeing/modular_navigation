@@ -1,8 +1,8 @@
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <string>
 #include <vector>
-#include <random>
 
 #include <boost/tokenizer.hpp>
 

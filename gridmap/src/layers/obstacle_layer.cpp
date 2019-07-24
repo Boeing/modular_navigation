@@ -203,7 +203,7 @@ void ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cel
     cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(),
                             CV_64F, reinterpret_cast<void*>(probability_grid_->cells().data()));
     cv::circle(cv_im, cv::Point(cell_index.x(), cell_index.y()), cell_radius,
-               cv::Scalar(probability_grid_->clampingThresMinLog()));
+               cv::Scalar(probability_grid_->clampingThresMinLog()), -1);
 }
 
 void ObstacleLayer::debugVizThread(const double frequency)
