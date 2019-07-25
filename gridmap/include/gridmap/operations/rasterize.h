@@ -115,7 +115,7 @@ inline void rasterPolygonFill(ActionType at, const std::vector<Eigen::Array2i>& 
                 if (nodes_x[i + 1] > max_x)
                     nodes_x[i + 1] = max_x;
                 for (int cell_x = nodes_x[i]; cell_x < nodes_x[i + 1]; ++cell_x)
-                    at(cell_x - min_x, cell_y - min_y);
+                    at(cell_x, cell_y);
             }
         }
     }

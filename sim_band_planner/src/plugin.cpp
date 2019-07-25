@@ -103,9 +103,17 @@ navigation_interface::TrajectoryPlanner::Result
             reverse_direction = true;
         }
 
+        auto t0 = std::chrono::steady_clock::now();
+
         simulate(sim_band, distance_field, num_iterations_, min_overlap_, min_distance_, internal_force_gain_,
                  external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction, velocity_decay_, 1.0,
                  alpha_decay_, max_distance_);
+
+        std::cout
+            << "simulate took: "
+            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+            << std::endl;
+
 
         // debug viz
         if (viz_)
@@ -119,14 +127,48 @@ navigation_interface::TrajectoryPlanner::Result
                 viz_->publishAxis(p, 0.1, 0.02);
 
                 geometry_msgs::Point start;
-                start.x = node.pose.translation().x() + node.gradient.x() * node.distance;
-                start.y = node.pose.translation().y() + node.gradient.y() * node.distance;
+                start.x = node.pose.translation().x() + node.control_points[node.closest_point].gradient.x() * node.control_points[node.closest_point].distance;
+                start.y = node.pose.translation().y() + node.control_points[node.closest_point].gradient.y() * node.control_points[node.closest_point].distance;
 
                 geometry_msgs::Point end;
                 end.x = node.pose.translation().x();
                 end.y = node.pose.translation().y();
 
                 viz_->publishArrow(start, end, rviz_visual_tools::colors::RED);
+            }
+
+            for (size_t c = 0; c < sim_band.nodes.front().control_points.size(); c++)
+            {
+                const ControlPoint& cp = sim_band.nodes.front().control_points[c];
+                const Eigen::Vector2d position = sim_band.nodes.front().pose.translation() + sim_band.nodes.front().pose.linear() * cp.offset;
+
+                std_msgs::ColorRGBA ros_color;
+                ros_color.a = 0.25f;
+                if (cp.distance < 0)
+                {
+                    ros_color.r = 1.0f;
+                }
+                else if (cp.distance < 0.1)
+                {
+                    ros_color.r = 1.0f;
+                    ros_color.g = 0.5f;
+                }
+                else if (cp.distance < 0.2)
+                {
+                    ros_color.r = 1.0f;
+                    ros_color.g = 1.0f;
+                }
+                else
+                {
+                    ros_color.g = 1.0f;
+                }
+
+                geometry_msgs::Pose ros_pose;
+                ros_pose.position.x = position.x();
+                ros_pose.position.y = position.y();
+                ros_pose.orientation.w = 1;
+
+                viz_->publishCylinder(ros_pose, ros_color, 0.1, robot_radius_ * 2.0);
             }
 
             viz_->trigger();
@@ -139,9 +181,11 @@ navigation_interface::TrajectoryPlanner::Result
 
         // trim to valid
         result.outcome = navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL;
+        result.path_start_i = 0;
+        result.path_end_i = moving_window_->end_i;
         for (std::size_t i = 0; i < sim_band.nodes.size(); ++i)
         {
-            if (sim_band.nodes[i].distance < 0)
+            if (sim_band.nodes[i].control_points[sim_band.nodes[i].closest_point].distance < 0)
             {
                 sim_band.nodes.erase(sim_band.nodes.begin() + i, sim_band.nodes.end());
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
@@ -150,6 +194,7 @@ navigation_interface::TrajectoryPlanner::Result
                 // if the band is broken we might as well try again from nominal
                 // on the next iteration the band will reset
                 moving_window_->window.nodes.clear();
+                result.path_end_i = moving_window_->end_i - (sim_band.nodes.size() - 1 - i);
                 break;
             }
         }
@@ -206,7 +251,7 @@ navigation_interface::TrajectoryPlanner::Result
             // check the splined path
             for (std::size_t i = 0; i < splined.nodes.size(); ++i)
             {
-                if (splined.nodes[i].distance < 0)
+                if (splined.nodes[i].control_points[splined.nodes[i].closest_point].distance < 0)
                 {
                     ROS_WARN("Splining failed");
                     result.outcome = navigation_interface::TrajectoryPlanner::Outcome::FAILED;
@@ -225,13 +270,11 @@ navigation_interface::TrajectoryPlanner::Result
         const Eigen::Isometry2d odom_to_map = map_to_odom.inverse();
         for (const auto& node : splined.nodes)
         {
+            const double min_distance = node.control_points[node.closest_point].distance;
             const double velocity =
-                desired_speed_ * std::max(0.1, node.distance >= max_distance_ ? 1.0 : node.distance);
+                desired_speed_ * std::max(0.2, min_distance >= max_distance_ ? 1.0 : 4.0 * min_distance);
             result.trajectory.states.push_back({odom_to_map * node.pose, Eigen::Vector3d(velocity, 0, 0)});
         }
-
-        result.path_start_i = 0;
-        result.path_end_i = moving_window_->end_i;
     }
     catch (const std::exception& e)
     {

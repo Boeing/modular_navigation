@@ -60,6 +60,8 @@ class PurePursuitController : public navigation_interface::Controller
 
     Eigen::Vector3d control_error_;
     Eigen::Vector3d control_integral_;
+
+    std::vector<Eigen::Vector2d> robot_footprint_;
 };
 }
 

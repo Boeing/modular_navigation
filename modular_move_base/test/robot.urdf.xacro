@@ -18,19 +18,32 @@
         </plugin>
     </gazebo>
 
-    <link name="base_link">
+    <xacro:macro name="robot_circle" params="x_offset y_offset radius">
         <visual>
-            <origin xyz="0 0 0.05"/>
+            <origin xyz="${x_offset} ${y_offset} 0"/>
             <geometry>
-                <box size="1.0 1.0 0.1"/>
+                <cylinder length="0.05" radius="${radius}"/>
             </geometry>
         </visual>
         <collision>
-            <origin xyz="0 0 0.05"/>
+            <origin xyz="${x_offset} ${y_offset} 0"/>
             <geometry>
-                <box size="1.0 1.0 0.1"/>
+                <cylinder length="0.05" radius="${radius}"/>
             </geometry>
         </collision>
+    </xacro:macro>
+
+    <link name="base_link">
+        <xacro:robot_circle x_offset="-0.268" y_offset=" 0.000" radius="0.420"/>
+        <xacro:robot_circle x_offset=" 0.268" y_offset=" 0.000" radius="0.420"/>
+        <xacro:robot_circle x_offset=" 0.265" y_offset="-0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset=" 0.077" y_offset="-0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset="-0.077" y_offset="-0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset="-0.265" y_offset="-0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset=" 0.265" y_offset=" 0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset="-0.265" y_offset=" 0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset="-0.077" y_offset=" 0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset=" 0.077" y_offset=" 0.185" radius="0.420"/>
         <inertial>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <mass value="1"/>

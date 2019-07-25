@@ -32,9 +32,9 @@ void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     max_obstacle_height_ =
         get_config_with_default_warn<double>(parameters, "max_obstacle_height", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
     obstacle_range_ =
-        get_config_with_default_warn<double>(parameters, "obstacle_range", 2.5, XmlRpc::XmlRpcValue::TypeDouble);
+        get_config_with_default_warn<double>(parameters, "obstacle_range", 3.5, XmlRpc::XmlRpcValue::TypeDouble);
     raytrace_range_ =
-        get_config_with_default_warn<double>(parameters, "raytrace_range", 3.0, XmlRpc::XmlRpcValue::TypeDouble);
+        get_config_with_default_warn<double>(parameters, "raytrace_range", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
     sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 10, XmlRpc::XmlRpcValue::TypeInt);
 
     ROS_INFO_STREAM("Subscribing to laser: " << topic);

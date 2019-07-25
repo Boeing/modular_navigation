@@ -1,6 +1,8 @@
 #include <navigation_interface/params.h>
 #include <pure_pursuit_controller/plugin.h>
 
+#include <gridmap/operations/rasterize.h>
+
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
@@ -11,24 +13,40 @@ namespace pure_pursuit_controller
 namespace
 {
 
-bool robotInCollision(const gridmap::MapData& map_data, const int map_x, const int map_y, const double robot_radius)
+bool robotInCollision(const gridmap::MapData& map_data, const Eigen::Isometry2d& robot_pose, const std::vector<Eigen::Vector2d>& footprint)
 {
-    const int robot_radius_cells = static_cast<int>(robot_radius / map_data.grid.dimensions().resolution());
-    const int r2 = robot_radius_cells * robot_radius_cells;
-    for (int j = -robot_radius_cells; j <= robot_radius_cells; ++j)
+    int min_x = std::numeric_limits<int>::max();
+    int max_x = 0;
+
+    int min_y = std::numeric_limits<int>::max();
+    int max_y = 0;
+
+    std::vector<Eigen::Array2i> map_footprint;
+    for (const Eigen::Vector2d& p : footprint)
     {
-        for (int i = -robot_radius_cells; i <= robot_radius_cells; ++i)
-        {
-            if (j * j + i * i < r2)
-            {
-                if (map_data.grid.occupied({map_x + i, map_y + j}))
-                {
-                    return true;
-                }
-            }
-        }
+        const Eigen::Vector2d world_point = robot_pose.translation() + robot_pose.rotation() * p;
+        const auto map_point = map_data.grid.dimensions().getCellIndex(world_point);
+        map_footprint.push_back(map_point);
+        min_x = std::min(map_point.x(), min_x);
+        max_x = std::max(map_point.x(), max_x);
+        min_y = std::min(map_point.y(), min_y);
+        max_y = std::max(map_point.y(), max_y);
     }
-    return false;
+
+    const auto connected_poly = gridmap::connectPolygon(map_footprint);
+
+    bool in_collision = false;
+    auto append_raster = [&map_data, &in_collision](const int x, const int y)
+    {
+        const Eigen::Array2i p{x, y};
+        if (map_data.grid.dimensions().contains(p))
+            if (map_data.grid.occupied(p))
+                in_collision = true;
+    };
+
+    gridmap::rasterPolygonFill(append_raster, connected_poly, min_x, max_x, min_y, max_y);
+
+    return in_collision;
 }
 
 std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
@@ -65,6 +83,14 @@ std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
 }
 
 PurePursuitController::PurePursuitController()
+    : robot_footprint_({
+                       {0.398, 0.395},
+                       {0.479, 0.000},
+                       {0.398, -0.395},
+                       {-0.398, -0.395},
+                       {-0.479, 0.000},
+                       {-0.398, -0.395}
+                       })
 {
 }
 
@@ -178,17 +204,14 @@ navigation_interface::Controller::Result
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
         const Eigen::Isometry2d map_goal_pose = map_to_odom * trajectory_->states[target_i].pose;
 
-        const Eigen::Array2i robot_map_index = map_data_->grid.dimensions().getCellIndex(map_robot_pose.translation());
-        const Eigen::Array2i goal_map_index = map_data_->grid.dimensions().getCellIndex(map_goal_pose.translation());
-
-        if (robotInCollision(*map_data_, robot_map_index.x(), robot_map_index.y(), robot_radius_))
+        if (robotInCollision(*map_data_, map_robot_pose, robot_footprint_))
         {
             ROS_WARN_STREAM("Current robot pose is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
             last_update_ = ros::SteadyTime(0);
             return result;
         }
-        if (robotInCollision(*map_data_, goal_map_index.x(), goal_map_index.y(), robot_radius_))
+        if (robotInCollision(*map_data_, map_goal_pose, robot_footprint_))
         {
             ROS_WARN_STREAM("Target robot pose is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;

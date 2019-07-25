@@ -1,10 +1,14 @@
-path_planner: "astar_planner/AStarPlanner"
+#path_planner: "astar_planner/AStarPlanner"
+path_planner: "omni_rrt_planner/OmniRRTPlanner"
 trajectory_planner: "sim_band_planner/SimBandPlanner"
 controller: "pure_pursuit_controller/PurePursuitController"
 
 path_planner_frequency: 0.5
 trajectory_planner_frequency: 8.0
 controller_frequency: 10.0
+
+OmniRRTPlanner:
+    robot_radius: 0.420
 
 AStarPlanner:
     debug_viz: true
@@ -15,7 +19,7 @@ AStarPlanner:
 
 SimBandPlanner:
     debug_viz: true
-    robot_radius: 0.5
+    robot_radius: 0.420
     desired_speed: 0.15
     spline: true
 
@@ -35,7 +39,8 @@ costmap:
     time_decay: true
     time_decay_frequency: 0.25
     data_sources:
-      - {name: laser, type: 'gridmap::LaserData'}
+      - {name: laser_front, type: 'gridmap::LaserData'}
+      - {name: laser_back, type: 'gridmap::LaserData'}
     laser:
       sub_sample: 10
 

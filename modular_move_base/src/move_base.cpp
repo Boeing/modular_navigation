@@ -150,7 +150,7 @@ MoveBase::MoveBase()
       path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 0.5)),
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 10.0)),
-      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.60)),
+      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.90)),
       localisation_timeout_(get_param_with_default_warn("~localisation_timeout", 4.0))
 {
     ROS_INFO("Starting");
@@ -502,15 +502,20 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
                     const auto closest = path.closestSegment(global_robot_pose);
                     if (closest.first != 0)
                         path.nodes.erase(path.nodes.begin(), path.nodes.begin() + static_cast<long>(closest.first));
+                    path.nodes.insert(path.nodes.begin(), global_robot_pose);
                 }
 
                 // get the current path cost
                 const double cost = path_planner_->cost(path);
 
-                if (result.path.length() > 2.0 && result.cost < path_swap_fraction_ * cost)
+                if (result.path.length() > 1.0 && result.cost < path_swap_fraction_ * cost)
                 {
                     ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
+                }
+                else
+                {
+                    ROS_INFO_STREAM("EXISTING PATH: new path cost: " << result.cost << " old path cost: " << cost);
                 }
 
                 // TODO also swap if tracking error is too high or control has failed

@@ -13,19 +13,45 @@
 namespace sim_band_planner
 {
 
+struct ControlPoint
+{
+    ControlPoint(const Eigen::Vector2d& offset) : offset(offset) {}
+    Eigen::Vector2d offset;
+    double distance_to_saddle = 0;
+    double distance = 0;
+    Eigen::Vector2f gradient = Eigen::Vector2f::Zero();
+};
+
 struct Node
 {
-    Node() = default;
+    Node() = delete;
 
-    Node(const Eigen::Isometry2d& pose) : pose(pose)
+    Node(const Eigen::Isometry2d& pose)
+        : pose(pose),
+          control_points({
+                         ControlPoint({-0.268, 0.000}),
+                         ControlPoint({ 0.268, 0.000}),
+                         ControlPoint({ 0.265,-0.185}),
+                         ControlPoint({ 0.077,-0.185}),
+                         ControlPoint({-0.077,-0.185}),
+                         ControlPoint({-0.265,-0.185}),
+                         ControlPoint({ 0.265, 0.185}),
+                         ControlPoint({-0.265, 0.185}),
+                         ControlPoint({-0.077, 0.185}),
+                         ControlPoint({ 0.077, 0.185}),
+                        })
     {
     }
 
     Eigen::Isometry2d pose;
 
-    double distance_to_saddle = 0;
-    double distance = 0;
-    Eigen::Vector2f gradient = Eigen::Vector2f::Zero();
+//    double min_distance_to_saddle = 0;
+//    double min_distance = 0;
+    //    Eigen::Vector2f gradient = Eigen::Vector2f::Zero();
+
+    std::size_t closest_point;
+
+    std::vector<ControlPoint> control_points;
 
     Eigen::Vector3d velocity = Eigen::Vector3d::Zero();
 };

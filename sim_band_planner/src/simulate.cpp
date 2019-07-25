@@ -12,13 +12,15 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
                 const double alpha_start, const double alpha_decay, const double max_distance)
 {
     updateDistances(path, distance_field, max_distance);
-    refine(path, distance_field, min_distance, min_overlap);
+    refine(path, distance_field, min_distance, max_distance, min_overlap);
 
     const double dt = 1.0;
     double alpha = alpha_start;
 
     for (int it = 0; it < num_iterations; it++)
     {
+        auto t0 = std::chrono::steady_clock::now();
+
         updateDistances(path, distance_field, max_distance);
 
         // f = ...
@@ -26,7 +28,7 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
         for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
         {
             forces[i] = force(path.nodes[i - 1], path.nodes[i], path.nodes[i + 1], internal_force_gain,
-                              external_force_gain, rotation_factor, reverse_direction);
+                              external_force_gain, rotation_factor, reverse_direction, max_distance);
         }
 
         // a = f / m
@@ -46,45 +48,72 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
             path.nodes[i].pose.rotate(Eigen::Rotation2Dd(dt * path.nodes[i].velocity[2]));
         }
 
-        refine(path, distance_field, min_distance, min_overlap);
+        refine(path, distance_field, min_distance, max_distance, min_overlap);
 
         alpha -= alpha * alpha_decay;
+
+        std::cout
+            << "simulate step " << it << " took: "
+            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+            << " nodes: " << path.nodes.size()
+            << std::endl;
     }
 
+    updateDistances(path, distance_field, max_distance);
+
     return alpha;
+}
+
+void updateDistances(Node& node, const DistanceField& distance_field, const double max_distance)
+{
+    double min_distance = std::numeric_limits<double>::max();
+    node.closest_point = 0;
+
+    for (std::size_t i = 0; i < node.control_points.size(); ++i)
+    {
+        ControlPoint& control_point = node.control_points[i];
+        const auto position = node.pose.translation() + node.pose.rotation() * control_point.offset;
+
+        unsigned int mx;
+        unsigned int my;
+        if (distance_field.worldToMap(position.x(), position.y(), mx, my))
+        {
+            control_point.distance_to_saddle = distance_field.distanceToSaddle(mx, my);
+            control_point.distance = distance_field.distance(mx, my) * distance_field.resolution;
+            control_point.gradient = control_point.distance > 0 ? distance_field.positiveGradient(mx, my)
+                                                                : distance_field.negativeGradient(mx, my);
+
+            if (control_point.distance > 0)
+            {
+                control_point.distance = std::min(max_distance, control_point.distance);
+            }
+        }
+        else
+        {
+            control_point.distance_to_saddle = 0;
+            control_point.distance = 0;
+            control_point.gradient = Eigen::Vector2f::Zero();
+        }
+
+        if (control_point.distance < min_distance)
+        {
+            node.closest_point = i;
+            min_distance = control_point.distance;
+        }
+    }
 }
 
 void updateDistances(Band& path, const DistanceField& distance_field, const double max_distance)
 {
     for (std::size_t i = 0; i < path.nodes.size(); ++i)
     {
-        unsigned int mx;
-        unsigned int my;
-        if (distance_field.worldToMap(path.nodes[i].pose.translation().x(), path.nodes[i].pose.translation().y(), mx,
-                                      my))
-        {
-            path.nodes[i].distance_to_saddle = distance_field.distanceToSaddle(mx, my);
-            path.nodes[i].distance = distance_field.distance(mx, my) * distance_field.resolution;
-            path.nodes[i].gradient = path.nodes[i].distance > 0 ? distance_field.positiveGradient(mx, my)
-                                                                : distance_field.negativeGradient(mx, my);
-
-            if (path.nodes[i].distance > 0)
-            {
-                path.nodes[i].distance = std::min(max_distance, path.nodes[i].distance);
-            }
-        }
-        else
-        {
-            path.nodes[i].distance_to_saddle = 0;
-            path.nodes[i].distance = 0;
-            path.nodes[i].gradient = Eigen::Vector2f::Zero();
-        }
+        updateDistances(path.nodes[i], distance_field, max_distance);
     }
 }
 
-void refine(Band& path, const DistanceField& distance_field, const double min_distance, const double min_overlap)
+void refine(Band& path, const DistanceField& distance_field, const double min_distance, const double max_distance, const double min_overlap)
 {
-    const std::size_t max_size = 100;
+    const std::size_t max_size = 20;
 
     //
     // add new nodes
@@ -97,8 +126,8 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
         if (next == path.nodes.end())
             break;
 
-        const double iter_exp = std::max(min_distance, std::abs(iter->distance));
-        const double next_exp = std::max(min_distance, std::abs(next->distance));
+        const double iter_exp = std::max(min_distance, std::abs(iter->control_points[iter->closest_point].distance));
+        const double next_exp = std::max(min_distance, std::abs(next->control_points[next->closest_point].distance));
 
         const double min_radius = std::min(iter_exp, next_exp);
         const double distance_to_next = (next->pose.translation() - iter->pose.translation()).norm();
@@ -109,27 +138,11 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
         {
             const double fraction = iter_exp / distance_to_next;
 
-            Node new_node;
-            new_node.pose =
-                Eigen::Translation2d(iter->pose.translation() +
+            Node new_node(Eigen::Translation2d(iter->pose.translation() +
                                      fraction * (next->pose.translation() - iter->pose.translation())) *
-                Eigen::Rotation2Dd(iter->pose.linear()).slerp(fraction, Eigen::Rotation2Dd(next->pose.linear()));
+                Eigen::Rotation2Dd(iter->pose.linear()).slerp(fraction, Eigen::Rotation2Dd(next->pose.linear())));
 
-            {
-                unsigned int mx;
-                unsigned int my;
-                if (distance_field.worldToMap(new_node.pose.translation().x(), new_node.pose.translation().y(), mx, my))
-                {
-                    new_node.distance = distance_field.distance(mx, my) * distance_field.resolution;
-                    new_node.gradient = new_node.distance > 0 ? distance_field.positiveGradient(mx, my)
-                                                              : distance_field.negativeGradient(mx, my);
-                }
-                else
-                {
-                    ++iter;
-                    continue;
-                }
-            }
+            updateDistances(new_node, distance_field, max_distance);
 
             // insert to band
             iter = path.nodes.insert(next, new_node);
@@ -144,15 +157,15 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
     // delete overlapping nodes
     //
     iter = path.nodes.begin();
-    while (std::distance(path.nodes.begin(), iter) < static_cast<int>(max_size))
+    while (true)
     {
         const auto next = iter + 1;
 
         if (next == path.nodes.end())
             break;
 
-        const double iter_exp = std::max(min_distance, std::abs(iter->distance));
-        const double next_exp = std::max(min_distance, std::abs(next->distance));
+        const double iter_exp = std::max(min_distance, std::abs(iter->control_points[iter->closest_point].distance));
+        const double next_exp = std::max(min_distance, std::abs(next->control_points[next->closest_point].distance));
 
         const double min_radius = std::min(iter_exp, next_exp);
         const double distance_to_next = (iter->pose.translation() - next->pose.translation()).norm();
@@ -170,7 +183,7 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
             if (next_next == path.nodes.end())
                 break;
 
-            const double next_next_exp = std::max(min_distance, std::abs(next_next->distance));
+            const double next_next_exp = std::max(min_distance, std::abs(next_next->control_points[next_next->closest_point].distance));
 
             const double min_radius_next = std::min(iter_exp, next_next_exp);
             const double distance_to_next_next = (next_next->pose.translation() - iter->pose.translation()).norm();
@@ -198,26 +211,27 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
     //
     for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
     {
-        if (path.nodes[i].distance < 0)
+        const ControlPoint& cp = path.nodes[i].control_points[path.nodes[i].closest_point];
+        if (cp.distance < 0)
         {
             path.nodes[i].pose.pretranslate(
-                Eigen::Vector2d(path.nodes[i].gradient[0] * (-path.nodes[i].distance + 2 * distance_field.resolution),
-                                path.nodes[i].gradient[1] * (-path.nodes[i].distance + 2 * distance_field.resolution)));
+                Eigen::Vector2d(cp.gradient[0] * (-cp.distance + 2 * distance_field.resolution),
+                                cp.gradient[1] * (-cp.distance + 2 * distance_field.resolution)));
         }
     }
 }
 
 Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
-                      const double external_force_gain, const double rotation_factor, const bool reverse_direction)
+                      const double external_force_gain, const double rotation_factor, const bool reverse_direction, const double max_distance)
 {
     const auto internal_force =
-        internalForce(prev, curr, next, internal_force_gain, rotation_factor, reverse_direction);
+        internalForce(prev, curr, next, internal_force_gain, rotation_factor, reverse_direction, max_distance);
     const auto external_force = externalForce(curr, external_force_gain);
     return internal_force + external_force;
 }
 
 Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
-                              const double rotation_factor, const bool reverse_direction)
+                              const double rotation_factor, const bool reverse_direction, const double max_distance)
 {
     const Eigen::Vector2d d_1 = prev.pose.translation() - curr.pose.translation();
     const Eigen::Vector2d d_2 = next.pose.translation() - curr.pose.translation();
@@ -230,8 +244,12 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
 
     Eigen::Vector3d force = Eigen::Vector3d::Zero();
 
-    const double dis_1 = curr.distance + prev.distance;
-    const double dis_2 = curr.distance + next.distance;
+    const ControlPoint& prev_min = prev.control_points[prev.closest_point];
+    const ControlPoint& curr_min = curr.control_points[curr.closest_point];
+    const ControlPoint& next_min = next.control_points[next.closest_point];
+
+    const double dis_1 = curr_min.distance + prev_min.distance;
+    const double dis_2 = curr_min.distance + next_min.distance;
     const double gap_1 = dis_1 - d_1.norm();
     const double gap_2 = dis_2 - d_2.norm();
 
@@ -270,18 +288,35 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     const double fwd_angle = std::atan2(det, dot);
     force[2] += 10 * rotation_factor * internal_force_gain * fwd_angle;
 
+    // control point torque
+    double cp_torque = 0;
+    const ControlPoint& cp = curr.control_points[curr.closest_point];
+    if (cp.distance < max_distance)
+    {
+        double scale = 0.1 * std::min(1.0, curr_min.distance_to_saddle);
+        if (cp.distance < 0)
+            scale *= -1;
+
+        const Eigen::Vector3d rotation_force = scale * Eigen::Vector3d(static_cast<double>(cp.gradient.x()), static_cast<double>(cp.gradient.y()), 0);
+        const auto rot_offset = curr.pose.rotation() * cp.offset;
+        const Eigen::Vector3d offset_3d(rot_offset.x(), rot_offset.y(), 0);
+
+        const auto tau = offset_3d.cross(rotation_force);
+        cp_torque = -tau.z();
+    }
+    force[2] += cp_torque;
+
     return force;
 }
 
 Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain)
 {
+    const ControlPoint& curr_min = curr.control_points[curr.closest_point];
     Eigen::Vector3d force;
-    const double avoid_distance = 0.1;
-    const double decay =
-        (curr.distance > avoid_distance ? std::exp(-curr.distance - avoid_distance) : 1.0 / avoid_distance) *
-        std::min(1.0, curr.distance_to_saddle);
-    force[0] = -external_force_gain * curr.gradient.x() * decay;
-    force[1] = -external_force_gain * curr.gradient.y() * decay;
+    const double avoid_distance = 0.04;
+    const double decay = (curr_min.distance > avoid_distance ? std::exp(-curr_min.distance - avoid_distance) : std::max(4.0, avoid_distance / curr_min.distance)) * std::min(1.0, std::max(0.1, curr_min.distance_to_saddle));
+    force[0] = -external_force_gain * curr_min.gradient.x() * decay;
+    force[1] = -external_force_gain * curr_min.gradient.y() * decay;
     force[2] = 0.0;
     return force;
 }

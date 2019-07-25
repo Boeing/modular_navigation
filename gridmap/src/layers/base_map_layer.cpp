@@ -61,13 +61,18 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
         // Only consider EXCLUSION_ZONE
         if (zone.zone_type == hd_map::Zone::EXCLUSION_ZONE)
         {
+            int min_x = std::numeric_limits<int>::max();
+            int max_x = 0;
+
             int min_y = std::numeric_limits<int>::max();
-            int max_y = std::numeric_limits<int>::min();
+            int max_y = 0;
 
             std::vector<Eigen::Array2i> map_polygon;
             for (const geometry_msgs::Point32& p : zone.polygon.points)
             {
                 const Eigen::Array2i map_point = map_->dimensions().getCellIndex({p.x, p.y});
+                min_x = std::min(map_point.x(), min_x);
+                max_x = std::max(map_point.x(), max_x);
                 min_y = std::min(map_point.y(), min_y);
                 max_y = std::max(map_point.y(), max_y);
                 map_polygon.push_back(map_point);
@@ -75,15 +80,21 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
             if (!map_polygon.empty())
                 map_polygon.push_back(map_polygon.front());
 
-            //            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
-            //            const std::vector<Eigen::Array2i> fill_cells = rasterPolygonFill(connected, min_y - 1, max_y +
-            //            1);
+            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
 
-            //            for (const Eigen::Array2i& p : fill_cells)
-            //            {
-            //                if (map_->dimensions().contains(p))
-            //                    map_->setOccupied(p);
-            //            }
+            std::vector<Eigen::Array2i> raster;
+            auto append_raster = [&raster](const int x, const int y)
+            {
+                raster.push_back({x, y});
+            };
+
+            rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
+
+            for (const Eigen::Array2i& p : raster)
+            {
+                if (map_->dimensions().contains(p))
+                    map_->setOccupied(p);
+            }
         }
     }
 }
