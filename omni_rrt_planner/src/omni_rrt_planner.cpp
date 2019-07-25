@@ -16,6 +16,10 @@
 #include <ompl/geometric/planners/rrt/InformedRRTstar.h>
 #include <ompl/geometric/planners/rrt/BiTRRT.h>
 
+#include <sim_band_planner/band.h>
+#include <sim_band_planner/distance_field.h>
+#include <sim_band_planner/simulate.h>
+
 PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner, navigation_interface::PathPlanner)
 
 namespace omni_rrt_planner
@@ -33,7 +37,6 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
     // downsample
     cv::Mat dilated;
     {
-        cv::Mat obstacle_map;
         {
             auto lock = map_data.grid.getLock();
 
@@ -47,7 +50,7 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
 
             t0 = std::chrono::steady_clock::now();
             const cv::Mat raw(size_y, size_x, CV_8U, reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
-            obstacle_map = raw.clone();
+            grid->obstacle_map = raw.clone();
         }
 
         // dilate robot radius
@@ -55,7 +58,7 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
         const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / grid->resolution);
         auto ellipse =
             cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
-        cv::dilate(obstacle_map, dilated, ellipse);
+        cv::dilate(grid->obstacle_map, dilated, ellipse);
         ROS_DEBUG_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                  std::chrono::steady_clock::now() - t0)
                                                  .count());
@@ -209,17 +212,75 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
 
             result.cost = result_path.cost(pdef->getOptimizationObjective()).value();
 
-            for (unsigned int i=0; i<result_path.getStateCount(); ++i)
+//            for (unsigned int i=0; i<result_path.getStateCount(); ++i)
+//            {
+//                const ompl::base::State* state = result_path.getState(i);
+//                const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
+
+//                const double x = se2state->getX();
+//                const double y = se2state->getY();
+//                const double theta = se2state->getYaw();
+
+//                const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(theta);
+//                result.path.nodes.push_back(p);
+//            }
+
+            // orientation optimisation
             {
-                const ompl::base::State* state = result_path.getState(i);
-                const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
+                sim_band_planner::DistanceField distance_field(costmap->obstacle_map, costmap->origin_x, costmap->origin_y, costmap->resolution, robot_radius_);
 
-                const double x = se2state->getX();
-                const double y = se2state->getY();
-                const double theta = se2state->getYaw();
+                sim_band_planner::Band sim_band;
 
-                const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(theta);
-                result.path.nodes.push_back(p);
+                for (unsigned int i=0; i<result_path.getStateCount(); ++i)
+                {
+                    const auto* se2state = result_path.getState(i)->as<ompl::base::SE2StateSpace::StateType>();
+                    const Eigen::Isometry2d p = Eigen::Translation2d(se2state->getX(), se2state->getY()) * Eigen::Rotation2Dd(se2state->getYaw());
+                    sim_band.nodes.push_back(p);
+                }
+
+                bool long_path = true;
+                bool reverse_direction = false;
+                const double path_length = sim_band.length();
+                const auto goal_wrt_robot = sim_band.nodes.front().pose.inverse() * sim_band.nodes.back().pose;
+                const double rotation = std::abs(Eigen::Rotation2Dd(goal_wrt_robot.linear()).smallestAngle());
+
+                const double max_holonomic_distance = 2.0;
+                const double max_reverse_distance = 4.0;
+
+                if (path_length < max_holonomic_distance)
+                {
+                    long_path = false;
+                }
+                else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance && rotation < M_PI / 2.0)
+                {
+                    reverse_direction = true;
+                }
+
+                int num_iterations = 100;
+                double internal_force_gain_ = 0.004;
+                double external_force_gain_ = 0.002;
+                double min_distance_ = 0.10;
+                double max_distance_ = 1.00;
+                double min_overlap_ = 0.80;
+                double rotation_factor_ = 8.0;
+                double velocity_decay_ = 0.6;
+                double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / num_iterations);
+
+                auto t0 = std::chrono::steady_clock::now();
+
+                simulate(sim_band, distance_field, num_iterations, min_overlap_, min_distance_, internal_force_gain_,
+                         external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction, velocity_decay_, 1.0,
+                         alpha_decay_, max_distance_, 1000);
+
+                std::cout
+                    << "path simulate took: "
+                    << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+                    << std::endl;
+
+                for (const auto& n : sim_band.nodes)
+                {
+                    result.path.nodes.push_back(n.pose);
+                }
             }
         }
         else

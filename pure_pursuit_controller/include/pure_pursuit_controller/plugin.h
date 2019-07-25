@@ -41,11 +41,11 @@ class PurePursuitController : public navigation_interface::Controller
 
     double max_velocity_x_ = 0.20;
     double max_velocity_y_ = 0.05;
-    double max_velocity_w_ = 0.1;
+    double max_velocity_w_ = 0.2;
 
     double max_acceleration_x_ = 0.1;
     double max_acceleration_y_ = 0.1;
-    double max_acceleration_w_ = 0.1;
+    double max_acceleration_w_ = 0.2;
 
     double goal_radius_ = 0.1;
 

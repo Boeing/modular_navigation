@@ -187,7 +187,7 @@ navigation_interface::Controller::Result
     Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
     target_velocity.topRows(2) = (trajectory_->states[target_i].velocity.topRows(2).norm() * goal_direction_wrt_robot);
     const double finish_time = goal_vec.norm() / target_velocity.topRows(2).norm();
-    target_velocity[2] = control_error[2] / finish_time;
+    target_velocity[2] = 2.0 * control_error[2] / finish_time;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
     control_error_ = control_error;
@@ -271,11 +271,10 @@ navigation_interface::Controller::Result
             acc_factor_w = std::abs(ddw / max_acceleration_w_);
         }
 
-        const double acc_factor_xy = std::max(acc_factor_x, acc_factor_y);
-
-        ddx /= acc_factor_xy;
-        ddy /= acc_factor_xy;
-        ddw /= acc_factor_w;
+        const double acc_factor = std::max(acc_factor_w, std::max(acc_factor_x, acc_factor_y));
+        ddx /= acc_factor;
+        ddy /= acc_factor;
+        ddw /= acc_factor;
     }
 
     //
@@ -311,10 +310,10 @@ navigation_interface::Controller::Result
             velocity_factor_w = std::abs(x_dot_command.z() / max_velocity_w_);
         }
 
-        const double velocity_factor_xy = std::max(velocity_factor_x, velocity_factor_y);
-        x_dot_command.x() /= velocity_factor_xy;
-        x_dot_command.y() /= velocity_factor_xy;
-        x_dot_command.z() /= velocity_factor_w;
+        const double velocity_factor = std::max(velocity_factor_w, std::max(velocity_factor_x, velocity_factor_y));
+        x_dot_command.x() /= velocity_factor;
+        x_dot_command.y() /= velocity_factor;
+        x_dot_command.z() /= velocity_factor;
     }
 
     result.command = x_dot_command;

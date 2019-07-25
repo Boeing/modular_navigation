@@ -28,6 +28,7 @@ namespace omni_rrt_planner
 
 struct Costmap
 {
+    cv::Mat obstacle_map;
     cv::Mat distance_to_collision;
     cv::Mat cost;
 

@@ -88,30 +88,30 @@ navigation_interface::TrajectoryPlanner::Result
         else
             sim_band.nodes.push_back(moving_window_->window.nodes.front());
 
-        bool long_path = true;
-        bool reverse_direction = false;
-        const double path_length = moving_window_->nominal_path.length();
-        const auto goal_wrt_robot = robot_pose.inverse() * moving_window_->nominal_path.nodes.back();
-        const double rotation = std::abs(Eigen::Rotation2Dd(goal_wrt_robot.linear()).smallestAngle());
+//        bool long_path = true;
+//        bool reverse_direction = false;
+//        const double path_length = moving_window_->nominal_path.length();
+//        const auto goal_wrt_robot = robot_pose.inverse() * moving_window_->nominal_path.nodes.back();
+//        const double rotation = std::abs(Eigen::Rotation2Dd(goal_wrt_robot.linear()).smallestAngle());
 
-        if (path_length < max_holonomic_distance_)
-        {
-            long_path = false;
-        }
-        else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance_ && rotation < M_PI / 2.0)
-        {
-            reverse_direction = true;
-        }
+//        if (path_length < max_holonomic_distance_)
+//        {
+//            long_path = false;
+//        }
+//        else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance_ && rotation < M_PI / 2.0)
+//        {
+//            reverse_direction = true;
+//        }
 
         auto t0 = std::chrono::steady_clock::now();
 
         simulate(sim_band, distance_field, num_iterations_, min_overlap_, min_distance_, internal_force_gain_,
-                 external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction, velocity_decay_, 1.0,
-                 alpha_decay_, max_distance_);
+                 external_force_gain_, 0.0, false, velocity_decay_, 1.0, alpha_decay_, max_distance_, 20);
 
         std::cout
             << "simulate took: "
             << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+            << "nodes: " << sim_band.nodes.size()
             << std::endl;
 
 

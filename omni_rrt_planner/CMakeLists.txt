@@ -12,6 +12,7 @@ find_package(catkin REQUIRED
     pluginlib
     roscpp
     rviz_visual_tools
+    sim_band_planner
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -32,6 +33,7 @@ catkin_package(
     pluginlib
     roscpp
     rviz_visual_tools
+    sim_band_planner
 )
 
 include_directories(SYSTEM

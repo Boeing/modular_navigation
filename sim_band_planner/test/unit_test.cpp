@@ -71,7 +71,7 @@ TEST(test_plugin, test_plugin)
 
         alpha = sim_band_planner::simulate(band, distance_field, num_iterations_, min_overlap_, min_distance_,
                                            internal_force_gain_, external_force_gain_, rotation_factor_,
-                                           reverse_direction_, velocity_decay_, 1.0, alpha_decay_, max_distance_);
+                                           reverse_direction_, velocity_decay_, 1.0, alpha_decay_, max_distance_, 40);
 
         std::cout
             << "simulate took: "

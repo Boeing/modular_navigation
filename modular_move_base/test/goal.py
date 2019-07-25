@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     while not rospy.is_shutdown():
         _ = run(2, 0)
-        _ = run(-2, 0)
+        _ = run(-5, 0)
 
         # _ = run(0, -6.5)
         # _ = run(2, -4)

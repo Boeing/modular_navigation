@@ -3,23 +3,25 @@
 #include <sstream>
 #include <vector>
 
+#include <ros/assert.h>
+
 namespace sim_band_planner
 {
 
 double simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap,
                 const double min_distance, const double internal_force_gain, const double external_force_gain,
                 const double rotation_factor, const bool reverse_direction, const double velocity_decay,
-                const double alpha_start, const double alpha_decay, const double max_distance)
+                const double alpha_start, const double alpha_decay, const double max_distance, const int max_nodes)
 {
     updateDistances(path, distance_field, max_distance);
-    refine(path, distance_field, min_distance, max_distance, min_overlap);
+    refine(path, distance_field, min_distance, max_distance, min_overlap, max_nodes);
 
     const double dt = 1.0;
     double alpha = alpha_start;
 
     for (int it = 0; it < num_iterations; it++)
     {
-        auto t0 = std::chrono::steady_clock::now();
+//        auto t0 = std::chrono::steady_clock::now();
 
         updateDistances(path, distance_field, max_distance);
 
@@ -37,6 +39,7 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
         // v = v + a * dt;
         for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
         {
+            ROS_ASSERT(acc[i].allFinite());
             path.nodes[i].velocity += alpha * acc[i] * dt;
             path.nodes[i].velocity *= velocity_decay;
         }
@@ -48,15 +51,15 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
             path.nodes[i].pose.rotate(Eigen::Rotation2Dd(dt * path.nodes[i].velocity[2]));
         }
 
-        refine(path, distance_field, min_distance, max_distance, min_overlap);
+        refine(path, distance_field, min_distance, max_distance, min_overlap, max_nodes);
 
         alpha -= alpha * alpha_decay;
 
-        std::cout
-            << "simulate step " << it << " took: "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-            << " nodes: " << path.nodes.size()
-            << std::endl;
+//        std::cout
+//            << "simulate step " << it << " took: "
+//            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+//            << " nodes: " << path.nodes.size()
+//            << std::endl;
     }
 
     updateDistances(path, distance_field, max_distance);
@@ -111,15 +114,13 @@ void updateDistances(Band& path, const DistanceField& distance_field, const doub
     }
 }
 
-void refine(Band& path, const DistanceField& distance_field, const double min_distance, const double max_distance, const double min_overlap)
+void refine(Band& path, const DistanceField& distance_field, const double min_distance, const double max_distance, const double min_overlap, const int max_nodes)
 {
-    const std::size_t max_size = 20;
-
     //
     // add new nodes
     //
     std::vector<Node>::iterator iter = path.nodes.begin();
-    while (std::distance(path.nodes.begin(), iter) < static_cast<int>(max_size))
+    while (std::distance(path.nodes.begin(), iter) < max_nodes)
     {
         const auto next = iter + 1;
 
@@ -289,6 +290,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     force[2] += 10 * rotation_factor * internal_force_gain * fwd_angle;
 
     // control point torque
+    /*
     double cp_torque = 0;
     const ControlPoint& cp = curr.control_points[curr.closest_point];
     if (cp.distance < max_distance)
@@ -305,6 +307,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         cp_torque = -tau.z();
     }
     force[2] += cp_torque;
+    */
 
     return force;
 }
@@ -314,10 +317,18 @@ Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain
     const ControlPoint& curr_min = curr.control_points[curr.closest_point];
     Eigen::Vector3d force;
     const double avoid_distance = 0.04;
-    const double decay = (curr_min.distance > avoid_distance ? std::exp(-curr_min.distance - avoid_distance) : std::max(4.0, avoid_distance / curr_min.distance)) * std::min(1.0, std::max(0.1, curr_min.distance_to_saddle));
+
+    double decay;
+    if (curr_min.distance > avoid_distance)
+        decay = std::exp(-curr_min.distance - avoid_distance);
+    else
+        decay = avoid_distance / std::max(0.01, curr_min.distance);
+    decay *= std::min(1.0, std::max(0.1, curr_min.distance_to_saddle));
+
     force[0] = -external_force_gain * curr_min.gradient.x() * decay;
     force[1] = -external_force_gain * curr_min.gradient.y() * decay;
     force[2] = 0.0;
+
     return force;
 }
 }
