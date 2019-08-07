@@ -15,6 +15,8 @@
 
 #include <geometry_msgs/Twist.h>
 
+#include <navigation_interface/params.h>
+
 #include <map_manager/GetMap.h>
 #include <map_manager/GetOccupancyGrid.h>
 #include <map_msgs/OccupancyGridUpdate.h>
@@ -91,6 +93,7 @@ std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& c
 std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& parameters,
                                                            const std::string& global_frame,
                                                            pluginlib::ClassLoader<gridmap::Layer>& loader,
+                                                           const std::vector<Eigen::Vector2d>& robot_footprint,
                                                            const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
 {
     std::vector<std::shared_ptr<gridmap::Layer>> plugin_ptrs;
@@ -106,7 +109,7 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& 
             {
                 ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
                 auto plugin_ptr = std::shared_ptr<gridmap::Layer>(loader.createUnmanagedInstance(type));
-                plugin_ptr->initialize(pname, global_frame, parameters[pname], tf_buffer);
+                plugin_ptr->initialize(pname, global_frame, parameters[pname], robot_footprint, tf_buffer);
                 plugin_ptrs.push_back(plugin_ptr);
             }
             catch (const pluginlib::PluginlibException& e)
@@ -156,10 +159,23 @@ MoveBase::MoveBase()
     ROS_INFO("Starting");
 
     XmlRpc::XmlRpcValue costmap_params;
+
+    std::vector<Eigen::Vector2d> robot_footprint;
+    if (costmap_params.hasMember("footprint"))
+    {
+        robot_footprint = navigation_interface::get_point_list(costmap_params, "footprint");
+    }
+    else
+    {
+        ROS_WARN("Loading default robot footprint for Ridgeback");
+        robot_footprint = {{0.500, 0.000},  {0.420, -0.420}, {-0.420, -0.420},
+                           {-0.500, 0.000}, {-0.420, 0.420}, {0.420, 0.420}};
+    }
+
     nh_.getParam("costmap", costmap_params);
-    auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, tf_buffer_);
+    auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, robot_footprint, tf_buffer_);
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
-    base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], tf_buffer_);
+    base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], robot_footprint, tf_buffer_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
     const std::string path_planner_name = get_param_or_throw<std::string>("~path_planner");
@@ -268,10 +284,8 @@ void MoveBase::executionThread()
         {
             if (rs.localised)
             {
-                const auto t0 = std::chrono::steady_clock::now();
-                const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
-                const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
-                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+                //                const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+                //                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
                 layered_map_->update();
             }
 
@@ -455,10 +469,27 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
         {
             const auto t0 = std::chrono::steady_clock::now();
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
-            layered_map_->update();
+            const bool success = layered_map_->update();
             ROS_INFO_STREAM("global map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                              std::chrono::steady_clock::now() - t0)
                                                              .count());
+
+            if (!success)
+            {
+                ROS_ERROR("PathPlannerThread: Failed to update layered map");
+
+                std::lock_guard<std::mutex> lock(path_mutex_);
+                current_path_.reset();
+
+                // publish
+                nav_msgs::Path gui_path;
+                gui_path.header.frame_id = global_frame_;
+                path_pub_.publish(gui_path);
+
+                rate.sleep();
+
+                continue;
+            }
         }
 
         const auto transformed_goal = transformGoal(goal, frame_id);
@@ -670,7 +701,24 @@ void MoveBase::trajectoryPlannerThread()
 
         {
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
-            layered_map_->update(roi);
+            const bool success = layered_map_->update(roi);
+
+            if (!success)
+            {
+                ROS_ERROR("TrajectoryPlannerThread: Failed to update layered map");
+
+                std::lock_guard<std::mutex> lock(trajectory_mutex_);
+                current_trajectory_.reset();
+
+                // publish
+                nav_msgs::Path gui_path;
+                gui_path.header.frame_id = "odom";
+                trajectory_pub_.publish(gui_path);
+
+                rate.sleep();
+
+                continue;
+            }
         }
 
         {
@@ -812,7 +860,14 @@ void MoveBase::controllerThread()
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
         {
-            layered_map_->update(roi);
+            const bool success = layered_map_->update(roi);
+
+            if (!success)
+            {
+                ROS_ERROR("ControllerThread: Failed to update layered map");
+                vel_pub_.publish(geometry_msgs::Twist());
+                continue;
+            }
         }
 
         // Update feedback to correspond to our current position

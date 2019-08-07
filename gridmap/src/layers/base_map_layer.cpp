@@ -9,28 +9,44 @@ PLUGINLIB_EXPORT_CLASS(gridmap::BaseMapLayer, gridmap::Layer)
 namespace gridmap
 {
 
-void BaseMapLayer::draw(OccupancyGrid& grid)
+bool BaseMapLayer::draw(OccupancyGrid& grid)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+    if (!map_)
+        return false;
     const auto lock = map_->getLock();
     map_->copyTo(grid);
+    return true;
 }
 
-void BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
+bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+    if (!map_)
+        return false;
     const auto lock = map_->getLock();
     map_->copyTo(grid, bb);
+    return true;
 }
 
-void BaseMapLayer::update(OccupancyGrid& grid)
+bool BaseMapLayer::update(OccupancyGrid& grid)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+    if (!map_)
+        return false;
     const auto lock = map_->getLock();
     map_->merge(grid);
+    return true;
 }
 
-void BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb)
+bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+    if (!map_)
+        return false;
     const auto lock = map_->getLock();
     map_->merge(grid, bb);
+    return true;
 }
 
 void BaseMapLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)

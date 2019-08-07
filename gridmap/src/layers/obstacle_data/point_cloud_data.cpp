@@ -1,8 +1,6 @@
 #include <gridmap/layers/obstacle_data/point_cloud_data.h>
 #include <gridmap/params.h>
 
-#include <gridmap/operations/clip_line.h>
-
 #include <pluginlib/class_list_macros.h>
 
 #include <sensor_msgs/point_cloud2_iterator.h>
@@ -15,18 +13,6 @@ PLUGINLIB_EXPORT_CLASS(gridmap::PointCloudData, gridmap::DataSource)
 
 namespace gridmap
 {
-
-uint64_t IndexToKey(const Eigen::Array2i& index)
-{
-    uint64_t k_0(static_cast<uint32_t>(index[0]));
-    uint64_t k_1(static_cast<uint32_t>(index[1]));
-    return (k_0 << 32) | k_1;
-}
-
-Eigen::Array2i KeyToIndex(const uint64_t& key)
-{
-    return Eigen::Array2i(static_cast<int32_t>((key >> 32) & 0xFFFFFFFF), static_cast<int32_t>(key & 0xFFFFFFFF));
-}
 
 PointCloudData::PointCloudData()
     : hit_probability_log_(0), miss_probability_log_(0), obstacle_height_(0), max_range_(0), sub_sample_(0),
@@ -62,8 +48,6 @@ void PointCloudData::onMapDataChanged()
 {
     const double cost_gradient = (-miss_probability_log_ / obstacle_height_);
     const double max_height = (1.0 - miss_probability_log_) / cost_gradient;
-
-    ROS_INFO_STREAM("max_height: " << max_height);
 
     const unsigned int max_height_cells =
         static_cast<unsigned int>(max_height / map_data_->dimensions().resolution()) + 1;
@@ -109,6 +93,10 @@ void PointCloudData::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
             return;
         }
 
+        const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", message->header.stamp);
+        const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
+        const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
+
         {
             auto lock = map_data_->getLock();
 
@@ -134,6 +122,12 @@ void PointCloudData::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
                 const Eigen::Array2i pt_map = map_data_->dimensions().getCellIndex(pt.head<2>().cast<double>());
 
                 const auto key = IndexToKey(pt_map);
+
+                if (footprint.count(key) > 0)
+                {
+                    continue;
+                }
+
                 const auto insert_ret = height_voxels.find(key);
 
                 if (insert_ret == height_voxels.end())
@@ -154,6 +148,12 @@ void PointCloudData::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
                 const Eigen::Array2i index = KeyToIndex(elem.first);
                 if (map_data_->dimensions().contains(index))
                     map_data_->update(index, log_odds);
+            }
+            for (auto elem : footprint)
+            {
+                const Eigen::Array2i index = KeyToIndex(elem);
+                if (map_data_->dimensions().contains(index))
+                    map_data_->setMinThres(index);
             }
         }
 

@@ -16,6 +16,7 @@ namespace
 std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
     loadDataSources(XmlRpc::XmlRpcValue parameters, const std::string& global_frame,
                     pluginlib::ClassLoader<gridmap::DataSource>& loader,
+                    const std::vector<Eigen::Vector2d>& robot_footprint,
                     const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
 {
     std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> plugin_ptrs;
@@ -40,8 +41,8 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
                     std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
                 XmlRpc::XmlRpcValue params = parameters[pname];
                 const double maximum_sensor_delay = get_config_with_default_warn<double>(
-                    parameters, "maximum_sensor_delay", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
-                plugin_ptr->initialize(pname, global_frame, params, tf_buffer, maximum_sensor_delay);
+                    parameters, "maximum_sensor_delay", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
+                plugin_ptr->initialize(pname, global_frame, params, robot_footprint, tf_buffer, maximum_sensor_delay);
                 plugin_ptrs[pname] = plugin_ptr;
             }
             catch (const pluginlib::PluginlibException& e)
@@ -74,19 +75,36 @@ ObstacleLayer::~ObstacleLayer()
         debug_viz_thread_.join();
 }
 
-void ObstacleLayer::draw(OccupancyGrid& grid)
+bool ObstacleLayer::draw(OccupancyGrid& grid)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+
+    if (!probability_grid_)
+        return false;
+
+    if (!isDataOk())
+        return false;
+
     const auto lock = probability_grid_->getLock();
     const int size = dimensions().cells();
     for (int index = 0; index < size; ++index)
     {
         grid.cells()[index] = probability_grid_->occupied(index) ? OccupancyGrid::OCCUPIED : OccupancyGrid::FREE;
     }
+    return true;
 }
 
-void ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
+bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
 {
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+
+    std::lock_guard<std::mutex> g(map_mutex_);
+
+    if (!probability_grid_)
+        return false;
+
+    if (!isDataOk())
+        return false;
 
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
@@ -99,10 +117,19 @@ void ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
             grid.cells()[index] = probability_grid_->occupied(index) ? OccupancyGrid::OCCUPIED : OccupancyGrid::FREE;
         }
     }
+    return true;
 }
 
-void ObstacleLayer::update(OccupancyGrid& grid)
+bool ObstacleLayer::update(OccupancyGrid& grid)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+
+    if (!probability_grid_)
+        return false;
+
+    if (!isDataOk())
+        return false;
+
     const auto lock = probability_grid_->getLock();
     const int size = dimensions().cells();
     for (int index = 0; index < size; ++index)
@@ -112,11 +139,20 @@ void ObstacleLayer::update(OccupancyGrid& grid)
             grid.cells()[index] = OccupancyGrid::OCCUPIED;
         }
     }
+    return true;
 }
 
-void ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
+bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
 {
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+
+    std::lock_guard<std::mutex> g(map_mutex_);
+
+    if (!probability_grid_)
+        return false;
+
+    if (!isDataOk())
+        return false;
 
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
@@ -130,6 +166,7 @@ void ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
                 grid.cells()[index] = OccupancyGrid::OCCUPIED;
         }
     }
+    return true;
 }
 
 void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
@@ -141,6 +178,8 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     occ_prob_thres_ = get_config_with_default_warn<double>(parameters, "occ_prob_thres", occ_prob_thres_,
                                                            XmlRpc::XmlRpcValue::TypeDouble);
 
+    data_sources_ = loadDataSources(parameters, globalFrame(), ds_loader_, robotFootprint(), tfBuffer());
+
     time_decay_ =
         get_config_with_default_warn<bool>(parameters, "time_decay", time_decay_, XmlRpc::XmlRpcValue::TypeBoolean);
     if (time_decay_)
@@ -151,8 +190,6 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
         alpha_decay_ = get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
                                                             XmlRpc::XmlRpcValue::TypeDouble);
     }
-
-    data_sources_ = loadDataSources(parameters, globalFrame(), ds_loader_, tfBuffer());
 
     debug_viz_ =
         get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
@@ -199,99 +236,130 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     }
 }
 
-void ObstacleLayer::clear()
+bool ObstacleLayer::clear()
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+
+    if (!probability_grid_)
+        return false;
+
     auto lock = probability_grid_->getLock();
     std::fill(probability_grid_->cells().begin(), probability_grid_->cells().end(), 0.0);
+
+    return true;
 }
 
-void ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
+bool ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
 {
+    std::lock_guard<std::mutex> g(map_mutex_);
+
+    if (!probability_grid_)
+        return false;
+
     auto lock = probability_grid_->getLock();
     cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(),
                             CV_64F, reinterpret_cast<void*>(probability_grid_->cells().data()));
     cv::circle(cv_im, cv::Point(cell_index.x(), cell_index.y()), cell_radius,
                cv::Scalar(probability_grid_->clampingThresMinLog()), -1);
+
+    return true;
+}
+
+bool ObstacleLayer::isDataOk() const
+{
+    bool ok = true;
+    for (const auto& ds : data_sources_)
+    {
+        const auto status = ds.second->status();
+        if (!status.ok)
+            ROS_WARN_STREAM(ds.second->name() << " has not updated for " << status.seconds_since_update << " seconds");
+        ok &= status.ok;
+    }
+    return ok;
 }
 
 void ObstacleLayer::debugVizThread(const double frequency)
 {
     nav_msgs::OccupancyGrid grid;
-    grid.header.frame_id = globalFrame();
-    grid.info.resolution = probability_grid_->dimensions().resolution();
-    grid.info.origin.orientation.w = 1.0;
-
-    const int size_x = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
-    const int size_y = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
-
     ros::Rate rate(frequency);
+
     while (debug_viz_running_ && ros::ok())
     {
-        if (debug_viz_pub_.getNumSubscribers() != 0)
         {
-            try
+            std::lock_guard<std::mutex> lock(map_mutex_);
+            if (debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_)
             {
-                // Get robot pose
-                const geometry_msgs::TransformStamped tr =
-                    tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
-
-                const Eigen::Array2i robot_map = probability_grid_->dimensions().getCellIndex(
-                    {tr.transform.translation.x, tr.transform.translation.y});
-
-                const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
-                const int top_left_y = std::max(0, robot_map.y() - size_y / 2);
-
-                const int actual_size_x =
-                    std::min(probability_grid_->dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
-                const int actual_size_y =
-                    std::min(probability_grid_->dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
-
-                grid.info.width = actual_size_x;
-                grid.info.height = actual_size_y;
-
-                const std::size_t capacity = actual_size_x * actual_size_y;
-                if (grid.data.size() != capacity)
-                    grid.data.resize(capacity);
-
-                grid.info.origin.position.x = probability_grid_->dimensions().origin().x() +
-                                              top_left_x * probability_grid_->dimensions().resolution();
-                grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
-                                              top_left_y * probability_grid_->dimensions().resolution();
-
-                grid.header.stamp = ros::Time::now();
-
-                auto lock = probability_grid_->getLock();
-
-                ROS_ASSERT((top_left_x + actual_size_x) <= probability_grid_->dimensions().size().x());
-                ROS_ASSERT((top_left_y + actual_size_y) <= probability_grid_->dimensions().size().y());
-
-                int roi_index = 0;
-                const int y_size = top_left_y + actual_size_y;
-                for (int y = top_left_y; y < y_size; y++)
+                try
                 {
-                    const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
-                    const int index_end = index_start + actual_size_x;
-                    for (int index = index_start; index < index_end; ++index)
+                    grid.header.frame_id = globalFrame();
+                    grid.info.resolution = probability_grid_->dimensions().resolution();
+                    grid.info.origin.orientation.w = 1.0;
+
+                    const int size_x = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
+                    const int size_y = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
+
+                    // Get robot pose
+                    const geometry_msgs::TransformStamped tr =
+                        tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
+
+                    const Eigen::Array2i robot_map = probability_grid_->dimensions().getCellIndex(
+                        {tr.transform.translation.x, tr.transform.translation.y});
+
+                    const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
+                    const int top_left_y = std::max(0, robot_map.y() - size_y / 2);
+
+                    const int actual_size_x =
+                        std::min(probability_grid_->dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
+                    const int actual_size_y =
+                        std::min(probability_grid_->dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
+
+                    grid.info.width = actual_size_x;
+                    grid.info.height = actual_size_y;
+
+                    const std::size_t capacity = actual_size_x * actual_size_y;
+                    if (grid.data.size() != capacity)
+                        grid.data.resize(capacity);
+
+                    grid.info.origin.position.x = probability_grid_->dimensions().origin().x() +
+                                                  top_left_x * probability_grid_->dimensions().resolution();
+                    grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
+                                                  top_left_y * probability_grid_->dimensions().resolution();
+
+                    grid.header.stamp = ros::Time::now();
+
+                    auto lock = probability_grid_->getLock();
+
+                    ROS_ASSERT((top_left_x + actual_size_x) <= probability_grid_->dimensions().size().x());
+                    ROS_ASSERT((top_left_y + actual_size_y) <= probability_grid_->dimensions().size().y());
+
+                    int roi_index = 0;
+                    const int y_size = top_left_y + actual_size_y;
+                    for (int y = top_left_y; y < y_size; y++)
                     {
-                        ROS_ASSERT(index < probability_grid_->cells().size());
-                        grid.data[roi_index] =
-                            static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
-                        ++roi_index;
+                        const int index_start = probability_grid_->dimensions().size().x() * y + top_left_x;
+                        const int index_end = index_start + actual_size_x;
+                        for (int index = index_start; index < index_end; ++index)
+                        {
+                            ROS_ASSERT(index < probability_grid_->cells().size());
+                            grid.data[roi_index] =
+                                static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
+                            ++roi_index;
+                        }
                     }
-                }
 
-                const int max_occ = 100.0 * probability_grid_->ocupancyThres();
-                for (int i = 0; i < grid.data.size(); ++i)
+                    const int max_occ = 100.0 * probability_grid_->ocupancyThres();
+                    for (int i = 0; i < grid.data.size(); ++i)
+                    {
+                        if (grid.data[i] >= max_occ)
+                            grid.data[i] = 101;
+                    }
+
+                    debug_viz_pub_.publish(grid);
+                }
+                catch (const tf2::TransformException& e)
                 {
-                    if (grid.data[i] >= max_occ)
-                        grid.data[i] = 101;
+                    ROS_WARN("Failed to publish debug. Unknown robot pose");
                 }
-
-                debug_viz_pub_.publish(grid);
-            }
-            catch (const tf2::TransformException& e)
-            {
-                ROS_WARN("Failed to publish debug. Unknown robot pose");
             }
         }
 
@@ -305,12 +373,16 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     while (time_decay_running_ && ros::ok())
     {
         {
-            auto lock = probability_grid_->getLock();
-            const int cells = probability_grid_->dimensions().cells();
-            for (int i = 0; i < cells; ++i)
+            std::lock_guard<std::mutex> lock(map_mutex_);
+            if (probability_grid_)
             {
-                if (std::abs(probability_grid_->cell(i)) > 0.1)
-                    probability_grid_->cell(i) -= probability_grid_->cell(i) * alpha_decay;
+                auto lock = probability_grid_->getLock();
+                const int cells = probability_grid_->dimensions().cells();
+                for (int i = 0; i < cells; ++i)
+                {
+                    if (std::abs(probability_grid_->cell(i)) > 0.1)
+                        probability_grid_->cell(i) -= probability_grid_->cell(i) * alpha_decay;
+                }
             }
         }
 

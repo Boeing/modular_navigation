@@ -27,11 +27,8 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
 {
     for (std::size_t i = 0; i < path.nodes.size(); ++i)
     {
-        const State3D state{
-            path.nodes[i].translation().x(),
-            path.nodes[i].translation().y(),
-            Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle()
-        };
+        const State3D state{path.nodes[i].translation().x(), path.nodes[i].translation().y(),
+                            Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle()};
         if (!collision_checker.isValid(state))
         {
             return std::numeric_limits<double>::max();
@@ -41,7 +38,7 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
     double cost = 0.0;
     for (std::size_t i = 0; i < path.nodes.size() - 1; ++i)
     {
-        const Eigen::Vector2d dir = path.nodes[i+1].translation() - path.nodes[i].translation();
+        const Eigen::Vector2d dir = path.nodes[i + 1].translation() - path.nodes[i].translation();
         const Eigen::Vector2d dir_wrt_robot = path.nodes[i].linear().inverse() * dir;
 
         double x_cost = dir_wrt_robot.x();
@@ -54,7 +51,8 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
             x_cost *= 1.5;
 
         cost += x_cost + y_cost;
-        cost += 2.0 * std::abs(wrapAngle(Eigen::Rotation2Dd(path.nodes[i+1].linear()).smallestAngle() - Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle()));
+        cost += 2.0 * std::abs(wrapAngle(Eigen::Rotation2Dd(path.nodes[i + 1].linear()).smallestAngle() -
+                                         Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle()));
     }
     return cost;
 }
@@ -99,7 +97,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     const auto t0 = std::chrono::steady_clock::now();
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-                start, goal, max_iterations, *costmap_, *collision_checker_, static_cast<float>(conservative_robot_radius_), linear_resolution, angular_resolution, allow_backwards, allow_strafe);
+        start, goal, max_iterations, *costmap_, *collision_checker_, static_cast<float>(conservative_robot_radius_),
+        linear_resolution, angular_resolution, allow_backwards, allow_strafe);
 
     ROS_DEBUG_STREAM(
         "astar took "
@@ -115,12 +114,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
         const auto now = ros::Time::now();
 
-        auto make_cylider = [&ma, &now](
-                const std_msgs::ColorRGBA& color,
-                const double radius,
-                const double height,
-                const Eigen::Isometry3d& pose)
-        {
+        auto make_cylider = [&ma, &now](const std_msgs::ColorRGBA& color, const double radius, const double height,
+                                        const Eigen::Isometry3d& pose) {
             visualization_msgs::Marker marker;
             marker.ns = "cylinder";
             marker.id = static_cast<int>(ma.markers.size());
@@ -166,15 +161,18 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
             const Eigen::Isometry3d pose = Eigen::Translation3d(position) * rotation;
 
             // X Axis
-            const Eigen::Isometry3d x_pose = pose * (Eigen::Translation3d(length / 2.0, 0, 0) * Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY()));
+            const Eigen::Isometry3d x_pose = pose * (Eigen::Translation3d(length / 2.0, 0, 0) *
+                                                     Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY()));
             ma.markers.push_back(make_cylider(red, radius, length, x_pose));
 
             // Y Axis
-            const Eigen::Isometry3d y_pose = pose * (Eigen::Translation3d(0, length / 2.0, 0) * Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitX()));
+            const Eigen::Isometry3d y_pose = pose * (Eigen::Translation3d(0, length / 2.0, 0) *
+                                                     Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitX()));
             ma.markers.push_back(make_cylider(green, radius, length, y_pose));
 
             // Z Axis
-            const Eigen::Isometry3d z_pose = pose * (Eigen::Translation3d(0, 0, length / 2.0) * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
+            const Eigen::Isometry3d z_pose =
+                pose * (Eigen::Translation3d(0, 0, length / 2.0) * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
             ma.markers.push_back(make_cylider(blue, radius, length, z_pose));
 
             if (node.second->parent)
@@ -214,7 +212,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
         for (auto r_it = astar_result.path.crbegin(); r_it != astar_result.path.crend(); ++r_it)
         {
-            const Eigen::Isometry2d p = Eigen::Translation2d((*r_it)->state.x, (*r_it)->state.y) * Eigen::Rotation2Dd((*r_it)->state.theta);
+            const Eigen::Isometry2d p =
+                Eigen::Translation2d((*r_it)->state.x, (*r_it)->state.y) * Eigen::Rotation2Dd((*r_it)->state.theta);
             result.path.nodes.push_back(p);
         }
 
@@ -251,9 +250,12 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
 
 void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,XmlRpc::XmlRpcValue::TypeBoolean);
-    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
-    conservative_robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "conservative_robot_radius", conservative_robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
+                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
+    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    conservative_robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "conservative_robot_radius", conservative_robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
     max_holonomic_distance_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "max_holonomic_distance", max_holonomic_distance_, XmlRpc::XmlRpcValue::TypeDouble);
     max_reverse_distance_ = navigation_interface::get_config_with_default_warn<double>(
@@ -265,18 +267,8 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     }
     else
     {
-        offsets_ = {
-              {-0.268, 0.000},
-              { 0.268, 0.000},
-              { 0.265,-0.185},
-              { 0.077,-0.185},
-              {-0.077,-0.185},
-              {-0.265,-0.185},
-              { 0.265, 0.185},
-              {-0.265, 0.185},
-              {-0.077, 0.185},
-              { 0.077, 0.185}
-        };
+        offsets_ = {{-0.268, 0.000},  {0.268, 0.000}, {0.265, -0.185}, {0.077, -0.185}, {-0.077, -0.185},
+                    {-0.265, -0.185}, {0.265, 0.185}, {-0.265, 0.185}, {-0.077, 0.185}, {0.077, 0.185}};
     }
 
     if (debug_viz_)

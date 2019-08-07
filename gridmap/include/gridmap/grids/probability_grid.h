@@ -30,7 +30,7 @@ class ProbabilityGrid : public Grid2D<double>
         : Grid2D<double>(map_dims)
     {
         ROS_ASSERT(clamping_thres_min > 0.);
-        ROS_ASSERT(clamping_thres_min > 1.);
+        ROS_ASSERT(clamping_thres_min < 1.);
 
         ROS_ASSERT(clamping_thres_max > 0.);
         ROS_ASSERT(clamping_thres_max < 1.);

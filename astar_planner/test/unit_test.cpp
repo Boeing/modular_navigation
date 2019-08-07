@@ -53,30 +53,24 @@ TEST(test_astar, test_2d_astar)
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
         << std::endl;
 
-    const astar_planner::State2D goal{size_x/2, size_y/2};
+    const astar_planner::State2D goal{size_x / 2, size_y / 2};
 
     astar_planner::Explore2DCache explore_cache(size_x, size_y);
 
     std::default_random_engine generator;
     std::uniform_int_distribution<int> distribution(0, size_x - 1);
 
-    for (size_t i=0; i<100; ++i)
+    for (size_t i = 0; i < 100; ++i)
     {
         const astar_planner::State2D start{distribution(generator), distribution(generator)};
 
         t0 = std::chrono::steady_clock::now();
 
-        const auto shortest_2d = astar_planner::shortestPath2D(
-                start,
-                goal,
-                explore_cache,
-                *costmap.get());
+        const auto shortest_2d = astar_planner::shortestPath2D(start, goal, explore_cache, *costmap.get());
 
         std::cout
             << "path to: (" << start.x << ", " << start.y << ")"
-            << " success: " << shortest_2d.success
-            << " in " << shortest_2d.iterations
-            << " took: "
+            << " success: " << shortest_2d.success << " in " << shortest_2d.iterations << " took: "
             << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
             << std::endl;
 
@@ -155,29 +149,21 @@ TEST(test_astar, test_hybrid_astar)
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
         << std::endl;
 
-    const std::vector<Eigen::Vector2d> offsets = {
-                      {-0.268, 0.000},
-                      { 0.268, 0.000},
-                      { 0.265,-0.185},
-                      { 0.077,-0.185},
-                      {-0.077,-0.185},
-                      {-0.265,-0.185},
-                      { 0.265, 0.185},
-                      {-0.265, 0.185},
-                      {-0.077, 0.185},
-                      { 0.077, 0.185}};
+    const std::vector<Eigen::Vector2d> offsets = {{-0.268, 0.000},  {0.268, 0.000},   {0.265, -0.185}, {0.077, -0.185},
+                                                  {-0.077, -0.185}, {-0.265, -0.185}, {0.265, 0.185},  {-0.265, 0.185},
+                                                  {-0.077, 0.185},  {0.077, 0.185}};
 
     // backwards
     const Eigen::Isometry2d start = Eigen::Translation2d(-6, -7.1) * Eigen::Rotation2Dd(0.0);
-//    const Eigen::Isometry2d goal = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
+    //    const Eigen::Isometry2d goal = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
 
     // corridor
-//    const Eigen::Isometry2d start = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
+    //    const Eigen::Isometry2d start = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
     const Eigen::Isometry2d goal = Eigen::Translation2d(9, 0) * Eigen::Rotation2Dd(M_PI);
 
     // strafe
-//    const Eigen::Isometry2d start = Eigen::Translation2d(-6, -8) * Eigen::Rotation2Dd(-M_PI / 2);
-//    const Eigen::Isometry2d goal = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(-M_PI / 2);
+    //    const Eigen::Isometry2d start = Eigen::Translation2d(-6, -8) * Eigen::Rotation2Dd(-M_PI / 2);
+    //    const Eigen::Isometry2d goal = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(-M_PI / 2);
 
     const size_t max_iterations = 1e6;
     const astar_planner::CollisionChecker collision_checker(costmap);
@@ -188,8 +174,9 @@ TEST(test_astar, test_hybrid_astar)
 
     t0 = std::chrono::steady_clock::now();
 
-    const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-                start, goal, max_iterations, *costmap.get(), collision_checker, 0.48f, linear_resolution, angular_resolution, allow_backwards, allow_strafe);
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, 0.48f,
+                                   linear_resolution, angular_resolution, allow_backwards, allow_strafe);
 
     std::cout
         << "planner took: "
@@ -226,20 +213,27 @@ TEST(test_astar, test_hybrid_astar)
 
     for (auto node : astar_result.explore_3d)
     {
-        if (!node.second->parent) continue;
+        if (!node.second->parent)
+            continue;
 
-        const int start_x = static_cast<int>(std::round((node.second->state.x - costmap->origin_x) / costmap->resolution));
-        const int start_y = static_cast<int>(std::round((node.second->state.y - costmap->origin_y) / costmap->resolution));
+        const int start_x =
+            static_cast<int>(std::round((node.second->state.x - costmap->origin_x) / costmap->resolution));
+        const int start_y =
+            static_cast<int>(std::round((node.second->state.y - costmap->origin_y) / costmap->resolution));
 
-        const int end_x = static_cast<int>(std::round((node.second->parent->state.x - costmap->origin_x) / costmap->resolution));
-        const int end_y = static_cast<int>(std::round((node.second->parent->state.y - costmap->origin_y) / costmap->resolution));
+        const int end_x =
+            static_cast<int>(std::round((node.second->parent->state.x - costmap->origin_x) / costmap->resolution));
+        const int end_y =
+            static_cast<int>(std::round((node.second->parent->state.y - costmap->origin_y) / costmap->resolution));
 
         cv::line(disp, cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100, 100, 0), 1, cv::LINE_8);
 
-        const Eigen::Vector2d x_end = Eigen::Vector2d(start_x, start_y) +
-                           Eigen::Vector2d(Eigen::Rotation2Dd(node.second->state.theta) * Eigen::Vector2d(4, 0));
-        const Eigen::Vector2d y_end = Eigen::Vector2d(start_x, start_y) +
-                           Eigen::Vector2d(Eigen::Rotation2Dd(node.second->state.theta) * Eigen::Vector2d(0, 4));
+        const Eigen::Vector2d x_end =
+            Eigen::Vector2d(start_x, start_y) +
+            Eigen::Vector2d(Eigen::Rotation2Dd(node.second->state.theta) * Eigen::Vector2d(4, 0));
+        const Eigen::Vector2d y_end =
+            Eigen::Vector2d(start_x, start_y) +
+            Eigen::Vector2d(Eigen::Rotation2Dd(node.second->state.theta) * Eigen::Vector2d(0, 4));
 
         cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 100), 1);
         cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 100, 0), 1);
@@ -248,38 +242,46 @@ TEST(test_astar, test_hybrid_astar)
     if (astar_result.success)
     {
 
-        for (size_t i=0; i < astar_result.path.size(); ++i)
+        for (size_t i = 0; i < astar_result.path.size(); ++i)
         {
             auto& node = astar_result.path[i];
 
             const Eigen::Vector2d position(node->state.x, node->state.y);
             const Eigen::Rotation2Dd rotation(node->state.theta);
 
-            if (i%8 == 0 || i == astar_result.path.size() - 1)
+            if (i % 8 == 0 || i == astar_result.path.size() - 1)
             {
-            for (std::size_t c=0; c < offsets.size(); ++c)
-            {
-                const Eigen::Vector2d cp_pose = position + rotation * offsets[c];
-                const int cx = static_cast<int>(std::round((cp_pose.x() - costmap->origin_x) / costmap->resolution));
-                const int cy = static_cast<int>(std::round((cp_pose.y() - costmap->origin_y) / costmap->resolution));
-                cv::circle(disp, cv::Point(cx, cy), robot_radius / resolution, cv::Scalar(0, 255, 0), 1);
-            }
+                for (std::size_t c = 0; c < offsets.size(); ++c)
+                {
+                    const Eigen::Vector2d cp_pose = position + rotation * offsets[c];
+                    const int cx =
+                        static_cast<int>(std::round((cp_pose.x() - costmap->origin_x) / costmap->resolution));
+                    const int cy =
+                        static_cast<int>(std::round((cp_pose.y() - costmap->origin_y) / costmap->resolution));
+                    cv::circle(disp, cv::Point(cx, cy), robot_radius / resolution, cv::Scalar(0, 255, 0), 1);
+                }
             }
 
-            if (!node->parent) continue;
+            if (!node->parent)
+                continue;
 
             const int start_x = static_cast<int>(std::round((node->state.x - costmap->origin_x) / costmap->resolution));
             const int start_y = static_cast<int>(std::round((node->state.y - costmap->origin_y) / costmap->resolution));
 
-            const int end_x = static_cast<int>(std::round((node->parent->state.x - costmap->origin_x) / costmap->resolution));
-            const int end_y = static_cast<int>(std::round((node->parent->state.y - costmap->origin_y) / costmap->resolution));
+            const int end_x =
+                static_cast<int>(std::round((node->parent->state.x - costmap->origin_x) / costmap->resolution));
+            const int end_y =
+                static_cast<int>(std::round((node->parent->state.y - costmap->origin_y) / costmap->resolution));
 
-            cv::line(disp, cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100, 255, 0), 1, cv::LINE_8);
+            cv::line(disp, cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100, 255, 0), 1,
+                     cv::LINE_8);
 
-            const Eigen::Vector2d x_end = Eigen::Vector2d(start_x, start_y) +
-                               Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(6, 0));
-            const Eigen::Vector2d y_end = Eigen::Vector2d(start_x, start_y) +
-                               Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(0, 6));
+            const Eigen::Vector2d x_end =
+                Eigen::Vector2d(start_x, start_y) +
+                Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(6, 0));
+            const Eigen::Vector2d y_end =
+                Eigen::Vector2d(start_x, start_y) +
+                Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(0, 6));
 
             cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 255), 1);
             cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 255, 0), 1);

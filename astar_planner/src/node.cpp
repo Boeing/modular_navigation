@@ -2,6 +2,4 @@
 
 namespace astar_planner
 {
-
-
 }

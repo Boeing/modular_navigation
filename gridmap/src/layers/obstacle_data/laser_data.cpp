@@ -95,6 +95,10 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
             }
         }
 
+        const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", message->header.stamp);
+        const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
+        const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
+
         const unsigned int cell_raytrace_range = raytrace_range_ / map_data_->dimensions().resolution();
 
         {
@@ -128,7 +132,12 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
                     map_data_->update(ray_end, hit_probability_log_);
                 }
 
-                map_data_->setMinThres(sensor_pt_map);
+                for (auto elem : footprint)
+                {
+                    const Eigen::Array2i index = KeyToIndex(elem);
+                    if (map_data_->dimensions().contains(index))
+                        map_data_->setMinThres(index);
+                }
             }
         }
 

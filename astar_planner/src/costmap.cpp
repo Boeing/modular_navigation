@@ -24,13 +24,15 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
             grid->origin_x = map_data.grid.dimensions().origin().x();
             grid->origin_y = map_data.grid.dimensions().origin().y();
 
-            const cv::Mat raw(size_y, size_x, CV_8U, reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
+            const cv::Mat raw(size_y, size_x, CV_8U,
+                              reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
             grid->obstacle_map = raw.clone();
         }
 
         // dilate robot radius
         const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / grid->resolution);
-        auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+        auto ellipse =
+            cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(grid->obstacle_map, dilated, ellipse);
     }
 
@@ -45,5 +47,4 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
 
     return grid;
 }
-
 }

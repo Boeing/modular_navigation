@@ -21,19 +21,21 @@ class ObstacleLayer : public Layer
     ObstacleLayer();
     virtual ~ObstacleLayer();
 
-    virtual void draw(OccupancyGrid& grid) override;
-    virtual void draw(OccupancyGrid& grid, const AABB& bb) override;
+    virtual bool draw(OccupancyGrid& grid) override;
+    virtual bool draw(OccupancyGrid& grid, const AABB& bb) override;
 
-    virtual void update(OccupancyGrid& grid) override;
-    virtual void update(OccupancyGrid& grid, const AABB& bb) override;
+    virtual bool update(OccupancyGrid& grid) override;
+    virtual bool update(OccupancyGrid& grid, const AABB& bb) override;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
 
-    virtual void clear() override;
-    virtual void clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) override;
+    virtual bool clear() override;
+    virtual bool clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) override;
 
   private:
+    bool isDataOk() const;
+
     std::shared_ptr<ProbabilityGrid> probability_grid_;
 
     pluginlib::ClassLoader<gridmap::DataSource> ds_loader_;

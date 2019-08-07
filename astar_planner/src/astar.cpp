@@ -21,16 +21,12 @@ double heuristic2d(const State2D& s1, const State2D& s2)
 {
     const double dx = s2.x - s1.x;
     const double dy = s2.y - s1.y;
-    return std::sqrt(dx*dx + dy*dy);
+    return std::sqrt(dx * dx + dy * dy);
+}
 }
 
-}
-
-ShortestPath2D shortestPath2D(const State2D& start,
-                              const State2D& goal,
-                              Explore2DCache& explore_cache,
-                              const Costmap& costmap,
-                              const float closest_distance)
+ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore2DCache& explore_cache,
+                              const Costmap& costmap, const float closest_distance)
 {
     ROS_ASSERT(start.x >= 0);
     ROS_ASSERT(start.x < costmap.width);
@@ -67,7 +63,8 @@ ShortestPath2D shortestPath2D(const State2D& start,
         return {true, explore_cache.explore_2d[start_index], 0};
     }
 
-    std::vector<PriorityQueue2D::handle_type> handles(explore_cache.explore_2d.size(), PriorityQueue2D::handle_type{nullptr});
+    std::vector<PriorityQueue2D::handle_type> handles(explore_cache.explore_2d.size(),
+                                                      PriorityQueue2D::handle_type{nullptr});
     auto open_set = new PriorityQueue2D();
 
     // re-calculate the heuristic
@@ -82,7 +79,8 @@ ShortestPath2D shortestPath2D(const State2D& start,
     else
     {
         // start exploring from goal state
-        explore_cache.explore_2d[goal_index]->cost_to_go = heuristic2d(explore_cache.explore_2d[goal_index]->state, start);
+        explore_cache.explore_2d[goal_index]->cost_to_go =
+            heuristic2d(explore_cache.explore_2d[goal_index]->state, start);
         handles[goal_index] = open_set->push(explore_cache.explore_2d[goal_index]);
     }
 
@@ -122,12 +120,9 @@ ShortestPath2D shortestPath2D(const State2D& start,
             // Allocate if necessary
             if (!new_node)
             {
-                explore_cache.explore_2d[new_index] = new Node2D{
-                        new_state,
-                        current_node,
-                        false,
-                        std::numeric_limits<double>::max(),
-                        std::numeric_limits<double>::max()};
+                explore_cache.explore_2d[new_index] =
+                    new Node2D{new_state, current_node, false, std::numeric_limits<double>::max(),
+                               std::numeric_limits<double>::max()};
                 new_node = explore_cache.explore_2d[new_index];
             }
             else if (new_node->visited)
@@ -163,10 +158,7 @@ ShortestPath2D shortestPath2D(const State2D& start,
     return {solution_found, explore_cache.explore_2d[start_index], itr};
 }
 
-double updateH(const Node3D& state,
-               const State3D& goal,
-               Explore2DCache& explore_cache,
-               const Costmap& costmap,
+double updateH(const Node3D& state, const State3D& goal, Explore2DCache& explore_cache, const Costmap& costmap,
                const float conservative_radius)
 {
     // Calculate start and end map coordinates
@@ -179,8 +171,10 @@ double updateH(const Node3D& state,
     const State2D goal_state{goal_x, goal_y};
 
     // shortest path 2d with obstacles
-    auto ret = shortestPath2D(start_state, goal_state, explore_cache, costmap, conservative_radius - costmap.inflation_radius);
-    const double shortest_2d = ret.success ? ret.node->cost_so_far * costmap.resolution : std::numeric_limits<double>::max();
+    auto ret =
+        shortestPath2D(start_state, goal_state, explore_cache, costmap, conservative_radius - costmap.inflation_radius);
+    const double shortest_2d =
+        ret.success ? ret.node->cost_so_far * costmap.resolution : std::numeric_limits<double>::max();
 
     // want to face along the shortest path
     double fwd_angle = 0;
@@ -212,22 +206,18 @@ double updateH(const Node3D& state,
     return 1.2 * (shortest_2d + fwd_angle + 0.1 * face_goal_angle);
 }
 
-PathResult hybridAStar(const Eigen::Isometry2d& start,
-                       const Eigen::Isometry2d& goal,
-                       const size_t max_iterations,
-                       const Costmap& costmap,
-                       const CollisionChecker& collision_checker,
-                       const float conservative_radius,
-                       const double linear_resolution,
-                       const double angular_resolution,
-                       const bool backwards,
-                       const bool strafe)
+PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
+                       const Costmap& costmap, const CollisionChecker& collision_checker,
+                       const float conservative_radius, const double linear_resolution, const double angular_resolution,
+                       const bool backwards, const bool strafe)
 {
     PathResult result(static_cast<std::size_t>(costmap.width), static_cast<std::size_t>(costmap.height));
     result.success = false;
 
-    const State3D start_state{start.translation().x(), start.translation().y(), Eigen::Rotation2Dd(start.linear()).smallestAngle()};
-    const State3D goal_state{goal.translation().x(), goal.translation().y(), Eigen::Rotation2Dd(goal.linear()).smallestAngle()};
+    const State3D start_state{start.translation().x(), start.translation().y(),
+                              Eigen::Rotation2Dd(start.linear()).smallestAngle()};
+    const State3D goal_state{goal.translation().x(), goal.translation().y(),
+                             Eigen::Rotation2Dd(goal.linear()).smallestAngle()};
 
     if (!collision_checker.isValid(start_state))
     {
@@ -258,27 +248,27 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
     handles[start_key] = open_set.push(start_node);
 
     std::vector<std::array<double, 4>> normal_directions = {
-        {linear_resolution, 0, 0, linear_resolution}, // forwards
-        {0, 0, angular_resolution, 2.0 * angular_resolution}, // rotate left
-        {0, 0, -angular_resolution, 2.0 * angular_resolution}, // rotate right
+        {linear_resolution, 0, 0, linear_resolution},           // forwards
+        {0, 0, angular_resolution, 2.0 * angular_resolution},   // rotate left
+        {0, 0, -angular_resolution, 2.0 * angular_resolution},  // rotate right
     };
 
     std::vector<std::array<double, 4>> start_directions = normal_directions;
 
-    start_directions.push_back({-linear_resolution, 0, 0, 1.5 * linear_resolution}); // backwards
+    start_directions.push_back({-linear_resolution, 0, 0, 1.5 * linear_resolution});  // backwards
 
     if (backwards)
     {
-        normal_directions.push_back({-linear_resolution, 0, 0, 1.5 * linear_resolution}); // backwards
+        normal_directions.push_back({-linear_resolution, 0, 0, 1.5 * linear_resolution});  // backwards
     }
 
     if (strafe)
     {
-        normal_directions.push_back({0, linear_resolution, 0, 4.0 * linear_resolution}); // strafe left
-        normal_directions.push_back({0, -linear_resolution, 0, 4.0 * linear_resolution}); // strafe right)
+        normal_directions.push_back({0, linear_resolution, 0, 4.0 * linear_resolution});   // strafe left
+        normal_directions.push_back({0, -linear_resolution, 0, 4.0 * linear_resolution});  // strafe right)
 
-        start_directions.push_back({0, linear_resolution, 0, 4.0 * linear_resolution}); // strafe left
-        start_directions.push_back({0, -linear_resolution, 0, 4.0 * linear_resolution}); // strafe right)
+        start_directions.push_back({0, linear_resolution, 0, 4.0 * linear_resolution});   // strafe left
+        start_directions.push_back({0, -linear_resolution, 0, 4.0 * linear_resolution});  // strafe right)
     }
 
     result.iterations = 0;
@@ -299,15 +289,10 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
             break;
         }
 
-        if (std::abs(current_node->state.x - goal_state.x) <= linear_resolution
-                && std::abs(current_node->state.y - goal_state.y) <= linear_resolution)
+        if (std::abs(current_node->state.x - goal_state.x) <= linear_resolution &&
+            std::abs(current_node->state.y - goal_state.y) <= linear_resolution)
         {
-            auto alloc = new Node3D{
-                    goal_state,
-                    current_node,
-                    false,
-                    current_node->cost_so_far,
-                    0};
+            auto alloc = new Node3D{goal_state, current_node, false, current_node->cost_so_far, 0};
             result.explore_3d.insert(std::make_pair(goal_key, alloc));
             break;
         }
@@ -318,8 +303,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
 
         // Allow more motion when near the start
         const std::vector<std::array<double, 4>>* directions;
-        if (std::abs(current_node->state.x - start_state.x) <= 2.0
-                && std::abs(current_node->state.y - start_state.y) <= 2.0)
+        if (std::abs(current_node->state.x - start_state.x) <= 2.0 &&
+            std::abs(current_node->state.y - start_state.y) <= 2.0)
         {
             directions = &start_directions;
         }
@@ -331,7 +316,9 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
         for (std::size_t i = 0; i < directions->size(); ++i)
         {
             State3D new_state = current_node->state;
-            const Eigen::Vector2d new_position = step_mult * (Eigen::Rotation2Dd(current_node->state.theta) * Eigen::Vector2d((*directions)[i][0], (*directions)[i][1]));
+            const Eigen::Vector2d new_position =
+                step_mult * (Eigen::Rotation2Dd(current_node->state.theta) *
+                             Eigen::Vector2d((*directions)[i][0], (*directions)[i][1]));
             new_state.x += new_position.x();
             new_state.y += new_position.y();
             new_state.theta = wrapAngle(current_node->state.theta + step_mult * (*directions)[i][2]);
@@ -349,12 +336,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
             // Allocate if necessary
             if (new_node == result.explore_3d.end())
             {
-                auto alloc = new Node3D{
-                        new_state,
-                        current_node,
-                        false,
-                        std::numeric_limits<double>::max(),
-                        std::numeric_limits<double>::max()};
+                auto alloc = new Node3D{new_state, current_node, false, std::numeric_limits<double>::max(),
+                                        std::numeric_limits<double>::max()};
                 new_node = result.explore_3d.insert(std::make_pair(new_key, alloc)).first;
             }
             else if (new_node->second->visited)
@@ -377,7 +360,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
             {
                 new_node->second->state = new_state;
                 new_node->second->cost_so_far = cost_so_far;
-                new_node->second->cost_to_go = updateH(*new_node->second, goal_state, result.explore_cache, costmap, conservative_radius);
+                new_node->second->cost_to_go =
+                    updateH(*new_node->second, goal_state, result.explore_cache, costmap, conservative_radius);
                 new_node->second->parent = current_node;
 
                 auto it = handles.find(new_key);
@@ -409,5 +393,4 @@ PathResult hybridAStar(const Eigen::Isometry2d& start,
 
     return result;
 }
-
 }

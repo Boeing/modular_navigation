@@ -103,9 +103,9 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
     // Update XY sample bounds
     //
     const double search_window =
-         std::max(map_data_->grid.dimensions().size().x() * map_data_->grid.dimensions().resolution(),
-                                                        map_data_->grid.dimensions().size().y() *
-                                                        map_data_->grid.dimensions().resolution()) / 2.0;
+        std::max(map_data_->grid.dimensions().size().x() * map_data_->grid.dimensions().resolution(),
+                 map_data_->grid.dimensions().size().y() * map_data_->grid.dimensions().resolution()) /
+        2.0;
 
     ompl::base::RealVectorBounds bounds(2);
     bounds.setLow(0, -search_window);

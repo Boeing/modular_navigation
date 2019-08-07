@@ -12,33 +12,37 @@ LayeredMap::LayeredMap(const std::shared_ptr<BaseMapLayer>& base_map_layer,
 }
 
 
-void LayeredMap::update()
+bool LayeredMap::update()
 {
     ROS_ASSERT(map_data_);
 
     // copy from base map
-    base_map_layer_->draw(map_data_->grid);
+    bool success = base_map_layer_->draw(map_data_->grid);
 
     // update from layers
     for (const auto& layer : layers_)
     {
-        layer->update(map_data_->grid);
+        success &= layer->update(map_data_->grid);
     }
+
+    return success;
 }
 
-void LayeredMap::update(const AABB& bb)
+bool LayeredMap::update(const AABB& bb)
 {
     ROS_ASSERT(map_data_);
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= map_data_->grid.dimensions().size()).all());
 
     // copy from base map
-    base_map_layer_->draw(map_data_->grid, bb);
+    bool success = base_map_layer_->draw(map_data_->grid, bb);
 
     // update from layers
     for (const auto& layer : layers_)
     {
-        layer->update(map_data_->grid, bb);
+        success &= layer->update(map_data_->grid, bb);
     }
+
+    return success;
 }
 
 void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
@@ -46,7 +50,7 @@ void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
     ROS_ASSERT(map_data_);
 
     const Eigen::Vector2i cell_index = map_data_->grid.dimensions().getCellIndex(pose);
-    const int cell_radius = radius / map_data_->grid.dimensions().resolution();
+    const int cell_radius = static_cast<int>(radius / map_data_->grid.dimensions().resolution());
 
     // update from layers
     for (const auto& layer : layers_)

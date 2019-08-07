@@ -91,18 +91,6 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCV_LIBRARIES}
 )
 
-add_executable(${PROJECT_NAME}_test
-    src/main.cpp
-)
-
-target_link_libraries(${PROJECT_NAME}_test
-    ${PROJECT_NAME}
-)
-
-add_dependencies(${PROJECT_NAME}_test
-    ${PROJECT_NAME}
-)
-
 if(CATKIN_ENABLE_TESTING)
     find_package(rosunit REQUIRED)
 
@@ -114,7 +102,7 @@ if(CATKIN_ENABLE_TESTING)
 endif()
 
 install(TARGETS
-    ${PROJECT_NAME} ${PROJECT_NAME}_test
+    ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
