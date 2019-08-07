@@ -15,11 +15,8 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
 void updateDistances(Node& node, const DistanceField& distance_field, const double max_distance);
 void updateDistances(Band& path, const DistanceField& distance_field, const double max_distance);
 
-void refine(Band& path, const DistanceField& distance_field,
-            const double min_distance,
-            const double max_distance,
-            const double min_overlap,
-            const int max_nodes);
+void refine(Band& path, const DistanceField& distance_field, const double min_distance, const double max_distance,
+            const double min_overlap, const int max_nodes);
 
 Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
                       const double external_force_gain, const double rotation_factor, const bool reverse_direction,

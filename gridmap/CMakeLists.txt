@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
     cmake_modules
     cv_bridge
     geometry_msgs
+    hd_map
     laser_geometry
     map_msgs
     message_filters
@@ -21,7 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_ros
     tf2_sensor_msgs
     visualization_msgs
-    hd_map
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -48,6 +48,7 @@ catkin_package(
     CATKIN_DEPENDS
         cv_bridge
         geometry_msgs
+        hd_map
         laser_geometry
         map_msgs
         message_filters
@@ -60,7 +61,6 @@ catkin_package(
         tf2_ros
         tf2_sensor_msgs
         visualization_msgs
-        hd_map
     DEPENDS
         Boost
         EIGEN3

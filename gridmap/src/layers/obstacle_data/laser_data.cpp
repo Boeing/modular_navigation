@@ -13,6 +13,8 @@ namespace gridmap
 {
 
 LaserData::LaserData()
+    : hit_probability_log_(0), miss_probability_log_(0), min_obstacle_height_(0), max_obstacle_height_(0),
+      obstacle_range_(0), raytrace_range_(0), sub_sample_(0), sub_sample_count_(0)
 {
 }
 
@@ -129,6 +131,8 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
                 map_data_->setMinThres(sensor_pt_map);
             }
         }
+
+        setLastUpdatedTime(message->header.stamp);
     }
     else
         ++sub_sample_count_;

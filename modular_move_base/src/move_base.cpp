@@ -150,7 +150,7 @@ MoveBase::MoveBase()
       path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 0.5)),
       trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
       controller_frequency_(get_param_with_default_warn("~controller_frequency", 10.0)),
-      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.90)),
+      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.40)),
       localisation_timeout_(get_param_with_default_warn("~localisation_timeout", 4.0))
 {
     ROS_INFO("Starting");
@@ -353,7 +353,7 @@ void MoveBase::executeGoal(GoalHandle& goal)
 void MoveBase::goalCallback(GoalHandle goal)
 {
     ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x
-                                      << ", " << goal.getGoal()->target_pose.pose.position.x << ")");
+                                      << ", " << goal.getGoal()->target_pose.pose.position.y << ")");
     {
         std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
         if (!lock.owns_lock())
@@ -395,7 +395,7 @@ void MoveBase::cancelCallback(GoalHandle goal)
     }
 }
 
-std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry2d& goal, const std::string frame_id)
+std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry2d& goal, const std::string& frame_id)
 {
     try
     {
@@ -421,7 +421,7 @@ std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry
     return nullptr;
 }
 
-void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string frame_id)
+void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string& frame_id)
 {
     ros::WallRate rate(path_planner_frequency_);
 
@@ -477,9 +477,8 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             continue;
         }
 
-        // TODO - if transformed goal has changed (gt res) then force a path swap
-
         navigation_interface::PathPlanner::Result result;
+        const auto now = ros::SteadyTime::now();
         {
             const auto t0 = std::chrono::steady_clock::now();
             result = path_planner_->plan(global_robot_pose, *transformed_goal);
@@ -496,7 +495,7 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             if (current_path_)
             {
                 // trim the current path to the robot pose
-                navigation_interface::Path path = *current_path_;
+                navigation_interface::Path path = current_path_->path;
                 if (!path.nodes.empty())
                 {
                     const auto closest = path.closestSegment(global_robot_pose);
@@ -507,8 +506,31 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
 
                 // get the current path cost
                 const double cost = path_planner_->cost(path);
+                if (cost < std::numeric_limits<double>::max())
+                {
+                    current_path_->last_successful_time = now;
+                    current_path_->last_successful_cost = cost;
+                }
 
-                if (result.path.length() > 1.0 && result.cost < path_swap_fraction_ * cost)
+                const double time_since_successful_recalc = (now - current_path_->last_successful_time).toSec();
+
+                // if transformed goal has changed (gt res) then force a path swap
+                const double allowed_translation = layered_map_->map()->grid.dimensions().resolution() * 4;
+                const double allowed_rotation = 0.1;
+                const double goal_translation =
+                    (transformed_goal->translation() - current_path_->goal.translation()).norm();
+                const double goal_rotation =
+                    std::abs(Eigen::Rotation2Dd(transformed_goal->linear().inverse() * current_path_->goal.linear())
+                                 .smallestAngle());
+                const bool goal_moved = goal_translation > allowed_translation || goal_rotation > allowed_rotation;
+
+                if (goal_moved)
+                {
+                    ROS_INFO_STREAM("GOAL MOVED: new path cost: " << result.cost << " old path cost: " << cost);
+                    update = true;
+                }
+                else if (time_since_successful_recalc > path_persistence_time_ && result.path.length() > 1.0 &&
+                         result.cost < path_swap_fraction_ * cost)
                 {
                     ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
@@ -529,7 +551,8 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             if (update)
             {
                 result.path.id = uuid();
-                current_path_.reset(new navigation_interface::Path(result.path));
+                current_path_.reset(
+                    new TrackingPath{*transformed_goal, now, result.cost, now, result.cost, result.path});
 
                 // publish
                 nav_msgs::Path gui_path;
@@ -584,9 +607,9 @@ void MoveBase::trajectoryPlannerThread()
             if (current_path_)
             {
                 const auto p = trajectory_planner_->pathId();
-                if (!p || current_path_->id != p.get())
+                if (!p || current_path_->path.id != p.get())
                 {
-                    trajectory_planner_->setPath(*current_path_);
+                    trajectory_planner_->setPath(current_path_->path);
                 }
                 has_path = true;
             }
@@ -631,7 +654,20 @@ void MoveBase::trajectoryPlannerThread()
         // update costmap around robot
         const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
-        const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+
+        const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
+        const int top_left_y = std::max(0, robot_map.y() - size_y / 2);
+
+        const int actual_size_x =
+            std::min(layered_map_->map()->grid.dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
+        const int actual_size_y =
+            std::min(layered_map_->map()->grid.dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
+
+        ROS_ASSERT((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
+        ROS_ASSERT((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
+
+        const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
+
         {
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             layered_map_->update(roi);
@@ -761,7 +797,20 @@ void MoveBase::controllerThread()
         // update costmap around robot
         const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
-        const gridmap::AABB roi{{robot_map.x() - size_x / 2, robot_map.y() - size_y / 2}, {size_x, size_y}};
+
+        const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
+        const int top_left_y = std::max(0, robot_map.y() - size_y / 2);
+
+        const int actual_size_x =
+            std::min(layered_map_->map()->grid.dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
+        const int actual_size_y =
+            std::min(layered_map_->map()->grid.dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
+
+        ROS_ASSERT((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
+        ROS_ASSERT((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
+
+        const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
+
         {
             layered_map_->update(roi);
         }

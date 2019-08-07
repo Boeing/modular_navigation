@@ -27,9 +27,21 @@ class ProbabilityGrid : public Grid2D<double>
   public:
     ProbabilityGrid(const MapDimensions& map_dims, const double clamping_thres_min = 0.1192,
                     const double clamping_thres_max = 0.971, const double occ_prob_thres = 0.8)
-        : Grid2D<double>(map_dims), clamping_thres_min_log_(logodds(clamping_thres_min)),
-          clamping_thres_max_log_(logodds(clamping_thres_max)), occ_prob_thres_log_(logodds(occ_prob_thres))
+        : Grid2D<double>(map_dims)
     {
+        ROS_ASSERT(clamping_thres_min > 0.);
+        ROS_ASSERT(clamping_thres_min > 1.);
+
+        ROS_ASSERT(clamping_thres_max > 0.);
+        ROS_ASSERT(clamping_thres_max < 1.);
+
+        ROS_ASSERT(occ_prob_thres > 0.);
+        ROS_ASSERT(occ_prob_thres < 1.);
+
+        clamping_thres_min_log_ = logodds(clamping_thres_min);
+        clamping_thres_max_log_ = logodds(clamping_thres_max);
+        occ_prob_thres_log_ = logodds(occ_prob_thres);
+
         ROS_INFO_STREAM("clamping_thres_min_log_: " << clamping_thres_min_log_);
         ROS_INFO_STREAM("clamping_thres_max_log_: " << clamping_thres_max_log_);
         ROS_INFO_STREAM("occ_prob_thres_log_: " << occ_prob_thres_log_);

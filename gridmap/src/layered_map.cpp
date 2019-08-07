@@ -5,7 +5,7 @@
 namespace gridmap
 {
 
-LayeredMap::LayeredMap(const std::shared_ptr<BaseMapLayer> base_map_layer,
+LayeredMap::LayeredMap(const std::shared_ptr<BaseMapLayer>& base_map_layer,
                        const std::vector<std::shared_ptr<Layer>>& layers)
     : base_map_layer_(base_map_layer), layers_(layers)
 {
@@ -14,6 +14,8 @@ LayeredMap::LayeredMap(const std::shared_ptr<BaseMapLayer> base_map_layer,
 
 void LayeredMap::update()
 {
+    ROS_ASSERT(map_data_);
+
     // copy from base map
     base_map_layer_->draw(map_data_->grid);
 
@@ -26,6 +28,9 @@ void LayeredMap::update()
 
 void LayeredMap::update(const AABB& bb)
 {
+    ROS_ASSERT(map_data_);
+    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= map_data_->grid.dimensions().size()).all());
+
     // copy from base map
     base_map_layer_->draw(map_data_->grid, bb);
 
@@ -38,6 +43,8 @@ void LayeredMap::update(const AABB& bb)
 
 void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
 {
+    ROS_ASSERT(map_data_);
+
     const Eigen::Vector2i cell_index = map_data_->grid.dimensions().getCellIndex(pose);
     const int cell_radius = radius / map_data_->grid.dimensions().resolution();
 

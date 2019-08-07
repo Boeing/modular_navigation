@@ -4,6 +4,8 @@
         </class>
         <class type="gridmap::LaserData" base_class_type="gridmap::DataSource">
         </class>
+        <class type="gridmap::PointCloudData" base_class_type="gridmap::DataSource">
+        </class>
         <class type="gridmap::ObstacleLayer" base_class_type="gridmap::Layer">
         </class>
         <class type="gridmap::BaseMapLayer" base_class_type="gridmap::Layer">

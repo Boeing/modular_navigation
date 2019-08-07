@@ -5,7 +5,7 @@
 
     <!-- Gazebo Arguments -->
     <arg name="gui" default="false"/>
-    <arg name="world_name" default="$(find modular_move_base)/test/test.world"/>
+    <arg name="world_name" default="$(find gridmap)/test/bld1_south_prep_booth.world"/>
     <arg name="extra_gazebo_args" default=""/>
     <arg name="debug" default="false"/>
     <arg name="physics" default="ode"/>
@@ -48,7 +48,7 @@
         output="screen">
     </node>
 
-    <node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />
+    <!--<node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />-->
 
     <!-- Move Base -->
     <node pkg="modular_move_base" type="modular_move_base" respawn="true" name="move_base" launch-prefix="xterm -e gdb --args">

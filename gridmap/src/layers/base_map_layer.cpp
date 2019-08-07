@@ -83,10 +83,7 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
             const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
 
             std::vector<Eigen::Array2i> raster;
-            auto append_raster = [&raster](const int x, const int y)
-            {
-                raster.push_back({x, y});
-            };
+            auto append_raster = [&raster](const int x, const int y) { raster.push_back({x, y}); };
 
             rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
 

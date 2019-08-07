@@ -4,6 +4,8 @@
 #include <ros/ros.h>
 #include <string>
 
+#include <Eigen/Geometry>
+
 namespace navigation_interface
 {
 
@@ -92,6 +94,35 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
     {
         return default_val;
     }
+}
+
+inline std::vector<Eigen::Vector2d> get_point_list(XmlRpc::XmlRpcValue parameters, const std::string& param_name)
+{
+    std::vector<Eigen::Vector2d> result;
+    if (parameters.hasMember(param_name))
+    {
+        XmlRpc::XmlRpcValue& value = parameters[param_name];
+        if (value.getType() != XmlRpc::XmlRpcValue::TypeArray)
+        {
+            throw std::runtime_error("parameters have incorrect type, expects a TypeArray");
+        }
+        for (int32_t i = 0; i < value.size(); ++i)
+        {
+            if (value[i].getType() != XmlRpc::XmlRpcValue::TypeArray)
+            {
+                throw std::runtime_error("element have incorrect type, expects a TypeArray");
+            }
+            else if (value[i].size() == 2)
+            {
+                throw std::runtime_error("element has incorrect size, expects a TypeArray");
+            }
+            else
+            {
+                result.push_back({static_cast<double>(value[i][0]), static_cast<double>(value[i][1])});
+            }
+        }
+    }
+    return result;
 }
 }
 

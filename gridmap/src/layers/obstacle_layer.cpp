@@ -39,7 +39,9 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
                 std::shared_ptr<gridmap::DataSource> plugin_ptr =
                     std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
                 XmlRpc::XmlRpcValue params = parameters[pname];
-                plugin_ptr->initialize(pname, global_frame, params, tf_buffer);
+                const double maximum_sensor_delay = get_config_with_default_warn<double>(
+                    parameters, "maximum_sensor_delay", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
+                plugin_ptr->initialize(pname, global_frame, params, tf_buffer, maximum_sensor_delay);
                 plugin_ptrs[pname] = plugin_ptr;
             }
             catch (const pluginlib::PluginlibException& e)
@@ -84,6 +86,8 @@ void ObstacleLayer::draw(OccupancyGrid& grid)
 
 void ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
 {
+    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -112,6 +116,8 @@ void ObstacleLayer::update(OccupancyGrid& grid)
 
 void ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
 {
+    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -128,18 +134,19 @@ void ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
 
 void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    clamping_thres_min_ =
-        get_config_with_default_warn<double>(parameters, "clamping_thres_min", 0.1192, XmlRpc::XmlRpcValue::TypeDouble);
-    clamping_thres_max_ =
-        get_config_with_default_warn<double>(parameters, "clamping_thres_max", 0.971, XmlRpc::XmlRpcValue::TypeDouble);
-    occ_prob_thres_ =
-        get_config_with_default_warn<double>(parameters, "occ_prob_thres", 0.8, XmlRpc::XmlRpcValue::TypeDouble);
+    clamping_thres_min_ = get_config_with_default_warn<double>(parameters, "clamping_thres_min", clamping_thres_min_,
+                                                               XmlRpc::XmlRpcValue::TypeDouble);
+    clamping_thres_max_ = get_config_with_default_warn<double>(parameters, "clamping_thres_max", clamping_thres_max_,
+                                                               XmlRpc::XmlRpcValue::TypeDouble);
+    occ_prob_thres_ = get_config_with_default_warn<double>(parameters, "occ_prob_thres", occ_prob_thres_,
+                                                           XmlRpc::XmlRpcValue::TypeDouble);
 
-    time_decay_ = get_config_with_default_warn<bool>(parameters, "time_decay", true, XmlRpc::XmlRpcValue::TypeBoolean);
+    time_decay_ =
+        get_config_with_default_warn<bool>(parameters, "time_decay", time_decay_, XmlRpc::XmlRpcValue::TypeBoolean);
     if (time_decay_)
     {
-        time_decay_frequency_ = get_config_with_default_warn<double>(parameters, "time_decay_frequency", 1.0 / 10.0,
-                                                                     XmlRpc::XmlRpcValue::TypeDouble);
+        time_decay_frequency_ = get_config_with_default_warn<double>(
+            parameters, "time_decay_frequency", time_decay_frequency_, XmlRpc::XmlRpcValue::TypeDouble);
         ROS_ASSERT(time_decay_frequency_ > 0);
         alpha_decay_ = get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
                                                             XmlRpc::XmlRpcValue::TypeDouble);
@@ -147,11 +154,12 @@ void ObstacleLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
     data_sources_ = loadDataSources(parameters, globalFrame(), ds_loader_, tfBuffer());
 
-    debug_viz_ = get_config_with_default_warn<bool>(parameters, "debug_viz", true, XmlRpc::XmlRpcValue::TypeBoolean);
+    debug_viz_ =
+        get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
     if (debug_viz_)
     {
-        debug_viz_rate_ =
-            get_config_with_default_warn<double>(parameters, "debug_viz_rate", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
+        debug_viz_rate_ = get_config_with_default_warn<double>(parameters, "debug_viz_rate", debug_viz_rate_,
+                                                               XmlRpc::XmlRpcValue::TypeDouble);
         ROS_ASSERT(debug_viz_rate_ > 0);
     }
 }
@@ -254,6 +262,9 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
                 auto lock = probability_grid_->getLock();
 
+                ROS_ASSERT((top_left_x + actual_size_x) <= probability_grid_->dimensions().size().x());
+                ROS_ASSERT((top_left_y + actual_size_y) <= probability_grid_->dimensions().size().y());
+
                 int roi_index = 0;
                 const int y_size = top_left_y + actual_size_y;
                 for (int y = top_left_y; y < y_size; y++)
@@ -262,6 +273,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                     const int index_end = index_start + actual_size_x;
                     for (int index = index_start; index < index_end; ++index)
                     {
+                        ROS_ASSERT(index < probability_grid_->cells().size());
                         grid.data[roi_index] =
                             static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
                         ++roi_index;

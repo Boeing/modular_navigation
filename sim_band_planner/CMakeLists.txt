@@ -10,7 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
     navigation_interface
     pluginlib
     roscpp
-    rviz_visual_tools
+    visualization_msgs
     tf2_geometry_msgs
     tf2_ros
     rviz_visual_tools
@@ -35,6 +35,7 @@ catkin_package(
         navigation_interface
         pluginlib
         roscpp
+        visualization_msgs
         tf2_geometry_msgs
         tf2_ros
     INCLUDE_DIRS

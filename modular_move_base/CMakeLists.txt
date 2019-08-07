@@ -6,8 +6,8 @@ add_definitions(-std=c++14)
 find_package(catkin REQUIRED COMPONENTS
     actionlib
     cmake_modules
-    gridmap
     geometry_msgs
+    gridmap
     map_manager
     message_generation
     move_base_msgs
@@ -15,10 +15,10 @@ find_package(catkin REQUIRED COMPONENTS
     navigation_interface
     pluginlib
     roscpp
+    rviz_visual_tools
     std_srvs
     tf2_geometry_msgs
     tf2_ros
-    rviz_visual_tools
 )
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})

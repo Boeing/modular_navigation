@@ -80,6 +80,21 @@ struct ControlTrajectory
     navigation_interface::Trajectory trajectory;
 };
 
+struct TrackingPath
+{
+    // transformed goal in map frame
+    Eigen::Isometry2d goal;
+
+    ros::SteadyTime start_time;
+    double start_cost;
+
+    // re-calculation of cost
+    ros::SteadyTime last_successful_time;
+    double last_successful_cost;
+
+    navigation_interface::Path path;
+};
+
 class MoveBase
 {
   public:
@@ -97,9 +112,9 @@ class MoveBase
     void goalCallback(GoalHandle goal);
     void cancelCallback(GoalHandle goal);
 
-    std::unique_ptr<Eigen::Isometry2d> transformGoal(const Eigen::Isometry2d& goal, const std::string frame_id);
+    std::unique_ptr<Eigen::Isometry2d> transformGoal(const Eigen::Isometry2d& goal, const std::string& frame_id);
 
-    void pathPlannerThread(const Eigen::Isometry2d& goal, const std::string frame_id);
+    void pathPlannerThread(const Eigen::Isometry2d& goal, const std::string& frame_id);
     void trajectoryPlannerThread();
     void controllerThread();
 
@@ -145,7 +160,7 @@ class MoveBase
 
     std::atomic<bool> controller_done_;
 
-    std::unique_ptr<navigation_interface::Path> current_path_;
+    std::unique_ptr<TrackingPath> current_path_;
     std::unique_ptr<ControlTrajectory> current_trajectory_;
 
     std::mutex path_mutex_;
@@ -163,6 +178,7 @@ class MoveBase
     const double controller_frequency_;
     const double path_swap_fraction_;
     const double localisation_timeout_;
+    const double path_persistence_time_ = 6.0;
 
     std::mutex robot_state_mutex_;
     std::condition_variable robot_state_conditional_;

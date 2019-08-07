@@ -19,13 +19,14 @@ class DataSource
     virtual ~DataSource() = default;
 
     void initialize(const std::string& name, const std::string& global_frame, const XmlRpc::XmlRpcValue& parameters,
-                    const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+                    const std::shared_ptr<tf2_ros::Buffer>& tf_buffer, const double maximum_sensor_delay)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         name_ = name;
         global_frame_ = global_frame;
         map_data_ = nullptr;
         tf_buffer_ = tf_buffer;
+        maximum_sensor_delay_ = maximum_sensor_delay;
         onInitialize(parameters);
     }
 
@@ -41,16 +42,38 @@ class DataSource
         return name_;
     }
 
+    struct DataStatus
+    {
+        bool ok;
+        double seconds_since_update;
+    };
+
+    DataStatus status() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const double delay = (ros::Time::now() - last_updated_).toSec();
+        return {delay < maximum_sensor_delay_, delay};
+    }
+
   protected:
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
     virtual void onMapDataChanged() = 0;
 
-    std::mutex mutex_;
+    void setLastUpdatedTime(const ros::Time& time)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        last_updated_ = time;
+    }
+
+    mutable std::mutex mutex_;
 
     std::string name_;
     std::string global_frame_;
     std::shared_ptr<ProbabilityGrid> map_data_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+
+    ros::Time last_updated_;
+    double maximum_sensor_delay_;
 };
 }
 

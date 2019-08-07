@@ -81,13 +81,11 @@ template <class ActionType>
 inline void rasterPolygonFill(ActionType at, const std::vector<Eigen::Array2i>& polygon, const int min_x,
                               const int max_x, const int min_y, const int max_y)
 {
-    int n_nodes;
-    std::size_t j;
     std::vector<int> nodes_x(polygon.size() + 1);
     for (int cell_y = min_y; cell_y < max_y; ++cell_y)
     {
-        n_nodes = 0;
-        j = polygon.size() - 1;
+        int n_nodes = 0;
+        std::size_t j = polygon.size() - 1;
         for (std::size_t i = 0; i < polygon.size(); i++)
         {
             if ((polygon[i].y() < cell_y && polygon[j].y() >= cell_y) ||

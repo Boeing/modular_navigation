@@ -20,6 +20,8 @@ namespace gridmap
 {
 
 RangeData::RangeData()
+    : hit_probability_(0), miss_probability_(0), std_deviation_(0), max_range_(0), obstacle_range_(0),
+      raytrace_range_(0), sub_sample_(0), sub_sample_count_(0)
 {
 }
 
@@ -69,8 +71,6 @@ void RangeData::onMapDataChanged()
     const int raytrace_cells = raytrace_range_ / map_data_->dimensions().resolution();
     const int max_range_cells = max_range_ / map_data_->dimensions().resolution() + 1;
 
-    std::ofstream csv(name_ + "_data.csv");
-
     log_cost_lookup_.resize(max_range_cells);
     for (int c = 0; c < max_range_cells; ++c)
     {
@@ -97,14 +97,8 @@ void RangeData::onMapDataChanged()
             {
                 log_cost_lookup_[c][i] = 0;
             }
-
-            csv << log_cost_lookup_[c][i] << ",";
         }
-
-        csv << "\n";
     }
-
-    csv.close();
 }
 
 void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
@@ -187,6 +181,8 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
 
             map_data_->setMinThres(sensor_pt_map);
         }
+
+        setLastUpdatedTime(message->header.stamp);
     }
     else
         ++sub_sample_count_;

@@ -34,16 +34,16 @@
     </xacro:macro>
 
     <link name="base_link">
-        <xacro:robot_circle x_offset="-0.268" y_offset=" 0.000" radius="0.420"/>
-        <xacro:robot_circle x_offset=" 0.268" y_offset=" 0.000" radius="0.420"/>
-        <xacro:robot_circle x_offset=" 0.265" y_offset="-0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset=" 0.077" y_offset="-0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset="-0.077" y_offset="-0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset="-0.265" y_offset="-0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset=" 0.265" y_offset=" 0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset="-0.265" y_offset=" 0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset="-0.077" y_offset=" 0.185" radius="0.420"/>
-        <xacro:robot_circle x_offset=" 0.077" y_offset=" 0.185" radius="0.420"/>
+        <xacro:robot_circle x_offset="-0.268" y_offset=" 0.000" radius="0.210"/>
+        <xacro:robot_circle x_offset=" 0.268" y_offset=" 0.000" radius="0.210"/>
+        <xacro:robot_circle x_offset=" 0.265" y_offset="-0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset=" 0.077" y_offset="-0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset="-0.077" y_offset="-0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset="-0.265" y_offset="-0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset=" 0.265" y_offset=" 0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset="-0.265" y_offset=" 0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset="-0.077" y_offset=" 0.185" radius="0.210"/>
+        <xacro:robot_circle x_offset=" 0.077" y_offset=" 0.185" radius="0.210"/>
         <inertial>
             <origin xyz="0 0 0" rpy="0 0 0"/>
             <mass value="1"/>
@@ -193,5 +193,96 @@
     <xacro:sonar_sensor suffix="10" rotation="2.0"/>
     <xacro:sonar_sensor suffix="11" rotation="2.5"/>
     <xacro:sonar_sensor suffix="12" rotation="3.0"/>
+
+    <xacro:macro name="realsense_sensor" params="suffix tilt *origin">
+        <joint name="realsense_joint_${suffix}" type="fixed">
+            <xacro:insert_block name="origin"/>
+            <child link="realsense_${suffix}"/>
+            <parent link="base_link"/>
+        </joint>
+        <link name="realsense_${suffix}">
+        </link>
+        <joint name="realsense_joint_${suffix}_tilt" type="fixed">
+            <origin xyz="0 0 0" rpy="0 ${tilt} 0"/>
+            <child link="realsense_${suffix}_tilt"/>
+            <parent link="realsense_${suffix}"/>
+        </joint>
+        <link name="realsense_${suffix}_tilt">
+        </link>
+        <joint name="realsense_${suffix}_camera_joint" type="fixed">
+            <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+            <parent link="realsense_${suffix}_tilt"/>
+            <child link="realsense_${suffix}_camera"/>
+        </joint>
+        <link name="realsense_${suffix}_camera">
+            <visual>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.01"/>
+                </geometry>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.01"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <mass value="1"/>
+                <origin xyz="0 0 0"/>
+                <inertia
+                        ixx="1" ixy="0" ixz="0"
+                        iyy="1" iyz="0"
+                        izz="1"/>
+            </inertial>
+        </link>
+        <gazebo reference="realsense_${suffix}_tilt">
+            <sensor type="depth" name="realsense_${suffix}">
+                <always_on>1</always_on>
+                <update_rate>4</update_rate>
+                <visualize>true</visualize>
+                <camera name="realsense_${suffix}">
+                    <horizontal_fov>${85.2 * pi / 180.0}</horizontal_fov>
+                    <image>
+                        <width>480</width>
+                        <height>270</height>
+                        <format>R8G8B8</format>
+                    </image>
+                    <depth_camera>
+                    </depth_camera>
+                    <clip>
+                        <near>0.1</near>
+                        <far>10</far>
+                    </clip>
+                </camera>
+                <depth_camera>
+                </depth_camera>
+                <plugin name="gazebo_depth_plugin" filename="libgazebo_depth_plugin.so">
+                    <updateRate>4</updateRate>
+                    <frame_name>realsense_${suffix}_camera</frame_name>
+                </plugin>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:realsense_sensor suffix="front" tilt="${-pi / 6}">
+        <origin xyz="0.4 0.0 1.0" rpy="${-pi / 2} ${pi / 2} ${-pi / 2}"/>
+    </xacro:realsense_sensor>
+
+    <xacro:realsense_sensor suffix="back" tilt="${-pi / 6}">
+        <origin xyz="-0.4 0.0 1.0" rpy="${-pi / 2} ${pi / 2} ${pi / 2}"/>
+    </xacro:realsense_sensor>
+
+    <xacro:realsense_sensor suffix="left" tilt="${-pi / 6}">
+        <origin xyz="0.0 0.4 1.0" rpy="${-pi / 2} ${pi / 2} 0"/>
+    </xacro:realsense_sensor>
+
+    <xacro:realsense_sensor suffix="right" tilt="${-pi / 6}">
+        <origin xyz="0.0 -0.4 1.0" rpy="${-pi / 2} ${pi / 2} ${pi}"/>
+    </xacro:realsense_sensor>
+
+    <!--<xacro:realsense_sensor suffix="back">-->
+    <!--<origin xyz="-0.4 0.0 0.700" rpy="0 ${0.75 * pi / 2} ${pi}"/>-->
+    <!--</xacro:realsense_sensor>-->
 
 </robot>

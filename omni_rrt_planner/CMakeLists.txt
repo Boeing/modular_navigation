@@ -5,10 +5,10 @@ add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED
   COMPONENTS
-    gridmap
     geometry_msgs
-    navigation_interface
+    gridmap
     nav_msgs
+    navigation_interface
     pluginlib
     roscpp
     rviz_visual_tools
@@ -26,10 +26,10 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES omni_rrt_planner
   CATKIN_DEPENDS
-    gridmap
     geometry_msgs
-    navigation_interface
+    gridmap
     nav_msgs
+    navigation_interface
     pluginlib
     roscpp
     rviz_visual_tools
@@ -48,7 +48,10 @@ include_directories(
 
 add_library(omni_rrt_planner
     include/omni_rrt_planner/omni_rrt_planner.h
+    include/omni_rrt_planner/rrt_star.h
+
     src/omni_rrt_planner.cpp
+    src/rrt_star.cpp
 )
 target_link_libraries(omni_rrt_planner ${catkin_LIBRARIES} ${OMPL_LIBRARIES} ${OpenCV_LIBRARIES})
 

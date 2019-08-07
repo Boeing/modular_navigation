@@ -10,14 +10,14 @@
 
     <buildtool_depend>catkin</buildtool_depend>
 
-    <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
-    <depend>navigation_interface</depend>
-    <depend>nav_msgs</depend>
+    <depend>gridmap</depend>
     <depend>libopencv-dev</depend>
+    <depend>nav_msgs</depend>
+    <depend>navigation_interface</depend>
+    <depend>ompl</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
-    <depend>ompl</depend>
     <depend>rviz_visual_tools</depend>
     <depend>sim_band_planner</depend>
 

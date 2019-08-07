@@ -11,115 +11,92 @@
 
 #include <ros/console.h>
 
+#include <astar_planner/node.h>
+#include <astar_planner/costmap.h>
+
 namespace astar_planner
 {
 
-struct Coord2D
+struct ShortestPath2D
 {
-    Coord2D() : x(-1), y(-1)
-    {
-    }
-
-    Coord2D(int x_, int y_) : x(x_), y(y_)
-    {
-    }
-
-    bool operator==(const Coord2D& other) const;
-    bool operator!=(const Coord2D& other) const
-    {
-        return !(*this == other);
-    }
-
-    int x;
-    int y;
+    bool success;
+    Node2D* node;
+    size_t iterations;
 };
 
-using HeuristicFunction = std::function<double(const Coord2D&, const Coord2D&)>;
-using CoordinateList = std::vector<Coord2D>;
-
-typedef std::pair<uint32_t, Coord2D> ScoreCoordPair;
-
-struct CompareScore
+struct Explore2DCache
 {
-    // Note: we want the priority_queue to be ordered from smaller to larger
-    bool operator()(const ScoreCoordPair& a, const ScoreCoordPair& b)
+    std::vector<Node2D*> explore_2d;
+    PriorityQueue2D* open_set;
+
+    Explore2DCache(const std::size_t size_x, const std::size_t size_y)
+        : explore_2d(std::vector<Node2D*>(static_cast<std::size_t>(size_x * size_y), nullptr)),
+          open_set(nullptr)
     {
-        return a.first > b.first;
+    }
+
+    ~Explore2DCache()
+    {
+        for (auto it = explore_2d.begin(); it != explore_2d.end(); ++it)
+        {
+            if (*it != nullptr)
+                delete (*it);
+        }
+        if (open_set)
+            delete open_set;
     }
 };
 
-struct Cell
-{
-    bool visited;
-    Coord2D path_parent;
-    double cost;
-};
+ShortestPath2D shortestPath2D(const State2D& start,
+                              const State2D& goal,
+                              Explore2DCache& explore_cache,
+                              const Costmap& costmap,
+                              const float closest_distance=0);
 
 struct PathResult
 {
+    PathResult(const std::size_t size_x, const std::size_t size_y)
+        : success(false),
+          iterations(0),
+          explore_cache(size_x, size_y)
+    {
+    }
+
+    ~PathResult()
+    {
+        for (auto it = explore_3d.begin(); it != explore_3d.end(); ++it)
+        {
+            delete (it->second);
+        }
+    }
+
     bool success;
-    double cost;
-    CoordinateList path;
+    size_t iterations;
+
+    std::vector<Node3D*> path;
+
+    Explore2DCache explore_cache;
+
+    std::unordered_map<uint64_t, Node3D*> explore_3d;
 };
 
-class PathFinder
-{
-  public:
-    PathFinder(const int width, const int height, const float* data, const double neutral_cost = 0.1);
-    ~PathFinder();
+double updateH(const Node3D& state,
+               const State3D& goal,
+               Explore2DCache& explore_cache,
+               const Costmap& costmap,
+               const float conservative_radius);
 
-    PathResult findPath(Coord2D source_, Coord2D target_);
+PathResult hybridAStar(const Eigen::Isometry2d& start,
+                       const Eigen::Isometry2d& goal,
+                       const size_t max_iterations,
+                       const Costmap& costmap,
+                       const CollisionChecker& collision_checker,
+                       const float conservative_radius,
+                       const double linear_resolution = 0.1,
+                       const double angular_resolution = 0.2,
+                       const bool backwards = false,
+                       const bool strafe = false);
 
-    const Cell* cell(const Coord2D& coordinates) const
-    {
-        return grid_map_[toIndex(coordinates)];
-    }
-
-    const std::vector<Cell*>& gridMap() const
-    {
-        return grid_map_;
-    };
-
-  private:
-    inline std::size_t toIndex(const Coord2D& coordinates) const
-    {
-        return static_cast<std::size_t>(world_width_ * coordinates.y + coordinates.x);
-    }
-
-    Cell* cell(const Coord2D& coordinates)
-    {
-        return grid_map_[world_width_ * coordinates.y + coordinates.x];
-    }
-
-    const float* data_;
-
-    const int world_width_;
-    const int world_height_;
-
-    const std::array<Coord2D, 8> directions_;
-    const std::array<double, 8> direction_cost_;
-
-    const double neutral_cost_;
-
-    HeuristicFunction heuristic_;
-    std::priority_queue<ScoreCoordPair, std::vector<ScoreCoordPair>, CompareScore> open_set_;
-    std::vector<Cell*> grid_map_;
-};
-
-inline double manhattan(const Coord2D& source, const Coord2D& target)
-{
-    return std::abs(source.x - target.x) + std::abs(source.y - target.y);
-}
-
-inline double euclidean(const Coord2D& source, const Coord2D& target)
-{
-    return 0.9 * std::sqrt(std::pow((source.x - target.x), 2) + std::pow((source.y - target.y), 2));
-}
-
-inline double linf_norm(const Coord2D& source, const Coord2D& target)
-{
-    return std::max(std::abs(source.x - target.x), std::abs(source.y - target.y));
-}
 }
 
 #endif

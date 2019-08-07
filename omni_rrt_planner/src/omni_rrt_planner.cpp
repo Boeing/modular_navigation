@@ -1,7 +1,8 @@
-#include <omni_rrt_planner/omni_rrt_planner.h>
 #include <navigation_interface/params.h>
+#include <omni_rrt_planner/omni_rrt_planner.h>
 
 #include <algorithm>
+#include <thread>
 
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -10,17 +11,14 @@
 
 #include <ompl/geometric/PathSimplifier.h>
 
-#include <ompl/control/planners/rrt/RRT.h>
-#include <ompl/geometric/planners/rrt/RRTstar.h>
-#include <ompl/geometric/planners/rrt/RRTConnect.h>
-#include <ompl/geometric/planners/rrt/InformedRRTstar.h>
-#include <ompl/geometric/planners/rrt/BiTRRT.h>
+#include <omni_rrt_planner/rrt_star.h>
 
 #include <sim_band_planner/band.h>
 #include <sim_band_planner/distance_field.h>
 #include <sim_band_planner/simulate.h>
 
-PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner, navigation_interface::PathPlanner)
+PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner,
+                        navigation_interface::PathPlanner)
 
 namespace omni_rrt_planner
 {
@@ -28,11 +26,10 @@ namespace omni_rrt_planner
 namespace
 {
 
-std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const double robot_radius, const double exponential_weight)
+std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const double robot_radius,
+                                      const double exponential_weight)
 {
     auto grid = std::make_shared<Costmap>();
-
-    std::chrono::steady_clock::time_point t0;
 
     // downsample
     cv::Mat dilated;
@@ -48,23 +45,17 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
             grid->origin_x = map_data.grid.dimensions().origin().x();
             grid->origin_y = map_data.grid.dimensions().origin().y();
 
-            t0 = std::chrono::steady_clock::now();
-            const cv::Mat raw(size_y, size_x, CV_8U, reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
+            const cv::Mat raw(size_y, size_x, CV_8U,
+                              reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
             grid->obstacle_map = raw.clone();
         }
 
         // dilate robot radius
-        t0 = std::chrono::steady_clock::now();
         const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / grid->resolution);
         auto ellipse =
             cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
         cv::dilate(grid->obstacle_map, dilated, ellipse);
-        ROS_DEBUG_STREAM("dilation took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                 std::chrono::steady_clock::now() - t0)
-                                                 .count());
     }
-
-    t0 = std::chrono::steady_clock::now();
 
     // flip
     cv::bitwise_not(dilated, dilated);
@@ -81,13 +72,8 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
     // negative exponent maps values to [1,0)
     cv::exp(grid->cost, grid->cost);
 
-    ROS_DEBUG_STREAM(
-        "inflation took "
-        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count());
-
     return grid;
 }
-
 }
 
 OmniRRTPlanner::OmniRRTPlanner()
@@ -96,7 +82,6 @@ OmniRRTPlanner::OmniRRTPlanner()
 
 OmniRRTPlanner::~OmniRRTPlanner()
 {
-
 }
 
 navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isometry2d& start,
@@ -117,8 +102,10 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
     //
     // Update XY sample bounds
     //
-    const double search_window = std::max(map_data_->grid.dimensions().size().x() * map_data_->grid.dimensions().resolution(),
-                                          map_data_->grid.dimensions().size().y() * map_data_->grid.dimensions().resolution()) / 2.0;
+    const double search_window =
+         std::max(map_data_->grid.dimensions().size().x() * map_data_->grid.dimensions().resolution(),
+                                                        map_data_->grid.dimensions().size().y() *
+                                                        map_data_->grid.dimensions().resolution()) / 2.0;
 
     ompl::base::RealVectorBounds bounds(2);
     bounds.setLow(0, -search_window);
@@ -130,23 +117,35 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
     // Optimize criteria
     ompl::base::OptimizationObjectivePtr cost_objective(new CostMapObjective(si_, costmap));
     ompl::base::OptimizationObjectivePtr length_objective(new ompl::base::PathLengthOptimizationObjective(si_));
+    ompl::base::OptimizationObjectivePtr traversal_objective(new TraversalObjective(si_));
     ompl::base::MultiOptimizationObjective* objective = new ompl::base::MultiOptimizationObjective(si_);
     // Highest cost is 1 so you would have 1 per m
-//    objective->addObjective(cost_objective, 1.0);
+    //    objective->addObjective(cost_objective, 1.0);
     // Highest cost would be 1 per m
-    objective->addObjective(length_objective, 1.0);
-    objective_ = ompl::base::OptimizationObjectivePtr(objective);
-//    const double distance = (goal.translation() - start.translation()).norm();
-//    objective_->setCostThreshold(ompl::base::Cost(1.2 * distance));
+    objective->addObjective(traversal_objective, 1.0);
+    objective_ = traversal_objective;  // ompl::base::OptimizationObjectivePtr(objective);
+    //    const double distance = (goal.translation() - start.translation()).norm();
+    //    objective_->setCostThreshold(ompl::base::Cost(1.2 * distance));
 
-//    auto cost_to_go = [](const ompl::base::State* state, const ompl::base::Goal* goal)
-//    {
-//        const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
-//        const auto* se2goal = goal->as<ompl::base::SE2StateSpace::StateType>();
-//        return ompl::base::Cost((Eigen::Vector2d(se2state->getX(), se2state->getY()) - Eigen::Vector2d(se2goal->getX(), se2goal->getY())).norm());
-//    };
+    //    auto cost_to_go = [goal](const ompl::base::State* s1, const ompl::base::Goal*)
+    //    {
+    //        const auto* s1_state = s1->as<ompl::base::SE2StateSpace::StateType>();
+    //        const auto* s2_state = goal->as<ompl::base::SE2StateSpace::StateType>();
 
-//    objective_->setCostToGoHeuristic(cost_to_go);
+    //        const Eigen::Vector2d dir = goal.translation() - Eigen::Vector2d(s1_state->getX(), s1_state->getY());
+    //        const double dist_norm = dir.norm();
+    //        const Eigen::Rotation2Dd s1_rot = Eigen::Rotation2Dd(s1_state->getYaw());
+    //        const Eigen::Rotation2Dd s2_rot = Eigen::Rotation2Dd(goal.linear());
+    //        const double angle_norm = (s1_rot.inverse() * s2_rot).smallestAngle();
+
+    //        const Eigen::Vector2d pose_dir = s1_rot * Eigen::Vector2d::UnitX();
+    //        const double dot = pose_dir.dot(dir);
+    //        const double fwd_angle = std::abs(std::acos(dot / (pose_dir.norm() * dir.norm())));
+
+    //        return ompl::base::Cost(dist_norm + 10 * fwd_angle);
+    //    };
+
+    //    objective_->setCostToGoHeuristic(cost_to_go);
 
     // Define problem
     ompl::base::ScopedState<> ompl_start(se2_space_);
@@ -165,10 +164,24 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
     // A copy of the start and goal is made
     pdef->setStartAndGoalStates(ompl_start, ompl_goal, 0.01);
 
+    //    pdef->setIntermediateSolutionCallback([this](const ompl::base::Planner* planner, const std::vector<const
+    //    ompl::base::State*> &, const ompl::base::Cost){
+    //        auto pd = std::make_shared<ompl::base::PlannerData>(si_);
+    //        planner->getPlannerData(*pd);
+
+    //        if (rrt_viz_)
+    //            visualisePlannerData(*pd);
+    //    });
+
     ROS_INFO("Problem defined, running planner");
-    auto rrt = new ompl::geometric::BiTRRT(si_);
-//    rrt->setGoalBias(0.6);
-    rrt->setRange(0.00);
+    auto rrt = new ompl::geometric::RRTstar(si_);
+    rrt->setGoalBias(0.1);
+    rrt->setRange(0.1);
+    rrt->setKNearest(false);
+    //    rrt->setRewireFactor(1.5);
+    rrt->setNewStateRejection(false);
+    rrt->setAdmissibleCostToCome(false);
+    rrt->setTreePruning(false);
 
     auto planner = ompl::base::PlannerPtr(rrt);
     planner->setProblemDefinition(pdef);
@@ -176,9 +189,9 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
 
     ompl::base::PlannerStatus solved;
 
-    solved = planner->solve(0.2);
-    auto tc = ompl::base::timedPlannerTerminationCondition(2.0);
-    solved = planner->solve(tc);
+    solved = planner->solve(2.0);
+    //    auto tc = ompl::base::timedPlannerTerminationCondition(2.0);
+    //    solved = planner->solve(tc);
 
     auto pd = std::make_shared<ompl::base::PlannerData>(si_);
     planner->getPlannerData(*pd);
@@ -186,56 +199,67 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
     if (rrt_viz_)
         visualisePlannerData(*pd);
 
-    if (ompl::base::PlannerStatus::StatusType(solved) == ompl::base::PlannerStatus::EXACT_SOLUTION
-            || ompl::base::PlannerStatus::StatusType(solved) == ompl::base::PlannerStatus::APPROXIMATE_SOLUTION)
+    if (ompl::base::PlannerStatus::StatusType(solved) == ompl::base::PlannerStatus::EXACT_SOLUTION ||
+        ompl::base::PlannerStatus::StatusType(solved) == ompl::base::PlannerStatus::APPROXIMATE_SOLUTION)
     {
         result.outcome = navigation_interface::PathPlanner::Outcome::SUCCESSFUL;
         const double length = pdef->getSolutionPath()->length();
 
-        ROS_INFO_STREAM(planner->getName()
-                     << " found a solution of length " << length
-                     << " with an optimization objective value of " << result.cost);
+        ROS_INFO_STREAM(planner->getName() << " found a solution of length " << length
+                                           << " hasOptimizedSolution: " << pdef->hasOptimizedSolution());
 
         ompl::base::PathPtr path_ptr = pdef->getSolutionPath();
         ompl::geometric::PathGeometric result_path = static_cast<ompl::geometric::PathGeometric&>(*path_ptr);
 
-        ompl::geometric::PathSimplifier simplifier(si_);
-        simplifier.simplify(result_path, 0.05);
-        //simplifier.smoothBSpline(result_path, 5, 0.005);
-        result_path.interpolate();
-        const auto check_ret = result_path.checkAndRepair(1000);
+        //        ompl::geometric::PathSimplifier simplifier(si_);
+        //        simplifier.simplify(result_path, 0.05);
+        // simplifier.smoothBSpline(result_path, 5, 0.005);
+        //        result_path.interpolate();
+        //        const auto check_ret = result_path.checkAndRepair(1000);
 
-        if (check_ret.second)
+        //        if (check_ret.second)
         {
             if (trajectory_viz_)
                 visualisePathGeometric(result_path);
 
             result.cost = result_path.cost(pdef->getOptimizationObjective()).value();
 
-//            for (unsigned int i=0; i<result_path.getStateCount(); ++i)
-//            {
-//                const ompl::base::State* state = result_path.getState(i);
-//                const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
+            for (unsigned int i = 0; i < result_path.getStateCount(); ++i)
+            {
+                const ompl::base::State* state = result_path.getState(i);
+                const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
 
-//                const double x = se2state->getX();
-//                const double y = se2state->getY();
-//                const double theta = se2state->getYaw();
+                const double x = se2state->getX();
+                const double y = se2state->getY();
+                const double theta = se2state->getYaw();
 
-//                const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(theta);
-//                result.path.nodes.push_back(p);
-//            }
+                const Eigen::Isometry2d p = Eigen::Translation2d(x, y) * Eigen::Rotation2Dd(theta);
+                result.path.nodes.push_back(p);
+            }
+
+            {
+
+                ROS_INFO_STREAM("path cost: " << result_path.cost(objective_));
+                for (size_t i = 1; i < result_path.getStateCount(); ++i)
+                {
+                    ROS_INFO_STREAM("state motion: " << objective_->motionCost(result_path.getState(i - 1),
+                                                                               result_path.getState(i)));
+                }
+            }
 
             // orientation optimisation
+            /*
             {
-                sim_band_planner::DistanceField distance_field(costmap->obstacle_map, costmap->origin_x, costmap->origin_y, costmap->resolution, robot_radius_);
+                sim_band_planner::DistanceField distance_field(costmap->obstacle_map, costmap->origin_x,
+            costmap->origin_y, costmap->resolution, robot_radius_);
 
                 sim_band_planner::Band sim_band;
 
                 for (unsigned int i=0; i<result_path.getStateCount(); ++i)
                 {
                     const auto* se2state = result_path.getState(i)->as<ompl::base::SE2StateSpace::StateType>();
-                    const Eigen::Isometry2d p = Eigen::Translation2d(se2state->getX(), se2state->getY()) * Eigen::Rotation2Dd(se2state->getYaw());
-                    sim_band.nodes.push_back(p);
+                    const Eigen::Isometry2d p = Eigen::Translation2d(se2state->getX(), se2state->getY()) *
+            Eigen::Rotation2Dd(se2state->getYaw()); sim_band.nodes.push_back(p);
                 }
 
                 bool long_path = true;
@@ -251,7 +275,8 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
                 {
                     long_path = false;
                 }
-                else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance && rotation < M_PI / 2.0)
+                else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance && rotation < M_PI
+            / 2.0)
                 {
                     reverse_direction = true;
                 }
@@ -269,12 +294,13 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
                 auto t0 = std::chrono::steady_clock::now();
 
                 simulate(sim_band, distance_field, num_iterations, min_overlap_, min_distance_, internal_force_gain_,
-                         external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction, velocity_decay_, 1.0,
-                         alpha_decay_, max_distance_, 1000);
+                         external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction,
+            velocity_decay_, 1.0, alpha_decay_, max_distance_, 1000);
 
                 std::cout
                     << "path simulate took: "
-                    << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+                    << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() -
+            t0).count()
                     << std::endl;
 
                 for (const auto& n : sim_band.nodes)
@@ -282,12 +308,13 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
                     result.path.nodes.push_back(n.pose);
                 }
             }
+            */
         }
-        else
-        {
-            result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
-            result.cost = 0;
-        }
+        //        else
+        //        {
+        //            result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
+        //            result.cost = 0;
+        //        }
     }
     else
     {
@@ -337,12 +364,14 @@ double OmniRRTPlanner::cost(const navigation_interface::Path& path) const
 
     if (!trajectory.check())
     {
-        ROS_INFO_STREAM("path is not valid: length: " << trajectory.length() << " cost: " << trajectory.cost(objective_) << " smoothness" << trajectory.smoothness());
+        ROS_INFO_STREAM("path is not valid: length: " << trajectory.length() << " cost: " << trajectory.cost(objective_)
+                                                      << " smoothness" << trajectory.smoothness());
 
-//        for (size_t i = 1; i < trajectory.getStateCount(); ++i)
-//        {
-//            ROS_INFO_STREAM("state motion: " << si_->checkMotion(trajectory.getState(i-1), trajectory.getState(i)));
-//        }
+        //        for (size_t i = 1; i < trajectory.getStateCount(); ++i)
+        //        {
+        //            ROS_INFO_STREAM("state motion: " << si_->checkMotion(trajectory.getState(i-1),
+        //            trajectory.getState(i)));
+        //        }
 
         const auto check_ret = trajectory.checkAndRepair(1000);
 
@@ -357,9 +386,11 @@ double OmniRRTPlanner::cost(const navigation_interface::Path& path) const
 
 void OmniRRTPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_, XmlRpc::XmlRpcValue::TypeBoolean);
+    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
+                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
 
-    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
 
     if (debug_viz_)
     {
@@ -379,8 +410,7 @@ void OmniRRTPlanner::visualisePlannerData(const ompl::base::PlannerData& pd)
     const rviz_visual_tools::colors color = rviz_visual_tools::BLUE;
     const rviz_visual_tools::scales scale = rviz_visual_tools::XXSMALL;
 
-    auto get_pose = [](const ompl::base::PlannerData& pd, unsigned int vertex_id)
-    {
+    auto get_pose = [](const ompl::base::PlannerData& pd, unsigned int vertex_id) {
         const ompl::base::PlannerDataVertex& v = pd.getVertex(vertex_id);
         const ompl::base::State* state = v.getState();
         const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
@@ -402,7 +432,7 @@ void OmniRRTPlanner::visualisePlannerData(const ompl::base::PlannerData& pd)
         return pose;
     };
 
-    for (unsigned int i=0; i<pd.numVertices(); ++i)
+    for (unsigned int i = 0; i < pd.numVertices(); ++i)
     {
         const geometry_msgs::Pose pose = get_pose(pd, i);
 
@@ -427,7 +457,7 @@ void OmniRRTPlanner::visualisePathGeometric(const ompl::geometric::PathGeometric
 {
     std::vector<Eigen::Isometry3d> poses;
 
-    for (unsigned int i=0; i<path.getStateCount(); ++i)
+    for (unsigned int i = 0; i < path.getStateCount(); ++i)
     {
         const ompl::base::State* state = path.getState(i);
         const auto* se2state = state->as<ompl::base::SE2StateSpace::StateType>();
@@ -448,15 +478,14 @@ void OmniRRTPlanner::visualisePathGeometric(const ompl::geometric::PathGeometric
     const rviz_visual_tools::colors color = rviz_visual_tools::RED;
     const rviz_visual_tools::scales scale = rviz_visual_tools::SMALL;
 
-    for (unsigned int i=0; i<poses.size() - 1; ++i)
+    for (unsigned int i = 0; i < poses.size() - 1; ++i)
     {
         trajectory_viz_->publishAxis(poses[i], scale);
-        trajectory_viz_->publishLine(poses[i].translation(), poses[i+1].translation(), color, scale);
+        trajectory_viz_->publishLine(poses[i].translation(), poses[i + 1].translation(), color, scale);
     }
     if (!poses.empty())
         trajectory_viz_->publishAxis(poses.back(), scale);
 
     trajectory_viz_->trigger();
 }
-
 }

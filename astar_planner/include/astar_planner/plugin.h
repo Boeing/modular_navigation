@@ -3,6 +3,8 @@
 
 #include <gridmap/map_data.h>
 
+#include <astar_planner/costmap.h>
+
 #include <opencv2/core.hpp>
 
 #include <navigation_interface/path_planner.h>
@@ -28,13 +30,17 @@ class AStarPlanner : public navigation_interface::PathPlanner
 
   private:
     bool debug_viz_ = false;
-    double neutral_cost_ = 0.1;
-    double robot_radius_ = 0.5;
-    double exponential_weight_ = 2.0;
-    int down_sample_ = 4;
+    double robot_radius_ = 0.210;
+    double conservative_robot_radius_ = 0.480;
+    double max_holonomic_distance_ = 2.0;
+    double max_reverse_distance_ = 4.0;
 
-    ros::Publisher pub_;
+    std::vector<Eigen::Vector2d> offsets_;
+
     ros::Publisher explore_pub_;
+
+    std::shared_ptr<Costmap> costmap_;
+    std::shared_ptr<CollisionChecker> collision_checker_;
 };
 }
 

@@ -9,14 +9,13 @@ Grid2D<CellType>::Grid2D(const MapDimensions& map_dims) : map_dimensions_(map_di
 }
 
 template <class CellType>
-Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB bb)
+Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB& bb)
     : map_dimensions_(grid.dimensions().resolution(),
                       {grid.dimensions().origin().x() + bb.roi_start.x() * grid.dimensions().resolution(),
                        grid.dimensions().origin().y() + bb.roi_start.y() * grid.dimensions().resolution()},
                       bb.roi_size)
 {
-    ROS_ASSERT((bb.roi_start <= grid.dimensions().size()).all());
-    ROS_ASSERT((bb.roi_size <= grid.dimensions().size()).all());
+    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
     cells_.resize(bb.roi_size.x() * bb.roi_size.y());
 
