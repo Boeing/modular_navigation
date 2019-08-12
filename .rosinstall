@@ -4,3 +4,6 @@
 - git:
     local-name: modular_cartographer
     uri: 'https://git.web.boeing.com/brta-robotics/ros/modular_cartographer.git'
+- git:
+    local-name: camera_interface
+    uri: 'https://git.web.boeing.com/robotics/ros/camera_interface.git'
