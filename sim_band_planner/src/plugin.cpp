@@ -340,9 +340,8 @@ navigation_interface::TrajectoryPlanner::Result
         const Eigen::Isometry2d odom_to_map = map_to_odom.inverse();
         for (const auto& node : splined.nodes)
         {
-            const double min_distance = node.control_points[node.closest_point].distance;
-            const double velocity =
-                desired_speed_ * std::max(0.2, min_distance >= max_distance_ ? 1.0 : 4.0 * min_distance);
+            const double max_distance_fraction = node.control_points[node.closest_point].distance / max_distance_;
+            const double velocity = desired_speed_ * std::max(0.20, max_distance_fraction);
             result.trajectory.states.push_back({odom_to_map * node.pose, Eigen::Vector3d(velocity, 0, 0)});
         }
     }

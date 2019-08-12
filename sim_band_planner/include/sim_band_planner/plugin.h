@@ -56,7 +56,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     double internal_force_gain_ = 0.001;
     double external_force_gain_ = 0.001;
     double min_distance_ = 0.040;
-    double max_distance_ = 0.480;
+    double max_distance_ = 0.800;
     double min_overlap_ = 0.8;
     double max_window_length_ = 2.0;
     double rotation_factor_ = 0.1;

@@ -17,8 +17,7 @@
 #include <sim_band_planner/distance_field.h>
 #include <sim_band_planner/simulate.h>
 
-PLUGINLIB_DECLARE_CLASS(omni_rrt_planner, OmniRRTPlanner, omni_rrt_planner::OmniRRTPlanner,
-                        navigation_interface::PathPlanner)
+PLUGINLIB_EXPORT_CLASS(omni_rrt_planner::OmniRRTPlanner, navigation_interface::PathPlanner)
 
 namespace omni_rrt_planner
 {

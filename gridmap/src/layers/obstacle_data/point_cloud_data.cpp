@@ -27,12 +27,8 @@ void PointCloudData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
     const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/points",
                                                                         XmlRpc::XmlRpcValue::TypeString);
-    hit_probability_log_ = logodds(
-        get_config_with_default_warn<double>(parameters, "hit_probability", 0.8, XmlRpc::XmlRpcValue::TypeDouble));
-    miss_probability_log_ = logodds(
-        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
-    obstacle_height_ =
-        get_config_with_default_warn<double>(parameters, "max_obstacle_height", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
+    miss_probability_log_ = logodds(get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
+    obstacle_height_ = get_config_with_default_warn<double>(parameters, "max_obstacle_height", 0.03, XmlRpc::XmlRpcValue::TypeDouble);
     max_range_ = get_config_with_default_warn<double>(parameters, "max_range", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
     sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
 
@@ -47,7 +43,7 @@ void PointCloudData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 void PointCloudData::onMapDataChanged()
 {
     const double cost_gradient = (-miss_probability_log_ / obstacle_height_);
-    const double max_height = (1.0 - miss_probability_log_) / cost_gradient;
+    const double max_height = 10.0 / cost_gradient;
 
     const unsigned int max_height_cells =
         static_cast<unsigned int>(max_height / map_data_->dimensions().resolution()) + 1;
