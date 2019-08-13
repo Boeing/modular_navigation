@@ -168,10 +168,6 @@ class CostMapObjective : public ompl::base::StateCostIntegralObjective
         return ompl::base::Cost(max_cost);
     }
 
-    virtual ompl::base::Cost motionCost(const ompl::base::State* s1, const ompl::base::State* s2) const override
-    {
-    }
-
   private:
     const std::shared_ptr<const Costmap> costmap_;
     const std::vector<Eigen::Vector2d> offsets_;
@@ -185,7 +181,7 @@ class TraversalObjective : public ompl::base::OptimizationObjective
     }
     virtual ~TraversalObjective() override = default;
 
-    virtual ompl::base::Cost stateCost(const ompl::base::State* s) const override
+    virtual ompl::base::Cost stateCost(const ompl::base::State*) const override
     {
         return ompl::base::Cost(0.0);
     }
