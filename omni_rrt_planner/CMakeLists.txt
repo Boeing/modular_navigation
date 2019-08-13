@@ -9,6 +9,7 @@ find_package(catkin REQUIRED
     gridmap
     nav_msgs
     navigation_interface
+    ompl
     pluginlib
     roscpp
     rviz_visual_tools
@@ -19,8 +20,6 @@ find_package(OpenCV 3 REQUIRED)
 
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
-
-find_package(OMPL REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
@@ -53,7 +52,7 @@ add_library(omni_rrt_planner
     src/omni_rrt_planner.cpp
     src/rrt_star.cpp
 )
-target_link_libraries(omni_rrt_planner ${catkin_LIBRARIES} ${OMPL_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(omni_rrt_planner ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
 install(TARGETS omni_rrt_planner
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
