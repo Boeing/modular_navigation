@@ -347,7 +347,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                         const int index_end = index_start + actual_size_x;
                         for (int index = index_start; index < index_end; ++index)
                         {
-                            ROS_ASSERT(index < probability_grid_->cells().size());
+                            ROS_ASSERT(index < static_cast<int>(probability_grid_->cells().size()));
                             grid.data[roi_index] =
                                 static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
                             ++roi_index;
@@ -355,7 +355,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                     }
 
                     const int max_occ = 100.0 * probability_grid_->ocupancyThres();
-                    for (int i = 0; i < grid.data.size(); ++i)
+                    for (size_t i = 0; i < grid.data.size(); ++i)
                     {
                         if (grid.data[i] >= max_occ)
                             grid.data[i] = 101;

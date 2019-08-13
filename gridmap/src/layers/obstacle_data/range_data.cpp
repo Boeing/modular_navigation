@@ -168,7 +168,7 @@ void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
             if (_w1 > 0.85)
                 return;
 
-            ROS_ASSERT(dist < log_cost_lookup_[cell_range].size());
+            ROS_ASSERT(dist < static_cast<int>(log_cost_lookup_[cell_range].size()));
 
             map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
         };
