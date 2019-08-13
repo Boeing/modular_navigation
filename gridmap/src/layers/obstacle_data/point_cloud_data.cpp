@@ -94,7 +94,7 @@ void PointCloudData::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& 
         const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
 
         {
-            auto lock = map_data_->getLock();
+            auto _lock = map_data_->getLock();
 
             sensor_msgs::PointCloud2ConstIterator<float> iter_x(*message, "x");
 

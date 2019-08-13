@@ -20,10 +20,8 @@ bool LayeredMap::update()
     bool success = base_map_layer_->draw(map_data_->grid);
 
     // update from layers
-    for (const auto& layer : layers_)
-    {
-        success &= layer->update(map_data_->grid);
-    }
+    auto& grid = map_data_->grid;
+    success &= std::all_of(layers_.begin(), layers_.end(), [&grid](const auto& layer) { return layer->update(grid); });
 
     return success;
 }
@@ -37,10 +35,9 @@ bool LayeredMap::update(const AABB& bb)
     bool success = base_map_layer_->draw(map_data_->grid, bb);
 
     // update from layers
-    for (const auto& layer : layers_)
-    {
-        success &= layer->update(map_data_->grid, bb);
-    }
+    auto& grid = map_data_->grid;
+    success &= std::all_of(layers_.begin(), layers_.end(),
+                           [&grid, &bb](const auto& layer) { return layer->update(grid, bb); });
 
     return success;
 }
@@ -74,4 +71,4 @@ void LayeredMap::setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid
     map_data_ = std::make_shared<MapData>(hd_map, base_map_layer_->dimensions());
     update();
 }
-}
+}  // namespace gridmap

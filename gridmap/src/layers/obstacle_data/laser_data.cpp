@@ -102,7 +102,7 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
         const unsigned int cell_raytrace_range = raytrace_range_ / map_data_->dimensions().resolution();
 
         {
-            auto lock = map_data_->getLock();
+            auto _lock = map_data_->getLock();
             AddLogCost marker(map_data_->cells().data(), miss_probability_log_, map_data_->clampingThresMinLog(),
                               map_data_->clampingThresMaxLog());
             for (size_t i = 0; i < message->ranges.size(); i++)

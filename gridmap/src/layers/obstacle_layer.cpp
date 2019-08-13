@@ -85,6 +85,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid)
     if (!isDataOk())
         return false;
 
+    // cppcheck-suppress unreadVariable
     const auto lock = probability_grid_->getLock();
     const int size = dimensions().cells();
     for (int index = 0; index < size; ++index)
@@ -106,6 +107,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
     if (!isDataOk())
         return false;
 
+    // cppcheck-suppress unreadVariable
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -130,6 +132,7 @@ bool ObstacleLayer::update(OccupancyGrid& grid)
     if (!isDataOk())
         return false;
 
+    // cppcheck-suppress unreadVariable
     const auto lock = probability_grid_->getLock();
     const int size = dimensions().cells();
     for (int index = 0; index < size; ++index)
@@ -154,6 +157,7 @@ bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
     if (!isDataOk())
         return false;
 
+    // cppcheck-suppress unreadVariable
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -236,6 +240,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     }
 }
 
+// cppcheck-suppress unusedFunction
 bool ObstacleLayer::clear()
 {
     std::lock_guard<std::mutex> g(map_mutex_);
@@ -243,6 +248,7 @@ bool ObstacleLayer::clear()
     if (!probability_grid_)
         return false;
 
+    // cppcheck-suppress unreadVariable
     auto lock = probability_grid_->getLock();
     std::fill(probability_grid_->cells().begin(), probability_grid_->cells().end(), 0.0);
 
@@ -256,6 +262,7 @@ bool ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cel
     if (!probability_grid_)
         return false;
 
+    // cppcheck-suppress unreadVariable
     auto lock = probability_grid_->getLock();
     cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(),
                             CV_64F, reinterpret_cast<void*>(probability_grid_->cells().data()));
@@ -286,7 +293,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
     while (debug_viz_running_ && ros::ok())
     {
         {
-            std::lock_guard<std::mutex> lock(map_mutex_);
+            std::lock_guard<std::mutex> _lock(map_mutex_);
             if (debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_)
             {
                 try
@@ -376,7 +383,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
             std::lock_guard<std::mutex> lock(map_mutex_);
             if (probability_grid_)
             {
-                auto lock = probability_grid_->getLock();
+                auto _lock = probability_grid_->getLock();
                 const int cells = probability_grid_->dimensions().cells();
                 for (int i = 0; i < cells; ++i)
                 {

@@ -100,7 +100,7 @@ inline void rasterPolygonFill(ActionType at, const std::vector<Eigen::Array2i>& 
 
         std::sort(nodes_x.begin(), nodes_x.begin() + n_nodes);
 
-        for (std::size_t i = 0; i < n_nodes; i += 2)
+        for (int i = 0; i < n_nodes; i += 2)
         {
             if (nodes_x[i] >= max_x)
             {

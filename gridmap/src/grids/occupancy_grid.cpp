@@ -33,6 +33,7 @@ void OccupancyGrid::merge(const OccupancyGrid& map, const AABB& bb)
     }
 }
 
+// cppcheck-suppress unusedFunction
 nav_msgs::OccupancyGrid OccupancyGrid::toMsg() const
 {
     nav_msgs::OccupancyGrid grid;

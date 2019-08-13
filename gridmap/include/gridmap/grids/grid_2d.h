@@ -43,7 +43,7 @@ class MapDimensions
         return size_;
     }
 
-    const int cells() const
+    int cells() const
     {
         return size_.x() * size_.y();
     }

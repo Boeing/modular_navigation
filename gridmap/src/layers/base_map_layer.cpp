@@ -14,6 +14,7 @@ bool BaseMapLayer::draw(OccupancyGrid& grid)
     std::lock_guard<std::mutex> g(map_mutex_);
     if (!map_)
         return false;
+    // cppcheck-suppress unreadVariable
     const auto lock = map_->getLock();
     map_->copyTo(grid);
     return true;
@@ -24,6 +25,7 @@ bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
     std::lock_guard<std::mutex> g(map_mutex_);
     if (!map_)
         return false;
+    // cppcheck-suppress unreadVariable
     const auto lock = map_->getLock();
     map_->copyTo(grid, bb);
     return true;
@@ -34,6 +36,7 @@ bool BaseMapLayer::update(OccupancyGrid& grid)
     std::lock_guard<std::mutex> g(map_mutex_);
     if (!map_)
         return false;
+    // cppcheck-suppress unreadVariable
     const auto lock = map_->getLock();
     map_->merge(grid);
     return true;
@@ -44,6 +47,7 @@ bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb)
     std::lock_guard<std::mutex> g(map_mutex_);
     if (!map_)
         return false;
+    // cppcheck-suppress unreadVariable
     const auto lock = map_->getLock();
     map_->merge(grid, bb);
     return true;
