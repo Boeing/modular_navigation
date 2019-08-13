@@ -77,13 +77,13 @@ class CollisionChecker
             const int mx = static_cast<int>(std::round((offset_xy.x() - costmap_->origin_x) / costmap_->resolution));
             const int my = static_cast<int>(std::round((offset_xy.y() - costmap_->origin_y) / costmap_->resolution));
 
-            double distance = 0;
+            double d = 0;
             if (mx >= 0 && mx < costmap_->distance_to_collision.cols && my >= 0 &&
                 my < costmap_->distance_to_collision.rows)
             {
-                distance = static_cast<double>(costmap_->distance_to_collision.at<float>(my, mx));
+                d = static_cast<double>(costmap_->distance_to_collision.at<float>(my, mx));
             }
-            min_distance = std::min(min_distance, distance);
+            min_distance = std::min(min_distance, d);
         }
         return min_distance;
     }

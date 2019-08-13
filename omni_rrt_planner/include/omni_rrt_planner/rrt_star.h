@@ -38,7 +38,7 @@ namespace geometric
 class RRTstar : public base::Planner
 {
   public:
-    RRTstar(const base::SpaceInformationPtr& si);
+    explicit RRTstar(const base::SpaceInformationPtr& si);
 
     ~RRTstar() override;
 
@@ -270,7 +270,7 @@ class RRTstar : public base::Planner
       public:
         /** \brief Constructor that allocates memory for the state. This constructor automatically allocates
          * memory for \e state, \e cost, and \e incCost */
-        Motion(const base::SpaceInformationPtr& si) : state(si->allocState()), parent(nullptr), inGoal(false)
+        explicit Motion(const base::SpaceInformationPtr& si) : state(si->allocState()), parent(nullptr), inGoal(false)
         {
         }
 

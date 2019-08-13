@@ -243,7 +243,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     const Eigen::Rotation2Dd rot_1 = Eigen::Rotation2Dd(prev.pose.rotation().inverse() * curr.pose.rotation());
     const Eigen::Rotation2Dd rot_2 = Eigen::Rotation2Dd(next.pose.rotation().inverse() * curr.pose.rotation());
 
-    Eigen::Vector3d force = Eigen::Vector3d::Zero();
+    Eigen::Vector3d _force = Eigen::Vector3d::Zero();
 
     const ControlPoint& prev_min = prev.control_points[prev.closest_point];
     const ControlPoint& curr_min = curr.control_points[curr.closest_point];
@@ -257,7 +257,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     // straightening force
     if (d_1_norm > std::numeric_limits<double>::epsilon() && d_2_norm > std::numeric_limits<double>::epsilon())
     {
-        force.topRows(2) = internal_force_gain * (d_1_normalized + d_2_normalized);
+        _force.topRows(2) = internal_force_gain * (d_1_normalized + d_2_normalized);
     }
 
     if (gap_1 > 0 && d_1_norm > std::numeric_limits<double>::epsilon())
@@ -265,10 +265,10 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         const double exp_1 = d_1.norm() < dis_1 ? 0.001 * std::exp(1.0 * (dis_1 - d_1.norm())) : 0.0;
 
         // repelling force
-        force.topRows(2) += -exp_1 * d_1_normalized;
+        _force.topRows(2) += -exp_1 * d_1_normalized;
 
         // attracting force
-        force.topRows(2) += 0.004 * (d_1 * gap_1).normalized();
+        _force.topRows(2) += 0.004 * (d_1 * gap_1).normalized();
     }
 
     if (gap_2 > 0 && d_2_norm > std::numeric_limits<double>::epsilon())
@@ -276,14 +276,14 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         const double exp_2 = d_2.norm() < dis_2 ? 0.001 * std::exp(1.0 * (dis_2 - d_2.norm())) : 0.0;
 
         // repelling force
-        force.topRows(2) += -exp_2 * d_2_normalized;
+        _force.topRows(2) += -exp_2 * d_2_normalized;
 
         // attracting force
-        force.topRows(2) += 0.004 * (d_2 * gap_2).normalized();
+        _force.topRows(2) += 0.004 * (d_2 * gap_2).normalized();
     }
 
     // rotation equilising force
-    force[2] = -10 * internal_force_gain * (rot_1.smallestAngle() + rot_2.smallestAngle()) / 2.0;
+    _force[2] = -10 * internal_force_gain * (rot_1.smallestAngle() + rot_2.smallestAngle()) / 2.0;
 
     // when close to objects rotate to avoid them otherwise rotate to face forward
     if (curr_min.distance > 0.2)
@@ -299,7 +299,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
                 fwd_angle = M_PI - fwd_angle;
             else if (fwd_angle < -M_PI / 2.0)
                 fwd_angle = -M_PI - fwd_angle;
-            force[2] += 10 * rotation_factor * internal_force_gain * fwd_angle;
+            _force[2] += 10 * rotation_factor * internal_force_gain * fwd_angle;
         }
     }
     else
@@ -321,16 +321,16 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
             const auto tau = offset_3d.cross(rotation_force);
             cp_torque = -tau.z();
         }
-        force[2] += 10 * internal_force_gain * cp_torque;
+        _force[2] += 10 * internal_force_gain * cp_torque;
     }
 
-    return force;
+    return _force;
 }
 
 Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain)
 {
     const ControlPoint& curr_min = curr.control_points[curr.closest_point];
-    Eigen::Vector3d force;
+    Eigen::Vector3d _force;
     const double avoid_distance = 0.06;
 
     double decay;
@@ -340,10 +340,10 @@ Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain
         decay = 1.0;
     decay *= std::min(1.0, std::max(0.1, curr_min.distance_to_saddle));
 
-    force[0] = -external_force_gain * curr_min.gradient.x() * decay;
-    force[1] = -external_force_gain * curr_min.gradient.y() * decay;
-    force[2] = 0.0;
+    _force[0] = -external_force_gain * curr_min.gradient.x() * decay;
+    _force[1] = -external_force_gain * curr_min.gradient.y() * decay;
+    _force[2] = 0.0;
 
-    return force;
+    return _force;
 }
 }

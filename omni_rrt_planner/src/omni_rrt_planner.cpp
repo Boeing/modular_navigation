@@ -34,6 +34,7 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
     cv::Mat dilated;
     {
         {
+            // cppcheck-suppress unreadVariable
             auto lock = map_data.grid.getLock();
 
             grid->resolution = map_data.grid.dimensions().resolution();
@@ -83,6 +84,7 @@ OmniRRTPlanner::~OmniRRTPlanner()
 {
 }
 
+// cppcheck-suppress unusedFunction
 navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isometry2d& start,
                                                                const Eigen::Isometry2d& goal)
 {
@@ -324,6 +326,7 @@ navigation_interface::PathPlanner::Result OmniRRTPlanner::plan(const Eigen::Isom
     return result;
 }
 
+// cppcheck-suppress unusedFunction
 bool OmniRRTPlanner::valid(const navigation_interface::Path& path) const
 {
     // assume this is called immediatelty after plan to re-use the data structures
@@ -383,6 +386,7 @@ double OmniRRTPlanner::cost(const navigation_interface::Path& path) const
     return trajectory.cost(objective_).value();
 }
 
+// cppcheck-suppress unusedFunction
 void OmniRRTPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
@@ -398,6 +402,7 @@ void OmniRRTPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     }
 }
 
+// cppcheck-suppress unusedFunction
 void OmniRRTPlanner::onMapDataChanged()
 {
 }

@@ -11,6 +11,7 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
     cv::Mat dilated;
     {
         {
+            // cppcheck-suppress unreadVariable
             auto lock = map_data.grid.getLock();
 
             grid->width = map_data.grid.dimensions().size().x();

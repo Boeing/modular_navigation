@@ -509,6 +509,7 @@ ompl::base::PlannerStatus ompl::geometric::RRTstar::solve(const base::PlannerTer
     return {newSolution != nullptr, bestGoalMotion_ == nullptr};
 }
 
+// cppcheck-suppress unusedFunction
 void ompl::geometric::RRTstar::getNeighbors(Motion* motion, std::vector<Motion*>& nbh) const
 {
     auto cardDbl = static_cast<double>(nn_->size() + 1u);

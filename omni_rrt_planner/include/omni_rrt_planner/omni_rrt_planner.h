@@ -180,7 +180,7 @@ class CostMapObjective : public ompl::base::StateCostIntegralObjective
 class TraversalObjective : public ompl::base::OptimizationObjective
 {
   public:
-    TraversalObjective(const ompl::base::SpaceInformationPtr& si) : ompl::base::OptimizationObjective(si)
+    explicit TraversalObjective(const ompl::base::SpaceInformationPtr& si) : ompl::base::OptimizationObjective(si)
     {
     }
     virtual ~TraversalObjective() override = default;
@@ -204,8 +204,8 @@ class TraversalObjective : public ompl::base::OptimizationObjective
             Eigen::Vector2d(s2_state->getX(), s2_state->getY()) - Eigen::Vector2d(s1_state->getX(), s1_state->getY());
         const double dist_norm = dir.norm();
         const Eigen::Rotation2Dd s1_rot = Eigen::Rotation2Dd(s1_state->getYaw());
-        const Eigen::Rotation2Dd s2_rot = Eigen::Rotation2Dd(s2_state->getYaw());
-        const double angle_norm = (s1_rot.inverse() * s2_rot).smallestAngle();
+        // const Eigen::Rotation2Dd s2_rot = Eigen::Rotation2Dd(s2_state->getYaw());
+        // const double angle_norm = (s1_rot.inverse() * s2_rot).smallestAngle();
 
         const Eigen::Vector2d pose_dir = s1_rot * Eigen::Vector2d::UnitX();
         const double dot = pose_dir.dot(dir);

@@ -66,6 +66,7 @@ AStarPlanner::~AStarPlanner()
 {
 }
 
+// cppcheck-suppress unusedFunction
 navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isometry2d& start,
                                                              const Eigen::Isometry2d& goal)
 {
@@ -156,9 +157,9 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
         for (auto node : astar_result.explore_3d)
         {
-            const Eigen::Vector3d position(node.second->state.x, node.second->state.y, 0.0);
-            const Eigen::Quaterniond rotation(Eigen::AngleAxisd(node.second->state.theta, Eigen::Vector3d::UnitZ()));
-            const Eigen::Isometry3d pose = Eigen::Translation3d(position) * rotation;
+            const Eigen::Vector3d _position(node.second->state.x, node.second->state.y, 0.0);
+            const Eigen::Quaterniond _rotation(Eigen::AngleAxisd(node.second->state.theta, Eigen::Vector3d::UnitZ()));
+            const Eigen::Isometry3d pose = Eigen::Translation3d(_position) * _rotation;
 
             // X Axis
             const Eigen::Isometry3d x_pose = pose * (Eigen::Translation3d(length / 2.0, 0, 0) *
@@ -192,8 +193,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
                 marker.color.a = 1.0;
                 marker.pose.orientation.w = 1;
                 geometry_msgs::Point p1;
-                p1.x = position.x();
-                p1.y = position.y();
+                p1.x = _position.x();
+                p1.y = _position.y();
                 geometry_msgs::Point p2;
                 p2.x = node.second->parent->state.x;
                 p2.y = node.second->parent->state.y;
@@ -230,6 +231,7 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     return result;
 }
 
+// cppcheck-suppress unusedFunction
 bool AStarPlanner::valid(const navigation_interface::Path& path) const
 {
     // assume this is called immediatelty after plan to re-use the data structures
@@ -248,6 +250,7 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
     return pathCost(path, *collision_checker_);
 }
 
+// cppcheck-suppress unusedFunction
 void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
@@ -278,6 +281,7 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     }
 }
 
+// cppcheck-suppress unusedFunction
 void AStarPlanner::onMapDataChanged()
 {
 }

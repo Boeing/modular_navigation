@@ -148,7 +148,7 @@ navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& pose
                 it->velocity};
     }
 }
-}
+}  // namespace
 
 PurePursuitController::PurePursuitController()
 {
@@ -158,6 +158,7 @@ PurePursuitController::~PurePursuitController()
 {
 }
 
+// cppcheck-suppress unusedFunction
 bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory& trajectory)
 {
     if (trajectory.states.empty())
@@ -171,11 +172,13 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 void PurePursuitController::clearTrajectory()
 {
     trajectory_.reset();
 }
 
+// cppcheck-suppress unusedFunction
 boost::optional<std::string> PurePursuitController::trajectoryId() const
 {
     if (trajectory_)
@@ -193,6 +196,7 @@ boost::optional<navigation_interface::Trajectory> PurePursuitController::traject
 }
 
 navigation_interface::Controller::Result
+    // cppcheck-suppress unusedFunction
     PurePursuitController::control(const ros::SteadyTime& time,
                                    const navigation_interface::KinodynamicState& robot_state,
                                    const Eigen::Isometry2d& map_to_odom)
@@ -392,6 +396,7 @@ navigation_interface::Controller::Result
     return result;
 }
 
+// cppcheck-suppress unusedFunction
 void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     look_ahead_ = navigation_interface::get_config_with_default_warn<double>(parameters, "look_ahead", look_ahead_,
@@ -456,7 +461,8 @@ void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     }
 }
 
+// cppcheck-suppress unusedFunction
 void PurePursuitController::onMapDataChanged()
 {
 }
-}
+}  // namespace pure_pursuit_controller

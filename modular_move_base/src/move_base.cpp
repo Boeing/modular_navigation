@@ -276,7 +276,7 @@ void MoveBase::executionThread()
         // copy the current robot state
         RobotState rs;
         {
-            std::lock_guard<std::mutex> lock(robot_state_mutex_);
+            std::lock_guard<std::mutex> _lock(robot_state_mutex_);
             rs = robot_state_;
         }
 

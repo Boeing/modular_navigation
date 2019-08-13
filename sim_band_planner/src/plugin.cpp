@@ -19,6 +19,7 @@ SimBandPlanner::~SimBandPlanner()
 {
 }
 
+// cppcheck-suppress unusedFunction
 bool SimBandPlanner::setPath(const navigation_interface::Path& path)
 {
     if (path.nodes.empty())
@@ -29,11 +30,13 @@ bool SimBandPlanner::setPath(const navigation_interface::Path& path)
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 void SimBandPlanner::clearPath()
 {
     moving_window_.reset();
 }
 
+// cppcheck-suppress unusedFunction
 boost::optional<std::string> SimBandPlanner::pathId() const
 {
     if (moving_window_)
@@ -51,6 +54,7 @@ boost::optional<navigation_interface::Path> SimBandPlanner::path() const
 }
 
 navigation_interface::TrajectoryPlanner::Result
+    // cppcheck-suppress unusedFunction
     SimBandPlanner::plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
                          const Eigen::Isometry2d& map_to_odom)
 {
@@ -355,16 +359,19 @@ navigation_interface::TrajectoryPlanner::Result
     return result;
 }
 
+// cppcheck-suppress unusedFunction
 bool SimBandPlanner::valid(const navigation_interface::Trajectory&) const
 {
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 double SimBandPlanner::cost(const navigation_interface::Trajectory&) const
 {
     return 0.0;
 }
 
+// cppcheck-suppress unusedFunction
 void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
@@ -413,7 +420,8 @@ void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     }
 }
 
+// cppcheck-suppress unusedFunction
 void SimBandPlanner::onMapDataChanged()
 {
 }
-}
+}  // namespace sim_band_planner

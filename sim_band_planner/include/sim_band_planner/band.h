@@ -33,10 +33,8 @@ struct Node
         : pose(pose), closest_point(0)
     {
         ROS_ASSERT(!_radius_offsets.empty());
-        for (const Eigen::Vector2d& offset : _radius_offsets)
-        {
-            control_points.push_back(ControlPoint(offset));
-        }
+        std::transform(_radius_offsets.begin(), _radius_offsets.end(), std::back_inserter(control_points),
+                       [](const Eigen::Vector2d& offset) { return ControlPoint(offset); });
     }
 
     Eigen::Isometry2d pose;
@@ -114,6 +112,6 @@ struct Band
         return spline;
     }
 };
-}
+}  // namespace sim_band_planner
 
 #endif
