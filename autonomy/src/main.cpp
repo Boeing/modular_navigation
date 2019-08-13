@@ -1,13 +1,13 @@
-#include <modular_move_base/move_base.h>
+#include <autonomy/autonomy.h>
 
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "move_base");
+    ros::init(argc, argv, "autonomy");
 
     try
     {
-        move_base::MoveBase move_base;
+        autonomy::Autonomy an;
         ros::spin();
     }
     catch (const std::exception& e)

@@ -4,8 +4,8 @@ project(navigation_interface)
 add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
-    gridmap
     geometry_msgs
+    gridmap
     tf2_ros
 )
 
@@ -16,8 +16,8 @@ catkin_package(
     INCLUDE_DIRS
         include
     CATKIN_DEPENDS
-        gridmap
         geometry_msgs
+        gridmap
         tf2_ros
 )
 

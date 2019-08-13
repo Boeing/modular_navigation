@@ -10,10 +10,9 @@ find_package(catkin REQUIRED COMPONENTS
     navigation_interface
     pluginlib
     roscpp
-    visualization_msgs
     tf2_geometry_msgs
     tf2_ros
-    rviz_visual_tools
+    visualization_msgs
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -29,15 +28,15 @@ include_directories(SYSTEM
 
 catkin_package(
     CATKIN_DEPENDS
-        geometry_msgs
-        gridmap
-        nav_msgs
-        navigation_interface
-        pluginlib
-        roscpp
-        visualization_msgs
-        tf2_geometry_msgs
-        tf2_ros
+    geometry_msgs
+    gridmap
+    nav_msgs
+    navigation_interface
+    pluginlib
+    roscpp
+    tf2_geometry_msgs
+    tf2_ros
+    visualization_msgs
     INCLUDE_DIRS
         include
     LIBRARIES

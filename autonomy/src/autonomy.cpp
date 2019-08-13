@@ -8,12 +8,14 @@
 
 #include <boost/tokenizer.hpp>
 
-#include <modular_move_base/move_base.h>
+#include <autonomy/autonomy.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 
 #include <geometry_msgs/Twist.h>
+
+#include <nav_msgs/Path.h>
 
 #include <navigation_interface/params.h>
 
@@ -21,7 +23,7 @@
 #include <map_manager/GetOccupancyGrid.h>
 #include <map_msgs/OccupancyGridUpdate.h>
 
-namespace move_base
+namespace autonomy
 {
 
 namespace
@@ -125,15 +127,15 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& 
 
     return plugin_ptrs;
 }
-}
+}  // namespace
 
-MoveBase::MoveBase()
+Autonomy::Autonomy()
     : nh_("~"),
 
       tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
 
-      as_(nh_, "/move_base", boost::bind(&MoveBase::goalCallback, this, _1),
-          boost::bind(&MoveBase::cancelCallback, this, _1), false),
+      as_(nh_, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1),
+          boost::bind(&Autonomy::cancelCallback, this, _1), false),
 
       layer_loader_("gridmap", "gridmap::Layer"),
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
@@ -182,7 +184,7 @@ MoveBase::MoveBase()
     const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
     const std::string controller_name = get_param_or_throw<std::string>("~controller");
 
-    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &MoveBase::odomCallback, this,
+    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &Autonomy::odomCallback, this,
                                                   ros::TransportHints().tcpNoDelay());
     vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
     current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 0);
@@ -195,7 +197,8 @@ MoveBase::MoveBase()
         load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
     controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
 
-    active_map_sub_ = nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &MoveBase::activeMapCallback, this);
+    active_map_sub_ =
+        nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
 
     costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
@@ -203,12 +206,12 @@ MoveBase::MoveBase()
     as_.start();
 
     execution_thread_running_ = true;
-    execution_thread_ = std::thread(&MoveBase::executionThread, this);
+    execution_thread_ = std::thread(&Autonomy::executionThread, this);
 
     ROS_INFO("Successfully started");
 }
 
-MoveBase::~MoveBase()
+Autonomy::~Autonomy()
 {
     if (execution_thread_running_)
     {
@@ -221,7 +224,7 @@ MoveBase::~MoveBase()
     }
 }
 
-void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
+void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 {
     ROS_INFO_STREAM("Received map!");
 
@@ -262,7 +265,7 @@ void MoveBase::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     }
 }
 
-void MoveBase::executionThread()
+void Autonomy::executionThread()
 {
     while (execution_thread_running_)
     {
@@ -299,7 +302,7 @@ void MoveBase::executionThread()
     }
 }
 
-void MoveBase::executeGoal(GoalHandle& goal)
+void Autonomy::executeGoal(GoalHandle& goal)
 {
     ROS_INFO_STREAM("Received New Goal");
 
@@ -316,11 +319,11 @@ void MoveBase::executeGoal(GoalHandle& goal)
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(new std::thread(&MoveBase::pathPlannerThread, this,
+    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this,
                                                convert(goal.getGoal()->target_pose.pose),
                                                goal.getGoal()->target_pose.header.frame_id));
-    trajectory_planner_thread_.reset(new std::thread(&MoveBase::trajectoryPlannerThread, this));
-    controller_thread_.reset(new std::thread(&MoveBase::controllerThread, this));
+    trajectory_planner_thread_.reset(new std::thread(&Autonomy::trajectoryPlannerThread, this));
+    controller_thread_.reset(new std::thread(&Autonomy::controllerThread, this));
 
     // wait till all threads are done
     while (running_)
@@ -333,7 +336,7 @@ void MoveBase::executeGoal(GoalHandle& goal)
 
         if (controller_done_)
         {
-            goal.setSucceeded(move_base_msgs::MoveBaseResult(), "Goal reached");
+            goal.setSucceeded(autonomy::DriveResult(), "Goal reached");
             break;
         }
 
@@ -364,7 +367,7 @@ void MoveBase::executeGoal(GoalHandle& goal)
     ROS_INFO_STREAM("Goal " << goal_->getGoalID().id << " execution complete");
 }
 
-void MoveBase::goalCallback(GoalHandle goal)
+void Autonomy::goalCallback(GoalHandle goal)
 {
     ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x
                                       << ", " << goal.getGoal()->target_pose.pose.position.y << ")");
@@ -397,7 +400,7 @@ void MoveBase::goalCallback(GoalHandle goal)
     execution_condition_.notify_all();
 }
 
-void MoveBase::cancelCallback(GoalHandle goal)
+void Autonomy::cancelCallback(GoalHandle goal)
 {
     std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
     if (!lock.owns_lock())
@@ -409,7 +412,7 @@ void MoveBase::cancelCallback(GoalHandle goal)
     }
 }
 
-std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry2d& goal, const std::string& frame_id)
+std::unique_ptr<Eigen::Isometry2d> Autonomy::transformGoal(const Eigen::Isometry2d& goal, const std::string& frame_id)
 {
     try
     {
@@ -435,7 +438,7 @@ std::unique_ptr<Eigen::Isometry2d> MoveBase::transformGoal(const Eigen::Isometry
     return nullptr;
 }
 
-void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string& frame_id)
+void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string& frame_id)
 {
     ros::WallRate rate(path_planner_frequency_);
 
@@ -621,7 +624,7 @@ void MoveBase::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
     }
 }
 
-void MoveBase::trajectoryPlannerThread()
+void Autonomy::trajectoryPlannerThread()
 {
     ros::WallRate rate(trajectory_planner_frequency_);
 
@@ -792,7 +795,7 @@ void MoveBase::trajectoryPlannerThread()
     }
 }
 
-void MoveBase::controllerThread()
+void Autonomy::controllerThread()
 {
     const long period_ms = static_cast<long>(1000.0 / controller_frequency_);
     ros::SteadyTime last_odom_time;
@@ -874,7 +877,7 @@ void MoveBase::controllerThread()
         const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Quaterniond qt = Eigen::Quaterniond(
             Eigen::AngleAxisd(Eigen::Rotation2Dd(global_robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
-        move_base_msgs::MoveBaseFeedback feedback;
+        autonomy::DriveFeedback feedback;
         feedback.base_position.header.frame_id = global_frame_;
         feedback.base_position.pose.position.x = global_robot_pose.translation().x();
         feedback.base_position.pose.position.y = global_robot_pose.translation().y();
@@ -914,7 +917,7 @@ void MoveBase::controllerThread()
     controller_done_ = true;
 }
 
-void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
+void Autonomy::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
     RobotState robot_state;
     robot_state.time = ros::SteadyTime::now();
@@ -950,4 +953,4 @@ void MoveBase::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     }
     robot_state_conditional_.notify_all();
 }
-}
+}  // namespace Autonomy

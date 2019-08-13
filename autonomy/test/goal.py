@@ -1,19 +1,20 @@
 import actionlib
 import rospy
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from autonomy.msg import DriveAction, DriveGoal
 from std_msgs.msg import Header
 from math6d.geometry import Quaternion, Vector3
 import math
 
+
 def run(x, y, angle):
-    client = actionlib.SimpleActionClient(ns='move_base', ActionSpec=MoveBaseAction)
+    client = actionlib.SimpleActionClient(ns='autonomy', ActionSpec=DriveAction)
 
     client.wait_for_server()
 
     qt = Quaternion.from_axis_angle(axis=Vector3(0, 0, 1), angle=angle)
 
-    goal = MoveBaseGoal(
+    goal = DriveGoal(
         target_pose=PoseStamped(
             header=Header(frame_id='map'),
             pose=Pose(

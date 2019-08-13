@@ -70,18 +70,14 @@ add_library(${PROJECT_NAME}
     src/grids/grid_2d.cpp
     src/grids/occupancy_grid.cpp
     src/grids/probability_grid.cpp
-
+    src/layered_map.cpp
+    src/layers/base_map_layer.cpp
     src/layers/obstacle_data/laser_data.cpp
     src/layers/obstacle_data/point_cloud_data.cpp
     src/layers/obstacle_data/range_data.cpp
-
-    src/layers/base_map_layer.cpp
     src/layers/obstacle_layer.cpp
-
     src/operations/clip_line.cpp
     src/operations/raytrace.cpp
-
-    src/layered_map.cpp
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

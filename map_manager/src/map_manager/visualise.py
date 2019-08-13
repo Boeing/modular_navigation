@@ -1,5 +1,6 @@
 import logging
 import math
+from math3d.orientation import Orientation
 
 from math6d.geometry import Vector3, Quaternion
 import rospy
@@ -14,13 +15,14 @@ from geometry_msgs.msg import Quaternion as QuaternionMsg
 from map_manager.documents import Map as MapDocument
 from map_manager.documents import Zone as ZoneDocument
 
+
 logger = logging.getLogger(__name__)
 
 
 def build_cylinder_marker(start_point, end_point, color, radius):
     # type: (Vector3, Vector3, ColorRGBA, float) -> Marker
     vec = Vector3(end_point - start_point)
-    center = (start_point + end_point) * (1/2.0)
+    center = (start_point + end_point) * (1 / 2.0)
 
     axis_vec = end_point - center
     axis_vec.normalize()
@@ -50,7 +52,7 @@ def build_cylinder_marker(start_point, end_point, color, radius):
         color=color
     )
 
-from math3d.orientation import Orientation
+
 def build_pose_markers(pose, size=0.05):
     # type: (PoseMsg, float) -> typing.Sequence[Marker]
     quat_m3d = Quaternion(

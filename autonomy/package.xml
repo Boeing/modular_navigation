@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>modular_move_base</name>
+    <name>autonomy</name>
     <version>0.1.0</version>
-    <description>Fork of move_base</description>
+    <description>Mobile Robot Navigation</description>
     <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
@@ -11,19 +11,19 @@
 
     <depend>actionlib</depend>
     <depend>cmake_modules</depend>
-    <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
+    <depend>gridmap</depend>
     <depend>map_manager</depend>
     <depend>message_generation</depend>
-    <depend>move_base_msgs</depend>
     <depend>nav_msgs</depend>
     <depend>navigation_interface</depend>
     <depend>pluginlib</depend>
     <depend>roscpp</depend>
     <depend>std_srvs</depend>
-    <depend>tf2_ros</depend>
     <depend>tf2_geometry_msgs</depend>
-    <depend>rviz_visual_tools</depend>
+    <depend>tf2_ros</depend>
+
+    <depend>actionlib_msgs</depend>
 
     <exec_depend>message_runtime</exec_depend>
 

@@ -33,7 +33,7 @@
     </group>
 
     <!-- URDF -->
-    <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find modular_move_base)/test/robot.urdf.xacro'"/>
+    <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find autonomy)/test/robot.urdf.xacro'"/>
 
     <!-- Robot State Publisher -->
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true">
@@ -51,9 +51,9 @@
     <!--<node pkg="tf2_ros" type="static_transform_publisher" name="map_odom" args="0 0 0 0 0 0 1 map odom" />-->
 
     <!-- Move Base -->
-    <node pkg="modular_move_base" type="modular_move_base" respawn="true" name="move_base" launch-prefix="xterm -e gdb --args">
+    <node pkg="autonomy" type="autonomy" respawn="true" name="autonomy" launch-prefix="xterm -e gdb --args">
         <remap from="map" to="gazebo/map"/>
-        <rosparam file="$(find modular_move_base)/test/move_base.yaml" command="load"/>
+        <rosparam file="$(find autonomy)/test/navigation.yaml" command="load"/>
     </node>
 
 </launch>

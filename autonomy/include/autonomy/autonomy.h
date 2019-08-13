@@ -1,5 +1,5 @@
-#ifndef MOVE_BASE_MOVE_BASE_H
-#define MOVE_BASE_MOVE_BASE_H
+#ifndef AUTONOMY_H
+#define AUTONOMY_H
 
 #include <atomic>
 #include <condition_variable>
@@ -12,7 +12,7 @@
 #include <ros/ros.h>
 
 #include <actionlib/server/simple_action_server.h>
-#include <move_base_msgs/MoveBaseAction.h>
+#include <autonomy/DriveAction.h>
 
 #include <navigation_interface/controller.h>
 #include <navigation_interface/path_planner.h>
@@ -27,15 +27,12 @@
 
 #include <pluginlib/class_loader.h>
 
-#include <modular_move_base/Plan.h>
-
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <rviz_visual_tools/rviz_visual_tools.h>
 
-namespace move_base
+namespace autonomy
 {
 
 template <typename T> T get_param_with_default_warn(const std::string& param_name, const T& default_val)
@@ -95,13 +92,13 @@ struct TrackingPath
     navigation_interface::Path path;
 };
 
-class MoveBase
+class Autonomy
 {
   public:
-    typedef actionlib::ServerGoalHandle<move_base_msgs::MoveBaseAction> GoalHandle;
+    typedef actionlib::ServerGoalHandle<autonomy::DriveAction> GoalHandle;
 
-    MoveBase();
-    virtual ~MoveBase();
+    Autonomy();
+    virtual ~Autonomy();
 
   private:
     void activeMapCallback(const hd_map::MapInfo::ConstPtr& map);
@@ -127,7 +124,7 @@ class MoveBase
     std::unique_ptr<GoalHandle> goal_;
     std::condition_variable execution_condition_;
     std::thread execution_thread_;
-    actionlib::ActionServer<move_base_msgs::MoveBaseAction> as_;
+    actionlib::ActionServer<autonomy::DriveAction> as_;
 
     pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
@@ -186,6 +183,7 @@ class MoveBase
     ros::Subscriber odom_sub_;
     void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
 };
-}
+
+}  // namespace autonomy
 
 #endif

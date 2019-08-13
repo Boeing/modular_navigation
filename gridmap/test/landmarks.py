@@ -20,7 +20,6 @@ def run():
         print response.success
 
 
-
 if __name__ == '__main__':
     rospy.init_node('landmarks')
 

@@ -1,17 +1,20 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(map_manager)
 
-find_package(catkin REQUIRED COMPONENTS
-    geometry_msgs
-    message_generation
-    nav_msgs
-    sensor_msgs
-    hd_map
+find_package(
+    catkin REQUIRED
+    COMPONENTS
+        geometry_msgs
+        hd_map
+        message_generation
+        nav_msgs
+        sensor_msgs
 )
 
 catkin_python_setup()
 
-add_service_files(FILES
+add_service_files(
+    FILES
     AddMap.srv
     DeleteMap.srv
     GetActiveMap.srv
@@ -24,23 +27,28 @@ add_service_files(FILES
 
 generate_messages(
     DEPENDENCIES
-        geometry_msgs
-        nav_msgs
-        sensor_msgs
-        hd_map
+    geometry_msgs
+    hd_map
+    nav_msgs
+    sensor_msgs
 )
 
 catkin_package(
     CATKIN_DEPENDS
-        geometry_msgs
-        message_runtime
-        nav_msgs
-        hd_map
+    geometry_msgs
+    hd_map
+    message_runtime
+    nav_msgs
+    sensor_msgs
 )
 
-catkin_install_python(PROGRAMS
+catkin_install_python(
+    PROGRAMS
     scripts/${PROJECT_NAME}_node.py
-    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    scripts/save_cartographer_map.py
+    scripts/save_gmapping_map.py
+    DESTINATION
+    ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 if(CATKIN_ENABLE_TESTING)
