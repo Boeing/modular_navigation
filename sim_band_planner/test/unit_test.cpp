@@ -63,7 +63,6 @@ TEST(test_plugin, test_plugin)
     double min_overlap_ = 0.05;
     double robot_radius_ = 0.210;
     double rotation_factor_ = 2.0;
-    bool reverse_direction_ = false;
     double velocity_decay_ = 0.6;
     double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 20.0);
 
@@ -75,8 +74,8 @@ TEST(test_plugin, test_plugin)
         auto t0 = std::chrono::steady_clock::now();
 
         sim_band_planner::simulate(band, distance_field, num_iterations_, min_overlap_, min_distance_,
-                                   internal_force_gain_, external_force_gain_, rotation_factor_, reverse_direction_,
-                                   velocity_decay_, 1.0, alpha_decay_, max_distance_, 20);
+                                   internal_force_gain_, external_force_gain_, rotation_factor_, velocity_decay_, 1.0,
+                                   alpha_decay_, max_distance_, 20);
 
         std::cout
             << "simulate took: "

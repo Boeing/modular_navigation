@@ -10,8 +10,8 @@ namespace sim_band_planner
 
 double simulate(Band& path, const DistanceField& distance_field, const int num_iterations, const double min_overlap,
                 const double min_distance, const double internal_force_gain, const double external_force_gain,
-                const double rotation_factor, const bool reverse_direction, const double velocity_decay,
-                const double alpha_start, const double alpha_decay, const double max_distance, const int max_nodes)
+                const double rotation_factor, const double velocity_decay, const double alpha_start,
+                const double alpha_decay, const double max_distance, const int max_nodes)
 {
     updateDistances(path, distance_field, max_distance);
     refine(path, distance_field, min_distance, max_distance, min_overlap, max_nodes);
@@ -28,7 +28,7 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
         for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
         {
             forces[i] = force(path.nodes[i - 1], path.nodes[i], path.nodes[i + 1], internal_force_gain,
-                              external_force_gain, rotation_factor, reverse_direction, max_distance);
+                              external_force_gain, rotation_factor, max_distance);
         }
 
         // a = f / m
@@ -219,17 +219,15 @@ void refine(Band& path, const DistanceField& distance_field, const double min_di
 }
 
 Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
-                      const double external_force_gain, const double rotation_factor, const bool reverse_direction,
-                      const double max_distance)
+                      const double external_force_gain, const double rotation_factor, const double max_distance)
 {
-    const auto internal_force =
-        internalForce(prev, curr, next, internal_force_gain, rotation_factor, reverse_direction, max_distance);
+    const auto internal_force = internalForce(prev, curr, next, internal_force_gain, rotation_factor, max_distance);
     const auto external_force = externalForce(curr, external_force_gain);
     return internal_force + external_force;
 }
 
 Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
-                              const double rotation_factor, const bool reverse_direction, const double max_distance)
+                              const double rotation_factor, const double max_distance)
 {
     const Eigen::Vector2d d_1 = prev.pose.translation() - curr.pose.translation();
     const Eigen::Vector2d d_2 = next.pose.translation() - curr.pose.translation();
@@ -346,4 +344,4 @@ Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain
 
     return _force;
 }
-}
+}  // namespace sim_band_planner

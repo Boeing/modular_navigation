@@ -97,8 +97,7 @@ navigation_interface::TrajectoryPlanner::Result
         const std::size_t max_nodes = 20;
 
         simulate(sim_band, distance_field, num_iterations_, min_overlap_, min_distance_, internal_force_gain_,
-                 external_force_gain_, rotation_factor_, false, velocity_decay_, 1.0, alpha_decay_, max_distance_,
-                 max_nodes);
+                 external_force_gain_, rotation_factor_, velocity_decay_, 1.0, alpha_decay_, max_distance_, max_nodes);
 
         // debug viz
         if (debug_viz_ && marker_pub_.getNumSubscribers() > 0)
