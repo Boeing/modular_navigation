@@ -23,7 +23,7 @@ add_definitions(${EIGEN3_DEFINITIONS})
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES omni_rrt_planner
+  LIBRARIES ${PROJECT_NAME}
   CATKIN_DEPENDS
     geometry_msgs
     gridmap
@@ -45,16 +45,15 @@ include_directories(
     include
 )
 
-add_library(omni_rrt_planner
-    include/omni_rrt_planner/omni_rrt_planner.h
-    include/omni_rrt_planner/rrt_star.h
-
-    src/omni_rrt_planner.cpp
+add_library(${PROJECT_NAME}
+    include/${PROJECT_NAME}/${PROJECT_NAME}.h
+    include/${PROJECT_NAME}/rrt_star.h
+    src/${PROJECT_NAME}.cpp
     src/rrt_star.cpp
 )
-target_link_libraries(omni_rrt_planner ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
-install(TARGETS omni_rrt_planner
+install(TARGETS ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
