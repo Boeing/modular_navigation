@@ -1,7 +1,11 @@
 #include <navigation_interface/params.h>
 #include <pure_pursuit_controller/plugin.h>
 
+#include <gridmap/operations/rasterize.h>
+
 #include <pluginlib/class_list_macros.h>
+
+#include <visualization_msgs/MarkerArray.h>
 
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
@@ -11,28 +15,76 @@ namespace pure_pursuit_controller
 namespace
 {
 
-bool robotInCollision(const gridmap::MapData& map_data, const int map_x, const int map_y, const double robot_radius)
+std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapData& map_data,
+                                                             const Eigen::Isometry2d& robot_pose,
+                                                             const std::vector<Eigen::Vector2d>& footprint,
+                                                             const float alpha)
 {
-    const int robot_radius_cells = static_cast<int>(robot_radius / map_data.grid.dimensions().resolution());
-    const int r2 = robot_radius_cells * robot_radius_cells;
-    for (int j = -robot_radius_cells; j <= robot_radius_cells; ++j)
+    int min_x = std::numeric_limits<int>::max();
+    int max_x = 0;
+
+    int min_y = std::numeric_limits<int>::max();
+    int max_y = 0;
+
+    std::vector<Eigen::Array2i> map_footprint;
+    for (const Eigen::Vector2d& p : footprint)
     {
-        for (int i = -robot_radius_cells; i <= robot_radius_cells; ++i)
-        {
-            if (j * j + i * i < r2)
-            {
-                if (map_data.grid.occupied({map_x + i, map_y + j}))
-                {
-                    return true;
-                }
-            }
-        }
+        const Eigen::Vector2d world_point = robot_pose.translation() + robot_pose.rotation() * p;
+        const auto map_point = map_data.grid.dimensions().getCellIndex(world_point);
+        map_footprint.push_back(map_point);
+        min_x = std::min(map_point.x(), min_x);
+        max_x = std::max(map_point.x(), max_x);
+        min_y = std::min(map_point.y(), min_y);
+        max_y = std::max(map_point.y(), max_y);
     }
-    return false;
+
+    const auto connected_poly = gridmap::connectPolygon(map_footprint);
+
+    visualization_msgs::Marker marker;
+    marker.ns = "points";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::POINTS;
+    marker.header.stamp = ros::Time::now();
+    marker.header.frame_id = "map";
+    marker.frame_locked = true;
+    marker.scale.x = 0.02;
+    marker.scale.y = 0.02;
+    marker.scale.z = 0.00;
+    marker.color.a = 1.f;
+    marker.pose.orientation.w = 1.0;
+
+    bool in_collision = false;
+    auto append_raster = [&map_data, &marker, &in_collision, alpha](const int x, const int y) {
+        const Eigen::Array2i p{x, y};
+
+        const Eigen::Vector2d w = map_data.grid.dimensions().getCellCenter(p);
+        geometry_msgs::Point mp;
+        mp.x = w.x();
+        mp.y = w.y();
+        mp.z = 0.0;
+        marker.points.push_back(mp);
+        std_msgs::ColorRGBA c;
+        c.a = alpha;
+        if (map_data.grid.dimensions().contains(p) && map_data.grid.occupied(p))
+        {
+            in_collision = true;
+            c.r = 1.0;
+        }
+        else
+        {
+            c.g = 1.0;
+        }
+        marker.colors.push_back(c);
+    };
+
+    gridmap::rasterPolygonFill(append_raster, connected_poly, min_x, max_x, min_y, max_y);
+
+    return std::make_pair(in_collision, marker);
 }
 
+
 std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
-                                           const navigation_interface::Trajectory& trajectory, const double lookahead)
+                                           const navigation_interface::Trajectory& trajectory)
 {
     std::vector<double> distances;
     std::transform(trajectory.states.begin(), trajectory.states.end(), std::back_inserter(distances),
@@ -42,12 +94,6 @@ std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
     auto it = std::min_element(distances.begin(), distances.end());
     long dist = std::distance(distances.begin(), it);
     {
-        while (*it < lookahead && dist < static_cast<int>(trajectory.states.size()) - 1)
-        {
-            it++;
-            dist = std::distance(distances.begin(), it);
-        }
-
         if (dist < static_cast<int>(trajectory.states.size()) - 1)
         {
             const double fut_seg =
@@ -62,7 +108,47 @@ std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
         return {dist, *it};
     }
 }
+
+navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& pose,
+                                                   const navigation_interface::Trajectory& trajectory,
+                                                   const double linear_lookahead, const double angular_lookahead)
+{
+    const auto target = targetState(pose, trajectory);
+
+    auto it = trajectory.states.begin() + static_cast<int>(target.first);
+    while (
+        it != trajectory.states.end() &&
+        ((it->pose.translation() - pose.translation()).norm() < linear_lookahead ||
+         std::abs(Eigen::Rotation2Dd(it->pose.linear().inverse() * pose.linear()).smallestAngle()) < angular_lookahead))
+    {
+        ++it;
+    }
+
+    if (it == trajectory.states.end())
+        it--;
+
+    const Eigen::Vector2d dir = it->pose.translation() - pose.translation();
+    const double dist = dir.norm();
+
+    const Eigen::Rotation2Dd rot(pose.linear());
+    const Eigen::Rotation2Dd future_rot(it->pose.linear());
+    const Eigen::Rotation2Dd rotation(future_rot.inverse() * rot);
+    const double angle = std::abs(rotation.smallestAngle());
+
+    const double fraction =
+        std::min(dist > 0.0 ? (linear_lookahead / dist) : 0.0, angle > 0.0 ? (angular_lookahead / angle) : 0.0);
+
+    if (fraction >= 1)
+    {
+        return *it;
+    }
+    else
+    {
+        return {Eigen::Translation2d(pose.translation() + fraction * dir) * rot.slerp(fraction, future_rot),
+                it->velocity};
+    }
 }
+}  // namespace
 
 PurePursuitController::PurePursuitController()
 {
@@ -72,6 +158,7 @@ PurePursuitController::~PurePursuitController()
 {
 }
 
+// cppcheck-suppress unusedFunction
 bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory& trajectory)
 {
     if (trajectory.states.empty())
@@ -85,11 +172,13 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 void PurePursuitController::clearTrajectory()
 {
     trajectory_.reset();
 }
 
+// cppcheck-suppress unusedFunction
 boost::optional<std::string> PurePursuitController::trajectoryId() const
 {
     if (trajectory_)
@@ -107,6 +196,7 @@ boost::optional<navigation_interface::Trajectory> PurePursuitController::traject
 }
 
 navigation_interface::Controller::Result
+    // cppcheck-suppress unusedFunction
     PurePursuitController::control(const ros::SteadyTime& time,
                                    const navigation_interface::KinodynamicState& robot_state,
                                    const Eigen::Isometry2d& map_to_odom)
@@ -128,26 +218,20 @@ navigation_interface::Controller::Result
     //
     // Find target i
     //
-    auto closest_i = targetState(robot_state.pose, *trajectory_, look_ahead_);
-    std::size_t target_i = closest_i.first;
+    const auto target_state = targetState(robot_state.pose, *trajectory_, 0.02, 0.05);
 
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
     const double angle_to_goal =
         std::abs(Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * trajectory_->states.back().pose.linear())
                      .smallestAngle());
 
-    if (dist_to_goal < goal_radius_)
-    {
-        target_i = trajectory_->states.size() - 1;
-    }
-
     ROS_ASSERT(robot_state.pose.linear().allFinite());
     ROS_ASSERT(robot_state.pose.translation().allFinite());
 
-    const Eigen::Vector2d goal_vec = trajectory_->states[target_i].pose.translation() - robot_state.pose.translation();
+    const Eigen::Vector2d goal_vec = target_state.pose.translation() - robot_state.pose.translation();
     const Eigen::Vector2d goal_vec_wrt_robot = robot_state.pose.linear().inverse() * goal_vec;
 
-    const auto rot_diff = robot_state.pose.linear().inverse() * trajectory_->states[target_i].pose.linear();
+    const auto rot_diff = robot_state.pose.linear().inverse() * target_state.pose.linear();
 
     Eigen::Vector3d control_error;
     control_error.topRows(2) = goal_vec_wrt_robot;
@@ -159,9 +243,9 @@ navigation_interface::Controller::Result
     const Eigen::Vector2d goal_direction_wrt_robot = robot_state.pose.linear().inverse() * goal_direction;
 
     Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
-    target_velocity.topRows(2) = (trajectory_->states[target_i].velocity.topRows(2).norm() * goal_direction_wrt_robot);
+    target_velocity.topRows(2) = (target_state.velocity.topRows(2).norm() * goal_direction_wrt_robot);
     const double finish_time = goal_vec.norm() / target_velocity.topRows(2).norm();
-    target_velocity[2] = control_error[2] / finish_time;
+    target_velocity[2] = 2.0 * control_error[2] / finish_time;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
     control_error_ = control_error;
@@ -172,22 +256,36 @@ navigation_interface::Controller::Result
     // Check immediate collisions
     //
     {
-        auto lock = map_data_->grid.getLock();
+        // TODO need a more intelligent way to lock read access without waiting for path planning
+        // auto lock = map_data_->grid.getLock();
 
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
-        const Eigen::Isometry2d map_goal_pose = map_to_odom * trajectory_->states[target_i].pose;
+        const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
 
-        const Eigen::Array2i robot_map_index = map_data_->grid.dimensions().getCellIndex(map_robot_pose.translation());
-        const Eigen::Array2i goal_map_index = map_data_->grid.dimensions().getCellIndex(map_goal_pose.translation());
+        bool in_collision;
+        visualization_msgs::Marker marker;
 
-        if (robotInCollision(*map_data_, robot_map_index.x(), robot_map_index.y(), robot_radius_))
+        std::tie(in_collision, marker) = robotInCollision(*map_data_, map_robot_pose, robot_footprint_, 1.f);
+        if (debug_viz_)
+            footprint_pub_.publish(marker);
+
+        bool future_in_collision;
+        visualization_msgs::Marker future_marker;
+
+        std::tie(future_in_collision, future_marker) =
+            robotInCollision(*map_data_, map_goal_pose, robot_footprint_, 0.2f);
+        if (debug_viz_)
+            future_footprint_pub_.publish(future_marker);
+
+        if (in_collision)
         {
             ROS_WARN_STREAM("Current robot pose is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
             last_update_ = ros::SteadyTime(0);
             return result;
         }
-        if (robotInCollision(*map_data_, goal_map_index.x(), goal_map_index.y(), robot_radius_))
+
+        if (future_in_collision)
         {
             ROS_WARN_STREAM("Target robot pose is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
@@ -247,11 +345,10 @@ navigation_interface::Controller::Result
             acc_factor_w = std::abs(ddw / max_acceleration_w_);
         }
 
-        const double acc_factor_xy = std::max(acc_factor_x, acc_factor_y);
-
-        ddx /= acc_factor_xy;
-        ddy /= acc_factor_xy;
-        ddw /= acc_factor_w;
+        const double acc_factor = std::max(acc_factor_w, std::max(acc_factor_x, acc_factor_y));
+        ddx /= acc_factor;
+        ddy /= acc_factor;
+        ddw /= acc_factor;
     }
 
     //
@@ -287,10 +384,10 @@ navigation_interface::Controller::Result
             velocity_factor_w = std::abs(x_dot_command.z() / max_velocity_w_);
         }
 
-        const double velocity_factor_xy = std::max(velocity_factor_x, velocity_factor_y);
-        x_dot_command.x() /= velocity_factor_xy;
-        x_dot_command.y() /= velocity_factor_xy;
-        x_dot_command.z() /= velocity_factor_w;
+        const double velocity_factor = std::max(velocity_factor_w, std::max(velocity_factor_x, velocity_factor_y));
+        x_dot_command.x() /= velocity_factor;
+        x_dot_command.y() /= velocity_factor;
+        x_dot_command.z() /= velocity_factor;
     }
 
     result.command = x_dot_command;
@@ -299,6 +396,7 @@ navigation_interface::Controller::Result
     return result;
 }
 
+// cppcheck-suppress unusedFunction
 void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     look_ahead_ = navigation_interface::get_config_with_default_warn<double>(parameters, "look_ahead", look_ahead_,
@@ -342,9 +440,29 @@ void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
         parameters, "goal_d_gain_y", goal_d_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
     goal_d_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
         parameters, "goal_d_gain_z", goal_d_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+
+    if (parameters.hasMember("footprint"))
+    {
+        robot_footprint_ = navigation_interface::get_point_list(parameters, "footprint");
+    }
+    else
+    {
+        robot_footprint_ = {{0.480, 0.000},  {0.398, -0.395}, {-0.398, -0.395},
+                            {-0.480, 0.000}, {-0.398, 0.395}, {0.398, 0.395}};
+    }
+
+    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
+                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
+    if (debug_viz_)
+    {
+        ros::NodeHandle nh("~");
+        footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
+        future_footprint_pub_ = nh.advertise<visualization_msgs::Marker>("future_footprint", 100);
+    }
 }
 
+// cppcheck-suppress unusedFunction
 void PurePursuitController::onMapDataChanged()
 {
 }
-}
+}  // namespace pure_pursuit_controller

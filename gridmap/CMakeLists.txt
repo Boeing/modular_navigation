@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
     cmake_modules
     cv_bridge
     geometry_msgs
+    hd_map
     laser_geometry
     map_msgs
     message_filters
@@ -21,7 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_ros
     tf2_sensor_msgs
     visualization_msgs
-    hd_map
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -48,6 +48,7 @@ catkin_package(
     CATKIN_DEPENDS
         cv_bridge
         geometry_msgs
+        hd_map
         laser_geometry
         map_msgs
         message_filters
@@ -60,7 +61,6 @@ catkin_package(
         tf2_ros
         tf2_sensor_msgs
         visualization_msgs
-        hd_map
     DEPENDS
         Boost
         EIGEN3
@@ -70,18 +70,14 @@ add_library(${PROJECT_NAME}
     src/grids/grid_2d.cpp
     src/grids/occupancy_grid.cpp
     src/grids/probability_grid.cpp
-
+    src/layered_map.cpp
+    src/layers/base_map_layer.cpp
     src/layers/obstacle_data/laser_data.cpp
     src/layers/obstacle_data/point_cloud_data.cpp
     src/layers/obstacle_data/range_data.cpp
-
-    src/layers/base_map_layer.cpp
     src/layers/obstacle_layer.cpp
-
     src/operations/clip_line.cpp
     src/operations/raytrace.cpp
-
-    src/layered_map.cpp
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -89,18 +85,6 @@ target_link_libraries(${PROJECT_NAME}
     ${Boost_LIBRARIES}
     ${catkin_LIBRARIES}
     ${OpenCV_LIBRARIES}
-)
-
-add_executable(${PROJECT_NAME}_test
-    src/main.cpp
-)
-
-target_link_libraries(${PROJECT_NAME}_test
-    ${PROJECT_NAME}
-)
-
-add_dependencies(${PROJECT_NAME}_test
-    ${PROJECT_NAME}
 )
 
 if(CATKIN_ENABLE_TESTING)
@@ -114,7 +98,7 @@ if(CATKIN_ENABLE_TESTING)
 endif()
 
 install(TARGETS
-    ${PROJECT_NAME} ${PROJECT_NAME}_test
+    ${PROJECT_NAME}
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

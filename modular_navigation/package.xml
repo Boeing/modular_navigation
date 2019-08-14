@@ -10,8 +10,8 @@
     <buildtool_depend>catkin</buildtool_depend>
 
     <exec_depend>astar_planner</exec_depend>
+    <exec_depend>autonomy</exec_depend>
     <exec_depend>gridmap</exec_depend>
-    <exec_depend>modular_move_base</exec_depend>
     <exec_depend>navigation_interface</exec_depend>
     <exec_depend>pure_pursuit_controller</exec_depend>
     <exec_depend>sim_band_planner</exec_depend>

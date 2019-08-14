@@ -8,35 +8,56 @@
 #include <sim_band_planner/spline/SplineFitting.h>
 #include <sim_band_planner/spline/SplineFwd.h>
 
+#include <ros/assert.h>
 #include <ros/console.h>
 
 namespace sim_band_planner
 {
 
-struct Node
+struct ControlPoint
 {
-    Node() = default;
-
-    Node(const Eigen::Isometry2d& pose) : pose(pose)
+    explicit ControlPoint(const Eigen::Vector2d& offset) : offset(offset)
     {
     }
-
-    Eigen::Isometry2d pose;
-
+    Eigen::Vector2d offset;
     double distance_to_saddle = 0;
     double distance = 0;
     Eigen::Vector2f gradient = Eigen::Vector2f::Zero();
+};
 
+struct Node
+{
+    Node() = delete;
+
+    Node(const Eigen::Isometry2d& pose, const std::vector<Eigen::Vector2d>& _radius_offsets)
+        : pose(pose), closest_point(0)
+    {
+        ROS_ASSERT(!_radius_offsets.empty());
+        std::transform(_radius_offsets.begin(), _radius_offsets.end(), std::back_inserter(control_points),
+                       [](const Eigen::Vector2d& offset) { return ControlPoint(offset); });
+    }
+
+    Eigen::Isometry2d pose;
+    std::size_t closest_point;
+    std::vector<ControlPoint> control_points;
     Eigen::Vector3d velocity = Eigen::Vector3d::Zero();
 };
 
 struct Band
 {
     std::vector<Node> nodes;
+    std::vector<Eigen::Vector2d> radius_offsets;
 
-    Band() = default;
-    Band(std::vector<Node>::const_iterator start, std::vector<Node>::const_iterator end) : nodes(start, end)
+    Band() = delete;
+    explicit Band(const std::vector<Eigen::Vector2d>& _radius_offsets) : radius_offsets(_radius_offsets)
     {
+        ROS_ASSERT(!_radius_offsets.empty());
+    }
+    Band(std::vector<Node>::const_iterator start, std::vector<Node>::const_iterator end,
+         const std::vector<Eigen::Vector2d>& _radius_offsets)
+        : nodes(start, end), radius_offsets(_radius_offsets)
+    {
+        ROS_ASSERT(!_radius_offsets.empty());
     }
 
     double length() const
@@ -56,7 +77,7 @@ struct Band
                        [&pose](const Node& node) { return (node.pose.translation() - pose.translation()).norm(); });
         const auto it = std::min_element(distances.begin(), distances.end());
         const long dist = std::distance(distances.begin(), it);
-        if (dist > 0 && dist < nodes.size() - 1)
+        if (dist > 0 && dist < static_cast<long>(nodes.size()) - 1)
         {
             const double prev_seg = (nodes[dist].pose.translation() - nodes[dist - 1].pose.translation()).norm();
             if (distances[dist - 1] < prev_seg)
@@ -74,7 +95,7 @@ struct Band
 
     Eigen::Spline<double, 3> spline() const
     {
-        assert(nodes.size() > 2);
+        ROS_ASSERT(nodes.size() > 2);
 
         Eigen::MatrixXd points(3, nodes.size());
         for (std::size_t i = 0; i < nodes.size(); ++i)
@@ -91,6 +112,6 @@ struct Band
         return spline;
     }
 };
-}
+}  // namespace sim_band_planner
 
 #endif

@@ -5,15 +5,16 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED
   COMPONENTS
-    gridmap
     cv_bridge
     geometry_msgs
+    gridmap
+    hd_map
     nav_msgs
     navigation_interface
     pluginlib
     roscpp
     tf2_ros
-    hd_map
+    visualization_msgs
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -27,15 +28,16 @@ catkin_package(
   LIBRARIES
       ${PROJECT_NAME}
   CATKIN_DEPENDS
-      gridmap
       cv_bridge
       geometry_msgs
+      gridmap
+      hd_map
       nav_msgs
       navigation_interface
       pluginlib
       roscpp
       tf2_ros
-      hd_map
+      visualization_msgs
   DEPENDS
       EIGEN3
       OpenCV
@@ -52,6 +54,8 @@ include_directories(
 
 add_library(${PROJECT_NAME}
     src/astar.cpp
+    src/costmap.cpp
+    src/node.cpp
     src/plugin.cpp
 )
 

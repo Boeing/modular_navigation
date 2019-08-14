@@ -10,10 +10,9 @@ find_package(catkin REQUIRED COMPONENTS
     navigation_interface
     pluginlib
     roscpp
-    rviz_visual_tools
     tf2_geometry_msgs
     tf2_ros
-    rviz_visual_tools
+    visualization_msgs
 )
 
 find_package(OpenCV 3 REQUIRED)
@@ -29,14 +28,15 @@ include_directories(SYSTEM
 
 catkin_package(
     CATKIN_DEPENDS
-        geometry_msgs
-        gridmap
-        nav_msgs
-        navigation_interface
-        pluginlib
-        roscpp
-        tf2_geometry_msgs
-        tf2_ros
+    geometry_msgs
+    gridmap
+    nav_msgs
+    navigation_interface
+    pluginlib
+    roscpp
+    tf2_geometry_msgs
+    tf2_ros
+    visualization_msgs
     INCLUDE_DIRS
         include
     LIBRARIES
@@ -59,6 +59,12 @@ add_library(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 
+add_library(${PROJECT_NAME}_plugin
+    src/plugin.cpp
+)
+
+target_link_libraries(${PROJECT_NAME}_plugin ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
+
 if(CATKIN_ENABLE_TESTING)
     find_package(rosunit REQUIRED)
     catkin_add_gtest(unit_test test/unit_test.cpp)
@@ -70,7 +76,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
     FILES_MATCHING PATTERN "*.h"
 )
 
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_plugin
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

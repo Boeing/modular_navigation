@@ -43,7 +43,7 @@ class MapDimensions
         return size_;
     }
 
-    const int cells() const
+    int cells() const
     {
         return size_.x() * size_.y();
     }
@@ -80,9 +80,9 @@ struct AABB
 template <class CellType> class Grid2D
 {
   public:
-    Grid2D(const MapDimensions& map_dims);
+    explicit Grid2D(const MapDimensions& map_dims);
 
-    Grid2D(const Grid2D& grid, const AABB bb);
+    Grid2D(const Grid2D& grid, const AABB& bb);
 
     const MapDimensions& dimensions() const
     {

@@ -1,16 +1,16 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(modular_move_base)
+project(autonomy)
 
 add_definitions(-std=c++14)
 
 find_package(catkin REQUIRED COMPONENTS
     actionlib
+    actionlib_msgs
     cmake_modules
-    gridmap
     geometry_msgs
+    gridmap
     map_manager
     message_generation
-    move_base_msgs
     nav_msgs
     navigation_interface
     pluginlib
@@ -18,30 +18,30 @@ find_package(catkin REQUIRED COMPONENTS
     std_srvs
     tf2_geometry_msgs
     tf2_ros
-    rviz_visual_tools
 )
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
-add_service_files(FILES
-    Plan.srv
+add_action_files(
+    DIRECTORY
+        action
+    FILES
+        Drive.action
 )
 
-generate_messages(
-    DEPENDENCIES
-        geometry_msgs
-        nav_msgs
+generate_messages(DEPENDENCIES
+    actionlib_msgs
+    geometry_msgs
 )
 
-catkin_package(
-    CATKIN_DEPENDS
-        geometry_msgs
-        map_manager
-        message_runtime
-        move_base_msgs
-        nav_msgs
-        roscpp
-        tf2_geometry_msgs
+catkin_package(CATKIN_DEPENDS
+    actionlib_msgs
+    geometry_msgs
+    map_manager
+    message_runtime
+    nav_msgs
+    roscpp
+    tf2_geometry_msgs
 )
 
 include_directories(
@@ -54,9 +54,9 @@ include_directories(SYSTEM
 )
 
 add_executable(${PROJECT_NAME}
-    include/${PROJECT_NAME}/move_base.h
+    include/${PROJECT_NAME}/${PROJECT_NAME}.h
+    src/${PROJECT_NAME}.cpp
     src/main.cpp
-    src/move_base.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

@@ -19,7 +19,10 @@ struct MovingWindow
     std::size_t end_i;
     Band window;
 
-    MovingWindow(const navigation_interface::Path& _path) : nominal_path(_path), end_i(0)
+    MovingWindow() = delete;
+
+    MovingWindow(const navigation_interface::Path& _path, const std::vector<Eigen::Vector2d>& _radius_offsets)
+        : nominal_path(_path), end_i(0), window(_radius_offsets)
     {
     }
 
@@ -34,7 +37,7 @@ struct MovingWindow
         {
             // trim the window
             const std::pair<std::size_t, double> closest = window.closestSegment(pose);
-            window.nodes.erase(window.nodes.begin(), window.nodes.begin() + closest.first);
+            window.nodes.erase(window.nodes.begin(), window.nodes.begin() + static_cast<int>(closest.first));
         }
         else
         {
@@ -59,7 +62,7 @@ struct MovingWindow
 
         for (std::size_t i = start_append; i < end_append; ++i)
         {
-            window.nodes.push_back(Node(nominal_path.nodes[i]));
+            window.nodes.push_back(Node(nominal_path.nodes[i], window.radius_offsets));
         }
     }
 };

@@ -22,7 +22,7 @@ class OccupancyGrid : public Grid2D<uint8_t>
     static const uint8_t CONFLICT;
     static const uint8_t OCCUPIED;
 
-    OccupancyGrid(const MapDimensions& map_dims) : Grid2D<uint8_t>(map_dims)
+    explicit OccupancyGrid(const MapDimensions& map_dims) : Grid2D<uint8_t>(map_dims)
     {
     }
 
@@ -84,7 +84,7 @@ class OccupancyGrid : public Grid2D<uint8_t>
 
     nav_msgs::OccupancyGrid toMsg() const;
 
-    nav_msgs::OccupancyGrid toMsg(const AABB bb) const;
+    nav_msgs::OccupancyGrid toMsg(const AABB& bb) const;
 };
 }
 

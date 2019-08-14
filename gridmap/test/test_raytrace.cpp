@@ -51,8 +51,9 @@ TEST(test_polyfill, test_polyfill)
 
     std::vector<Eigen::Array2i> polygon;
     polygon.push_back({500, 500});
+    polygon.push_back({600, 500});
     polygon.push_back({600, 600});
-    polygon.push_back({400, 800});
+    polygon.push_back({400, 600});
 
     auto lambda = [&cv_im](int x, int y) { cv_im.at<uint8_t>(y, x) = 255; };
 
@@ -60,7 +61,7 @@ TEST(test_polyfill, test_polyfill)
     {
         const auto t0 = std::chrono::steady_clock::now();
 
-        gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 800);
+        gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 600);
 
         ROS_INFO_STREAM("rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                          std::chrono::steady_clock::now() - t0)

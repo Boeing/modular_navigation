@@ -1,267 +1,161 @@
-/*
-#include <gridmap/plugins/obstacle_data.h>
-
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <tf2_ros/message_filter.h>
+#include <gridmap/layers/obstacle_data/point_cloud_data.h>
+#include <gridmap/params.h>
 
 #include <pluginlib/class_list_macros.h>
 
 #include <sensor_msgs/point_cloud2_iterator.h>
 
-#include <opencv2/highgui.hpp>
-
 #include <chrono>
+#include <unordered_map>
+#include <unordered_set>
 
-PLUGINLIB_EXPORT_CLASS(gridmap::ObstacleData, gridmap::DataSource)
+PLUGINLIB_EXPORT_CLASS(gridmap::PointCloudData, gridmap::DataSource)
 
 namespace gridmap
 {
 
-ObstacleData::ObstacleData()
+PointCloudData::PointCloudData()
+    : hit_probability_log_(0), miss_probability_log_(0), obstacle_height_(0), max_range_(0), sub_sample_(0),
+      sub_sample_count_(0)
 {
 }
 
-void ObstacleData::onInitialize()
+void PointCloudData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     ros::NodeHandle nh("~/" + name_);
     ros::NodeHandle g_nh;
 
-    const std::string topics_string = nh.param("observation_sources", std::string(""));
+    const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/points",
+                                                                        XmlRpc::XmlRpcValue::TypeString);
+    miss_probability_log_ = logodds(get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
+    obstacle_height_ = get_config_with_default_warn<double>(parameters, "max_obstacle_height", 0.03, XmlRpc::XmlRpcValue::TypeDouble);
+    max_range_ = get_config_with_default_warn<double>(parameters, "max_range", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
+    sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
 
-    std::stringstream ss(topics_string);
-    std::string source;
-    while (ss >> source)
+    ROS_INFO_STREAM("Subscribing to point cloud: " << topic);
+
+    subscriber_.reset(new message_filters::Subscriber<sensor_msgs::PointCloud2>(g_nh, topic, 50));
+    message_filter_.reset(
+        new tf2_ros::MessageFilter<sensor_msgs::PointCloud2>(*subscriber_, *tf_buffer_, global_frame_, 50, g_nh));
+    message_filter_->registerCallback(boost::bind(&PointCloudData::pointCloudCallback, this, _1));
+}
+
+void PointCloudData::onMapDataChanged()
+{
+    const double cost_gradient = (-miss_probability_log_ / obstacle_height_);
+    const double max_height = 10.0 / cost_gradient;
+
+    const unsigned int max_height_cells =
+        static_cast<unsigned int>(max_height / map_data_->dimensions().resolution()) + 1;
+    log_cost_lookup_.resize(max_height_cells);
+    for (unsigned int i = 0; i < max_height_cells; ++i)
     {
-        ros::NodeHandle source_node(nh, source);
-
-        const std::string topic = source_node.param("topic", source);
-        const std::string data_type = source_node.param("data_type", std::string("PointCloud"));
-
-        const double observation_persistence = source_node.param("observation_persistence", 0.0);
-        const double expected_update_rate = source_node.param("expected_update_rate", 0.0);
-        const double min_obstacle_height = source_node.param("min_obstacle_height", 0.0);
-        const double max_obstacle_height = source_node.param("max_obstacle_height", 2.0);
-        const double obstacle_range = source_node.param("obstacle_range", 2.5);
-        const double raytrace_range = source_node.param("raytrace_range", 3.0);
-        const int sub_sample = source_node.param("sub_sample", 0);
-        const bool inf_is_valid = source_node.param("inf_is_valid", false);
-
-        if (data_type == "LaserScan")
-        {
-            boost::shared_ptr<message_filters::Subscriber<sensor_msgs::LaserScan>> sub(
-                new message_filters::Subscriber<sensor_msgs::LaserScan>(g_nh, topic, 50));
-
-            boost::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::LaserScan>> filter(
-                new tf2_ros::MessageFilter<sensor_msgs::LaserScan>(*sub, *tf_buffer_, global_frame_, 50,
-                                                                   g_nh));
-
-            boost::shared_ptr<message_filters::SubscriberBase> subscriber(sub);
-            boost::shared_ptr<tf2_ros::MessageFilterBase> message_filter(filter);
-
-            auto source = std::make_shared<Sensor>(Sensor{
-                subscriber, message_filter, observation_persistence, expected_update_rate, min_obstacle_height,
-                max_obstacle_height, obstacle_range, raytrace_range, sub_sample, 0, inf_is_valid});
-
-            filter->registerCallback(boost::bind(&ObstacleData::laserScanCallback, this, _1, source));
-
-            sensors_.push_back(source);
-        }
-        else if (data_type == "PointCloud2")
-        {
-            boost::shared_ptr<message_filters::Subscriber<sensor_msgs::PointCloud2>> sub(
-                new message_filters::Subscriber<sensor_msgs::PointCloud2>(g_nh, topic, 50));
-
-            boost::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::PointCloud2>> filter(
-                new tf2_ros::MessageFilter<sensor_msgs::PointCloud2>(*sub, *tf_buffer_, global_frame_,
-                                                                     50, g_nh));
-
-            boost::shared_ptr<message_filters::SubscriberBase> subscriber(sub);
-            boost::shared_ptr<tf2_ros::MessageFilterBase> message_filter(filter);
-
-            auto source = std::make_shared<Sensor>(Sensor{
-                subscriber, message_filter, observation_persistence, expected_update_rate, min_obstacle_height,
-                max_obstacle_height, obstacle_range, raytrace_range, sub_sample, 0, inf_is_valid});
-
-            filter->registerCallback(boost::bind(&ObstacleData::pointCloud2Callback, this, _1, source));
-
-            sensors_.push_back(source);
-        }
-        else
-        {
-            const std::string msg = "Only topics that use point clouds or laser scans are currently supported";
-            ROS_FATAL_STREAM(msg);
-            throw std::runtime_error(msg);
-        }
+        const double x = i * map_data_->dimensions().resolution();
+        log_cost_lookup_[i] = x * (-miss_probability_log_ / obstacle_height_) + miss_probability_log_;
     }
 }
 
-ObstacleData::~ObstacleData()
+PointCloudData::~PointCloudData()
 {
 }
 
-void ObstacleData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message,
-                                     const std::shared_ptr<Sensor>& sensor)
+void PointCloudData::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& message)
 {
-    if (sensor->sub_sample == 0 ||
-        (sensor->sub_sample > 0 && sensor->sub_sample_count > sensor->sub_sample))
+    if (sub_sample_ == 0 || (sub_sample_ > 0 && sub_sample_count_ > sub_sample_))
     {
-        ROS_INFO("Processing laser");
+        sub_sample_count_ = 0;
 
-        sensor_msgs::PointCloud2 local_cloud;
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!map_data_)
+            return;
 
-        if (sensor->inf_is_valid)
+        const auto tr = tf_buffer_->lookupTransform(global_frame_, message->header.frame_id, message->header.stamp);
+
+        const Eigen::Isometry3d t =
+            Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z) *
+            Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y,
+                               tr.transform.rotation.z);
+        const Eigen::Isometry3f t_f = t.cast<float>();
+
+        const Eigen::Vector3d sensor_pt = t.translation();
+        const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
+        const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
+
+        // Check sensor is on map
+        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+            sensor_pt_map.y() >= map_data_->dimensions().size().y())
         {
-            sensor_msgs::LaserScan valid_scan = *message;
-            for (size_t i = 0; i < message->ranges.size(); i++)
+            ROS_WARN("Laser sensor is not on gridmap");
+            return;
+        }
+
+        const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", message->header.stamp);
+        const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
+        const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
+
+        {
+            auto _lock = map_data_->getLock();
+
+            sensor_msgs::PointCloud2ConstIterator<float> iter_x(*message, "x");
+
+            std::unordered_map<uint64_t, float> height_voxels;
+
+            for (; iter_x != iter_x.end(); ++iter_x)
             {
-                const float range = message->ranges[i];
-                if (!std::isfinite(range) && range > 0)
+                if (!std::isfinite(iter_x[2]))
                 {
-                    const float epsilon = 0.0001f;
-                    valid_scan.ranges[i] = message->range_max - epsilon;
+                    continue;
+                }
+
+                const Eigen::Vector3f reading(iter_x[0], iter_x[1], iter_x[2]);
+
+                if (reading.norm() > max_range_)
+                {
+                    continue;
+                }
+
+                const Eigen::Vector3f pt = t_f * reading;
+                const Eigen::Array2i pt_map = map_data_->dimensions().getCellIndex(pt.head<2>().cast<double>());
+
+                const auto key = IndexToKey(pt_map);
+
+                if (footprint.count(key) > 0)
+                {
+                    continue;
+                }
+
+                const auto insert_ret = height_voxels.find(key);
+
+                if (insert_ret == height_voxels.end())
+                {
+                    height_voxels.insert(std::make_pair(key, pt.z()));
+                }
+                else
+                {
+                    if (pt.z() > insert_ret->second)
+                        height_voxels[key] = pt.z();
                 }
             }
-            projector_.projectLaser(valid_scan, local_cloud);
+            for (auto elem : height_voxels)
+            {
+                const size_t height_in_cells =
+                    static_cast<size_t>(std::abs(elem.second) / map_data_->dimensions().resolution());
+                const double log_odds = log_cost_lookup_[std::min(height_in_cells, log_cost_lookup_.size() - 1)];
+                const Eigen::Array2i index = KeyToIndex(elem.first);
+                if (map_data_->dimensions().contains(index))
+                    map_data_->update(index, log_odds);
+            }
+            for (auto elem : footprint)
+            {
+                const Eigen::Array2i index = KeyToIndex(elem);
+                if (map_data_->dimensions().contains(index))
+                    map_data_->setMinThres(index);
+            }
         }
-        else
-        {
-            projector_.projectLaser(*message, local_cloud);
-        }
 
-        const auto tr =
-            tf_buffer_->lookupTransform(global_frame_, message->header.frame_id, message->header.stamp);
-
-        // transform the cloud to the global frame
-        sensor_msgs::PointCloud2 cloud;
-        tf2::doTransform(local_cloud, cloud, tr);
-
-        auto lock = map_data_->getLock();
-        raytrace(tr.transform.translation.x, tr.transform.translation.y, cloud,
-                         sensor->min_obstacle_height, sensor->max_obstacle_height,
-                         sensor->raytrace_range, sensor->obstacle_range);
-
-        sensor->sub_sample_count = 0;
+        setLastUpdatedTime(message->header.stamp);
     }
     else
-        ++sensor->sub_sample_count;
-}
-
-void ObstacleData::pointCloud2Callback(const sensor_msgs::PointCloud2ConstPtr& message,
-                                       const std::shared_ptr<Sensor>& sensor)
-{
-    if (sensor->sub_sample == 0 ||
-        (sensor->sub_sample > 0 && sensor->sub_sample_count > sensor->sub_sample))
-    {
-        const auto tr =
-            tf_buffer_->lookupTransform(global_frame_, message->header.frame_id, message->header.stamp);
-
-        // transform the cloud to the global frame
-        sensor_msgs::PointCloud2 cloud;
-        tf2::doTransform(*message, cloud, tr);
-
-        auto lock = map_data_->getLock();
-        raytrace(tr.transform.translation.x, tr.transform.translation.y, cloud,
-                         sensor->min_obstacle_height, sensor->max_obstacle_height,
-                         sensor->raytrace_range, sensor->obstacle_range);
-
-        sensor->sub_sample_count = 0;
-    }
-    else
-        ++sensor->sub_sample_count;
-}
-
-void ObstacleData::matchSize()
-{
-}
-
-void ObstacleData::raytrace(const double sensor_x, const double sensor_y, const sensor_msgs::PointCloud2& cloud,
-                            const double min_obstacle_height, const double max_obstacle_height,
-                            const double raytrace_range, const double obstacle_range)
-{
-    // get the map coordinates of the origin of the sensor
-    unsigned int x0, y0;
-    if (!map_data_->worldToMap(sensor_x, sensor_y, x0, y0))
-    {
-        ROS_WARN_THROTTLE(1.0,
-                          "The origin for the sensor at (%.2f, %.2f) is out of map bounds. So, the costmap "
-                          "cannot raytrace for it.",
-                          sensor_x, sensor_y);
-    }
-    else
-    {
-        const double map_end_x = map_data_->originX() + map_data_->sizeX() * map_data_->resolution();
-        const double map_end_y = map_data_->originY() + map_data_->sizeY() * map_data_->resolution();
-
-        // for each point in the cloud, we want to trace a line from the origin and clear obstacles along it
-        sensor_msgs::PointCloud2ConstIterator<float> iter_x(cloud, "x");
-        sensor_msgs::PointCloud2ConstIterator<float> iter_y(cloud, "y");
-        sensor_msgs::PointCloud2ConstIterator<float> iter_z(cloud, "z");
-
-//        MarkClearing marker(marking_.data(), -0.4f);
-//        const unsigned int cell_raytrace_range = cellDistance(10.0);
-
-        //        const double sq_obstacle_range = obstacle_range * obstacle_range;
-
-        for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z)
-        {
-            float px = *iter_x;
-            float py = *iter_y;
-            const float pz = *iter_z;
-
-            if (pz < min_obstacle_height || pz > max_obstacle_height)
-            {
-                continue;
-            }
-
-            //            const double sq_dist = (px - sensor_x) * (px - sensor_x) + (py - sensor_y) * (py - sensor_y);
-            //            if (sq_dist >= sq_obstacle_range)
-            //            {
-            //                continue;
-            //            }
-
-            // now we also need to make sure that the enpoint we're raytracing
-            // to isn't off the costmap and scale if necessary
-            const double a = px - sensor_x;
-            const double b = py - sensor_y;
-
-            // the minimum value to raytrace from is the origin
-            if (px < map_data_->originX())
-            {
-                const double t = (map_data_->originX() - sensor_x) / a;
-                px = map_data_->originX();
-                py = sensor_y + b * t;
-            }
-            if (py < map_data_->originY())
-            {
-                const double t = (map_data_->originY() - sensor_y) / b;
-                px = sensor_x + a * t;
-                py = map_data_->originY();
-            }
-
-            // the maximum value to raytrace to is the end of the map
-            if (px > map_end_x)
-            {
-                const double t = (map_end_x - sensor_x) / a;
-                px = map_end_x - .001;
-                py = sensor_y + b * t;
-            }
-            if (py > map_end_y)
-            {
-                const double t = (map_end_y - sensor_y) / b;
-                px = sensor_x + a * t;
-                py = map_end_y - .001;
-            }
-
-            unsigned int x1, y1;
-            if (!map_data_->worldToMap(px, py, x1, y1))
-                continue;
-
-//            raytraceLine(marker, x0, y0, x1, y1, cell_raytrace_range);
-
-//            const auto it = getIndex(x1, y1);
-//            marking_[it] = std::min(3.5f, marking_[it] + 0.7f);
-        }
-    }
+        ++sub_sample_count_;
 }
 }
-*/

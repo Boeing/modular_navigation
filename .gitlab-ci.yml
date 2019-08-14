@@ -1,3 +1,11 @@
 include:
   - project: robotics/continuous_integration
     file: /pipelines/.ros-pkg-ci.yml
+
+catkin_run_tests:
+  services:
+    - name: sres.web.boeing.com:5000/mongo:3.6.2
+      alias: mongo
+  variables:
+    MONGO_HOST: mongo
+    MONGO_PORT: 27017

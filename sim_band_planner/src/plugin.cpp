@@ -2,6 +2,8 @@
 
 #include <navigation_interface/params.h>
 
+#include <visualization_msgs/MarkerArray.h>
+
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(sim_band_planner::SimBandPlanner, navigation_interface::TrajectoryPlanner)
@@ -9,7 +11,7 @@ PLUGINLIB_EXPORT_CLASS(sim_band_planner::SimBandPlanner, navigation_interface::T
 namespace sim_band_planner
 {
 
-SimBandPlanner::SimBandPlanner() : viz_(nullptr)
+SimBandPlanner::SimBandPlanner()
 {
 }
 
@@ -17,21 +19,24 @@ SimBandPlanner::~SimBandPlanner()
 {
 }
 
+// cppcheck-suppress unusedFunction
 bool SimBandPlanner::setPath(const navigation_interface::Path& path)
 {
     if (path.nodes.empty())
         return false;
 
-    moving_window_.reset(new MovingWindow(path));
+    moving_window_.reset(new MovingWindow(path, offsets_));
 
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 void SimBandPlanner::clearPath()
 {
     moving_window_.reset();
 }
 
+// cppcheck-suppress unusedFunction
 boost::optional<std::string> SimBandPlanner::pathId() const
 {
     if (moving_window_)
@@ -49,6 +54,7 @@ boost::optional<navigation_interface::Path> SimBandPlanner::path() const
 }
 
 navigation_interface::TrajectoryPlanner::Result
+    // cppcheck-suppress unusedFunction
     SimBandPlanner::plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
                          const Eigen::Isometry2d& map_to_odom)
 {
@@ -76,10 +82,10 @@ navigation_interface::TrajectoryPlanner::Result
         DistanceField distance_field(cv_im, local_grid.dimensions().origin().x(), local_grid.dimensions().origin().y(),
                                      local_grid.dimensions().resolution(), robot_radius_);
 
-        Band sim_band;
+        Band sim_band(offsets_);
 
         // Add the robot position to the front of the band
-        sim_band.nodes.push_back(Node(robot_pose));
+        sim_band.nodes.push_back(Node(robot_pose, sim_band.radius_offsets));
 
         // The first moving window node is the previous segment (exclude from optimization)
         if (moving_window_->window.nodes.size() > 1)
@@ -88,48 +94,149 @@ navigation_interface::TrajectoryPlanner::Result
         else
             sim_band.nodes.push_back(moving_window_->window.nodes.front());
 
-        bool long_path = true;
-        bool reverse_direction = false;
-        const double path_length = moving_window_->nominal_path.length();
-        const auto goal_wrt_robot = robot_pose.inverse() * moving_window_->nominal_path.nodes.back();
-        const double rotation = std::abs(Eigen::Rotation2Dd(goal_wrt_robot.linear()).smallestAngle());
-
-        if (path_length < max_holonomic_distance_)
-        {
-            long_path = false;
-        }
-        else if (goal_wrt_robot.translation().x() < 0 && path_length < max_reverse_distance_ && rotation < M_PI / 2.0)
-        {
-            reverse_direction = true;
-        }
+        const std::size_t max_nodes = 20;
 
         simulate(sim_band, distance_field, num_iterations_, min_overlap_, min_distance_, internal_force_gain_,
-                 external_force_gain_, (long_path ? rotation_factor_ : 0.0), reverse_direction, velocity_decay_, 1.0,
-                 alpha_decay_, max_distance_);
+                 external_force_gain_, rotation_factor_, velocity_decay_, 1.0, alpha_decay_, max_distance_, max_nodes);
 
         // debug viz
-        if (viz_)
+        if (debug_viz_ && marker_pub_.getNumSubscribers() > 0)
         {
-            viz_->deleteAllMarkers();
+            visualization_msgs::MarkerArray ma;
+
+            visualization_msgs::Marker delete_all;
+            delete_all.action = visualization_msgs::Marker::DELETEALL;
+            ma.markers.push_back(delete_all);
+
+            const auto now = ros::Time::now();
+
+            auto make_cylider = [&ma, &now](const std_msgs::ColorRGBA& color, const double radius, const double height,
+                                            const Eigen::Isometry3d& pose) {
+                visualization_msgs::Marker marker;
+                marker.ns = "cylinder";
+                marker.id = static_cast<int>(ma.markers.size());
+                marker.type = visualization_msgs::Marker::CYLINDER;
+                marker.action = visualization_msgs::Marker::ADD;
+                marker.header.stamp = now;
+                marker.header.frame_id = "map";
+                marker.frame_locked = true;
+                marker.scale.x = radius;
+                marker.scale.y = radius;
+                marker.scale.z = height;
+                marker.color = color;
+                const Eigen::Quaterniond qt(pose.linear());
+                marker.pose.orientation.w = qt.w();
+                marker.pose.orientation.x = qt.x();
+                marker.pose.orientation.y = qt.y();
+                marker.pose.orientation.z = qt.z();
+                marker.pose.position.x = pose.translation().x();
+                marker.pose.position.y = pose.translation().y();
+                marker.pose.position.z = pose.translation().z();
+                return marker;
+            };
+
+            std_msgs::ColorRGBA red;
+            red.r = 1.0;
+            red.a = 1.0;
+
+            std_msgs::ColorRGBA green;
+            green.g = 1.0;
+            green.a = 1.0;
+
+            std_msgs::ColorRGBA blue;
+            blue.b = 1.0;
+            blue.a = 1.0;
+
+            const double length = 0.1;
+            const double radius = 0.02;
+
             for (const auto& node : sim_band.nodes)
             {
-                const Eigen::Affine3d p =
+                const Eigen::Isometry3d pose =
                     Eigen::Translation3d(node.pose.translation().x(), node.pose.translation().y(), 0.0) *
                     Eigen::AngleAxisd(Eigen::Rotation2Dd(node.pose.rotation()).angle(), Eigen::Vector3d::UnitZ());
-                viz_->publishAxis(p, 0.1, 0.02);
 
-                geometry_msgs::Point start;
-                start.x = node.pose.translation().x() + node.gradient.x() * node.distance;
-                start.y = node.pose.translation().y() + node.gradient.y() * node.distance;
+                // X Axis
+                const Eigen::Isometry3d x_pose = pose * (Eigen::Translation3d(length / 2.0, 0, 0) *
+                                                         Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY()));
+                ma.markers.push_back(make_cylider(red, radius, length, x_pose));
 
-                geometry_msgs::Point end;
-                end.x = node.pose.translation().x();
-                end.y = node.pose.translation().y();
+                // Y Axis
+                const Eigen::Isometry3d y_pose = pose * (Eigen::Translation3d(0, length / 2.0, 0) *
+                                                         Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitX()));
+                ma.markers.push_back(make_cylider(green, radius, length, y_pose));
 
-                viz_->publishArrow(start, end, rviz_visual_tools::colors::RED);
+                // Z Axis
+                const Eigen::Isometry3d z_pose =
+                    pose * (Eigen::Translation3d(0, 0, length / 2.0) * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
+                ma.markers.push_back(make_cylider(blue, radius, length, z_pose));
+
+                {
+                    geometry_msgs::Point start;
+                    start.x = node.pose.translation().x() +
+                              static_cast<double>(node.control_points[node.closest_point].gradient.x()) *
+                                  node.control_points[node.closest_point].distance;
+                    start.y = node.pose.translation().y() +
+                              static_cast<double>(node.control_points[node.closest_point].gradient.y()) *
+                                  node.control_points[node.closest_point].distance;
+
+                    geometry_msgs::Point end;
+                    end.x = node.pose.translation().x();
+                    end.y = node.pose.translation().y();
+
+                    visualization_msgs::Marker marker;
+                    marker.ns = "arrow";
+                    marker.id = static_cast<int>(ma.markers.size());
+                    marker.type = visualization_msgs::Marker::ARROW;
+                    marker.action = visualization_msgs::Marker::ADD;
+                    marker.header.stamp = now;
+                    marker.header.frame_id = "map";
+                    marker.frame_locked = true;
+                    marker.scale.x = 0.006;
+                    marker.scale.y = 0.006;
+                    marker.scale.z = 0.02;
+                    marker.color.r = 1.0;
+                    marker.color.a = 1.0;
+                    marker.pose.orientation.w = 1;
+                    marker.points.push_back(start);
+                    marker.points.push_back(end);
+                    ma.markers.push_back(marker);
+                }
             }
 
-            viz_->trigger();
+            for (size_t c = 0; c < sim_band.nodes.front().control_points.size(); c++)
+            {
+                const ControlPoint& cp = sim_band.nodes.front().control_points[c];
+                const Eigen::Vector2d position =
+                    sim_band.nodes.front().pose.translation() + sim_band.nodes.front().pose.linear() * cp.offset;
+                const Eigen::Isometry3d pose =
+                    Eigen::Translation3d(position.x(), position.y(), 0.0) * Eigen::Quaterniond::Identity();
+
+                std_msgs::ColorRGBA ros_color;
+                ros_color.a = 0.25f;
+                if (cp.distance < 0)
+                {
+                    ros_color.r = 1.0f;
+                }
+                else if (cp.distance < 0.1)
+                {
+                    ros_color.r = 1.0f;
+                    ros_color.g = 0.5f;
+                }
+                else if (cp.distance < 0.2)
+                {
+                    ros_color.r = 1.0f;
+                    ros_color.g = 1.0f;
+                }
+                else
+                {
+                    ros_color.g = 1.0f;
+                }
+
+                ma.markers.push_back(make_cylider(ros_color, robot_radius_ * 2.0, 0.1, pose));
+            }
+
+            marker_pub_.publish(ma);
         }
 
         // copy the nodes back to the moving window
@@ -137,19 +244,30 @@ navigation_interface::TrajectoryPlanner::Result
         moving_window_->window.nodes.insert(moving_window_->window.nodes.end(), sim_band.nodes.begin(),
                                             sim_band.nodes.end());
 
+        // TODO maybe do this in simulate?
+        // trim the nodes which were not optimised
+        if (sim_band.nodes.size() > max_nodes)
+            sim_band.nodes.erase(sim_band.nodes.begin() + max_nodes, sim_band.nodes.end());
+
         // trim to valid
         result.outcome = navigation_interface::TrajectoryPlanner::Outcome::SUCCESSFUL;
-        for (std::size_t i = 0; i < sim_band.nodes.size(); ++i)
+        result.path_start_i = 0;
+        result.path_end_i = moving_window_->end_i;
+        for (size_t i = 0; i < sim_band.nodes.size(); ++i)
         {
-            if (sim_band.nodes[i].distance < 0)
+            if (sim_band.nodes[i].control_points[sim_band.nodes[i].closest_point].distance < 0)
             {
+                ROS_WARN_STREAM("Point: " << i << " of trajectory is in collision");
+
+                i = i > 2 ? i - 2 : 0;
+
                 sim_band.nodes.erase(sim_band.nodes.begin() + i, sim_band.nodes.end());
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
-                ROS_WARN_STREAM("Point: " << i << " of trajectory is in collision");
 
                 // if the band is broken we might as well try again from nominal
                 // on the next iteration the band will reset
                 moving_window_->window.nodes.clear();
+                result.path_end_i = moving_window_->end_i - (sim_band.nodes.size() - 1 - i);
                 break;
             }
         }
@@ -160,7 +278,7 @@ navigation_interface::TrajectoryPlanner::Result
             return result;
         }
 
-        Band splined;
+        Band splined(offsets_);
         if (spline_ && sim_band.nodes.size() > 1)
         {
             Eigen::MatrixXd points(2, sim_band.nodes.size());
@@ -195,7 +313,7 @@ navigation_interface::TrajectoryPlanner::Result
                     auto spline_p = spline(cl + fraction * diff);
                     const Eigen::Isometry2d p =
                         Eigen::Translation2d(spline_p.x(), spline_p.y()) * rot.slerp(fraction, next_rot);
-                    auto node = Node(p);
+                    auto node = Node(p, splined.radius_offsets);
                     splined.nodes.push_back(node);
                 }
                 splined.nodes.push_back(sim_band.nodes[i + 1]);
@@ -206,7 +324,7 @@ navigation_interface::TrajectoryPlanner::Result
             // check the splined path
             for (std::size_t i = 0; i < splined.nodes.size(); ++i)
             {
-                if (splined.nodes[i].distance < 0)
+                if (splined.nodes[i].control_points[splined.nodes[i].closest_point].distance < 0)
                 {
                     ROS_WARN("Splining failed");
                     result.outcome = navigation_interface::TrajectoryPlanner::Outcome::FAILED;
@@ -225,13 +343,10 @@ navigation_interface::TrajectoryPlanner::Result
         const Eigen::Isometry2d odom_to_map = map_to_odom.inverse();
         for (const auto& node : splined.nodes)
         {
-            const double velocity =
-                desired_speed_ * std::max(0.1, node.distance >= max_distance_ ? 1.0 : node.distance);
+            const double max_distance_fraction = node.control_points[node.closest_point].distance / max_distance_;
+            const double velocity = desired_speed_ * std::max(0.20, max_distance_fraction);
             result.trajectory.states.push_back({odom_to_map * node.pose, Eigen::Vector3d(velocity, 0, 0)});
         }
-
-        result.path_start_i = 0;
-        result.path_end_i = moving_window_->end_i;
     }
     catch (const std::exception& e)
     {
@@ -243,16 +358,19 @@ navigation_interface::TrajectoryPlanner::Result
     return result;
 }
 
+// cppcheck-suppress unusedFunction
 bool SimBandPlanner::valid(const navigation_interface::Trajectory&) const
 {
     return true;
 }
 
+// cppcheck-suppress unusedFunction
 double SimBandPlanner::cost(const navigation_interface::Trajectory&) const
 {
     return 0.0;
 }
 
+// cppcheck-suppress unusedFunction
 void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
@@ -271,12 +389,6 @@ void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
                                                                               XmlRpc::XmlRpcValue::TypeDouble);
     max_window_length_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "max_window_length", max_window_length_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_holonomic_distance_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_holonomic_distance", max_holonomic_distance_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_reverse_distance_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_reverse_distance", max_reverse_distance_, XmlRpc::XmlRpcValue::TypeDouble);
-    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
     rotation_factor_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "rotation_factor", rotation_factor_, XmlRpc::XmlRpcValue::TypeDouble);
     velocity_decay_ = navigation_interface::get_config_with_default_warn<double>(
@@ -288,11 +400,27 @@ void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     spline_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "spline", spline_,
                                                                        XmlRpc::XmlRpcValue::TypeBoolean);
 
+    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
+    if (parameters.hasMember("robot_radius_offsets"))
+    {
+        offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets");
+    }
+    else
+    {
+        offsets_ = {{-0.268, 0.000},  {0.268, 0.000}, {0.265, -0.185}, {0.077, -0.185}, {-0.077, -0.185},
+                    {-0.265, -0.185}, {0.265, 0.185}, {-0.265, 0.185}, {-0.077, 0.185}, {0.077, 0.185}};
+    }
+
     if (debug_viz_)
-        viz_.reset(new rviz_visual_tools::RvizVisualTools("map", "debug"));
+    {
+        ros::NodeHandle nh("~");
+        marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
+    }
 }
 
+// cppcheck-suppress unusedFunction
 void SimBandPlanner::onMapDataChanged()
 {
 }
-}
+}  // namespace sim_band_planner

@@ -13,6 +13,8 @@ namespace gridmap
 {
 
 LaserData::LaserData()
+    : hit_probability_log_(0), miss_probability_log_(0), min_obstacle_height_(0), max_obstacle_height_(0),
+      obstacle_range_(0), raytrace_range_(0), sub_sample_(0), sub_sample_count_(0)
 {
 }
 
@@ -32,9 +34,9 @@ void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     max_obstacle_height_ =
         get_config_with_default_warn<double>(parameters, "max_obstacle_height", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
     obstacle_range_ =
-        get_config_with_default_warn<double>(parameters, "obstacle_range", 2.5, XmlRpc::XmlRpcValue::TypeDouble);
+        get_config_with_default_warn<double>(parameters, "obstacle_range", 3.5, XmlRpc::XmlRpcValue::TypeDouble);
     raytrace_range_ =
-        get_config_with_default_warn<double>(parameters, "raytrace_range", 3.0, XmlRpc::XmlRpcValue::TypeDouble);
+        get_config_with_default_warn<double>(parameters, "raytrace_range", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
     sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 10, XmlRpc::XmlRpcValue::TypeInt);
 
     ROS_INFO_STREAM("Subscribing to laser: " << topic);
@@ -93,10 +95,14 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
             }
         }
 
+        const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", message->header.stamp);
+        const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
+        const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
+
         const unsigned int cell_raytrace_range = raytrace_range_ / map_data_->dimensions().resolution();
 
         {
-            auto lock = map_data_->getLock();
+            auto _lock = map_data_->getLock();
             AddLogCost marker(map_data_->cells().data(), miss_probability_log_, map_data_->clampingThresMinLog(),
                               map_data_->clampingThresMaxLog());
             for (size_t i = 0; i < message->ranges.size(); i++)
@@ -126,9 +132,16 @@ void LaserData::laserScanCallback(const sensor_msgs::LaserScanConstPtr& message)
                     map_data_->update(ray_end, hit_probability_log_);
                 }
 
-                map_data_->setMinThres(sensor_pt_map);
+                for (auto elem : footprint)
+                {
+                    const Eigen::Array2i index = KeyToIndex(elem);
+                    if (map_data_->dimensions().contains(index))
+                        map_data_->setMinThres(index);
+                }
             }
         }
+
+        setLastUpdatedTime(message->header.stamp);
     }
     else
         ++sub_sample_count_;

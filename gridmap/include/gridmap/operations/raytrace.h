@@ -11,35 +11,6 @@
 namespace gridmap
 {
 
-class AddLogCostLookup
-{
-  public:
-    AddLogCostLookup(double* map_data, const double* log_cost_lookup, const double clamping_thres_min_log,
-                     const double clamping_thres_max_log, const int size_x, const Eigen::Array2i origin)
-        : map_data_(map_data), log_cost_lookup_(log_cost_lookup), clamping_thres_min_log_(clamping_thres_min_log),
-          clamping_thres_max_log_(clamping_thres_max_log), size_x_(size_x), origin_(origin)
-    {
-    }
-    inline void operator()(unsigned int offset, const int i)
-    {
-        const unsigned int my = offset / size_x_;
-        const unsigned int mx = offset - (my * size_x_);
-
-        const Eigen::Vector2i diff = (Eigen::Array2i(mx, my) - origin_);
-        const int dist = diff.norm();
-        map_data_[offset] = std::max(clamping_thres_min_log_,
-                                     std::min(clamping_thres_max_log_, map_data_[offset] + log_cost_lookup_[dist]));
-    }
-
-  private:
-    double* map_data_;
-    const double* log_cost_lookup_;
-    double clamping_thres_min_log_;
-    double clamping_thres_max_log_;
-    const unsigned int size_x_;
-    const Eigen::Array2i origin_;
-};
-
 class AddLogCost
 {
   public:
