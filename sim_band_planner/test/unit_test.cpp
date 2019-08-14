@@ -69,7 +69,7 @@ TEST(test_plugin, test_plugin)
     sim_band_planner::DistanceField distance_field(cv_im, map_data->grid.dimensions().origin().x(),
                                                    map_data->grid.dimensions().origin().y(), resolution, robot_radius_);
 
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         auto t0 = std::chrono::steady_clock::now();
 
@@ -116,9 +116,9 @@ TEST(test_plugin, test_plugin)
         cv::circle(disp, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(0, 255, 255), -1, cv::LINE_8);
         cv::circle(disp, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(0, 255, 255), -1, cv::LINE_8);
 
-        cv::namedWindow("disp", cv::WINDOW_NORMAL);
-        cv::imshow("disp", disp);
-        cv::waitKey(1);
+        // cv::namedWindow("disp", cv::WINDOW_NORMAL);
+        // cv::imshow("disp", disp);
+        // cv::waitKey(1);
     }
 }
 
