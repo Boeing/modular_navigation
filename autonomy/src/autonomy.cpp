@@ -226,7 +226,7 @@ Autonomy::~Autonomy()
 
 void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 {
-    ROS_INFO_STREAM("Received map!");
+    ROS_INFO_STREAM("Received map (" << map->name << ")!");
 
     // preempt execution
     if (running_)
@@ -238,21 +238,39 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     std::unique_lock<std::mutex> lock(goal_mutex_);
     ROS_ASSERT(goal_ == nullptr);
 
-    auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
-    map_manager::GetMapRequest map_req;
-    map_req.map_name = map->name;
-    map_manager::GetMapResponse map_res;
-    ROS_ASSERT(map_client.call(map_req, map_res));
-    ROS_ASSERT(map_res.success);
 
-    auto og_client = nh_.serviceClient<map_manager::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
-    map_manager::GetOccupancyGridRequest og_req;
-    og_req.map_name = map->name;
-    map_manager::GetOccupancyGridResponse og_res;
-    ROS_ASSERT(og_client.call(og_req, og_res));
-    ROS_ASSERT(og_res.success);
+    if (!map->name.empty())
+    {
+        auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
+        map_manager::GetMapRequest map_req;
+        map_req.map_name = map->name;
+        map_manager::GetMapResponse map_res;
+        ROS_ASSERT(map_client.call(map_req, map_res));
+        ROS_ASSERT(map_res.success);
 
-    layered_map_->setMap(map_res.map, og_res.grid);
+        auto og_client = nh_.serviceClient<map_manager::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+        map_manager::GetOccupancyGridRequest og_req;
+        og_req.map_name = map->name;
+        map_manager::GetOccupancyGridResponse og_res;
+        ROS_ASSERT(og_client.call(og_req, og_res));
+        ROS_ASSERT(og_res.success);
+
+        layered_map_->setMap(map_res.map, og_res.grid);
+    }
+    else
+    {
+        // generate an empty map
+        hd_map::Map hd_map;
+        hd_map.info.name = "";
+        hd_map.info.meta_data.width = 1000;
+        hd_map.info.meta_data.height = 1000;
+        hd_map.info.meta_data.resolution = 0.02;
+        nav_msgs::OccupancyGrid map_data;
+        map_data.info = hd_map.info.meta_data;
+        map_data.data = std::vector<int8_t>(hd_map.info.meta_data.width*hd_map.info.meta_data.height, 0);
+        layered_map_->setMap(hd_map, map_data);
+    }
+
     path_planner_->setMapData(layered_map_->map());
     trajectory_planner_->setMapData(layered_map_->map());
     controller_->setMapData(layered_map_->map());
