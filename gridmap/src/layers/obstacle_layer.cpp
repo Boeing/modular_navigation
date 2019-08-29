@@ -222,7 +222,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
         if (debug_viz_running_)
         {
             debug_viz_running_ = false;
-            time_decay_thread_.join();
+            debug_viz_thread_.join();
         }
         debug_viz_running_ = true;
         debug_viz_thread_ = std::thread(&ObstacleLayer::debugVizThread, this, debug_viz_rate_);
