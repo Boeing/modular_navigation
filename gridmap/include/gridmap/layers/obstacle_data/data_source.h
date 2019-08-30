@@ -81,6 +81,20 @@ class DataSource
     virtual bool isDataOk() const = 0;
 };
 
+class SizedCallbackQueue : public ros::CallbackQueue
+{
+  public:
+    SizedCallbackQueue() : ros::CallbackQueue()
+    {
+    }
+    virtual ~SizedCallbackQueue() = default;
+
+    size_t size() const
+    {
+        return callbacks_.size();
+    }
+};
+
 template <typename MsgType> class TopicDataSource : public DataSource
 {
   public:
@@ -112,8 +126,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
         const std::string _topic = get_config_with_default_warn<std::string>(
             parameters, "topic", name_ + "/" + default_topic_, XmlRpc::XmlRpcValue::TypeString);
         ROS_INFO_STREAM("Subscribing to: " << _topic);
-        auto opts = ros::SubscribeOptions::create<MsgType>(
-            _topic, 50, boost::bind(&TopicDataSource::callback, this, _1), ros::VoidPtr(), &data_queue_);
+        auto opts = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
+                                                           boost::bind(&TopicDataSource::callback, this, _1),
+                                                           ros::VoidPtr(), &data_queue_);
         ros::NodeHandle g_nh;
         opts.transport_hints = ros::TransportHints().tcpNoDelay();
         subscriber_ = g_nh.subscribe(opts);
@@ -160,8 +175,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
     int sub_sample_ = 0;
     int sub_sample_count_ = 0;
 
+    const size_t callback_queue_size_ = 10;
+
     std::thread data_thread_;
-    ros::CallbackQueue data_queue_;
+    SizedCallbackQueue data_queue_;
     ros::Subscriber subscriber_;
 
   private:
@@ -228,6 +245,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     ROS_WARN_STREAM("'" << name_ << "' has not updated for " << delay << "s"
                                         << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
             }
+
+            if (data_queue_.size() == callback_queue_size_)
+                ROS_WARN_STREAM("Callback queue for '" << name_ << "' is full!");
         }
     }
 };
