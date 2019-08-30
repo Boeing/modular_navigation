@@ -16,11 +16,14 @@ class LaserData : public TopicDataSource<sensor_msgs::LaserScan>
 {
   public:
     LaserData();
-    virtual ~LaserData() override {}
+    virtual ~LaserData() override
+    {
+    }
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::LaserScan::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform) override;
+    virtual bool processData(const sensor_msgs::LaserScan::ConstPtr& msg,
+                             const Eigen::Isometry3d& sensor_transform) override;
 
   private:
     double hit_probability_log_;
@@ -33,6 +36,6 @@ class LaserData : public TopicDataSource<sensor_msgs::LaserScan>
 
     std::vector<Eigen::Vector3d> laser_directions_;
 };
-}
+}  // namespace gridmap
 
 #endif

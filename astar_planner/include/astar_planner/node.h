@@ -179,6 +179,6 @@ inline Node3dIndex KeyToIndex(const uint64_t& key)
 
 typedef boost::heap::binomial_heap<Node3D*, boost::heap::compare<CompareNodes>> PriorityQueue3D;
 typedef boost::heap::binomial_heap<Node2D*, boost::heap::compare<CompareNodes>> PriorityQueue2D;
-}
+}  // namespace astar_planner
 
 #endif

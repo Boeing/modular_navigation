@@ -26,6 +26,6 @@ class RecoveryBehavior
     {
     }
 };
-}
+}  // namespace navigation_interface
 
 #endif

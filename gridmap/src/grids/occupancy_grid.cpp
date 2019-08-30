@@ -74,4 +74,4 @@ nav_msgs::OccupancyGrid OccupancyGrid::toMsg(const AABB& bb) const
     }
     return grid;
 }
-}
+}  // namespace gridmap

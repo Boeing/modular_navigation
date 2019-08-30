@@ -19,7 +19,8 @@ class PointCloudData : public TopicDataSource<sensor_msgs::PointCloud2>
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::PointCloud2::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform) override;
+    virtual bool processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
+                             const Eigen::Isometry3d& sensor_transform) override;
 
   private:
     double hit_probability_log_;
@@ -31,6 +32,6 @@ class PointCloudData : public TopicDataSource<sensor_msgs::PointCloud2>
     std::vector<double> log_cost_lookup_;
 };
 
-}
+}  // namespace gridmap
 
 #endif

@@ -414,6 +414,6 @@ SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArra
     ChordLengths(points, parameters);
     return InterpolateWithDerivatives(points, derivatives, derivativeIndices, degree, parameters);
 }
-}
+}  // namespace Eigen
 
 #endif  // EIGEN_SPLINE_FITTING_H

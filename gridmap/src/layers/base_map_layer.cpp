@@ -115,4 +115,4 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
         }
     }
 }
-}
+}  // namespace gridmap

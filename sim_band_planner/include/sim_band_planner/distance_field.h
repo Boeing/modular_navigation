@@ -201,6 +201,6 @@ struct DistanceField
         return distance;
     }
 };
-}
+}  // namespace sim_band_planner
 
 #endif

@@ -46,6 +46,6 @@ class PathPlanner
     {
     }
 };
-}
+}  // namespace navigation_interface
 
 #endif

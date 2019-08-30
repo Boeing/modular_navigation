@@ -139,6 +139,6 @@ template <class CellType> class Grid2D
     mutable std::recursive_mutex mutex_;
     std::vector<CellType> cells_;
 };
-}
+}  // namespace gridmap
 
 #endif

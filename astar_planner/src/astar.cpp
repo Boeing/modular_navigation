@@ -23,7 +23,7 @@ double heuristic2d(const State2D& s1, const State2D& s2)
     const double dy = s2.y - s1.y;
     return std::sqrt(dx * dx + dy * dy);
 }
-}
+}  // namespace
 
 ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore2DCache& explore_cache,
                               const Costmap& costmap, const float closest_distance)
@@ -393,4 +393,4 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 
     return result;
 }
-}
+}  // namespace astar_planner

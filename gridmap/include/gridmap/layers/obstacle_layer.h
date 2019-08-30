@@ -59,6 +59,6 @@ class ObstacleLayer : public Layer
     std::thread time_decay_thread_;
     void timeDecayThread(const double frequency, const double alpha_decay);
 };
-}
+}  // namespace gridmap
 
 #endif

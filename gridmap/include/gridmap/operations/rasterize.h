@@ -141,6 +141,6 @@ inline std::vector<Eigen::Array2i> connectPolygon(const std::vector<Eigen::Array
     }
     return connected;
 }
-}
+}  // namespace gridmap
 
 #endif

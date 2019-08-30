@@ -96,6 +96,6 @@ class Layer
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::vector<Eigen::Vector2d> robot_footprint_;
 };
-}
+}  // namespace gridmap
 
 #endif

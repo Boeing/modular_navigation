@@ -81,6 +81,6 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
                        const Costmap& costmap, const CollisionChecker& collision_checker,
                        const float conservative_radius, const double linear_resolution = 0.1,
                        const double angular_resolution = 0.2, const bool backwards = false, const bool strafe = false);
-}
+}  // namespace astar_planner
 
 #endif

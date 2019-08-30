@@ -63,4 +63,4 @@ std::vector<Eigen::Array2i> drawLine(int x, int y, int x2, int y2)
     }
     return line;
 }
-}
+}  // namespace gridmap

@@ -130,6 +130,6 @@ class ProbabilityGrid : public Grid2D<double>
     double clamping_thres_max_log_;
     double occ_prob_thres_log_;
 };
-}
+}  // namespace gridmap
 
 #endif

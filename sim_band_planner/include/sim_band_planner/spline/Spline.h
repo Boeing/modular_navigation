@@ -539,6 +539,6 @@ typename SplineTraits<Spline<_Scalar, _Dim, _Degree>>::BasisDerivativeType
     BasisFunctionDerivativesImpl(u, order, degree, knots, der);
     return der;
 }
-}
+}  // namespace Eigen
 
 #endif  // EIGEN_SPLINE_H

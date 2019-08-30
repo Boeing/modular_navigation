@@ -18,6 +18,6 @@ struct MapData
     hd_map::Map hd_map;
     OccupancyGrid grid;
 };
-}
+}  // namespace gridmap
 
 #endif

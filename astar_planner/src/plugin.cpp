@@ -56,7 +56,7 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
     }
     return cost;
 }
-}
+}  // namespace
 
 AStarPlanner::AStarPlanner()
 {
@@ -285,4 +285,4 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 void AStarPlanner::onMapDataChanged()
 {
 }
-}
+}  // namespace astar_planner

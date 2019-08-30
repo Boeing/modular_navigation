@@ -13,9 +13,8 @@ namespace gridmap
 {
 
 LaserData::LaserData()
-    : TopicDataSource<sensor_msgs::LaserScan>("scan"),
-      hit_probability_log_(0), miss_probability_log_(0), min_obstacle_height_(0), max_obstacle_height_(0),
-      obstacle_range_(0), raytrace_range_(0)
+    : TopicDataSource<sensor_msgs::LaserScan>("scan"), hit_probability_log_(0), miss_probability_log_(0),
+      min_obstacle_height_(0), max_obstacle_height_(0), obstacle_range_(0), raytrace_range_(0)
 {
 }
 
@@ -68,7 +67,8 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
     const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
     const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
 
-    const unsigned int cell_raytrace_range = static_cast<unsigned int>(raytrace_range_ / map_data_->dimensions().resolution());
+    const unsigned int cell_raytrace_range =
+        static_cast<unsigned int>(raytrace_range_ / map_data_->dimensions().resolution());
 
     {
         auto _lock = map_data_->getLock();
@@ -91,9 +91,9 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
             const Eigen::Vector2d pt_2d(pt.x(), pt.y());
             Eigen::Array2i ray_end = map_data_->dimensions().getCellIndex(pt_2d);
             cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
-                                       map_data_->dimensions().size().x() - 1,
-                                       map_data_->dimensions().size().y() - 1);
-            raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(), map_data_->dimensions().size().x(), cell_raytrace_range);
+                                       map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+            raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
+                         map_data_->dimensions().size().x(), cell_raytrace_range);
             if (range < static_cast<double>(msg->range_max) && range < obstacle_range_)
             {
                 map_data_->update(ray_end, -miss_probability_log_);
@@ -111,4 +111,4 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
     return true;
 }
 
-}
+}  // namespace gridmap

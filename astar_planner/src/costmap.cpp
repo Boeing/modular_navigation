@@ -48,4 +48,4 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
 
     return grid;
 }
-}
+}  // namespace astar_planner

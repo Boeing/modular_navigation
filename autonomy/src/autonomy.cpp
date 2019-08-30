@@ -197,8 +197,7 @@ Autonomy::Autonomy()
         load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
     controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
 
-    active_map_sub_ =
-        nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
+    active_map_sub_ = nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
 
     costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
@@ -267,11 +266,13 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
         hd_map.info.meta_data.width = 2000;
         hd_map.info.meta_data.height = 2000;
         hd_map.info.meta_data.resolution = 0.02;
-        hd_map.info.meta_data.origin.position.x = -static_cast<double>(hd_map.info.meta_data.width) * hd_map.info.meta_data.resolution / 2.0;
-        hd_map.info.meta_data.origin.position.y = -static_cast<double>(hd_map.info.meta_data.height) * hd_map.info.meta_data.resolution / 2.0;
+        hd_map.info.meta_data.origin.position.x =
+            -static_cast<double>(hd_map.info.meta_data.width) * hd_map.info.meta_data.resolution / 2.0;
+        hd_map.info.meta_data.origin.position.y =
+            -static_cast<double>(hd_map.info.meta_data.height) * hd_map.info.meta_data.resolution / 2.0;
         nav_msgs::OccupancyGrid map_data;
         map_data.info = hd_map.info.meta_data;
-        map_data.data = std::vector<int8_t>(hd_map.info.meta_data.width*hd_map.info.meta_data.height, 0);
+        map_data.data = std::vector<int8_t>(hd_map.info.meta_data.width * hd_map.info.meta_data.height, 0);
         layered_map_->setMap(hd_map, map_data);
     }
 
@@ -975,4 +976,4 @@ void Autonomy::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
     }
     robot_state_conditional_.notify_all();
 }
-}  // namespace Autonomy
+}  // namespace autonomy

@@ -25,7 +25,7 @@ int computeOutCode(const int x, const int y, const int max_x, const int max_y)
         code |= TOP;
     return code;
 }
-}
+}  // namespace
 
 void cohenSutherlandLineClipEnd(const int x0, const int y0, int& x1, int& y1, const int max_x, const int max_y)
 {
@@ -75,4 +75,4 @@ void cohenSutherlandLineClipEnd(const int x0, const int y0, int& x1, int& y1, co
         }
     }
 }
-}
+}  // namespace gridmap

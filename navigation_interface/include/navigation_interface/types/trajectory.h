@@ -21,6 +21,6 @@ struct Trajectory
     std_msgs::Header header;
     std::vector<KinodynamicState> states;
 };
-};
+};  // namespace navigation_interface
 
 #endif

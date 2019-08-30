@@ -15,16 +15,19 @@ namespace gridmap
 {
 
 PointCloudData::PointCloudData()
-    : TopicDataSource<sensor_msgs::PointCloud2>("points"),
-      hit_probability_log_(0), miss_probability_log_(0), obstacle_height_(0), max_range_(0)
+    : TopicDataSource<sensor_msgs::PointCloud2>("points"), hit_probability_log_(0), miss_probability_log_(0),
+      obstacle_height_(0), max_range_(0)
 {
 }
 
 void PointCloudData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    miss_probability_log_ = logodds(get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
-    obstacle_height_ = get_config_with_default_warn<double>(parameters, "max_obstacle_height", 0.03, XmlRpc::XmlRpcValue::TypeDouble);
-    max_range_ = static_cast<float>(get_config_with_default_warn<double>(parameters, "max_range", 2.0, XmlRpc::XmlRpcValue::TypeDouble));
+    miss_probability_log_ = logodds(
+        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
+    obstacle_height_ =
+        get_config_with_default_warn<double>(parameters, "max_obstacle_height", 0.03, XmlRpc::XmlRpcValue::TypeDouble);
+    max_range_ = static_cast<float>(
+        get_config_with_default_warn<double>(parameters, "max_range", 2.0, XmlRpc::XmlRpcValue::TypeDouble));
 }
 
 void PointCloudData::onMapDataChanged()
@@ -46,7 +49,8 @@ PointCloudData::~PointCloudData()
 {
 }
 
-bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform)
+bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
+                                 const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
 
@@ -139,4 +143,4 @@ bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg, 
     return true;
 }
 
-}
+}  // namespace gridmap

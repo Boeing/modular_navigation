@@ -20,9 +20,8 @@ namespace gridmap
 {
 
 RangeData::RangeData()
-    : TopicDataSource<sensor_msgs::Range>("scan"),
-      hit_probability_(0), miss_probability_(0), std_deviation_(0), max_range_(0), obstacle_range_(0),
-      raytrace_range_(0)
+    : TopicDataSource<sensor_msgs::Range>("scan"), hit_probability_(0), miss_probability_(0), std_deviation_(0),
+      max_range_(0), obstacle_range_(0), raytrace_range_(0)
 {
 }
 
@@ -32,15 +31,20 @@ RangeData::~RangeData()
 
 void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    hit_probability_ = get_config_with_default_warn<double>(parameters, "hit_probability", 0.99, XmlRpc::XmlRpcValue::TypeDouble);
-    miss_probability_ = get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
+    hit_probability_ =
+        get_config_with_default_warn<double>(parameters, "hit_probability", 0.99, XmlRpc::XmlRpcValue::TypeDouble);
+    miss_probability_ =
+        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
 
-    std_deviation_ = get_config_with_default_warn<double>(parameters, "std_deviation", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
+    std_deviation_ =
+        get_config_with_default_warn<double>(parameters, "std_deviation", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
 
     max_range_ = get_config_with_default_warn<double>(parameters, "max_range", 1.5, XmlRpc::XmlRpcValue::TypeDouble);
 
-    obstacle_range_ = get_config_with_default_warn<double>(parameters, "obstacle_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
-    raytrace_range_ = get_config_with_default_warn<double>(parameters, "raytrace_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
+    obstacle_range_ =
+        get_config_with_default_warn<double>(parameters, "obstacle_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
+    raytrace_range_ =
+        get_config_with_default_warn<double>(parameters, "raytrace_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
 
     sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
 
@@ -143,11 +147,12 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
 
     {
         auto _lock = map_data_->getLock();
-        drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()}, {right_pt_map.x(), right_pt_map.y()});
+        drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
+                {right_pt_map.x(), right_pt_map.y()});
         map_data_->setMinThres(sensor_pt_map);
     }
 
     return true;
 }
 
-}
+}  // namespace gridmap

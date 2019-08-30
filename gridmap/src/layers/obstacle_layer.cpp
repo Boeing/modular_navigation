@@ -38,7 +38,8 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
             {
                 ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
                 XmlRpc::XmlRpcValue params = parameters[pname];
-                std::shared_ptr<gridmap::DataSource> plugin_ptr = std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
+                std::shared_ptr<gridmap::DataSource> plugin_ptr =
+                    std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
                 plugin_ptr->initialize(pname, global_frame, params, robot_footprint, tf_buffer);
                 plugin_ptrs[pname] = plugin_ptr;
             }
@@ -55,7 +56,7 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
 
     return plugin_ptrs;
 }
-}
+}  // namespace
 
 ObstacleLayer::ObstacleLayer()
     : ds_loader_("gridmap", "gridmap::DataSource"), debug_viz_running_(false), time_decay_running_(false)
@@ -393,4 +394,4 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
         rate.sleep();
     }
 }
-}
+}  // namespace gridmap

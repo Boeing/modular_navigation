@@ -6,13 +6,13 @@
 #include <string>
 #include <thread>
 
-#include <gridmap/params.h>
 #include <gridmap/grids/probability_grid.h>
 #include <gridmap/operations/rasterize.h>
+#include <gridmap/params.h>
 
-#include <tf2_ros/buffer.h>
 #include <ros/callback_queue.h>
 #include <ros/ros.h>
+#include <tf2_ros/buffer.h>
 
 namespace gridmap
 {
@@ -69,33 +69,30 @@ inline std::set<uint64_t> buildFootprintSet(const MapDimensions& dimensions, con
 
 class DataSource
 {
-public:
+  public:
     DataSource() = default;
     virtual ~DataSource() = default;
 
-    virtual void initialize(const std::string& name,
-                            const std::string& global_frame,
-                            const XmlRpc::XmlRpcValue& parameters,
-                            const std::vector<Eigen::Vector2d>& robot_footprint,
+    virtual void initialize(const std::string& name, const std::string& global_frame,
+                            const XmlRpc::XmlRpcValue& parameters, const std::vector<Eigen::Vector2d>& robot_footprint,
                             const std::shared_ptr<tf2_ros::Buffer>& tf_buffer) = 0;
     virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) = 0;
     virtual std::string name() const = 0;
     virtual bool isDataOk() const = 0;
 };
 
-template <typename MsgType>
-class TopicDataSource : public DataSource
+template <typename MsgType> class TopicDataSource : public DataSource
 {
   public:
-    TopicDataSource(const std::string& default_topic)
-        : default_topic_(default_topic)
-    {}
-    virtual ~TopicDataSource() {}
+    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic)
+    {
+    }
+    virtual ~TopicDataSource()
+    {
+    }
 
-    virtual void initialize(const std::string& name,
-                            const std::string& global_frame,
-                            const XmlRpc::XmlRpcValue& parameters,
-                            const std::vector<Eigen::Vector2d>& robot_footprint,
+    virtual void initialize(const std::string& name, const std::string& global_frame,
+                            const XmlRpc::XmlRpcValue& parameters, const std::vector<Eigen::Vector2d>& robot_footprint,
                             const std::shared_ptr<tf2_ros::Buffer>& tf_buffer) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -106,14 +103,17 @@ class TopicDataSource : public DataSource
         tf_buffer_ = tf_buffer;
         last_updated_ = ros::Time::now();
 
-        maximum_sensor_delay_ = get_config_with_default_warn<double>(parameters, "maximum_sensor_delay", 1.0, XmlRpc::XmlRpcValue::TypeDouble);
+        maximum_sensor_delay_ = get_config_with_default_warn<double>(parameters, "maximum_sensor_delay", 1.0,
+                                                                     XmlRpc::XmlRpcValue::TypeDouble);
         sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
 
         onInitialize(parameters);
 
-        const std::string _topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/" + default_topic_, XmlRpc::XmlRpcValue::TypeString);
+        const std::string _topic = get_config_with_default_warn<std::string>(
+            parameters, "topic", name_ + "/" + default_topic_, XmlRpc::XmlRpcValue::TypeString);
         ROS_INFO_STREAM("Subscribing to: " << _topic);
-        auto opts = ros::SubscribeOptions::create<MsgType>(_topic, 50, boost::bind(&TopicDataSource::callback, this, _1), ros::VoidPtr(), &data_queue_);
+        auto opts = ros::SubscribeOptions::create<MsgType>(
+            _topic, 50, boost::bind(&TopicDataSource::callback, this, _1), ros::VoidPtr(), &data_queue_);
         ros::NodeHandle g_nh;
         opts.transport_hints = ros::TransportHints().tcpNoDelay();
         subscriber_ = g_nh.subscribe(opts);
@@ -177,11 +177,12 @@ class TopicDataSource : public DataSource
 
             try
             {
-                const auto tr = tf_buffer_->lookupTransform(global_frame_, msg->header.frame_id, msg->header.stamp, ros::Duration(maximum_sensor_delay_));
-                const Eigen::Isometry3d t =
-                    Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z) *
-                    Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y,
-                                       tr.transform.rotation.z);
+                const auto tr = tf_buffer_->lookupTransform(global_frame_, msg->header.frame_id, msg->header.stamp,
+                                                            ros::Duration(maximum_sensor_delay_));
+                const Eigen::Isometry3d t = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y,
+                                                                 tr.transform.translation.z) *
+                                            Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x,
+                                                               tr.transform.rotation.y, tr.transform.rotation.z);
                 const bool success = processData(msg, t);
                 if (success)
                     last_updated_ = msg->header.stamp;
@@ -207,7 +208,9 @@ class TopicDataSource : public DataSource
         {
             const auto t0 = std::chrono::steady_clock::now();
             const auto result = data_queue_.callOne(ros::WallDuration(maximum_sensor_delay_));
-            const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
+            const double duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
 
             std::lock_guard<std::mutex> lock(mutex_);
             if (result == ros::CallbackQueue::CallOneResult::Called)
@@ -215,7 +218,7 @@ class TopicDataSource : public DataSource
                 if (duration > maximum_sensor_delay_)
                 {
                     ROS_WARN_STREAM("Processing '" << name_ << "' took: " << duration << "s"
-                                    << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
+                                                   << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
                 }
             }
             else
@@ -223,12 +226,12 @@ class TopicDataSource : public DataSource
                 const double delay = (ros::Time::now() - last_updated_).toSec();
                 if (delay > maximum_sensor_delay_)
                     ROS_WARN_STREAM("'" << name_ << "' has not updated for " << delay << "s"
-                                    << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
+                                        << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
             }
         }
     }
 };
 
-}
+}  // namespace gridmap
 
 #endif

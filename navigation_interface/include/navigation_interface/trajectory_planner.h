@@ -73,6 +73,6 @@ class TrajectoryPlanner
     std::mutex mutex_;
     std::shared_ptr<const gridmap::MapData> map_data_;
 };
-}
+}  // namespace navigation_interface
 
 #endif

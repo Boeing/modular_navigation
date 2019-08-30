@@ -20,7 +20,8 @@ class RangeData : public TopicDataSource<sensor_msgs::Range>
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform) override;
+    virtual bool processData(const sensor_msgs::Range::ConstPtr& msg,
+                             const Eigen::Isometry3d& sensor_transform) override;
 
   private:
     void generateLogCostLookup(const double max_range);
@@ -36,6 +37,6 @@ class RangeData : public TopicDataSource<sensor_msgs::Range>
 
     std::vector<std::vector<double>> log_cost_lookup_;
 };
-}
+}  // namespace gridmap
 
 #endif

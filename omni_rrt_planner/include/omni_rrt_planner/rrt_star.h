@@ -452,7 +452,7 @@ class RRTstar : public base::Planner
         return std::to_string(bestCost().value());
     }
 };
-}
-}
+}  // namespace geometric
+}  // namespace ompl
 
 #endif
