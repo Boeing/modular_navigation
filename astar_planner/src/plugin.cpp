@@ -76,8 +76,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     collision_checker_.reset(new astar_planner::CollisionChecker(costmap_));
 
     const size_t max_iterations = 1e6;
-    const double linear_resolution = 0.08;
-    const double angular_resolution = 0.1;
+    const double linear_resolution = 0.04;
+    const double angular_resolution = 0.08;
 
     bool allow_backwards = false;
     bool allow_strafe = false;

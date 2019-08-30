@@ -182,7 +182,7 @@ double updateH(const Node3D& state, const State3D& goal, Explore2DCache& explore
     if (ret.success)
     {
         auto target = ret.node;
-        const double min_px_distance = 0.1 * costmap.resolution;
+        const double min_px_distance = 0.2 * costmap.resolution;
         while (target->parent && heuristic2d(ret.node->state, target->state) < min_px_distance)
         {
             target = target->parent;
@@ -200,10 +200,10 @@ double updateH(const Node3D& state, const State3D& goal, Explore2DCache& explore
         face_goal_angle = std::acos(pose_dir.dot(goal_dir) / (pose_dir.norm() * goal_dir.norm()));
     }
 
-    // the heuristic should be less than the actual cost to be admissable
+    // the heuristic should be less than the actual cost to be admissible
     // if not the optimal solution is not found
     // however, it is much much faster to not find the optimal solution
-    return 1.2 * (shortest_2d + fwd_angle + 0.1 * face_goal_angle);
+    return 1.1 * (shortest_2d + fwd_angle + 0.1 * face_goal_angle);
 }
 
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
