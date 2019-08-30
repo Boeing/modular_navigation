@@ -66,6 +66,6 @@ struct MovingWindow
         }
     }
 };
-}
+}  // namespace sim_band_planner
 
 #endif

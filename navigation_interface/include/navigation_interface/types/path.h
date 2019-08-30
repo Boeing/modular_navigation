@@ -52,6 +52,6 @@ struct Path
         }
     }
 };
-};
+};  // namespace navigation_interface
 
 #endif

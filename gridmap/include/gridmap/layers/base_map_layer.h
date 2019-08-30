@@ -41,6 +41,6 @@ class BaseMapLayer : public Layer
     int lethal_threshold_;
     std::shared_ptr<OccupancyGrid> map_;
 };
-}
+}  // namespace gridmap
 
 #endif

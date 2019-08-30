@@ -74,7 +74,7 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
 
     return grid;
 }
-}
+}  // namespace
 
 OmniRRTPlanner::OmniRRTPlanner()
 {
@@ -492,4 +492,4 @@ void OmniRRTPlanner::visualisePathGeometric(const ompl::geometric::PathGeometric
 
     trajectory_viz_->trigger();
 }
-}
+}  // namespace omni_rrt_planner

@@ -86,6 +86,6 @@ class OccupancyGrid : public Grid2D<uint8_t>
 
     nav_msgs::OccupancyGrid toMsg(const AABB& bb) const;
 };
-}
+}  // namespace gridmap
 
 #endif

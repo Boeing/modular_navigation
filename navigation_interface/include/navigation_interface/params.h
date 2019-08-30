@@ -124,7 +124,7 @@ inline std::vector<Eigen::Vector2d> get_point_list(XmlRpc::XmlRpcValue parameter
     }
     return result;
 }
-}
+}  // namespace navigation_interface
 
 
 #endif

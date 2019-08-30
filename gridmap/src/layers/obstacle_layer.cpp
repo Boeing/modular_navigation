@@ -37,12 +37,10 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
             try
             {
                 ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
+                XmlRpc::XmlRpcValue params = parameters[pname];
                 std::shared_ptr<gridmap::DataSource> plugin_ptr =
                     std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
-                XmlRpc::XmlRpcValue params = parameters[pname];
-                const double maximum_sensor_delay = get_config_with_default_warn<double>(
-                    parameters, "maximum_sensor_delay", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
-                plugin_ptr->initialize(pname, global_frame, params, robot_footprint, tf_buffer, maximum_sensor_delay);
+                plugin_ptr->initialize(pname, global_frame, params, robot_footprint, tf_buffer);
                 plugin_ptrs[pname] = plugin_ptr;
             }
             catch (const pluginlib::PluginlibException& e)
@@ -58,7 +56,7 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
 
     return plugin_ptrs;
 }
-}
+}  // namespace
 
 ObstacleLayer::ObstacleLayer()
     : ds_loader_("gridmap", "gridmap::DataSource"), debug_viz_running_(false), time_decay_running_(false)
@@ -277,10 +275,10 @@ bool ObstacleLayer::isDataOk() const
     bool ok = true;
     for (const auto& ds : data_sources_)
     {
-        const auto status = ds.second->status();
-        if (!status.ok)
-            ROS_WARN_STREAM(ds.second->name() << " has not updated for " << status.seconds_since_update << " seconds");
-        ok &= status.ok;
+        const bool ds_ok = ds.second->isDataOk();
+        if (!ds_ok)
+            ROS_WARN_STREAM("'" << ds.first << "' has stale data");
+        ok &= ds_ok;
     }
     return ok;
 }
@@ -299,7 +297,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                 try
                 {
                     grid.header.frame_id = globalFrame();
-                    grid.info.resolution = probability_grid_->dimensions().resolution();
+                    grid.info.resolution = static_cast<float>(probability_grid_->dimensions().resolution());
                     grid.info.origin.orientation.w = 1.0;
 
                     const int size_x = static_cast<int>(8.0 / probability_grid_->dimensions().resolution());
@@ -320,10 +318,10 @@ void ObstacleLayer::debugVizThread(const double frequency)
                     const int actual_size_y =
                         std::min(probability_grid_->dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
 
-                    grid.info.width = actual_size_x;
-                    grid.info.height = actual_size_y;
+                    grid.info.width = static_cast<unsigned int>(actual_size_x);
+                    grid.info.height = static_cast<unsigned int>(actual_size_y);
 
-                    const std::size_t capacity = actual_size_x * actual_size_y;
+                    const std::size_t capacity = static_cast<size_t>(actual_size_x * actual_size_y);
                     if (grid.data.size() != capacity)
                         grid.data.resize(capacity);
 
@@ -396,4 +394,4 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
         rate.sleep();
     }
 }
-}
+}  // namespace gridmap

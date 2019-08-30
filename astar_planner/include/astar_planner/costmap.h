@@ -112,6 +112,6 @@ class CollisionChecker
     const std::shared_ptr<const Costmap> costmap_;
     const std::vector<Eigen::Vector2d> offsets_;
 };
-}
+}  // namespace astar_planner
 
 #endif

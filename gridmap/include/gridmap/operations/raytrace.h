@@ -90,6 +90,6 @@ inline void bresenham2D(ActionType at, unsigned int abs_da, unsigned int abs_db,
 }
 
 std::vector<Eigen::Array2i> drawLine(int x, int y, int x2, int y2);
-}
+}  // namespace gridmap
 
 #endif

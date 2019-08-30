@@ -42,6 +42,6 @@ class AStarPlanner : public navigation_interface::PathPlanner
     std::shared_ptr<Costmap> costmap_;
     std::shared_ptr<CollisionChecker> collision_checker_;
 };
-}
+}  // namespace astar_planner
 
 #endif

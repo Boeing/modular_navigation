@@ -41,6 +41,6 @@ class LayeredMap
     // additional layers
     std::vector<std::shared_ptr<Layer>> layers_;
 };
-}
+}  // namespace gridmap
 
 #endif

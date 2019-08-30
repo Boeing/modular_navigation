@@ -61,4 +61,4 @@ template <class CellType> void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid, 
 
 template class Grid2D<uint8_t>;
 template class Grid2D<double>;
-}
+}  // namespace gridmap

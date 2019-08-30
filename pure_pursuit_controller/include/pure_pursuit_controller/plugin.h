@@ -65,6 +65,6 @@ class PurePursuitController : public navigation_interface::Controller
 
     std::vector<Eigen::Vector2d> robot_footprint_;
 };
-}
+}  // namespace pure_pursuit_controller
 
 #endif

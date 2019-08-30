@@ -123,6 +123,6 @@ typedef Spline<double, 2> Spline2d;
 
 /** \brief 3D double B-spline with dynamic degree. */
 typedef Spline<double, 3> Spline3d;
-}
+}  // namespace Eigen
 
 #endif  // EIGEN_SPLINES_FWD_H

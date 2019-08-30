@@ -64,7 +64,7 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
         return default_val;
     }
 }
-}
+}  // namespace gridmap
 
 
 #endif

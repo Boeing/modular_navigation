@@ -12,16 +12,18 @@
 namespace gridmap
 {
 
-class LaserData : public DataSource
+class LaserData : public TopicDataSource<sensor_msgs::LaserScan>
 {
   public:
     LaserData();
-    virtual ~LaserData() override;
+    virtual ~LaserData() override
+    {
+    }
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapDataChanged() override;
-
-    void laserScanCallback(const sensor_msgs::LaserScanConstPtr& message);
+    virtual bool processData(const sensor_msgs::LaserScan::ConstPtr& msg,
+                             const Eigen::Isometry3d& sensor_transform) override;
 
   private:
     double hit_probability_log_;
@@ -32,14 +34,8 @@ class LaserData : public DataSource
     double obstacle_range_;
     double raytrace_range_;
 
-    int sub_sample_;
-    int sub_sample_count_;
-
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::LaserScan>> subscriber_;
-    std::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::LaserScan>> message_filter_;
-
     std::vector<Eigen::Vector3d> laser_directions_;
 };
-}
+}  // namespace gridmap
 
 #endif

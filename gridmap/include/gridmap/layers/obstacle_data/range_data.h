@@ -12,7 +12,7 @@
 namespace gridmap
 {
 
-class RangeData : public DataSource
+class RangeData : public TopicDataSource<sensor_msgs::Range>
 {
   public:
     RangeData();
@@ -20,8 +20,8 @@ class RangeData : public DataSource
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapDataChanged() override;
-
-    void rangeCallback(const sensor_msgs::RangeConstPtr& message);
+    virtual bool processData(const sensor_msgs::Range::ConstPtr& msg,
+                             const Eigen::Isometry3d& sensor_transform) override;
 
   private:
     void generateLogCostLookup(const double max_range);
@@ -35,14 +35,8 @@ class RangeData : public DataSource
     double obstacle_range_;
     double raytrace_range_;
 
-    int sub_sample_;
-    int sub_sample_count_;
-
     std::vector<std::vector<double>> log_cost_lookup_;
-
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::Range>> subscriber_;
-    std::shared_ptr<tf2_ros::MessageFilter<sensor_msgs::Range>> message_filter_;
 };
-}
+}  // namespace gridmap
 
 #endif

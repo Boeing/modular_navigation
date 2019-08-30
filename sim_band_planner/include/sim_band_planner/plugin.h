@@ -67,6 +67,6 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     double robot_radius_ = 0.210;
     std::vector<Eigen::Vector2d> offsets_;
 };
-}
+}  // namespace sim_band_planner
 
 #endif

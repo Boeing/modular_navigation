@@ -213,6 +213,6 @@ class TraversalObjective : public ompl::base::OptimizationObjective
         return ompl::base::Cost(dist_norm + 2 * fwd_angle);
     }
 };
-}
+}  // namespace omni_rrt_planner
 
 #endif

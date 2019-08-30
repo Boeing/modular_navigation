@@ -20,8 +20,8 @@ namespace gridmap
 {
 
 RangeData::RangeData()
-    : hit_probability_(0), miss_probability_(0), std_deviation_(0), max_range_(0), obstacle_range_(0),
-      raytrace_range_(0), sub_sample_(0), sub_sample_count_(0)
+    : TopicDataSource<sensor_msgs::Range>("scan"), hit_probability_(0), miss_probability_(0), std_deviation_(0),
+      max_range_(0), obstacle_range_(0), raytrace_range_(0)
 {
 }
 
@@ -31,12 +31,6 @@ RangeData::~RangeData()
 
 void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    ros::NodeHandle nh("~/" + name_);
-    ros::NodeHandle g_nh;
-
-    const std::string topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/range",
-                                                                        XmlRpc::XmlRpcValue::TypeString);
-
     hit_probability_ =
         get_config_with_default_warn<double>(parameters, "hit_probability", 0.99, XmlRpc::XmlRpcValue::TypeDouble);
     miss_probability_ =
@@ -56,25 +50,18 @@ void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 
     ROS_ASSERT(obstacle_range_ <= max_range_);
     ROS_ASSERT(raytrace_range_ <= max_range_);
-
-    ROS_INFO_STREAM("Subscribing to range sensor: " << topic);
-
-    subscriber_.reset(new message_filters::Subscriber<sensor_msgs::Range>(g_nh, topic, 50));
-    message_filter_.reset(
-        new tf2_ros::MessageFilter<sensor_msgs::Range>(*subscriber_, *tf_buffer_, global_frame_, 50, g_nh));
-    message_filter_->registerCallback(boost::bind(&RangeData::rangeCallback, this, _1));
 }
 
 void RangeData::onMapDataChanged()
 {
-    const int obstacle_cells = obstacle_range_ / map_data_->dimensions().resolution();
-    const int raytrace_cells = raytrace_range_ / map_data_->dimensions().resolution();
-    const int max_range_cells = max_range_ / map_data_->dimensions().resolution() + 1;
+    const int obstacle_cells = static_cast<int>(obstacle_range_ / map_data_->dimensions().resolution());
+    const int raytrace_cells = static_cast<int>(raytrace_range_ / map_data_->dimensions().resolution());
+    const int max_range_cells = static_cast<int>(max_range_ / map_data_->dimensions().resolution() + 1);
 
-    log_cost_lookup_.resize(max_range_cells);
+    log_cost_lookup_.resize(static_cast<size_t>(max_range_cells));
     for (int c = 0; c < max_range_cells; ++c)
     {
-        log_cost_lookup_[c].resize(max_range_cells);
+        log_cost_lookup_[c].resize(static_cast<size_t>(max_range_cells));
         const double range = c * map_data_->dimensions().resolution();
 
         for (int i = 0; i < max_range_cells; ++i)
@@ -101,90 +88,71 @@ void RangeData::onMapDataChanged()
     }
 }
 
-void RangeData::rangeCallback(const sensor_msgs::RangeConstPtr& message)
+bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform)
 {
-    if (sub_sample_ == 0 || (sub_sample_ > 0 && sub_sample_count_ > sub_sample_))
+    ROS_ASSERT(std::abs(msg->max_range - max_range_) < std::numeric_limits<double>::epsilon());
+
+    const Eigen::Vector3d sensor_pt = sensor_transform.translation();
+    const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
+    const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
+
+    // Check sensor is on map
+    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+        sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        sub_sample_count_ = 0;
-
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (!map_data_)
-            return;
-
-        ROS_ASSERT(std::abs(message->max_range - max_range_) < std::numeric_limits<double>::epsilon());
-
-        const auto tr = tf_buffer_->lookupTransform(global_frame_, message->header.frame_id, message->header.stamp);
-
-        const Eigen::Isometry3d t =
-            Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z) *
-            Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y,
-                               tr.transform.rotation.z);
-
-        const Eigen::Vector3d sensor_pt = t.translation();
-        const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
-        const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
-
-        // Check sensor is on map
-        if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
-            sensor_pt_map.y() >= map_data_->dimensions().size().y())
-        {
-            ROS_WARN("Range sensor is not on gridmap");
-            return;
-        }
-
-        const double half_fov = static_cast<double>(message->field_of_view / 2.0f);
-        const double range = std::max(message->min_range, std::min(message->max_range, message->range));
-
-        const Eigen::Vector3d centre_pt = t * Eigen::Vector3d((1.0 / std::cos(half_fov)) * range, 0.0, 0.0);
-        const Eigen::Vector2d centre_pt_2d(centre_pt.x(), centre_pt.y());
-
-        const Eigen::Vector2d sensor_vec = (centre_pt_2d - sensor_pt_2d);
-
-        const Eigen::Vector2d left_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(-half_fov) * sensor_vec);
-        const Eigen::Vector2d right_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(half_fov) * sensor_vec);
-
-        Eigen::Vector2i left_pt_map = map_data_->dimensions().getCellIndex(left_pt_2d);
-        Eigen::Vector2i right_pt_map = map_data_->dimensions().getCellIndex(right_pt_2d);
-
-        cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), left_pt_map.x(), left_pt_map.y(),
-                                   map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
-
-        cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), right_pt_map.x(), right_pt_map.y(),
-                                   map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
-
-        const int cell_range = range / map_data_->dimensions().resolution();
-
-        auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1,
-                                                        const int w2) {
-            const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
-            const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
-            const double _w2 = static_cast<double>(w2) / static_cast<double>(w0 + w1 + w2);
-
-            int dist = cell_range * (1 - _w0);
-
-            if (_w2 > 0.85)
-                return;
-
-            if (_w1 > 0.85)
-                return;
-
-            ROS_ASSERT(dist < static_cast<int>(log_cost_lookup_[cell_range].size()));
-
-            map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
-        };
-
-        {
-            auto _lock = map_data_->getLock();
-
-            drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
-                    {right_pt_map.x(), right_pt_map.y()});
-
-            map_data_->setMinThres(sensor_pt_map);
-        }
-
-        setLastUpdatedTime(message->header.stamp);
+        ROS_WARN("Range sensor is not on gridmap");
+        return false;
     }
-    else
-        ++sub_sample_count_;
+
+    const double half_fov = static_cast<double>(msg->field_of_view / 2.0f);
+    const double range = static_cast<double>(std::max(msg->min_range, std::min(msg->max_range, msg->range)));
+
+    const Eigen::Vector3d centre_pt = sensor_transform * Eigen::Vector3d((1.0 / std::cos(half_fov)) * range, 0.0, 0.0);
+    const Eigen::Vector2d centre_pt_2d(centre_pt.x(), centre_pt.y());
+
+    const Eigen::Vector2d sensor_vec = (centre_pt_2d - sensor_pt_2d);
+
+    const Eigen::Vector2d left_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(-half_fov) * sensor_vec);
+    const Eigen::Vector2d right_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(half_fov) * sensor_vec);
+
+    Eigen::Vector2i left_pt_map = map_data_->dimensions().getCellIndex(left_pt_2d);
+    Eigen::Vector2i right_pt_map = map_data_->dimensions().getCellIndex(right_pt_2d);
+
+    cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), left_pt_map.x(), left_pt_map.y(),
+                               map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+
+    cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), right_pt_map.x(), right_pt_map.y(),
+                               map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+
+    const int cell_range = static_cast<int>(range / map_data_->dimensions().resolution());
+
+    auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1,
+                                                    const int w2) {
+        const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
+        const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
+        const double _w2 = static_cast<double>(w2) / static_cast<double>(w0 + w1 + w2);
+
+        const int dist = cell_range * (1 - _w0);
+
+        if (_w2 > 0.85)
+            return;
+
+        if (_w1 > 0.85)
+            return;
+
+        ROS_ASSERT(dist < static_cast<int>(log_cost_lookup_[cell_range].size()));
+
+        map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
+    };
+
+    {
+        auto _lock = map_data_->getLock();
+        drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
+                {right_pt_map.x(), right_pt_map.y()});
+        map_data_->setMinThres(sensor_pt_map);
+    }
+
+    return true;
 }
-}
+
+}  // namespace gridmap
