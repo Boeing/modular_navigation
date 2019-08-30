@@ -4,11 +4,15 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 
+#include <gridmap/params.h>
 #include <gridmap/grids/probability_grid.h>
 #include <gridmap/operations/rasterize.h>
 
 #include <tf2_ros/buffer.h>
+#include <ros/callback_queue.h>
+#include <ros/ros.h>
 
 namespace gridmap
 {
@@ -65,13 +69,34 @@ inline std::set<uint64_t> buildFootprintSet(const MapDimensions& dimensions, con
 
 class DataSource
 {
-  public:
+public:
     DataSource() = default;
     virtual ~DataSource() = default;
 
-    void initialize(const std::string& name, const std::string& global_frame, const XmlRpc::XmlRpcValue& parameters,
-                    const std::vector<Eigen::Vector2d>& robot_footprint,
-                    const std::shared_ptr<tf2_ros::Buffer>& tf_buffer, const double maximum_sensor_delay)
+    virtual void initialize(const std::string& name,
+                            const std::string& global_frame,
+                            const XmlRpc::XmlRpcValue& parameters,
+                            const std::vector<Eigen::Vector2d>& robot_footprint,
+                            const std::shared_ptr<tf2_ros::Buffer>& tf_buffer) = 0;
+    virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) = 0;
+    virtual std::string name() const = 0;
+    virtual bool isDataOk() const = 0;
+};
+
+template <typename MsgType>
+class TopicDataSource : public DataSource
+{
+  public:
+    TopicDataSource(const std::string& default_topic)
+        : default_topic_(default_topic)
+    {}
+    virtual ~TopicDataSource() {}
+
+    virtual void initialize(const std::string& name,
+                            const std::string& global_frame,
+                            const XmlRpc::XmlRpcValue& parameters,
+                            const std::vector<Eigen::Vector2d>& robot_footprint,
+                            const std::shared_ptr<tf2_ros::Buffer>& tf_buffer) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         name_ = name;
@@ -79,56 +104,131 @@ class DataSource
         map_data_ = nullptr;
         robot_footprint_ = robot_footprint;
         tf_buffer_ = tf_buffer;
-        maximum_sensor_delay_ = maximum_sensor_delay;
         last_updated_ = ros::Time::now();
+
+        maximum_sensor_delay_ = get_config_with_default_warn<double>(parameters, "maximum_sensor_delay", 1.0, XmlRpc::XmlRpcValue::TypeDouble);
+        sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
+
         onInitialize(parameters);
+
+        const std::string _topic = get_config_with_default_warn<std::string>(parameters, "topic", name_ + "/" + default_topic_, XmlRpc::XmlRpcValue::TypeString);
+        ROS_INFO_STREAM("Subscribing to: " << _topic);
+        auto opts = ros::SubscribeOptions::create<MsgType>(_topic, 50, boost::bind(&TopicDataSource::callback, this, _1), ros::VoidPtr(), &data_queue_);
+        ros::NodeHandle g_nh;
+        opts.transport_hints = ros::TransportHints().tcpNoDelay();
+        subscriber_ = g_nh.subscribe(opts);
+
+        data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
     }
 
-    void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data)
+    virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
         onMapDataChanged();
     }
 
-    std::string name() const
+    virtual std::string name() const override
     {
         return name_;
     }
 
-    struct DataStatus
-    {
-        bool ok;
-        double seconds_since_update;
-    };
-
-    DataStatus status() const
+    virtual bool isDataOk() const override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const double delay = (ros::Time::now() - last_updated_).toSec();
-        return {delay < maximum_sensor_delay_, delay};
+        return delay < maximum_sensor_delay_;
     }
 
   protected:
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
     virtual void onMapDataChanged() = 0;
-
-    void setLastUpdatedTime(const ros::Time& time)
-    {
-        last_updated_ = time;
-    }
+    virtual bool processData(const typename MsgType::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform) = 0;
 
     mutable std::mutex mutex_;
 
     std::string name_;
     std::string global_frame_;
+    std::string default_topic_;
+
     std::shared_ptr<ProbabilityGrid> map_data_;
     std::vector<Eigen::Vector2d> robot_footprint_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
-    ros::Time last_updated_;
-    double maximum_sensor_delay_;
+    ros::Time last_updated_ = ros::Time(0);
+    double maximum_sensor_delay_ = 0;
+    int sub_sample_ = 0;
+    int sub_sample_count_ = 0;
+
+    std::thread data_thread_;
+    ros::CallbackQueue data_queue_;
+    ros::Subscriber subscriber_;
+
+  private:
+    void callback(const typename MsgType::ConstPtr& msg)
+    {
+        if (sub_sample_ == 0 || (sub_sample_ > 0 && sub_sample_count_ > sub_sample_))
+        {
+            sub_sample_count_ = 0;
+
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (!map_data_)
+                return;
+
+            try
+            {
+                const auto tr = tf_buffer_->lookupTransform(global_frame_, msg->header.frame_id, msg->header.stamp, ros::Duration(maximum_sensor_delay_));
+                const Eigen::Isometry3d t =
+                    Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y, tr.transform.translation.z) *
+                    Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x, tr.transform.rotation.y,
+                                       tr.transform.rotation.z);
+                const bool success = processData(msg, t);
+                if (success)
+                    last_updated_ = msg->header.stamp;
+                else
+                    ROS_WARN_STREAM("Failed to process data for '" << name_ << "'");
+            }
+            catch (const tf2::TransformException& e)
+            {
+                ROS_ERROR_STREAM("TF lookup failed: " << e.what());
+            }
+            catch (const std::exception& e)
+            {
+                ROS_ERROR_STREAM("Exception processing data: " << e.what());
+            }
+        }
+        else
+            ++sub_sample_count_;
+    }
+
+    void dataThread()
+    {
+        while (ros::ok())
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            const auto result = data_queue_.callOne(ros::WallDuration(maximum_sensor_delay_));
+            const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
+
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (result == ros::CallbackQueue::CallOneResult::Called)
+            {
+                if (duration > maximum_sensor_delay_)
+                {
+                    ROS_WARN_STREAM("Processing '" << name_ << "' took: " << duration << "s"
+                                    << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
+                }
+            }
+            else
+            {
+                const double delay = (ros::Time::now() - last_updated_).toSec();
+                if (delay > maximum_sensor_delay_)
+                    ROS_WARN_STREAM("'" << name_ << "' has not updated for " << delay << "s"
+                                    << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
+            }
+        }
+    }
 };
+
 }
 
 #endif
