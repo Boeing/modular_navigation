@@ -226,8 +226,6 @@ Autonomy::~Autonomy()
 
 void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 {
-    ROS_INFO_STREAM("Received map (" << map->name << ")!");
-
     // preempt execution
     if (running_)
     {
@@ -241,6 +239,8 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 
     if (!map->name.empty())
     {
+        ROS_INFO_STREAM("Received map (" << map->name << ")");
+
         auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
         map_manager::GetMapRequest map_req;
         map_req.map_name = map->name;
@@ -259,12 +259,16 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     }
     else
     {
+        ROS_INFO_STREAM("Generating an empty map");
+
         // generate an empty map
         hd_map::Map hd_map;
         hd_map.info.name = "";
-        hd_map.info.meta_data.width = 1000;
-        hd_map.info.meta_data.height = 1000;
+        hd_map.info.meta_data.width = 2000;
+        hd_map.info.meta_data.height = 2000;
         hd_map.info.meta_data.resolution = 0.02;
+        hd_map.info.meta_data.origin.position.x = -static_cast<double>(hd_map.info.meta_data.width) * hd_map.info.meta_data.resolution / 2.0;
+        hd_map.info.meta_data.origin.position.y = -static_cast<double>(hd_map.info.meta_data.height) * hd_map.info.meta_data.resolution / 2.0;
         nav_msgs::OccupancyGrid map_data;
         map_data.info = hd_map.info.meta_data;
         map_data.data = std::vector<int8_t>(hd_map.info.meta_data.width*hd_map.info.meta_data.height, 0);
