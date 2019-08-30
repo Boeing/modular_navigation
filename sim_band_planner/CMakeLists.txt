@@ -53,7 +53,6 @@ add_library(${PROJECT_NAME}
     include/${PROJECT_NAME}/spline/SplineFitting.h
     include/${PROJECT_NAME}/spline/SplineFwd.h
 
-    src/plugin.cpp
     src/simulate.cpp
 )
 
