@@ -212,14 +212,14 @@ Autonomy::Autonomy()
 
 Autonomy::~Autonomy()
 {
+    if (running_)
+    {
+        running_ = false;
+    }
     if (execution_thread_running_)
     {
         execution_thread_running_ = false;
         execution_thread_.join();
-    }
-    if (running_)
-    {
-        running_ = false;
     }
 }
 
@@ -234,7 +234,6 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     // wait for goal completion
     std::unique_lock<std::mutex> lock(goal_mutex_);
     ROS_ASSERT(goal_ == nullptr);
-
 
     if (!map->name.empty())
     {
