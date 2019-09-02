@@ -188,6 +188,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
         {
             sub_sample_count_ = 0;
 
+            last_updated_ = msg->header.stamp;
+
             std::lock_guard<std::mutex> lock(mutex_);
             if (!map_data_)
                 return;
@@ -201,14 +203,12 @@ template <typename MsgType> class TopicDataSource : public DataSource
                                             Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x,
                                                                tr.transform.rotation.y, tr.transform.rotation.z);
                 const bool success = processData(msg, t);
-                if (success)
-                    last_updated_ = msg->header.stamp;
-                else
+                if (!success)
                     ROS_WARN_STREAM("Failed to process data for '" << name_ << "'");
             }
             catch (const tf2::TransformException& e)
             {
-                ROS_ERROR_STREAM("TF lookup failed: " << e.what());
+                ROS_WARN_STREAM("Failed to process data for '" << name_ << "': " << e.what());
             }
             catch (const std::exception& e)
             {

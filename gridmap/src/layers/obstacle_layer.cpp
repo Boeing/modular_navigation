@@ -386,7 +386,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
             std::unique_lock<std::mutex> _lock(map_mutex_, std::try_to_lock);
             if (_lock.owns_lock() && probability_grid_)
             {
-                auto _lock = probability_grid_->getLock();
+                auto pg_lock = probability_grid_->getLock();
                 const int cells = probability_grid_->dimensions().cells();
                 for (int i = 0; i < cells; ++i)
                 {
