@@ -12,6 +12,7 @@
 
 #include <ros/callback_queue.h>
 #include <ros/ros.h>
+#include <ros/subscription_queue.h>
 #include <tf2_ros/buffer.h>
 
 namespace gridmap
@@ -93,12 +94,24 @@ class SizedCallbackQueue : public ros::CallbackQueue
     {
         return callbacks_.size();
     }
+
+    void flushMessages()
+    {
+        boost::mutex::scoped_lock id_lock(id_info_mutex_);
+        boost::mutex::scoped_lock m_lock(mutex_);
+        for (const ros::CallbackQueue::CallbackInfo& cb : callbacks_)
+        {
+            auto sq = boost::dynamic_pointer_cast<ros::SubscriptionQueue>(cb.callback);
+            sq->clear();
+        }
+        callbacks_.clear();
+    }
 };
 
 template <typename MsgType> class TopicDataSource : public DataSource
 {
   public:
-    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic)
+    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic), last_updated_(ros::Time(0))
     {
     }
     virtual ~TopicDataSource()
@@ -122,6 +135,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
         sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
 
         onInitialize(parameters);
+
+        last_updated_ = ros::Time::now();
 
         const std::string _topic = get_config_with_default_warn<std::string>(
             parameters, "topic", name_ + "/" + default_topic_, XmlRpc::XmlRpcValue::TypeString);
@@ -170,12 +185,12 @@ template <typename MsgType> class TopicDataSource : public DataSource
     std::vector<Eigen::Vector2d> robot_footprint_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
-    ros::Time last_updated_ = ros::Time(0);
+    ros::Time last_updated_;
     double maximum_sensor_delay_ = 0;
     int sub_sample_ = 0;
     int sub_sample_count_ = 0;
 
-    const size_t callback_queue_size_ = 10;
+    const size_t callback_queue_size_ = 100;
 
     std::thread data_thread_;
     SizedCallbackQueue data_queue_;
@@ -188,66 +203,89 @@ template <typename MsgType> class TopicDataSource : public DataSource
         {
             sub_sample_count_ = 0;
 
-            last_updated_ = msg->header.stamp;
-
             std::lock_guard<std::mutex> lock(mutex_);
             if (!map_data_)
+            {
                 return;
+            }
 
-            try
+            const double delay = (ros::Time::now() - msg->header.stamp).toSec();
+            if (delay > maximum_sensor_delay_)
             {
-                const auto tr = tf_buffer_->lookupTransform(global_frame_, msg->header.frame_id, msg->header.stamp,
-                                                            ros::Duration(maximum_sensor_delay_));
-                const Eigen::Isometry3d t = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y,
-                                                                 tr.transform.translation.z) *
-                                            Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x,
-                                                               tr.transform.rotation.y, tr.transform.rotation.z);
-                const bool success = processData(msg, t);
-                if (!success)
-                    ROS_WARN_STREAM("Failed to process data for '" << name_ << "'");
+                ROS_WARN_STREAM("DataSource '" << name_ << "' incoming data is " << delay << "s old!");
             }
-            catch (const tf2::TransformException& e)
+
+            const auto tr = tf_buffer_->lookupTransform(global_frame_, msg->header.frame_id, msg->header.stamp,
+                                                        ros::Duration(maximum_sensor_delay_));
+            const Eigen::Isometry3d t = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y,
+                                                             tr.transform.translation.z) *
+                                        Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x,
+                                                           tr.transform.rotation.y, tr.transform.rotation.z);
+            const bool success = processData(msg, t);
+            if (!success)
             {
-                ROS_WARN_STREAM("Failed to process data for '" << name_ << "': " << e.what());
+                ROS_ERROR_STREAM("Failed to process data for '" << name_ << "'");
             }
-            catch (const std::exception& e)
+            else
             {
-                ROS_ERROR_STREAM("Exception processing data: " << e.what());
+                last_updated_ = msg->header.stamp;
             }
         }
         else
+        {
             ++sub_sample_count_;
+        }
     }
 
     void dataThread()
     {
         while (ros::ok())
         {
-            const auto t0 = std::chrono::steady_clock::now();
-            const auto result = data_queue_.callOne(ros::WallDuration(maximum_sensor_delay_));
-            const double duration =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
-
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (result == ros::CallbackQueue::CallOneResult::Called)
+            try
             {
-                if (duration > maximum_sensor_delay_)
+                const auto t0 = std::chrono::steady_clock::now();
+                const auto result = data_queue_.callOne(ros::WallDuration(maximum_sensor_delay_));
+                const double duration =
+                    std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                        .count();
+
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (result == ros::CallbackQueue::CallOneResult::Called)
                 {
-                    ROS_WARN_STREAM("Processing '" << name_ << "' took: " << duration << "s"
-                                                   << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
+                    if (duration > maximum_sensor_delay_)
+                    {
+                        ROS_WARN_STREAM("DataSource '" << name_ << "' update took: " << duration << "s");
+                    }
+
+                    if (data_queue_.size() == callback_queue_size_)
+                    {
+                        ROS_WARN_STREAM("DataSource '" << name_ << "' callback queue is full!");
+                    }
+                }
+                else if (result == ros::CallbackQueue::CallOneResult::Empty)
+                {
+                    const double delay = (ros::Time::now() - last_updated_).toSec();
+                    if (delay > maximum_sensor_delay_)
+                    {
+                        ROS_WARN_STREAM("DataSource '" << name_ << "' has not updated for " << delay << "s");
+                    }
+                }
+                else
+                {
+                    ROS_WARN_STREAM("DataSource '" << name_ << "' queue error");
                 }
             }
-            else
+            catch (const tf2::TransformException& e)
             {
-                const double delay = (ros::Time::now() - last_updated_).toSec();
-                if (delay > maximum_sensor_delay_)
-                    ROS_WARN_STREAM("'" << name_ << "' has not updated for " << delay << "s"
-                                        << " (maximum_sensor_delay: " << maximum_sensor_delay_ << "s)");
+                ROS_WARN_STREAM("DataSource '" << name_ << "' unable to resolve sensor TF");
+                data_queue_.flushMessages();
             }
-
-            if (data_queue_.size() == callback_queue_size_)
-                ROS_WARN_STREAM("Callback queue for '" << name_ << "' is full!");
+            catch (const std::exception& e)
+            {
+                ROS_ERROR_STREAM("DataSource '" << name_ << "': " << e.what());
+                data_queue_.flushMessages();
+                data_queue_.clear();
+            }
         }
     }
 };
