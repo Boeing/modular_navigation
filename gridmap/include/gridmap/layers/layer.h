@@ -34,7 +34,7 @@ class Layer
 
     void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)
     {
-        std::lock_guard<std::mutex> lock(map_mutex_);
+        std::lock_guard<std::timed_mutex> lock(map_mutex_);
         hd_map_ = std::make_shared<hd_map::Map>(hd_map);
         map_dimensions_.reset(
             new MapDimensions(hd_map.info.meta_data.resolution,
@@ -85,7 +85,7 @@ class Layer
     }
 
   protected:
-    mutable std::mutex map_mutex_;
+    mutable std::timed_mutex map_mutex_;
 
   private:
     std::shared_ptr<hd_map::Map> hd_map_;

@@ -28,12 +28,12 @@ class BaseMapLayer : public Layer
 
     virtual bool clear() override
     {
-        std::lock_guard<std::mutex> g(map_mutex_);
+        std::lock_guard<std::timed_mutex> g(map_mutex_);
         return bool(map_);
     }
     virtual bool clearRadius(const Eigen::Vector2i&, const int) override
     {
-        std::lock_guard<std::mutex> g(map_mutex_);
+        std::lock_guard<std::timed_mutex> g(map_mutex_);
         return bool(map_);
     }
 

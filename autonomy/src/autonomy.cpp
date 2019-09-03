@@ -264,7 +264,7 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
         hd_map.info.name = "";
         hd_map.info.meta_data.width = 2000;
         hd_map.info.meta_data.height = 2000;
-        hd_map.info.meta_data.resolution = 0.02;
+        hd_map.info.meta_data.resolution = 0.02f;
         hd_map.info.meta_data.origin.position.x =
             -static_cast<double>(hd_map.info.meta_data.width) * hd_map.info.meta_data.resolution / 2.0;
         hd_map.info.meta_data.origin.position.y =
@@ -292,7 +292,7 @@ void Autonomy::executionThread()
     while (execution_thread_running_)
     {
         std::unique_lock<std::mutex> lock(goal_mutex_);
-        if (execution_condition_.wait_for(lock, std::chrono::milliseconds(100)) == std::cv_status::no_timeout)
+        if (goal_ || execution_condition_.wait_for(lock, std::chrono::milliseconds(100)) == std::cv_status::no_timeout)
         {
             executeGoal(*goal_);
             goal_ = nullptr;
@@ -309,8 +309,6 @@ void Autonomy::executionThread()
         {
             if (rs.localised)
             {
-                //                const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
-                //                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
                 layered_map_->update();
             }
 
@@ -403,6 +401,7 @@ void Autonomy::goalCallback(GoalHandle goal)
                 ROS_INFO("Goal already executing. Cancelling...");
                 goal_->setCanceled();
             }
+            ROS_INFO("Waiting for previous goal to finish");
             lock.lock();
         }
 
@@ -420,6 +419,7 @@ void Autonomy::goalCallback(GoalHandle goal)
         }
     }
     execution_condition_.notify_all();
+    ROS_INFO_STREAM("Received goal done");
 }
 
 void Autonomy::cancelCallback(GoalHandle goal)
@@ -495,13 +495,16 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             const auto t0 = std::chrono::steady_clock::now();
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             const bool success = layered_map_->update();
-            ROS_INFO_STREAM("global map update took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                             std::chrono::steady_clock::now() - t0)
-                                                             .count());
+
+            const double map_update_duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            if (map_update_duration > rate.expectedCycleTime().toSec())
+                ROS_WARN_STREAM("Path Planning map update took too long: " << map_update_duration << "s");
 
             if (!success)
             {
-                ROS_ERROR("PathPlannerThread: Failed to update layered map");
+                ROS_ERROR("Path Planning map update failed");
 
                 std::lock_guard<std::mutex> lock(path_mutex_);
                 current_path_.reset();
@@ -538,9 +541,14 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
         {
             const auto t0 = std::chrono::steady_clock::now();
             result = path_planner_->plan(global_robot_pose, *transformed_goal);
-            ROS_INFO_STREAM("Path Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                        std::chrono::steady_clock::now() - t0)
-                                                        .count());
+
+            const double plan_duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            if (plan_duration > rate.expectedCycleTime().toSec())
+                ROS_WARN_STREAM("Path Planning took too long: " << plan_duration << "s");
+            else
+                ROS_INFO_STREAM("Path Planning took " << plan_duration);
         }
 
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
@@ -725,12 +733,19 @@ void Autonomy::trajectoryPlannerThread()
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
         {
+            const auto t0 = std::chrono::steady_clock::now();
             layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             const bool success = layered_map_->update(roi);
 
+            const double map_update_duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            if (map_update_duration > rate.expectedCycleTime().toSec())
+                ROS_WARN_STREAM("Trajectory Planning map update took too long: " << map_update_duration << "s");
+
             if (!success)
             {
-                ROS_ERROR("TrajectoryPlannerThread: Failed to update layered map");
+                ROS_ERROR("Trajectory Planning map update failed");
 
                 std::lock_guard<std::mutex> lock(trajectory_mutex_);
                 current_trajectory_.reset();
@@ -760,9 +775,13 @@ void Autonomy::trajectoryPlannerThread()
             // optimise path
             result = trajectory_planner_->plan(roi, rs.robot_state, rs.map_to_odom);
 
-            ROS_INFO_STREAM("Trajectory Planner took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                              std::chrono::steady_clock::now() - t0)
-                                                              .count());
+            const double plan_duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            if (plan_duration > rate.expectedCycleTime().toSec())
+                ROS_WARN_STREAM("Trajectory Planning took too long: " << plan_duration << "s");
+            else
+                ROS_INFO_STREAM("Trajectory Planning took " << plan_duration);
         }
 
         // update trajectory for the controller
@@ -841,8 +860,8 @@ void Autonomy::controllerThread()
                     const double wait_time =
                         std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                             .count();
-                    ROS_WARN_STREAM("Did not receive an odom message at the desired frequency: last: "
-                                    << robot_state_.time << " waited: " << wait_time);
+                    ROS_ERROR_STREAM("Did not receive an odom message at the desired frequency: last: "
+                                     << robot_state_.time << " waited: " << wait_time);
                     vel_pub_.publish(geometry_msgs::Twist());
                     continue;
                 }
@@ -885,11 +904,23 @@ void Autonomy::controllerThread()
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
         {
+            const auto t0 = std::chrono::steady_clock::now();
+
             const bool success = layered_map_->update(roi);
 
             if (!success)
             {
-                ROS_ERROR("ControllerThread: Failed to update layered map");
+                ROS_ERROR("Control Planning map update failed");
+                vel_pub_.publish(geometry_msgs::Twist());
+                continue;
+            }
+
+            const double map_update_duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            if (1e3 * map_update_duration > period_ms)
+            {
+                ROS_ERROR_STREAM("Control Planning map update took too long: " << map_update_duration << "s");
                 vel_pub_.publish(geometry_msgs::Twist());
                 continue;
             }
@@ -910,8 +941,23 @@ void Autonomy::controllerThread()
         ROS_ASSERT(goal_);
         goal_->publishFeedback(feedback);
 
-        // control
-        const auto result = controller_->control(rs.time, rs.robot_state, rs.map_to_odom);
+        navigation_interface::Controller::Result result;
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+
+            // control
+            result = controller_->control(rs.time, rs.robot_state, rs.map_to_odom);
+
+            const double control_duration =
+                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                    .count();
+            if (1e3 * control_duration > period_ms)
+            {
+                ROS_ERROR_STREAM("Control Planning took too long: " << control_duration << "s");
+                vel_pub_.publish(geometry_msgs::Twist());
+                continue;
+            }
+        }
 
         // send cmd_vel
         geometry_msgs::Twist cmd_vel;
