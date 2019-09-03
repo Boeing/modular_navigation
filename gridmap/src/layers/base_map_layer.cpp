@@ -11,7 +11,7 @@ namespace gridmap
 
 bool BaseMapLayer::draw(OccupancyGrid& grid)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
@@ -22,7 +22,7 @@ bool BaseMapLayer::draw(OccupancyGrid& grid)
 
 bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
@@ -33,7 +33,7 @@ bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
 
 bool BaseMapLayer::update(OccupancyGrid& grid)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
@@ -44,7 +44,7 @@ bool BaseMapLayer::update(OccupancyGrid& grid)
 
 bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable

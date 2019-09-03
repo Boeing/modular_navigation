@@ -75,7 +75,7 @@ ObstacleLayer::~ObstacleLayer()
 
 bool ObstacleLayer::draw(OccupancyGrid& grid)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
 
     if (!probability_grid_)
         return false;
@@ -97,7 +97,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
 {
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
 
     if (!probability_grid_)
         return false;
@@ -122,7 +122,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
 
 bool ObstacleLayer::update(OccupancyGrid& grid)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
 
     if (!probability_grid_)
         return false;
@@ -147,7 +147,7 @@ bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
 {
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
 
     if (!probability_grid_)
         return false;
@@ -241,7 +241,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
 // cppcheck-suppress unusedFunction
 bool ObstacleLayer::clear()
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
 
     if (!probability_grid_)
         return false;
@@ -255,7 +255,7 @@ bool ObstacleLayer::clear()
 
 bool ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
 {
-    std::lock_guard<std::mutex> g(map_mutex_);
+    std::lock_guard<std::timed_mutex> g(map_mutex_);
 
     if (!probability_grid_)
         return false;
@@ -287,11 +287,12 @@ void ObstacleLayer::debugVizThread(const double frequency)
 {
     nav_msgs::OccupancyGrid grid;
     ros::Rate rate(frequency);
+    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
 
     while (debug_viz_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::mutex> _lock(map_mutex_, std::try_to_lock);
+            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
             if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_)
             {
                 try
@@ -366,13 +367,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                     ROS_WARN("Failed to publish debug. Unknown robot pose");
                 }
             }
-            else
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                continue;
-            }
         }
-
         rate.sleep();
     }
 }
@@ -380,10 +375,12 @@ void ObstacleLayer::debugVizThread(const double frequency)
 void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
     ros::Rate rate(frequency);
+    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
+
     while (time_decay_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::mutex> _lock(map_mutex_, std::try_to_lock);
+            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
             if (_lock.owns_lock() && probability_grid_)
             {
                 auto pg_lock = probability_grid_->getLock();
@@ -393,11 +390,6 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
                     if (std::abs(probability_grid_->cell(i)) > 0.1)
                         probability_grid_->cell(i) -= probability_grid_->cell(i) * alpha_decay;
                 }
-            }
-            else
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                continue;
             }
         }
 

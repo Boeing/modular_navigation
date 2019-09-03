@@ -7,6 +7,8 @@
 
 #include <visualization_msgs/MarkerArray.h>
 
+#define EPS 0.001
+
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
 namespace pure_pursuit_controller
@@ -318,6 +320,7 @@ navigation_interface::Controller::Result
         control_integral_ = Eigen::Vector3d::Zero();
         control_error_ = Eigen::Vector3d::Zero();
     }
+    ROS_ASSERT(target_velocity.allFinite());
 
     double ddx = (target_velocity[0] - robot_state.velocity[0]) / dt;
     double ddy = (target_velocity[1] - robot_state.velocity[1]) / dt;
@@ -346,9 +349,22 @@ navigation_interface::Controller::Result
         }
 
         const double acc_factor = std::max(acc_factor_w, std::max(acc_factor_x, acc_factor_y));
-        ddx /= acc_factor;
-        ddy /= acc_factor;
-        ddw /= acc_factor;
+        if (acc_factor > 0)
+        {
+            ddx /= acc_factor;
+            ddy /= acc_factor;
+            ddw /= acc_factor;
+        }
+        else
+        {
+            ddx = 0;
+            ddy = 0;
+            ddw = 0;
+        }
+
+        ROS_ASSERT(std::isfinite(ddx));
+        ROS_ASSERT(std::isfinite(ddy));
+        ROS_ASSERT(std::isfinite(ddw));
     }
 
     //
@@ -358,6 +374,7 @@ navigation_interface::Controller::Result
     x_dot_command[0] = robot_state.velocity[0] + ddx * dt;
     x_dot_command[1] = robot_state.velocity[1] + ddy * dt;
     x_dot_command[2] = robot_state.velocity[2] + ddw * dt;
+    ROS_ASSERT(x_dot_command.allFinite());
 
     //
     // Max velocity check
@@ -385,9 +402,17 @@ navigation_interface::Controller::Result
         }
 
         const double velocity_factor = std::max(velocity_factor_w, std::max(velocity_factor_x, velocity_factor_y));
-        x_dot_command.x() /= velocity_factor;
-        x_dot_command.y() /= velocity_factor;
-        x_dot_command.z() /= velocity_factor;
+        if (velocity_factor > 0)
+        {
+            x_dot_command.x() /= velocity_factor;
+            x_dot_command.y() /= velocity_factor;
+            x_dot_command.z() /= velocity_factor;
+        }
+
+        ROS_ASSERT(x_dot_command.allFinite());
+        ROS_ASSERT_MSG(std::abs(x_dot_command.x()) <= max_velocity_x_ + EPS, "dx: %f > %f", x_dot_command.x(), max_velocity_x_);
+        ROS_ASSERT_MSG(std::abs(x_dot_command.y()) <= max_velocity_y_ + EPS, "dy: %f > %f", x_dot_command.y(), max_velocity_y_);
+        ROS_ASSERT_MSG(std::abs(x_dot_command.z()) <= max_velocity_w_ + EPS, "dw: %f > %f", x_dot_command.z(), max_velocity_w_);
     }
 
     result.command = x_dot_command;
