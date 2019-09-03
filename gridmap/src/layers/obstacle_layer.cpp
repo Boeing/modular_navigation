@@ -238,7 +238,6 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     }
 }
 
-// cppcheck-suppress unusedFunction
 bool ObstacleLayer::clear()
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
