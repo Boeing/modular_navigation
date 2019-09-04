@@ -103,7 +103,7 @@ class DocumentMixin(object):
 
 
 class Marker(EmbeddedDocument, DocumentMixin):
-    name = StringField(max_length=256, required=True, unique=True)  # type: str
+    name = StringField(max_length=256, required=True)  # type: str
 
     marker_type = IntField(required=True)  # type: int
 
@@ -123,7 +123,7 @@ class Marker(EmbeddedDocument, DocumentMixin):
 
 
 class Zone(EmbeddedDocument, DocumentMixin):
-    name = StringField(max_length=256, required=True, unique=True)  # type: str
+    name = StringField(max_length=256, required=True)  # type: str
 
     zone_type = IntField(required=True)  # type: int
 
