@@ -222,7 +222,7 @@ Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, cons
                       const double external_force_gain, const double rotation_factor, const double max_distance)
 {
     const auto internal_force = internalForce(prev, curr, next, internal_force_gain, rotation_factor, max_distance);
-    const auto external_force = externalForce(curr, external_force_gain);
+    const auto external_force = externalForce(curr, external_force_gain, max_distance);
     return internal_force + external_force;
 }
 
@@ -325,17 +325,25 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     return _force;
 }
 
-Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain)
+Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain, const double max_distance)
 {
     const ControlPoint& curr_min = curr.control_points[curr.closest_point];
     Eigen::Vector3d _force;
     const double avoid_distance = 0.06;
 
     double decay;
-    if (curr_min.distance > avoid_distance)
-        decay = std::exp(-curr_min.distance - avoid_distance);
-    else
+    if (curr_min.distance <= avoid_distance)
+    {
         decay = 1.0;
+    }
+    else if (curr_min.distance > avoid_distance && curr_min.distance < max_distance)
+    {
+        decay = std::exp(-curr_min.distance - avoid_distance);
+    }
+    else
+    {
+        decay = 0.0;
+    }
     decay *= std::min(1.0, std::max(0.1, curr_min.distance_to_saddle));
 
     _force[0] = -external_force_gain * curr_min.gradient.x() * decay;

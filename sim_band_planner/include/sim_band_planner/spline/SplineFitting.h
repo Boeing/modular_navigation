@@ -349,6 +349,7 @@ SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArra
     // End derivatives.
     if (derivativeIndices[0] == 0)
     {
+        // cppcheck-suppress constStatement
         A.template block<1, 2>(1, 0) << -1, 1;
 
         Scalar y = (knots(degree + 1) - knots(0)) / degree;
@@ -364,6 +365,7 @@ SplineType SplineFitting<SplineType>::InterpolateWithDerivatives(const PointArra
     }
     if (derivativeIndices[derivatives.cols() - 1] == points.cols() - 1)
     {
+        // cppcheck-suppress constStatement
         A.template block<1, 2>(n - 2, n - 2) << -1, 1;
 
         Scalar y = (knots(knots.size() - 1) - knots(knots.size() - (degree + 2))) / degree;
