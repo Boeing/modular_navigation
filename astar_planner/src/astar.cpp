@@ -407,9 +407,6 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
             if (cost_so_far < new_node->second->cost_so_far)
             {
                 const double old_cost = new_node->second->cost();
-                const double old_cost_so_far = new_node->second->cost_so_far;
-                const double old_cost_to_go = new_node->second->cost_to_go;
-
                 const double cost_to_go =
                     updateH(new_node->second->state, goal_state, result.explore_cache, costmap, conservative_radius);
 
