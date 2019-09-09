@@ -155,11 +155,13 @@ TEST(test_astar, test_hybrid_astar)
 
     // backwards
     const Eigen::Isometry2d start = Eigen::Translation2d(-6, -7.1) * Eigen::Rotation2Dd(0.0);
-    //    const Eigen::Isometry2d goal = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
+
+    //    const Eigen::Isometry2d start = Eigen::Translation2d(-4, 0) * Eigen::Rotation2Dd(0);
+    //    const Eigen::Isometry2d goal = Eigen::Translation2d(4, 0) * Eigen::Rotation2Dd(M_PI / 2.0);
 
     // corridor
     //    const Eigen::Isometry2d start = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
-    const Eigen::Isometry2d goal = Eigen::Translation2d(9, 0) * Eigen::Rotation2Dd(M_PI);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(8, 0) * Eigen::Rotation2Dd(M_PI);
 
     // strafe
     //    const Eigen::Isometry2d start = Eigen::Translation2d(-6, -8) * Eigen::Rotation2Dd(-M_PI / 2);
@@ -167,8 +169,8 @@ TEST(test_astar, test_hybrid_astar)
 
     const size_t max_iterations = 1e6;
     const astar_planner::CollisionChecker collision_checker(costmap);
-    const double linear_resolution = 0.1;
-    const double angular_resolution = 0.2;
+    const double linear_resolution = 0.08;
+    const double angular_resolution = 0.1;
     const bool allow_backwards = false;
     const bool allow_strafe = false;
 
@@ -249,7 +251,7 @@ TEST(test_astar, test_hybrid_astar)
             const Eigen::Vector2d position(node->state.x, node->state.y);
             const Eigen::Rotation2Dd rotation(node->state.theta);
 
-            if (i % 8 == 0 || i == astar_result.path.size() - 1)
+            if (i % 20 == 0 || i == astar_result.path.size() - 1)
             {
                 for (std::size_t c = 0; c < offsets.size(); ++c)
                 {

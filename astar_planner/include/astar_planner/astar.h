@@ -74,7 +74,7 @@ struct PathResult
     std::unordered_map<uint64_t, Node3D*> explore_3d;
 };
 
-double updateH(const Node3D& state, const State3D& goal, Explore2DCache& explore_cache, const Costmap& costmap,
+double updateH(const State3D& state, const State3D& goal, Explore2DCache& explore_cache, const Costmap& costmap,
                const float conservative_radius);
 
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
