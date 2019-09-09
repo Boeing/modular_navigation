@@ -22,7 +22,7 @@ Eigen::Vector3d force(const Node& prev, const Node& curr, const Node& next, cons
                       const double external_force_gain, const double rotation_factor, const double max_distance);
 Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& next, const double internal_force_gain,
                               const double rotation_factor, const double max_distance);
-Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain);
+Eigen::Vector3d externalForce(const Node& curr, const double external_force_gain, const double max_distance);
 }  // namespace sim_band_planner
 
 #endif

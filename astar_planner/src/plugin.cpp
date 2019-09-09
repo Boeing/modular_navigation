@@ -51,8 +51,9 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
             x_cost *= 1.5;
 
         cost += x_cost + y_cost;
-        cost += 2.0 * std::abs(wrapAngle(Eigen::Rotation2Dd(path.nodes[i + 1].linear()).smallestAngle() -
-                                         Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle()));
+        cost += std::abs(wrapAngle(Eigen::Rotation2Dd(path.nodes[i + 1].linear()).smallestAngle() -
+                                   Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle())) /
+                M_PI;
     }
     return cost;
 }
@@ -77,7 +78,7 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     const size_t max_iterations = 1e6;
     const double linear_resolution = 0.04;
-    const double angular_resolution = 0.08;
+    const double angular_resolution = 0.1;
 
     bool allow_backwards = false;
     bool allow_strafe = false;

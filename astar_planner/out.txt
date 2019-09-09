@@ -1,0 +1,11 @@
+src/astar.cpp:447:23: style: Redundant initialization for 'node_key'. The initialized value is overwritten before it is read. [redundantInitialization]
+        auto node_key = goal_key;
+                      ^
+src/astar.cpp:451:22: note: Redundant initialization for 'node_key'. The initialized value is overwritten before it is read.
+            node_key = IndexToKey(node_index);
+                     ^
+src/astar.cpp:447:23: note: Redundant initialization for 'node_key'. The initialized value is overwritten before it is read.
+        auto node_key = goal_key;
+                      ^
+nofile:0:0: information: Cppcheck cannot find all the include files (use --check-config for details) [missingIncludeSystem]
+

@@ -43,9 +43,9 @@ class PurePursuitController : public navigation_interface::Controller
     double max_velocity_y_ = 0.05;
     double max_velocity_w_ = 0.2;
 
-    double max_acceleration_x_ = 0.1;
-    double max_acceleration_y_ = 0.1;
-    double max_acceleration_w_ = 0.2;
+    double max_acceleration_x_ = 0.2;
+    double max_acceleration_y_ = 0.2;
+    double max_acceleration_w_ = 0.4;
 
     double goal_radius_ = 0.1;
 
@@ -60,6 +60,7 @@ class PurePursuitController : public navigation_interface::Controller
     Eigen::Vector3d control_integral_;
 
     bool debug_viz_ = true;
+    ros::Publisher target_state_pub_;
     ros::Publisher footprint_pub_;
     ros::Publisher future_footprint_pub_;
 

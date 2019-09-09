@@ -84,6 +84,40 @@ std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapD
     return std::make_pair(in_collision, marker);
 }
 
+visualization_msgs::Marker buildMarker(const navigation_interface::KinodynamicState& robot_state,
+                                       const navigation_interface::KinodynamicState& target_state)
+{
+    visualization_msgs::Marker marker;
+    marker.ns = "target";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::ARROW;
+    marker.header.stamp = ros::Time::now();
+    marker.header.frame_id = "odom";
+    marker.frame_locked = true;
+    marker.scale.x = 0.02;
+    marker.scale.y = 0.04;
+    marker.scale.z = 0.04;
+    marker.color.a = 1.f;
+    marker.pose.orientation.w = 1.0;
+
+    {
+        geometry_msgs::Point mp;
+        mp.x = robot_state.pose.translation().x();
+        mp.y = robot_state.pose.translation().y();
+        mp.z = 0.0;
+        marker.points.push_back(mp);
+    }
+
+    {
+        geometry_msgs::Point mp;
+        mp.x = target_state.pose.translation().x();
+        mp.y = target_state.pose.translation().y();
+        mp.z = 0.0;
+        marker.points.push_back(mp);
+    }
+
+    return marker;
+}
 
 std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
                                            const navigation_interface::Trajectory& trajectory)
@@ -120,7 +154,7 @@ navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& pose
     auto it = trajectory.states.begin() + static_cast<int>(target.first);
     while (
         it != trajectory.states.end() &&
-        ((it->pose.translation() - pose.translation()).norm() < linear_lookahead ||
+        ((it->pose.translation() - pose.translation()).norm() < linear_lookahead &&
          std::abs(Eigen::Rotation2Dd(it->pose.linear().inverse() * pose.linear()).smallestAngle()) < angular_lookahead))
     {
         ++it;
@@ -137,8 +171,9 @@ navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& pose
     const Eigen::Rotation2Dd rotation(future_rot.inverse() * rot);
     const double angle = std::abs(rotation.smallestAngle());
 
-    const double fraction =
-        std::min(dist > 0.0 ? (linear_lookahead / dist) : 0.0, angle > 0.0 ? (angular_lookahead / angle) : 0.0);
+    const double linear_fraction = dist > 0.0 ? (linear_lookahead / dist) : 0.0;
+    const double angular_fraction = angle > 0.0 ? (angular_lookahead / angle) : 0.0;
+    const double fraction = std::min(linear_fraction, angular_fraction);
 
     if (fraction >= 1)
     {
@@ -218,9 +253,14 @@ navigation_interface::Controller::Result
     last_update_ = time;
 
     //
-    // Find target i
+    // Find target i (look 0.5s into the future)
     //
-    const auto target_state = targetState(robot_state.pose, *trajectory_, 0.02, 0.05);
+    const double linear_lookahead = std::max(0.04, robot_state.velocity.x() * 0.5);
+    const double angular_lookahead = std::max(0.04, robot_state.velocity.z() * 0.5);
+    const auto target_state = targetState(robot_state.pose, *trajectory_, linear_lookahead, angular_lookahead);
+
+    if (debug_viz_)
+        target_state_pub_.publish(buildMarker(robot_state, target_state));
 
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
     const double angle_to_goal =
@@ -247,7 +287,7 @@ navigation_interface::Controller::Result
     Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
     target_velocity.topRows(2) = (target_state.velocity.topRows(2).norm() * goal_direction_wrt_robot);
     const double finish_time = goal_vec.norm() / target_velocity.topRows(2).norm();
-    target_velocity[2] = 2.0 * control_error[2] / finish_time;
+    target_velocity[2] = control_error[2] / finish_time;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
     control_error_ = control_error;
@@ -410,9 +450,12 @@ navigation_interface::Controller::Result
         }
 
         ROS_ASSERT(x_dot_command.allFinite());
-        ROS_ASSERT_MSG(std::abs(x_dot_command.x()) <= max_velocity_x_ + EPS, "dx: %f > %f", x_dot_command.x(), max_velocity_x_);
-        ROS_ASSERT_MSG(std::abs(x_dot_command.y()) <= max_velocity_y_ + EPS, "dy: %f > %f", x_dot_command.y(), max_velocity_y_);
-        ROS_ASSERT_MSG(std::abs(x_dot_command.z()) <= max_velocity_w_ + EPS, "dw: %f > %f", x_dot_command.z(), max_velocity_w_);
+        ROS_ASSERT_MSG(std::abs(x_dot_command.x()) <= max_velocity_x_ + EPS, "dx: %f > %f", x_dot_command.x(),
+                       max_velocity_x_);
+        ROS_ASSERT_MSG(std::abs(x_dot_command.y()) <= max_velocity_y_ + EPS, "dy: %f > %f", x_dot_command.y(),
+                       max_velocity_y_);
+        ROS_ASSERT_MSG(std::abs(x_dot_command.z()) <= max_velocity_w_ + EPS, "dw: %f > %f", x_dot_command.z(),
+                       max_velocity_w_);
     }
 
     result.command = x_dot_command;
@@ -481,6 +524,7 @@ void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     if (debug_viz_)
     {
         ros::NodeHandle nh("~");
+        target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
         footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
         future_footprint_pub_ = nh.advertise<visualization_msgs::Marker>("future_footprint", 100);
     }

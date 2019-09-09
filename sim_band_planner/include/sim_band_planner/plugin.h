@@ -58,12 +58,12 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     double min_distance_ = 0.040;
     double max_distance_ = 0.800;
     double min_overlap_ = 0.8;
-    double max_window_length_ = 2.0;
-    double rotation_factor_ = 0.1;
+    double max_window_length_ = 4.0;
+    double rotation_factor_ = 1.0;
     double velocity_decay_ = 0.6;
     double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 40.0);
     double desired_speed_ = 0.15;
-    bool spline_ = false;
+    bool spline_ = true;
     double robot_radius_ = 0.210;
     std::vector<Eigen::Vector2d> offsets_;
 };
