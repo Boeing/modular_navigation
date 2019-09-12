@@ -254,7 +254,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 {
                     if (duration > maximum_sensor_delay_)
                     {
-                        ROS_WARN_STREAM("DataSource '" << name_ << "' update took: " << duration << "s");
+                        ROS_WARN_STREAM("DataSource '" << name_ << "' update took: " << duration
+                                                       << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
+                                                       << "\nConsider compiling with optimisation flag -O2.");
                     }
 
                     if (data_queue_.size() == callback_queue_size_)
