@@ -194,7 +194,6 @@ class Map(Document, DocumentMixin):
             assert isinstance(marker, MarkerMsg)
             m_obj = Marker(
                 name=marker.name,
-                description=marker.description,
                 marker_type=marker.marker_type,
                 pose=Pose(
                     position=Point(
