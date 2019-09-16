@@ -34,6 +34,8 @@ TEST(test_astar, test_2d_astar)
     cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(255), -1, cv::LINE_8);
     cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(255), -1, cv::LINE_8);
 
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+
     auto t0 = std::chrono::steady_clock::now();
 
     // dilate robot radius
@@ -126,9 +128,12 @@ TEST(test_astar, test_hybrid_astar)
 
     costmap->obstacle_map = cv::Mat(size_x, size_y, CV_8U, cv::Scalar(0));
     cv::rectangle(costmap->obstacle_map, cv::Point(0, 400), cv::Point(400, 900), cv::Scalar(255), -1, cv::LINE_8);
-    cv::rectangle(costmap->obstacle_map, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(255), -1, cv::LINE_8);
-    cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(255), -1, cv::LINE_8);
+    //    cv::rectangle(costmap->obstacle_map, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(255), -1,
+    //    cv::LINE_8);
     cv::rectangle(costmap->obstacle_map, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(255), -1, cv::LINE_8);
+
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+    cv::rectangle(*costmap->traversal_cost, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(10.0), -1, cv::LINE_8);
 
     auto t0 = std::chrono::steady_clock::now();
 
@@ -161,7 +166,7 @@ TEST(test_astar, test_hybrid_astar)
 
     // corridor
     //    const Eigen::Isometry2d start = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
-    const Eigen::Isometry2d goal = Eigen::Translation2d(8, 0) * Eigen::Rotation2Dd(M_PI);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(5.5, 0) * Eigen::Rotation2Dd(M_PI);
 
     // strafe
     //    const Eigen::Isometry2d start = Eigen::Translation2d(-6, -8) * Eigen::Rotation2Dd(-M_PI / 2);
@@ -196,8 +201,7 @@ TEST(test_astar, test_hybrid_astar)
     cv::cvtColor(costmap_u8, disp, cv::COLOR_GRAY2BGR);
 
     cv::rectangle(disp, cv::Point(0, 400), cv::Point(400, 900), cv::Scalar(0, 255, 255), -1, cv::LINE_8);
-    cv::rectangle(disp, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(0, 255, 255), -1, cv::LINE_8);
-    cv::circle(disp, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(0, 255, 255), -1, cv::LINE_8);
+    cv::rectangle(disp, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(0, 50, 50), -1, cv::LINE_8);
     cv::rectangle(disp, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(0, 255, 255), -1, cv::LINE_8);
 
     const int mx = static_cast<int>(std::round((goal.translation().x() - costmap->origin_x) / costmap->resolution));

@@ -15,7 +15,7 @@ from geometry_msgs.msg import Polygon as PolygonMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
 from mongoengine import DateTimeField, StringField
-from mongoengine import Document, EmbeddedDocument, FileField
+from mongoengine import Document, EmbeddedDocument, FileField, ListField
 from mongoengine import EmbeddedDocumentField, EmbeddedDocumentListField
 from mongoengine import FloatField, IntField
 from mongoengine import GridFSProxy
@@ -28,6 +28,8 @@ from hd_map.msg import Map as MapMsg
 from hd_map.msg import MapInfo as MapInfoMsg
 from hd_map.msg import Marker as MarkerMsg
 from hd_map.msg import Zone as ZoneMsg
+from hd_map.msg import Node as NodeMsg
+from hd_map.msg import Path as PathMsg
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +104,7 @@ class DocumentMixin(object):
         document.modified = datetime.utcnow()
 
 
-class Marker(EmbeddedDocument, DocumentMixin):
+class Marker(EmbeddedDocument):
     name = StringField(max_length=256, required=True)  # type: str
 
     marker_type = IntField(required=True)  # type: int
@@ -113,16 +115,39 @@ class Marker(EmbeddedDocument, DocumentMixin):
         # type: () -> MarkerMsg
         return MarkerMsg(
             name=str(self.name),
-            description=str(self.description),
-            created=rospy.Time(calendar.timegm(self.created.timetuple())),
-            modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
-
             marker_type=self.marker_type,
             pose=self.pose.get_msg()
         )
 
 
-class Zone(EmbeddedDocument, DocumentMixin):
+class Node(EmbeddedDocument):
+    id = StringField(max_length=256, required=True)  # type: str
+
+    point = EmbeddedDocumentField(Point)  # type: Point
+
+    def get_msg(self):
+        # type: () -> NodeMsg
+        return NodeMsg(
+            id=str(self.id),
+            x=float(self.point.x),
+            y=float(self.point.y)
+        )
+
+
+class Path(EmbeddedDocument):
+    name = StringField(max_length=256, required=True)  # type: str
+
+    nodes = ListField(StringField(max_length=256, required=True))  # type: typing.List[str]
+
+    def get_msg(self):
+        # type: () -> PathMsg
+        return PathMsg(
+            name=str(self.name),
+            nodes=[str(p) for p in self.nodes]
+        )
+
+
+class Zone(EmbeddedDocument):
     name = StringField(max_length=256, required=True)  # type: str
 
     zone_type = IntField(required=True)  # type: int
@@ -133,10 +158,6 @@ class Zone(EmbeddedDocument, DocumentMixin):
         # type: () -> ZoneMsg
         return ZoneMsg(
             name=str(self.name),
-            description=str(self.description),
-            created=rospy.Time(calendar.timegm(self.created.timetuple())),
-            modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
-
             zone_type=self.zone_type,
             polygon=PolygonMsg(
                 points=[Point32Msg(x=p.x, y=p.y, z=p.z) for p in self.polygon]
@@ -167,12 +188,12 @@ class Map(Document, DocumentMixin):
                 w=map_msg.info.meta_data.origin.orientation.w
             )
         )
+        map_obj.default_zone = map_msg.default_zone
 
         for marker in map_msg.markers:
             assert isinstance(marker, MarkerMsg)
             m_obj = Marker(
                 name=marker.name,
-                description=marker.description,
                 marker_type=marker.marker_type,
                 pose=Pose(
                     position=Point(
@@ -194,11 +215,26 @@ class Map(Document, DocumentMixin):
             assert isinstance(zone, ZoneMsg)
             z_obj = Zone(
                 name=zone.name,
-                description=zone.description,
                 zone_type=zone.zone_type,
                 polygon=[Point(x=point.x, y=point.y, z=point.z) for point in zone.polygon.points]
             )
             map_obj.zones.append(z_obj)
+
+        for node in map_msg.nodes:
+            assert isinstance(node, NodeMsg)
+            n_obj = Node(
+                id=node.id,
+                point=Point(x=node.x, y=node.y, z=0)
+            )
+            map_obj.nodes.append(n_obj)
+
+        for path in map_msg.paths:
+            assert isinstance(path, PathMsg)
+            p_obj = Path(
+                name=path.name,
+                nodes=path.nodes
+            )
+            map_obj.paths.append(p_obj)
 
         if occupancy_grid_msg.format == 'raw':
             assert (len(occupancy_grid_msg.data) == map_msg.info.meta_data.width * map_msg.info.meta_data.height)
@@ -234,15 +270,19 @@ class Map(Document, DocumentMixin):
 
     markers = EmbeddedDocumentListField(Marker)  # type: typing.List[Marker]
     zones = EmbeddedDocumentListField(Zone)  # type: typing.List[Zone]
+    nodes = EmbeddedDocumentListField(Node)  # type: typing.List[Node]
+    paths = EmbeddedDocumentListField(Path)  # type: typing.List[Path]
+
+    default_zone = IntField()  # type: int
 
     def get_png(self, buff):
-        # type: () -> None
+        # type: (file) -> None
         self.image.seek(0)
         im = Image.open(fp=self.image)
         im.save(buff, format='PNG', compress_level=1)
 
     def get_thumbnail_png(self, buff):
-        # type: () -> None
+        # type: (file) -> None
         self.thumbnail.seek(0)
         im = Image.open(fp=self.thumbnail)
         im.save(buff, format='PNG', compress_level=1)
@@ -282,9 +322,10 @@ class Map(Document, DocumentMixin):
             info=self.get_map_info_msg(),
             markers=[marker.get_msg() for marker in self.markers],
             zones=[zone.get_msg() for zone in self.zones],
+            nodes=[node.get_msg() for node in self.nodes],
+            paths=[path.get_msg() for path in self.paths],
+            default_zone=self.default_zone
         )
 
 
-mongoengine.signals.pre_save.connect(Marker.pre_save, sender=Marker)
-mongoengine.signals.pre_save.connect(Zone.pre_save, sender=Zone)
 mongoengine.signals.pre_save.connect(Map.pre_save, sender=Map)

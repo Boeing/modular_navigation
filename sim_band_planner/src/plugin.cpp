@@ -73,7 +73,9 @@ navigation_interface::TrajectoryPlanner::Result
 
         moving_window_->updateWindow(robot_pose, max_window_length_);
 
+        auto lock = map_data_->grid.getLock();
         gridmap::Grid2D<uint8_t> local_grid(map_data_->grid, local_region);
+        lock.unlock();
 
         // Construct and cv::Mat from the costmap data
         const cv::Mat cv_im = cv::Mat(local_grid.dimensions().size().y(), local_grid.dimensions().size().x(), CV_8U,

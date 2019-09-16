@@ -16,7 +16,13 @@ namespace astar_planner
 
 struct Costmap
 {
+    // uint8 map of obstacles
     cv::Mat obstacle_map;
+
+    // float map of traversal cost scale (1.f default)
+    std::shared_ptr<cv::Mat> traversal_cost;
+
+    // float map of distance to nearest obstacle
     cv::Mat distance_to_collision;
 
     int width;

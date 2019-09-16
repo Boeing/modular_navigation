@@ -16,7 +16,6 @@
 
 #include <navigation_interface/controller.h>
 #include <navigation_interface/path_planner.h>
-#include <navigation_interface/recovery_behavior.h>
 #include <navigation_interface/trajectory_planner.h>
 
 #include <nav_msgs/Odometry.h>

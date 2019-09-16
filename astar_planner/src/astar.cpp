@@ -52,6 +52,8 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
     ROS_ASSERT(goal.y >= 0);
     ROS_ASSERT(goal.y < costmap.height);
 
+    ROS_ASSERT(costmap.traversal_cost);
+
     if (costmap.distance_to_collision.at<float>(start.y, start.x) <= 0)
     {
         return {false, nullptr, 0};
@@ -108,6 +110,9 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
 
         const std::size_t current_index = costmap.to2DGridIndex(current_node->state);
 
+        const double traversal_cost_scale =
+            static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(current_index)));
+
         ROS_ASSERT(!current_node->visited);
         current_node->visited = true;
 
@@ -147,7 +152,7 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
                 continue;
             }
 
-            const double cost_so_far = current_node->cost_so_far + directions_2d_cost[i];
+            const double cost_so_far = current_node->cost_so_far + directions_2d_cost[i] * traversal_cost_scale;
             if (cost_so_far < new_node->cost_so_far)
             {
                 new_node->cost_so_far = cost_so_far;
@@ -238,7 +243,7 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
         }
     }
 
-    return 1.4 * shortest_2d + 1.4 * path_angle;
+    return 1.25 * shortest_2d + 1.25 * path_angle;
 }
 
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
@@ -248,6 +253,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 {
     PathResult result(static_cast<std::size_t>(costmap.width), static_cast<std::size_t>(costmap.height));
     result.success = false;
+
+    ROS_ASSERT(costmap.traversal_cost);
 
     const State3D start_state{start.translation().x(), start.translation().y(),
                               Eigen::Rotation2Dd(start.linear()).smallestAngle()};
@@ -322,6 +329,15 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         {
             break;
         }
+
+        const int state_x =
+            static_cast<int>(std::round((current_node->state.x - costmap.origin_x) / costmap.resolution));
+        const int state_y =
+            static_cast<int>(std::round((current_node->state.y - costmap.origin_y) / costmap.resolution));
+        const State2D state2d{state_x, state_y};
+        const std::size_t state_index = costmap.to2DGridIndex(state2d);
+        const double traversal_cost_scale =
+            static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(state_index)));
 
         const double distance_to_start_x = std::abs(current_node->state.x - start_state.x);
         const double distance_to_start_y = std::abs(current_node->state.y - start_state.y);
@@ -402,8 +418,9 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
                 continue;
             }
 
-            const double cost_so_far =
-                current_node->cost_so_far + (step_mult * (*directions)[i][3]) + (rot_mult * (*directions)[i][4]);
+            const double cost_so_far = current_node->cost_so_far +
+                                       (step_mult * (*directions)[i][3]) * traversal_cost_scale +
+                                       (rot_mult * (*directions)[i][4]);
             if (cost_so_far < new_node->second->cost_so_far)
             {
                 const double old_cost = new_node->second->cost();

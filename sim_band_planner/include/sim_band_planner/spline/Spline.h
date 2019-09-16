@@ -95,7 +95,8 @@ template <typename _Scalar, int _Dim, int _Degree> class Spline
      * \param spline The input spline.
      **/
     template <int OtherDegree>
-    explicit Spline(const Spline<Scalar, Dimension, OtherDegree>& spline) : m_knots(spline.knots()), m_ctrls(spline.ctrls())
+    explicit Spline(const Spline<Scalar, Dimension, OtherDegree>& spline)
+        : m_knots(spline.knots()), m_ctrls(spline.ctrls())
     {
     }
 

@@ -285,6 +285,8 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
         grid.header.stamp = ros::Time::now();
         costmap_publisher_.publish(grid);
     }
+
+    ROS_INFO_STREAM("Finished updating map");
 }
 
 void Autonomy::executionThread()
@@ -540,6 +542,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
         const auto now = ros::SteadyTime::now();
         {
             const auto t0 = std::chrono::steady_clock::now();
+            ROS_INFO("Path Planning...");
             result = path_planner_->plan(global_robot_pose, *transformed_goal);
 
             const double plan_duration =

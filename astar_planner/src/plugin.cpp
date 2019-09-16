@@ -1,6 +1,7 @@
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
 
+#include <gridmap/operations/rasterize.h>
 #include <gridmap/operations/raytrace.h>
 
 #include <navigation_interface/params.h>
@@ -14,6 +15,8 @@
 #include <visualization_msgs/MarkerArray.h>
 
 #include <nav_msgs/OccupancyGrid.h>
+
+#include <opencv2/imgproc.hpp>
 
 PLUGINLIB_EXPORT_CLASS(astar_planner::AStarPlanner, navigation_interface::PathPlanner)
 
@@ -74,6 +77,8 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
     navigation_interface::PathPlanner::Result result;
 
     costmap_ = buildCostmap(*map_data_, robot_radius_);
+    ROS_ASSERT(traversal_cost_);
+    costmap_->traversal_cost = traversal_cost_;
     collision_checker_.reset(new astar_planner::CollisionChecker(costmap_));
 
     const size_t max_iterations = 1e6;
@@ -265,6 +270,12 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     max_reverse_distance_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "max_reverse_distance", max_reverse_distance_, XmlRpc::XmlRpcValue::TypeDouble);
 
+    avoid_zone_cost_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "avoid_zone_cost", avoid_zone_cost_, XmlRpc::XmlRpcValue::TypeDouble);
+
+    path_cost_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "path_cost", path_cost_, XmlRpc::XmlRpcValue::TypeDouble);
+
     if (parameters.hasMember("robot_radius_offsets"))
     {
         offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets");
@@ -285,5 +296,84 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 // cppcheck-suppress unusedFunction
 void AStarPlanner::onMapDataChanged()
 {
+    ROS_INFO("Building avoid zone traversal costmap");
+
+    // need to generate a data structure for zones
+    traversal_cost_ = std::make_shared<cv::Mat>(map_data_->grid.dimensions().size().y(),
+                                                map_data_->grid.dimensions().size().x(), CV_32F, cv::Scalar(1.0));
+
+    for (const hd_map::Zone& zone : map_data_->hd_map.zones)
+    {
+        if (zone.zone_type == hd_map::Zone::AVOID_ZONE)
+        {
+            int min_x = std::numeric_limits<int>::max();
+            int max_x = 0;
+
+            int min_y = std::numeric_limits<int>::max();
+            int max_y = 0;
+
+            std::vector<Eigen::Array2i> map_polygon;
+            for (const geometry_msgs::Point32& p : zone.polygon.points)
+            {
+                const Eigen::Array2i map_point = map_data_->grid.dimensions().getCellIndex({p.x, p.y});
+                min_x = std::min(map_point.x(), min_x);
+                max_x = std::max(map_point.x(), max_x);
+                min_y = std::min(map_point.y(), min_y);
+                max_y = std::max(map_point.y(), max_y);
+                map_polygon.push_back(map_point);
+            }
+            if (!map_polygon.empty())
+                map_polygon.push_back(map_polygon.front());
+
+            const std::vector<Eigen::Array2i> connected = gridmap::connectPolygon(map_polygon);
+
+            cv::Mat& traversal_cost = *(traversal_cost_.get());
+            const float avoid_zone_cost = static_cast<float>(avoid_zone_cost_);
+            auto append_raster = [&traversal_cost, avoid_zone_cost](const int x, const int y) {
+                if (x >= 0 && x < traversal_cost.cols && y >= 0 && y < traversal_cost.rows)
+                {
+                    traversal_cost.at<float>(y, x) = avoid_zone_cost;
+                }
+            };
+
+            gridmap::rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
+        }
+    }
+
+    for (const hd_map::Path& path : map_data_->hd_map.paths)
+    {
+        for (size_t i = 0; i < path.nodes.size() - 1; ++i)
+        {
+            const std::string first_id = path.nodes[i];
+            const std::string next_id = path.nodes[i + 1];
+
+            auto first_it = std::find_if(
+                map_data_->hd_map.nodes.begin(),
+                map_data_->hd_map.nodes.end(),
+                [&first_id](const hd_map::Node& n) {
+                    return n.id == first_id;
+                }
+            );
+            ROS_ASSERT(first_it != map_data_->hd_map.nodes.end());
+            hd_map::Node start_node = *first_it;
+
+            auto next_it = std::find_if(
+                map_data_->hd_map.nodes.begin(),
+                map_data_->hd_map.nodes.end(),
+                [&next_id](const hd_map::Node& n) {
+                    return n.id == next_id;
+                }
+            );
+            ROS_ASSERT(next_it != map_data_->hd_map.nodes.end());
+            hd_map::Node end_node = *first_it;
+
+            const Eigen::Array2i start_mp = map_data_->grid.dimensions().getCellIndex({start_node.x, start_node.y});
+            const Eigen::Array2i end_mp = map_data_->grid.dimensions().getCellIndex({end_node.x, end_node.y});
+
+            cv::line(*traversal_cost_, cv::Point(start_mp[0], start_mp[1]), cv::Point(end_mp[0], end_mp[1]),
+                     cv::Scalar(path_cost_), 10);
+        }
+    }
 }
+
 }  // namespace astar_planner
