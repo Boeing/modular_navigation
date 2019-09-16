@@ -34,6 +34,8 @@ TEST(test_astar, test_2d_astar)
     cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(255), -1, cv::LINE_8);
     cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(255), -1, cv::LINE_8);
 
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+
     auto t0 = std::chrono::steady_clock::now();
 
     // dilate robot radius

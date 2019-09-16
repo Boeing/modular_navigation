@@ -232,7 +232,7 @@ class Map(Document, DocumentMixin):
             assert isinstance(path, PathMsg)
             p_obj = Path(
                 name=path.name,
-                npdes=path.nodes
+                nodes=path.nodes
             )
             map_obj.paths.append(p_obj)
 

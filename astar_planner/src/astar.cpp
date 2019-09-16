@@ -52,6 +52,8 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
     ROS_ASSERT(goal.y >= 0);
     ROS_ASSERT(goal.y < costmap.height);
 
+    ROS_ASSERT(costmap.traversal_cost);
+
     if (costmap.distance_to_collision.at<float>(start.y, start.x) <= 0)
     {
         return {false, nullptr, 0};
