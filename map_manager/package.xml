@@ -20,6 +20,7 @@
     <exec_depend>python-flask</exec_depend>
     <exec_depend>python-math3d</exec_depend>
     <exec_depend>python-mongoengine</exec_depend>
+    <exec_depend>python-opengl</exec_depend>
     <exec_depend>python-pymongo</exec_depend>
     <exec_depend>python-requests</exec_depend>
     <exec_depend>python-typing</exec_depend>
