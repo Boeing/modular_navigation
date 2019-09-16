@@ -41,10 +41,6 @@ class ProbabilityGrid : public Grid2D<double>
         clamping_thres_min_log_ = logodds(clamping_thres_min);
         clamping_thres_max_log_ = logodds(clamping_thres_max);
         occ_prob_thres_log_ = logodds(occ_prob_thres);
-
-        ROS_INFO_STREAM("clamping_thres_min_log_: " << clamping_thres_min_log_);
-        ROS_INFO_STREAM("clamping_thres_max_log_: " << clamping_thres_max_log_);
-        ROS_INFO_STREAM("occ_prob_thres_log_: " << occ_prob_thres_log_);
     }
 
     virtual ~ProbabilityGrid() = default;

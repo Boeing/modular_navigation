@@ -35,12 +35,14 @@ class Layer
     void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)
     {
         std::lock_guard<std::timed_mutex> lock(map_mutex_);
+        ROS_INFO_STREAM("Updating map for: " << name_);
         hd_map_ = std::make_shared<hd_map::Map>(hd_map);
         map_dimensions_.reset(
             new MapDimensions(hd_map.info.meta_data.resolution,
                               {hd_map.info.meta_data.origin.position.x, hd_map.info.meta_data.origin.position.y},
                               {hd_map.info.meta_data.width, hd_map.info.meta_data.height}));
         onMapChanged(map_data);
+        ROS_INFO_STREAM("Updating map for: " << name_ << " DONE");
     }
 
     void initialize(const std::string& name, const std::string& global_frame, const XmlRpc::XmlRpcValue& parameters,

@@ -34,12 +34,15 @@ class AStarPlanner : public navigation_interface::PathPlanner
     double conservative_robot_radius_ = 0.480;
     double max_holonomic_distance_ = 2.0;
     double max_reverse_distance_ = 4.0;
+    double avoid_zone_cost_ = 10.0;
+    double path_cost_ = 0.01;
 
     std::vector<Eigen::Vector2d> offsets_;
 
     ros::Publisher explore_pub_;
 
     std::shared_ptr<Costmap> costmap_;
+    std::shared_ptr<cv::Mat> traversal_cost_;
     std::shared_ptr<CollisionChecker> collision_checker_;
 };
 }  // namespace astar_planner

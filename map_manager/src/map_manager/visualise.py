@@ -8,13 +8,15 @@ import typing
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import MarkerArray, Marker
 
+from geometry_msgs.msg import Vector3 as Vector3Msg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Point as PointMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
 
+from map_manager import tess
 from map_manager.documents import Map as MapDocument
 from map_manager.documents import Zone as ZoneDocument
-
+from hd_map.msg import Zone as ZoneMsg
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ def build_cylinder_marker(start_point, end_point, color, radius):
             )
         ),
         frame_locked=True,
-        scale=Vector3(
+        scale=Vector3Msg(
             radius,
             radius,
             vec.length()
@@ -71,7 +73,7 @@ def build_pose_markers(pose, size=0.05):
                 pose.position.z + mat[:, 0][2] * size
             )],
             frame_locked=True,
-            scale=Vector3(size / 6, size / 3, 0),
+            scale=Vector3Msg(size / 6, size / 3, 0),
             color=ColorRGBA(1.0, 0, 0, 1.0)
         ),
         Marker(
@@ -82,7 +84,7 @@ def build_pose_markers(pose, size=0.05):
                 pose.position.z + mat[:, 1][2] * size
             )],
             frame_locked=True,
-            scale=Vector3(size / 6, size / 3, 0),
+            scale=Vector3Msg(size / 6, size / 3, 0),
             color=ColorRGBA(0.0, 1.0, 0, 1.0)
         ),
         Marker(
@@ -93,50 +95,48 @@ def build_pose_markers(pose, size=0.05):
                 pose.position.z + mat[:, 2][2] * size
             )],
             frame_locked=True,
-            scale=Vector3(size / 6, size / 3, 0),
+            scale=Vector3Msg(size / 6, size / 3, 0),
             color=ColorRGBA(0.0, 0.0, 1.0, 1.0)
         )
     ]
 
 
-def build_zone_markers(zone, color, radius):
-    # type: (ZoneDocument, ColorRGBA, float) -> typing.Sequence[Marker]
+def build_zone_markers(zone):
+    # type: (ZoneDocument) -> typing.Sequence[Marker]
     markers = list()  # type: typing.List[Marker]
 
-    for i in range(len(zone.polygon) - 1):
-        markers.append(
-            build_cylinder_marker(
-                start_point=Vector3(
-                    zone.polygon[i].x,
-                    zone.polygon[i].y,
-                    zone.polygon[i].z
-                ),
-                end_point=Vector3(
-                    zone.polygon[i + 1].x,
-                    zone.polygon[i + 1].y,
-                    zone.polygon[i + 1].z
-                ),
-                color=color,
-                radius=radius
-            )
-        )
-    if len(zone.polygon) > 0:
-        markers.append(
-            build_cylinder_marker(
-                start_point=Vector3(
-                    zone.polygon[-1].x,
-                    zone.polygon[-1].y,
-                    zone.polygon[-1].z
-                ),
-                end_point=Vector3(
-                    zone.polygon[0].x,
-                    zone.polygon[0].y,
-                    zone.polygon[0].z
-                ),
-                color=color,
-                radius=radius
-            )
-        )
+    if zone.zone_type == ZoneMsg.EXCLUSION_ZONE:
+        color = ColorRGBA(1.0, 0.0, 0.2, 0.2)
+    elif zone.zone_type == ZoneMsg.DRIVABLE_ZONE:
+        color = ColorRGBA(0.0, 1.0, 0.2, 0.1)
+    elif zone.zone_type == ZoneMsg.AVOID_ZONE:
+        color = ColorRGBA(1.0, 0.6, 0.0, 0.2)
+    else:
+        color = ColorRGBA(1.0, 1.0, 1.0, 1.0)
+
+    polygon_points = [
+        (point.x, point.y, point.z)
+        for point in zone.polygon
+    ]
+    triangles = tess.triangulate(polygon_points)
+    triangle_marker = Marker(
+        type=Marker.TRIANGLE_LIST,
+        frame_locked=True,
+        scale=Vector3Msg(1.0, 1.0, 1.0),
+        color=color
+    )
+    for t in triangles:
+        # Forward triangle
+        triangle_marker.points.append(PointMsg(*polygon_points[t[0]]))
+        triangle_marker.points.append(PointMsg(*polygon_points[t[1]]))
+        triangle_marker.points.append(PointMsg(*polygon_points[t[2]]))
+
+        # Reverse triangle
+        triangle_marker.points.append(PointMsg(*polygon_points[t[0]]))
+        triangle_marker.points.append(PointMsg(*polygon_points[t[2]]))
+        triangle_marker.points.append(PointMsg(*polygon_points[t[1]]))
+
+    markers.append(triangle_marker)
     return markers
 
 
@@ -147,12 +147,41 @@ def build_marker_array(map_obj):
 
     marker_array = MarkerArray()
 
+    marker_array.markers.append(Marker(type=Marker.DELETEALL))
+
     for zone in map_obj.zones:
-        marker_array.markers += build_zone_markers(
-            zone=zone,
-            color=ColorRGBA(0.0, 1.0, 0.0, 1.0),
-            radius=0.04
+        marker_array.markers += build_zone_markers(zone=zone)
+
+    nodes = {}
+    for node in map_obj.nodes:
+        nodes[node.id] = node
+        marker_array.markers.append(
+            Marker(
+                type=Marker.SPHERE,
+                pose=PoseMsg(
+                    position=PointMsg(x=node.point.x, y=node.point.y, z=0),
+                    orientation=QuaternionMsg(w=1)
+                ),
+                frame_locked=True,
+                scale=Vector3Msg(0.06, 0.06, 0.06),
+                color=ColorRGBA(0.0, 0.0, 1.0, 1.0)
+            )
         )
+
+    for path in map_obj.paths:
+        for i in range(len(path.nodes) - 1):
+            start_node = nodes[path.nodes[i]]
+            end_node = nodes[path.nodes[i + 1]]
+            marker_array.markers.append(
+                build_cylinder_marker(
+                    start_point=Vector3(start_node.point.x, start_node.point.y, 0),
+                    end_point=Vector3(end_node.point.x, end_node.point.y, 0),
+                    color=ColorRGBA(0.0, 0.0, 1.0, 1.0),
+                    radius=0.02
+                )
+            )
+
+    print marker_array
 
     for marker in map_obj.markers:
         marker_array.markers += build_pose_markers(

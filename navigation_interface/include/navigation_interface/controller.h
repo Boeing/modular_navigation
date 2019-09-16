@@ -59,6 +59,7 @@ class Controller
     {
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
+        onMapDataChanged();
     }
 
   protected:
