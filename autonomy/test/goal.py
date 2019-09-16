@@ -1,10 +1,10 @@
 import actionlib
 import rospy
-from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
-from autonomy.msg import DriveAction, DriveGoal
-from std_msgs.msg import Header
+from geometry_msgs.msg import Point, Pose, PoseStamped
 from math6d.geometry import Quaternion, Vector3
-import math
+from std_msgs.msg import Header
+
+from autonomy.msg import DriveAction, DriveGoal
 
 
 def run(x, y, angle):
@@ -35,6 +35,3 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         _ = run(1, 1, 0)
         _ = run(2, 2, 0)
-        # _ = run(-3.6, -5.92, 0)
-        # _ = run(-3.6, -5.0, 3.14)
-        # _ = run(-2.6, 2.8, 0)
