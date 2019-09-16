@@ -1,22 +1,20 @@
 import logging
 import math
-from math3d.orientation import Orientation
 
-from math6d.geometry import Vector3, Quaternion
 import rospy
 import typing
-from std_msgs.msg import ColorRGBA
-from visualization_msgs.msg import MarkerArray, Marker
-
-from geometry_msgs.msg import Vector3 as Vector3Msg
-from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Point as PointMsg
+from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
+from geometry_msgs.msg import Vector3 as Vector3Msg
+from math6d.geometry import Quaternion, Vector3
+from std_msgs.msg import ColorRGBA
+from visualization_msgs.msg import Marker, MarkerArray
 
+from hd_map.msg import Zone as ZoneMsg
 from map_manager import tess
 from map_manager.documents import Map as MapDocument
 from map_manager.documents import Zone as ZoneDocument
-from hd_map.msg import Zone as ZoneMsg
 
 logger = logging.getLogger(__name__)
 

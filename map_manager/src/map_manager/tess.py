@@ -1,5 +1,6 @@
-from OpenGL.GL import *
-from OpenGL.GLU import *
+import OpenGL
+import OpenGL.GL
+import OpenGL.GLU
 
 
 def is_edge(a, b, bounds):
@@ -16,7 +17,7 @@ def is_adjacent(a, b, span):
     lower = min(a, b)
     upper = max(a, b)
     diff = upper - lower
-    if diff is 1:
+    if diff == 1:
         ret = True
     elif lower is span[0] and upper is span[1]:
         ret = True
@@ -65,14 +66,14 @@ def triangulate(polygon):
         gl_data.tess_style = style
 
     def cb_end():
-        if gl_data.tess_style == GL_TRIANGLE_FAN:
+        if gl_data.tess_style == OpenGL.GL.GL_TRIANGLE_FAN:
             c = gl_data.current_shape.pop(0)
             p1 = gl_data.current_shape.pop(0)
             while gl_data.current_shape:
                 p2 = gl_data.current_shape.pop(0)
                 gl_data.triangles.append([c, p1, p2])
                 p1 = p2
-        elif gl_data.tess_style == GL_TRIANGLE_STRIP:
+        elif gl_data.tess_style == OpenGL.GL.GL_TRIANGLE_STRIP:
             p1 = gl_data.current_shape.pop(0)
             p2 = gl_data.current_shape.pop(0)
             while gl_data.current_shape:
@@ -80,7 +81,7 @@ def triangulate(polygon):
                 gl_data.triangles.append([p1, p2, p3])
                 p1 = p2
                 p2 = p3
-        elif gl_data.tess_style == GL_TRIANGLES:
+        elif gl_data.tess_style == OpenGL.GL.GL_TRIANGLES:
             # each three points constitute a triangle, no sharing
             while gl_data.current_shape:
                 p1 = gl_data.current_shape.pop(0)
@@ -99,20 +100,20 @@ def triangulate(polygon):
         print "combine:", c, v, weight, "(this will probably cause problems)"
         return c[0], c[1], c[2]
 
-    tess = gluNewTess()
+    tess = OpenGL.GLU.gluNewTess()
 
-    gluTessCallback(tess, GLU_TESS_VERTEX, cb_vert)
-    gluTessCallback(tess, GLU_TESS_BEGIN, cb_begin)
-    gluTessCallback(tess, GLU_TESS_END, cb_end)
-    gluTessCallback(tess, GLU_TESS_ERROR, cb_error)
-    gluTessCallback(tess, GLU_TESS_COMBINE, cb_combine)
+    OpenGL.GLU.gluTessCallback(tess, OpenGL.GLU.GLU_TESS_VERTEX, cb_vert)
+    OpenGL.GLU.gluTessCallback(tess, OpenGL.GLU.GLU_TESS_BEGIN, cb_begin)
+    OpenGL.GLU.gluTessCallback(tess, OpenGL.GLU.GLU_TESS_END, cb_end)
+    OpenGL.GLU.gluTessCallback(tess, OpenGL.GLU.GLU_TESS_ERROR, cb_error)
+    OpenGL.GLU.gluTessCallback(tess, OpenGL.GLU.GLU_TESS_COMBINE, cb_combine)
 
-    gluTessBeginPolygon(tess, None)
-    gluTessBeginContour(tess)
+    OpenGL.GLU.gluTessBeginPolygon(tess, None)
+    OpenGL.GLU.gluTessBeginContour(tess)
     for i, pt in enumerate(polygon):
-        gluTessVertex(tess, pt, i)
-    gluTessEndContour(tess)
-    gluTessEndPolygon(tess)
+        OpenGL.GLU.gluTessVertex(tess, pt, i)
+    OpenGL.GLU.gluTessEndContour(tess)
+    OpenGL.GLU.gluTessEndPolygon(tess)
 
     return gl_data.triangles
 

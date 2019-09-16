@@ -1,6 +1,5 @@
 import logging
 import traceback
-import zlib
 from functools import wraps
 
 import geometry_msgs.msg
@@ -11,12 +10,13 @@ from mongoengine import DoesNotExist, ValidationError
 from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
 from std_msgs.msg import UInt8MultiArray
 from tf2_msgs.msg import TFMessage
-from visualization_msgs.msg import MarkerArray, Marker
+
+from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
 from hd_map.msg import MapInfo as MapInfoMsg
 from hd_map.msg import Marker as MarkerMsg
 from hd_map.msg import Zone as ZoneMsg
-from map_manager.documents import Map, Zone, Marker, Pose, Point, Quaternion
+from map_manager.documents import Map, Marker, Point, Pose, Quaternion, Zone
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.srv import DeleteMap, DeleteMapRequest, DeleteMapResponse
 from map_manager.srv import GetActiveMap, GetActiveMapRequest, GetActiveMapResponse
@@ -24,7 +24,7 @@ from map_manager.srv import GetMap, GetMapRequest, GetMapResponse
 from map_manager.srv import GetOccupancyGrid, GetOccupancyGridRequest, GetOccupancyGridResponse
 from map_manager.srv import ListMaps, ListMapsRequest, ListMapsResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
-from map_manager.srv import UpdateMap, UpdateMapResponse, UpdateMapRequest
+from map_manager.srv import UpdateMap, UpdateMapRequest, UpdateMapResponse
 from map_manager.visualise import build_marker_array
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ class RosWrapper(object):
         )
         self.__marker_pub = rospy.Publisher(
             name='~markers',
-            data_class=MarkerArray,
+            data_class=MarkerArrayMsg,
             latch=True,
             queue_size=100
         )
@@ -246,7 +246,7 @@ class RosWrapper(object):
         # type: (SetActiveMapRequest) -> SetActiveMapResponse
         logger.info('Request to set active Map: {}'.format(req.map_name))
 
-        map_obj = Map.objects(name=req.map_name).get()
+        Map.objects(name=req.map_name).get()
         self.__load_map(map_name=req.map_name)
 
         return SetActiveMapResponse(
@@ -285,7 +285,6 @@ class RosWrapper(object):
                 marker = Marker(name=marker_msg.name)
                 map_obj.markers.append(marker)
 
-            marker.description = marker_msg.description
             marker.marker_type = marker_msg.marker_type
             marker.pose = Pose(
                 position=Point(
@@ -309,7 +308,6 @@ class RosWrapper(object):
                 zone = Zone(name=zone_msg.name)
                 map_obj.zones.append(zone)
 
-            zone.description = zone_msg.description
             zone.zone_type = zone_msg.zone_type
             zone.polygon = []
             for point in zone_msg.polygon.points:

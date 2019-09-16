@@ -2,18 +2,17 @@
 
 import struct
 import unittest
+from PIL import Image, ImageDraw
 from io import BytesIO
 
 import rospy
 import rostest
-from PIL import Image, ImageDraw
-from geometry_msgs.msg import Pose, Point, Quaternion
+from geometry_msgs.msg import Point, Pose, Quaternion
 from nav_msgs.msg import MapMetaData
-from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import UInt8MultiArray
 
-from hd_map.msg import Map, MapInfo, Marker, Zone
+from hd_map.msg import Map, MapInfo, Marker
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
 
@@ -115,7 +114,7 @@ class TestMapManager(unittest.TestCase):
         md_d = struct.unpack('<%sb' % len(md.data), md.data)
         self.assertTrue(all(int(a) == int(b) for a, b in zip(md_d, request.map_data)))
 
-        og = rospy.wait_for_message('/map_manager/occupancy_grid', OccupancyGrid, timeout=10)  # type: OccupancyGrid
+        # og = rospy.wait_for_message('/map_manager/occupancy_grid', OccupancyGrid, timeout=10)  # type: OccupancyGrid
 
         # Wait for messages to arrive
         # self.assertTrue(self.__map_buffer.wait_for_messages(number=1))
