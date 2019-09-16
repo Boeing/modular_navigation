@@ -73,7 +73,6 @@ navigation_interface::TrajectoryPlanner::Result
 
         moving_window_->updateWindow(robot_pose, max_window_length_);
 
-        // cppcheck-suppress unreadVariable
         auto lock = map_data_->grid.getLock();
         gridmap::Grid2D<uint8_t> local_grid(map_data_->grid, local_region);
         lock.unlock();
