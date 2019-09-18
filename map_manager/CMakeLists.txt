@@ -47,6 +47,7 @@ catkin_install_python(
     scripts/${PROJECT_NAME}_node.py
     scripts/save_cartographer_map.py
     scripts/save_gmapping_map.py
+    scripts/template_world.py
     DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

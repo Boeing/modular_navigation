@@ -2,7 +2,6 @@
     <world name='default'>
 
         <plugin name="disable_physics" filename="libgazebo_no_physics_plugin.so"></plugin>
-        <!--<plugin name="occupancy_grid" filename="libgazebo_occupancy_grid_plugin.so"></plugin>-->
 
         <model name='ground_plane'>
             <static>1</static>

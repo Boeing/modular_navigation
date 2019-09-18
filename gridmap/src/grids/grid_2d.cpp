@@ -34,6 +34,7 @@ Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB& bb)
     }
 }
 
+// cppcheck-suppress constParameter
 template <class CellType> void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid) const
 {
     ROS_ASSERT((grid.dimensions().size() == map_dimensions_.size()).all());
