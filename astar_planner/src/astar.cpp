@@ -458,7 +458,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
     {
         result.success = true;
         auto node = goal_node->second;
-        auto node_key = goal_key;
+        uint64_t node_key = 0;
         do
         {
             const auto node_index = StateToIndex(node->state, linear_resolution, angular_resolution);

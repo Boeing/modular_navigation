@@ -25,7 +25,7 @@ inline double probability(const double logodds)
 class ProbabilityGrid : public Grid2D<double>
 {
   public:
-    ProbabilityGrid(const MapDimensions& map_dims, const double clamping_thres_min = 0.1192,
+    explicit ProbabilityGrid(const MapDimensions& map_dims, const double clamping_thres_min = 0.1192,
                     const double clamping_thres_max = 0.971, const double occ_prob_thres = 0.8)
         : Grid2D<double>(map_dims)
     {
