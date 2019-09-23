@@ -173,17 +173,12 @@ navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& pose
 
     const double linear_fraction = dist > 0.0 ? (linear_lookahead / dist) : 0.0;
     const double angular_fraction = angle > 0.0 ? (angular_lookahead / angle) : 0.0;
-    const double fraction = std::min(linear_fraction, angular_fraction);
 
-    if (fraction >= 1)
-    {
-        return *it;
-    }
-    else
-    {
-        return {Eigen::Translation2d(pose.translation() + fraction * dir) * rot.slerp(fraction, future_rot),
-                it->velocity};
-    }
+    const Eigen::Translation2d p = linear_fraction < 1
+                                       ? Eigen::Translation2d(pose.translation() + linear_fraction * dir)
+                                       : Eigen::Translation2d(it->pose.translation());
+    const Eigen::Rotation2Dd o_rot = angular_fraction < 1 ? rot.slerp(angular_fraction, future_rot) : future_rot;
+    return {p * o_rot, it->velocity};
 }
 }  // namespace
 
@@ -270,23 +265,34 @@ navigation_interface::Controller::Result
     ROS_ASSERT(robot_state.pose.linear().allFinite());
     ROS_ASSERT(robot_state.pose.translation().allFinite());
 
-    const Eigen::Vector2d goal_vec = target_state.pose.translation() - robot_state.pose.translation();
-    const Eigen::Vector2d goal_vec_wrt_robot = robot_state.pose.linear().inverse() * goal_vec;
+    const Eigen::Vector2d target_vec = target_state.pose.translation() - robot_state.pose.translation();
+    const Eigen::Vector2d target_vec_wrt_robot = robot_state.pose.linear().inverse() * target_vec;
 
     const auto rot_diff = robot_state.pose.linear().inverse() * target_state.pose.linear();
 
     Eigen::Vector3d control_error;
-    control_error.topRows(2) = goal_vec_wrt_robot;
+    control_error.topRows(2) = target_vec_wrt_robot;
     control_error[2] = Eigen::Rotation2Dd(rot_diff).smallestAngle();
 
     ROS_ASSERT(control_error.allFinite());
 
-    const Eigen::Vector2d goal_direction = goal_vec.normalized();
-    const Eigen::Vector2d goal_direction_wrt_robot = robot_state.pose.linear().inverse() * goal_direction;
+    const double target_distance = target_vec.norm();
+    ROS_ASSERT_MSG(target_distance > 0, "target_distance: %f", target_distance);
+
+    const Eigen::Vector2d target_direction = target_vec / target_distance;
+    const Eigen::Vector2d target_direction_wrt_robot = robot_state.pose.linear().inverse() * target_direction;
 
     Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
-    target_velocity.topRows(2) = (target_state.velocity.topRows(2).norm() * goal_direction_wrt_robot);
-    const double finish_time = goal_vec.norm() / target_velocity.topRows(2).norm();
+
+    const double target_speed = target_state.velocity.topRows(2).norm();
+    ROS_ASSERT_MSG(target_speed > 0, "target_speed: %f target_state.velocity: %f %f %f", target_speed,
+                   target_state.velocity[0], target_state.velocity[1], target_state.velocity[2]);
+
+    target_velocity.topRows(2) = (target_state.velocity.topRows(2).norm() * target_direction_wrt_robot);
+
+    const double finish_time = target_distance / target_speed;
+    ROS_ASSERT_MSG(finish_time > 0, "finish time: %f", finish_time);
+
     target_velocity[2] = control_error[2] / finish_time;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
@@ -360,7 +366,7 @@ navigation_interface::Controller::Result
         control_integral_ = Eigen::Vector3d::Zero();
         control_error_ = Eigen::Vector3d::Zero();
     }
-    ROS_ASSERT(target_velocity.allFinite());
+    ROS_ASSERT_MSG(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
 
     double ddx = (target_velocity[0] - robot_state.velocity[0]) / dt;
     double ddy = (target_velocity[1] - robot_state.velocity[1]) / dt;
