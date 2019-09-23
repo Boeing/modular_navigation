@@ -43,7 +43,7 @@ def generate_cartographer_map(
     cmd = [
         'rosrun',
         'cartographer_ros',
-        'occupancy_grid_to_pbstream',
+        'sdf_to_pbstream',
         '--configuration_directory',
         cartographer_configuration_directory,
         '--pbstream',

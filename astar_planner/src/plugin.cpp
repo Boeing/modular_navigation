@@ -273,8 +273,8 @@ void AStarPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     avoid_zone_cost_ = navigation_interface::get_config_with_default_warn<double>(
         parameters, "avoid_zone_cost", avoid_zone_cost_, XmlRpc::XmlRpcValue::TypeDouble);
 
-    path_cost_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "path_cost", path_cost_, XmlRpc::XmlRpcValue::TypeDouble);
+    path_cost_ = navigation_interface::get_config_with_default_warn<double>(parameters, "path_cost", path_cost_,
+                                                                            XmlRpc::XmlRpcValue::TypeDouble);
 
     if (parameters.hasMember("robot_radius_offsets"))
     {
@@ -347,23 +347,13 @@ void AStarPlanner::onMapDataChanged()
             const std::string first_id = path.nodes[i];
             const std::string next_id = path.nodes[i + 1];
 
-            auto first_it = std::find_if(
-                map_data_->hd_map.nodes.begin(),
-                map_data_->hd_map.nodes.end(),
-                [&first_id](const hd_map::Node& n) {
-                    return n.id == first_id;
-                }
-            );
+            auto first_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
+                                         [&first_id](const hd_map::Node& n) { return n.id == first_id; });
             ROS_ASSERT(first_it != map_data_->hd_map.nodes.end());
             hd_map::Node start_node = *first_it;
 
-            auto next_it = std::find_if(
-                map_data_->hd_map.nodes.begin(),
-                map_data_->hd_map.nodes.end(),
-                [&next_id](const hd_map::Node& n) {
-                    return n.id == next_id;
-                }
-            );
+            auto next_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
+                                        [&next_id](const hd_map::Node& n) { return n.id == next_id; });
             ROS_ASSERT(next_it != map_data_->hd_map.nodes.end());
             hd_map::Node end_node = *first_it;
 
