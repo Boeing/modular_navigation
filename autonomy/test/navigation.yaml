@@ -1,5 +1,4 @@
 path_planner: "astar_planner/AStarPlanner"
-#path_planner: "omni_rrt_planner/OmniRRTPlanner"
 trajectory_planner: "sim_band_planner/SimBandPlanner"
 controller: "pure_pursuit_controller/PurePursuitController"
 
