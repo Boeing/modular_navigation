@@ -2,6 +2,7 @@
 #define GRIDMAP_PARAMS_H
 
 #include <ros/ros.h>
+
 #include <string>
 
 namespace gridmap
@@ -65,6 +66,5 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
     }
 }
 }  // namespace gridmap
-
 
 #endif

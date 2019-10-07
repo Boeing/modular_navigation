@@ -3,11 +3,9 @@
 
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
-
 #include <message_filters/subscriber.h>
-#include <tf2_ros/message_filter.h>
-
 #include <sensor_msgs/Range.h>
+#include <tf2_ros/message_filter.h>
 
 namespace gridmap
 {

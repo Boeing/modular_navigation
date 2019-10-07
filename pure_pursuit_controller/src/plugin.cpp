@@ -1,10 +1,7 @@
-#include <navigation_interface/params.h>
-#include <pure_pursuit_controller/plugin.h>
-
 #include <gridmap/operations/rasterize.h>
-
+#include <navigation_interface/params.h>
 #include <pluginlib/class_list_macros.h>
-
+#include <pure_pursuit_controller/plugin.h>
 #include <visualization_msgs/MarkerArray.h>
 
 #define EPS 0.001

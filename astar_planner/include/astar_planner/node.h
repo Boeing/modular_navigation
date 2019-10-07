@@ -1,10 +1,10 @@
 #ifndef ASTAR_PLANNER_NODE_H
 #define ASTAR_PLANNER_NODE_H
 
+#include <boost/heap/binomial_heap.hpp>
+
 #include <array>
 #include <cmath>
-
-#include <boost/heap/binomial_heap.hpp>
 
 namespace astar_planner
 {

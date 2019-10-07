@@ -2,14 +2,12 @@
 #define GRIDMAP_OCCUPANCY_GRID_H
 
 #include <gridmap/grids/grid_2d.h>
-
-#include <cmath>
-#include <mutex>
-#include <vector>
-
 #include <nav_msgs/OccupancyGrid.h>
 
 #include <Eigen/Geometry>
+#include <cmath>
+#include <mutex>
+#include <vector>
 
 namespace gridmap
 {

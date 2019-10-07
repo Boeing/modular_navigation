@@ -3,11 +3,10 @@
 
 #include <gridmap/grids/grid_2d.h>
 
+#include <Eigen/Geometry>
 #include <cmath>
 #include <mutex>
 #include <vector>
-
-#include <Eigen/Geometry>
 
 namespace gridmap
 {

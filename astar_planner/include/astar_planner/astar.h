@@ -1,6 +1,10 @@
 #ifndef ASTAR_PLANNER_ASTAR_H
 #define ASTAR_PLANNER_ASTAR_H
 
+#include <astar_planner/costmap.h>
+#include <astar_planner/node.h>
+#include <ros/console.h>
+
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -8,11 +12,6 @@
 #include <set>
 #include <unordered_map>
 #include <vector>
-
-#include <ros/console.h>
-
-#include <astar_planner/costmap.h>
-#include <astar_planner/node.h>
 
 namespace astar_planner
 {

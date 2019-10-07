@@ -1,14 +1,11 @@
 #ifndef NAVIGATION_INTERFACE_CONTROLLER_INTERFACE_H
 #define NAVIGATION_INTERFACE_CONTROLLER_INTERFACE_H
 
+#include <boost/optional.hpp>
+#include <gridmap/map_data.h>
 #include <navigation_interface/types/control.h>
 #include <navigation_interface/types/trajectory.h>
-
-#include <gridmap/map_data.h>
-
 #include <xmlrpcpp/XmlRpc.h>
-
-#include <boost/optional.hpp>
 
 #include <memory>
 

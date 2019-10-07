@@ -393,7 +393,6 @@ typename SplineTraits<Spline<_Scalar, _Dim, _Degree>>::BasisVectorType
 
 /* --------------------------------------------------------------------------------------------- */
 
-
 template <typename _Scalar, int _Dim, int _Degree>
 template <typename DerivativeType>
 void Spline<_Scalar, _Dim, _Degree>::BasisFunctionDerivativesImpl(

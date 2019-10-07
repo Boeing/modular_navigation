@@ -1,12 +1,11 @@
 #ifndef NAVIGATION_INTERFACE_PATH_H
 #define NAVIGATION_INTERFACE_PATH_H
 
-#include <algorithm>
-#include <vector>
-
 #include <std_msgs/Header.h>
 
 #include <Eigen/Geometry>
+#include <algorithm>
+#include <vector>
 
 namespace navigation_interface
 {

@@ -1,8 +1,6 @@
 #include <gridmap/layers/obstacle_data/laser_data.h>
-#include <gridmap/params.h>
-
 #include <gridmap/operations/clip_line.h>
-
+#include <gridmap/params.h>
 #include <pluginlib/class_list_macros.h>
 
 #include <chrono>

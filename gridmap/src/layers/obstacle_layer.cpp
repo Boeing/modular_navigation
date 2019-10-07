@@ -1,8 +1,6 @@
 #include <gridmap/layers/obstacle_layer.h>
 #include <gridmap/params.h>
-
 #include <opencv2/imgproc.hpp>
-
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::ObstacleLayer, gridmap::Layer)
@@ -73,7 +71,7 @@ ObstacleLayer::~ObstacleLayer()
         debug_viz_thread_.join();
 }
 
-bool ObstacleLayer::draw(OccupancyGrid& grid)
+bool ObstacleLayer::draw(OccupancyGrid& grid) const
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
 
@@ -93,7 +91,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid)
     return true;
 }
 
-bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
+bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb) const
 {
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
@@ -120,7 +118,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb)
     return true;
 }
 
-bool ObstacleLayer::update(OccupancyGrid& grid)
+bool ObstacleLayer::update(OccupancyGrid& grid) const
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
 
@@ -143,7 +141,7 @@ bool ObstacleLayer::update(OccupancyGrid& grid)
     return true;
 }
 
-bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb)
+bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb) const
 {
     ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 

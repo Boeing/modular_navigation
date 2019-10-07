@@ -3,10 +3,9 @@
 
 #include <gridmap/operations/raytrace.h>
 
-#include <array>
-
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+#include <array>
 
 namespace gridmap
 {

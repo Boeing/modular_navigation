@@ -1,14 +1,10 @@
 #ifndef ASTAR_PLANNER_PLUGIN_H
 #define ASTAR_PLANNER_PLUGIN_H
 
-#include <gridmap/map_data.h>
-
 #include <astar_planner/costmap.h>
-
-#include <opencv2/core.hpp>
-
+#include <gridmap/map_data.h>
 #include <navigation_interface/path_planner.h>
-
+#include <opencv2/core.hpp>
 #include <ros/ros.h>
 
 namespace astar_planner
@@ -35,7 +31,7 @@ class AStarPlanner : public navigation_interface::PathPlanner
     double max_holonomic_distance_ = 2.0;
     double max_reverse_distance_ = 4.0;
     double avoid_zone_cost_ = 10.0;
-    double path_cost_ = 0.01;
+    double path_cost_ = 0.001;
 
     std::vector<Eigen::Vector2d> offsets_;
 

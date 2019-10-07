@@ -63,7 +63,8 @@ def generate_cartographer_map(
 
     str_cmd = ' '.join(cmd)
 
-    subprocess.check_call(str_cmd, shell=True)
+    _null = open(os.devnull, 'w')
+    subprocess.check_call(str_cmd, shell=True, stdout=_null, stderr=subprocess.STDOUT)
     temp_pb_f.seek(0)
     pb_bytes = temp_pb_f.read()
 
@@ -86,7 +87,6 @@ def generate_cartographer_map(
             layer = (link.attrib['layer'] if 'layer' in link.attrib else '').lower()
             zone_type = get_zone_type(layer)
             if zone_type != Zone.UNKNOWN:
-                print 'Adding {} as {}'.format(layer, zone_type)
                 collision = link.find('visual')
                 geometry = collision.find('geometry')
                 polyline = geometry.find('polyline')
@@ -113,7 +113,6 @@ def generate_cartographer_map(
             position = node.find('position')
             node_id = node.attrib['id']
             points = [float(t) for t in position.text.split(' ')]
-            print 'Adding Node: {}'.format(node_id)
             nodes.append(
                 Node(
                     id=node_id,

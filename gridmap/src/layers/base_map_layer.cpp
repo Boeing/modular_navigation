@@ -1,7 +1,6 @@
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/operations/rasterize.h>
 #include <gridmap/params.h>
-
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::BaseMapLayer, gridmap::Layer)
@@ -9,7 +8,7 @@ PLUGINLIB_EXPORT_CLASS(gridmap::BaseMapLayer, gridmap::Layer)
 namespace gridmap
 {
 
-bool BaseMapLayer::draw(OccupancyGrid& grid)
+bool BaseMapLayer::draw(OccupancyGrid& grid) const
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
@@ -20,7 +19,7 @@ bool BaseMapLayer::draw(OccupancyGrid& grid)
     return true;
 }
 
-bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
+bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb) const
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
@@ -31,25 +30,25 @@ bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb)
     return true;
 }
 
-bool BaseMapLayer::update(OccupancyGrid& grid)
+bool BaseMapLayer::update(OccupancyGrid& grid) const
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
     const auto lock = map_->getLock();
-    map_->merge(grid);
+    grid.merge(*map_);
     return true;
 }
 
-bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb)
+bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb) const
 {
     std::lock_guard<std::timed_mutex> g(map_mutex_);
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
     const auto lock = map_->getLock();
-    map_->merge(grid, bb);
+    grid.merge(*map_, bb);
     return true;
 }
 
@@ -72,6 +71,8 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
         map_->cells()[index] =
             ((int)new_map.data[index]) >= ((int)lethal_threshold_) ? OccupancyGrid::OCCUPIED : OccupancyGrid::FREE;
     }
+
+    // TODO set default zone
 
     //
     // Raster no-go zones

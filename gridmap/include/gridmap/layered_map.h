@@ -1,11 +1,9 @@
 #ifndef GRIDMAP_MAP_UPDATER_H
 #define GRIDMAP_MAP_UPDATER_H
 
-#include <gridmap/map_data.h>
-
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/layers/layer.h>
-
+#include <gridmap/map_data.h>
 #include <hd_map/Map.h>
 
 #include <memory>

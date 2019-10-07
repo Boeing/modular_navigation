@@ -3,11 +3,9 @@
 
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/grids/occupancy_grid.h>
-
-#include <tf2_ros/buffer.h>
-
 #include <hd_map/Map.h>
 #include <nav_msgs/OccupancyGrid.h>
+#include <tf2_ros/buffer.h>
 
 #include <memory>
 
@@ -20,11 +18,11 @@ class Layer
     Layer() : hd_map_(nullptr), map_dimensions_(nullptr), tf_buffer_(nullptr){};
     virtual ~Layer(){};
 
-    virtual bool draw(OccupancyGrid& grid) = 0;
-    virtual bool draw(OccupancyGrid& grid, const AABB& bb) = 0;
+    virtual bool draw(OccupancyGrid& grid) const = 0;
+    virtual bool draw(OccupancyGrid& grid, const AABB& bb) const = 0;
 
-    virtual bool update(OccupancyGrid& grid) = 0;
-    virtual bool update(OccupancyGrid& grid, const AABB& bb) = 0;
+    virtual bool update(OccupancyGrid& grid) const = 0;
+    virtual bool update(OccupancyGrid& grid, const AABB& bb) const = 0;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) = 0;
