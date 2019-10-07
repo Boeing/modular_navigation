@@ -1,19 +1,18 @@
 #ifndef GRIDMAP_DATA_SOURCE_H
 #define GRIDMAP_DATA_SOURCE_H
 
-#include <memory>
-#include <mutex>
-#include <string>
-#include <thread>
-
 #include <gridmap/grids/probability_grid.h>
 #include <gridmap/operations/rasterize.h>
 #include <gridmap/params.h>
-
 #include <ros/callback_queue.h>
 #include <ros/ros.h>
 #include <ros/subscription_queue.h>
 #include <tf2_ros/buffer.h>
+
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
 
 namespace gridmap
 {

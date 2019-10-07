@@ -1,13 +1,11 @@
 #ifndef SIM_BAND_PLANNER_MOVING_WINDOW_H
 #define SIM_BAND_PLANNER_MOVING_WINDOW_H
 
-#include <Eigen/Geometry>
-
-#include <vector>
-
+#include <navigation_interface/types/path.h>
 #include <sim_band_planner/band.h>
 
-#include <navigation_interface/types/path.h>
+#include <Eigen/Geometry>
+#include <vector>
 
 namespace sim_band_planner
 {

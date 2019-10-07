@@ -3,9 +3,7 @@
 
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
-
 #include <ros/ros.h>
-
 #include <sensor_msgs/PointCloud2.h>
 
 namespace gridmap

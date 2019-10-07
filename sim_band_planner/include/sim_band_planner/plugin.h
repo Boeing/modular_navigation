@@ -1,16 +1,13 @@
 #ifndef sim_band_planner_PLUGIN_H
 #define sim_band_planner_PLUGIN_H
 
-#include <memory>
-
+#include <gridmap/map_data.h>
 #include <navigation_interface/trajectory_planner.h>
-
+#include <ros/ros.h>
 #include <sim_band_planner/moving_window.h>
 #include <sim_band_planner/simulate.h>
 
-#include <ros/ros.h>
-
-#include <gridmap/map_data.h>
+#include <memory>
 
 namespace sim_band_planner
 {

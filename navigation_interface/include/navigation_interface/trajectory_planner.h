@@ -1,14 +1,11 @@
 #ifndef NAVIGATION_INTERFACE_BASE_LOCAL_PLANNER_H
 #define NAVIGATION_INTERFACE_BASE_LOCAL_PLANNER_H
 
+#include <boost/optional.hpp>
+#include <gridmap/map_data.h>
 #include <navigation_interface/types/path.h>
 #include <navigation_interface/types/trajectory.h>
-
-#include <gridmap/map_data.h>
-
 #include <xmlrpcpp/XmlRpc.h>
-
-#include <boost/optional.hpp>
 
 #include <memory>
 

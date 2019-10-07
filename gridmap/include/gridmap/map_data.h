@@ -3,7 +3,6 @@
 
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/grids/occupancy_grid.h>
-
 #include <hd_map/Map.h>
 
 namespace gridmap

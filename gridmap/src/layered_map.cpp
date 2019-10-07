@@ -1,5 +1,4 @@
 #include <gridmap/layered_map.h>
-
 #include <ros/assert.h>
 
 namespace gridmap
@@ -10,7 +9,6 @@ LayeredMap::LayeredMap(const std::shared_ptr<BaseMapLayer>& base_map_layer,
     : base_map_layer_(base_map_layer), layers_(layers)
 {
 }
-
 
 bool LayeredMap::update()
 {

@@ -1,8 +1,6 @@
 #include <gridmap/layers/obstacle_data/point_cloud_data.h>
 #include <gridmap/params.h>
-
 #include <pluginlib/class_list_macros.h>
-
 #include <sensor_msgs/point_cloud2_iterator.h>
 
 #include <chrono>

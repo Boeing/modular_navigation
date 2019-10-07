@@ -10,15 +10,14 @@
 #ifndef EIGEN_SPLINE_FITTING_H
 #define EIGEN_SPLINE_FITTING_H
 
+#include <Eigen/LU>
+#include <Eigen/QR>
 #include <algorithm>
 #include <functional>
 #include <numeric>
 #include <vector>
 
 #include "SplineFwd.h"
-
-#include <Eigen/LU>
-#include <Eigen/QR>
 
 namespace Eigen
 {

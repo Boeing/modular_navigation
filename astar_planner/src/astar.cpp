@@ -1,15 +1,13 @@
 #include <astar_planner/astar.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cinttypes>
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
-#include <chrono>
-
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 
 namespace astar_planner
 {

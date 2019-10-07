@@ -1,10 +1,8 @@
 #ifndef NAVIGATION_INTERFACE_PATH_PLANNER_H
 #define NAVIGATION_INTERFACE_PATH_PLANNER_H
 
-#include <navigation_interface/types/path.h>
-
 #include <gridmap/map_data.h>
-
+#include <navigation_interface/types/path.h>
 #include <xmlrpcpp/XmlRpc.h>
 
 #include <memory>

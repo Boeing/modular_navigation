@@ -1,10 +1,7 @@
-#include <sim_band_planner/plugin.h>
-
 #include <navigation_interface/params.h>
-
-#include <visualization_msgs/MarkerArray.h>
-
 #include <pluginlib/class_list_macros.h>
+#include <sim_band_planner/plugin.h>
+#include <visualization_msgs/MarkerArray.h>
 
 PLUGINLIB_EXPORT_CLASS(sim_band_planner::SimBandPlanner, navigation_interface::TrajectoryPlanner)
 

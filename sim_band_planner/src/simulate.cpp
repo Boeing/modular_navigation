@@ -1,9 +1,8 @@
+#include <ros/assert.h>
 #include <sim_band_planner/simulate.h>
 
 #include <sstream>
 #include <vector>
-
-#include <ros/assert.h>
 
 namespace sim_band_planner
 {

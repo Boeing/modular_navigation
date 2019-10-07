@@ -1,18 +1,17 @@
 #ifndef GRIDMAP_OGMAP_H
 #define GRIDMAP_OGMAP_H
 
+#include <ros/assert.h>
+
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <iterator>
 #include <mutex>
 #include <vector>
-
-#include <Eigen/Core>
-#include <Eigen/Dense>
-#include <Eigen/Geometry>
-
-#include <ros/assert.h>
 
 namespace gridmap
 {

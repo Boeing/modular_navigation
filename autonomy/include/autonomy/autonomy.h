@@ -1,6 +1,20 @@
 #ifndef AUTONOMY_H
 #define AUTONOMY_H
 
+#include <actionlib/server/simple_action_server.h>
+#include <autonomy/DriveAction.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <gridmap/layered_map.h>
+#include <nav_msgs/Odometry.h>
+#include <navigation_interface/controller.h>
+#include <navigation_interface/path_planner.h>
+#include <navigation_interface/trajectory_planner.h>
+#include <pluginlib/class_loader.h>
+#include <ros/ros.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -8,28 +22,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-
-#include <ros/ros.h>
-
-#include <actionlib/server/simple_action_server.h>
-#include <autonomy/DriveAction.h>
-
-#include <navigation_interface/controller.h>
-#include <navigation_interface/path_planner.h>
-#include <navigation_interface/trajectory_planner.h>
-
-#include <nav_msgs/Odometry.h>
-
-#include <geometry_msgs/PoseStamped.h>
-
-#include <gridmap/layered_map.h>
-
-#include <pluginlib/class_loader.h>
-
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
-
 
 namespace autonomy
 {

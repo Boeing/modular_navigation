@@ -1,15 +1,12 @@
 #ifndef ASTAR_PLANNER_COSTMAP_H
 #define ASTAR_PLANNER_COSTMAP_H
 
+#include <astar_planner/node.h>
+#include <gridmap/map_data.h>
 #include <opencv2/core.hpp>
 
-#include <astar_planner/node.h>
-
-#include <gridmap/map_data.h>
-
-#include <memory>
-
 #include <Eigen/Geometry>
+#include <memory>
 
 namespace astar_planner
 {

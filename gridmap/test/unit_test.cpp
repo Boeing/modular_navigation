@@ -1,13 +1,10 @@
-#include <gtest/gtest.h>
-
 #include <gridmap/grids/grid_2d.h>
-
-#include <chrono>
-
 #include <gridmap/map_data.h>
-
+#include <gtest/gtest.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+
+#include <chrono>
 
 TEST(test_plugin, test_plugin)
 {
@@ -36,7 +33,6 @@ TEST(test_plugin, test_plugin)
     cv::imwrite("grid.png", cv_im);
     cv::imwrite("grid_roi.png", cv_im_roi);
 }
-
 
 int main(int argc, char** argv)
 {

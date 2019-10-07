@@ -1,16 +1,12 @@
+#include <gridmap/map_data.h>
 #include <gtest/gtest.h>
-
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <ros/console.h>
 #include <sim_band_planner/distance_field.h>
 #include <sim_band_planner/simulate.h>
 
 #include <chrono>
-
-#include <gridmap/map_data.h>
-
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
-#include <ros/console.h>
 
 TEST(test_plugin, test_plugin)
 {
@@ -121,7 +117,6 @@ TEST(test_plugin, test_plugin)
         // cv::waitKey(1);
     }
 }
-
 
 int main(int argc, char** argv)
 {

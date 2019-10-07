@@ -1,18 +1,14 @@
-#include <gtest/gtest.h>
-
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
+#include <gridmap/map_data.h>
+#include <gtest/gtest.h>
+#include <hd_map/Map.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <chrono>
 #include <deque>
 #include <random>
-
-#include <gridmap/map_data.h>
-
-#include <hd_map/Map.h>
-
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 
 TEST(test_astar, test_2d_astar)
 {

@@ -1,27 +1,19 @@
+#include <autonomy/autonomy.h>
+#include <boost/algorithm/string.hpp>
+#include <boost/thread.hpp>
+#include <boost/tokenizer.hpp>
+#include <geometry_msgs/Twist.h>
+#include <map_manager/GetMap.h>
+#include <map_manager/GetOccupancyGrid.h>
+#include <map_msgs/OccupancyGridUpdate.h>
+#include <nav_msgs/Path.h>
+#include <navigation_interface/params.h>
+
 #include <algorithm>
 #include <cmath>
 #include <random>
 #include <string>
 #include <vector>
-
-#include <boost/tokenizer.hpp>
-
-#include <boost/tokenizer.hpp>
-
-#include <autonomy/autonomy.h>
-
-#include <boost/algorithm/string.hpp>
-#include <boost/thread.hpp>
-
-#include <geometry_msgs/Twist.h>
-
-#include <nav_msgs/Path.h>
-
-#include <navigation_interface/params.h>
-
-#include <map_manager/GetMap.h>
-#include <map_manager/GetOccupancyGrid.h>
-#include <map_msgs/OccupancyGridUpdate.h>
 
 namespace autonomy
 {

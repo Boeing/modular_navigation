@@ -1,18 +1,15 @@
 #include <gridmap/layers/obstacle_data/range_data.h>
+#include <gridmap/operations/clip_line.h>
+#include <gridmap/operations/rasterize.h>
 #include <gridmap/params.h>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <pluginlib/class_list_macros.h>
 
 #include <chrono>
 #include <fstream>
 #include <iostream>
-
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-
-#include <gridmap/operations/clip_line.h>
-#include <gridmap/operations/rasterize.h>
-
-#include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::RangeData, gridmap::DataSource)
 

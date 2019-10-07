@@ -1,9 +1,7 @@
-#include <gtest/gtest.h>
-
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/operations/rasterize.h>
 #include <gridmap/operations/raytrace.h>
-
+#include <gtest/gtest.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -70,7 +68,6 @@ TEST(test_polyfill, test_polyfill)
 
     cv::imwrite("grid.png", cv_im);
 }
-
 
 int main(int argc, char** argv)
 {

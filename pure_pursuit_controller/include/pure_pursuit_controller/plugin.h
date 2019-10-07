@@ -1,14 +1,12 @@
 #ifndef PURE_PURSUIT_CONTROLLER_PLUGIN_H
 #define PURE_PURSUIT_CONTROLLER_PLUGIN_H
 
+#include <gridmap/map_data.h>
+#include <navigation_interface/controller.h>
 #include <ros/ros.h>
 
 #include <memory>
 #include <vector>
-
-#include <navigation_interface/controller.h>
-
-#include <gridmap/map_data.h>
 
 namespace pure_pursuit_controller
 {

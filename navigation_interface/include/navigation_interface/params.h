@@ -2,9 +2,9 @@
 #define NAVIGATION_INTERFACE_PARAMS
 
 #include <ros/ros.h>
-#include <string>
 
 #include <Eigen/Geometry>
+#include <string>
 
 namespace navigation_interface
 {
@@ -125,6 +125,5 @@ inline std::vector<Eigen::Vector2d> get_point_list(XmlRpc::XmlRpcValue parameter
     return result;
 }
 }  // namespace navigation_interface
-
 
 #endif

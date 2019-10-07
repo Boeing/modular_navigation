@@ -4,7 +4,6 @@
 #include <gridmap/grids/probability_grid.h>
 #include <gridmap/layers/layer.h>
 #include <gridmap/layers/obstacle_data/data_source.h>
-
 #include <pluginlib/class_loader.h>
 
 #include <atomic>
@@ -21,11 +20,11 @@ class ObstacleLayer : public Layer
     ObstacleLayer();
     virtual ~ObstacleLayer();
 
-    virtual bool draw(OccupancyGrid& grid) override;
-    virtual bool draw(OccupancyGrid& grid, const AABB& bb) override;
+    virtual bool draw(OccupancyGrid& grid) const override;
+    virtual bool draw(OccupancyGrid& grid, const AABB& bb) const override;
 
-    virtual bool update(OccupancyGrid& grid) override;
-    virtual bool update(OccupancyGrid& grid, const AABB& bb) override;
+    virtual bool update(OccupancyGrid& grid) const override;
+    virtual bool update(OccupancyGrid& grid, const AABB& bb) const override;
 
     virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;

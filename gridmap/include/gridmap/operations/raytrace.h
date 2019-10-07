@@ -1,12 +1,11 @@
 #ifndef GRIDMAP_RAYTRACE_H
 #define GRIDMAP_RAYTRACE_H
 
-#include <Eigen/Geometry>
+#include <ros/ros.h>
 
+#include <Eigen/Geometry>
 #include <algorithm>
 #include <cmath>
-
-#include <ros/ros.h>
 
 namespace gridmap
 {

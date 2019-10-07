@@ -100,8 +100,6 @@ def run(dxf_file, world_template_file, output_sdf_file):
                         points.append(start_top)
                         points.append(end_top)
                         points.append(end_bottom)
-
-                        logger.info('points: \n{}'.format('\n'.join([str(p) for p in points])))
                     else:
                         loop_top = (start_top + end_bottom) / 2.0
                         loop_bottom = (start_bottom + end_top) / 2.0

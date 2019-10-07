@@ -1,15 +1,14 @@
 #ifndef FDP_LOCAL_PLANNER_PATH_H
 #define FDP_LOCAL_PLANNER_PATH_H
 
-#include <Eigen/Geometry>
-#include <vector>
-
+#include <ros/assert.h>
+#include <ros/console.h>
 #include <sim_band_planner/spline/Spline.h>
 #include <sim_band_planner/spline/SplineFitting.h>
 #include <sim_band_planner/spline/SplineFwd.h>
 
-#include <ros/assert.h>
-#include <ros/console.h>
+#include <Eigen/Geometry>
+#include <vector>
 
 namespace sim_band_planner
 {
