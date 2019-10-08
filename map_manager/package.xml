@@ -15,10 +15,10 @@
     <depend>nav_msgs</depend>
     <depend>sensor_msgs</depend>
 
+    <exec_depend>math6d</exec_depend>
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>python-blinker</exec_depend>
     <exec_depend>python-flask</exec_depend>
-    <exec_depend>python-math3d</exec_depend>
     <exec_depend>python-mongoengine</exec_depend>
     <exec_depend>python-opengl</exec_depend>
     <exec_depend>python-pymongo</exec_depend>
