@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, date
 from io import BytesIO
 
-import math3d
+import math6d
 import mongoengine
 import numpy
 import rospy
@@ -43,24 +43,24 @@ class Quaternion(EmbeddedDocument):
     @classmethod
     def pre_save(cls, sender, document, **kwargs):
         logging.debug('Normalising quaternion')
-        qt = math3d.Versor(document.w, document.x, document.y, document.z)
-        document.w = qt[0]
-        document.x = qt[1]
-        document.y = qt[2]
-        document.z = qt[3]
+        qt = math6d.Quaternion(document.w, document.x, document.y, document.z)
+        document.w = qt.w
+        document.x = qt.x
+        document.y = qt.y
+        document.z = qt.z
 
     def get_euler(self):
-        qt = math3d.Versor(self.w, self.x, self.y, self.z)
-        return qt.get_orientation().to_euler('XYZ')
+        qt = math6d.Quaternion(self.w, self.x, self.y, self.z)
+        return qt.to_euler(math6d.Axis.AXIS_X, math6d.Axis.AXIS_Y, math6d.Axis.AXIS_Z)
 
     def get_msg(self):
         # type: () -> QuaternionMsg
-        qt = math3d.Versor(self.w, self.x, self.y, self.z)
+        qt = math6d.Quaternion(self.w, self.x, self.y, self.z)
         return QuaternionMsg(
-            x=qt[1],
-            y=qt[2],
-            z=qt[3],
-            w=qt[0]
+            x=qt.x,
+            y=qt.y,
+            z=qt.z,
+            w=qt.w
         )
 
 
