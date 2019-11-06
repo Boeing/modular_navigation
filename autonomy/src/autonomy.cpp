@@ -179,7 +179,7 @@ Autonomy::Autonomy()
     odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &Autonomy::odomCallback, this,
                                                   ros::TransportHints().tcpNoDelay());
     vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
-    current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 0);
+    current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 1, true);
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
