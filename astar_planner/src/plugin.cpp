@@ -348,13 +348,13 @@ void AStarPlanner::onMapDataChanged()
             auto next_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
                                         [&next_id](const hd_map::Node& n) { return n.id == next_id; });
             ROS_ASSERT(next_it != map_data_->hd_map.nodes.end());
-            hd_map::Node end_node = *first_it;
+            hd_map::Node end_node = *next_it;
 
             const Eigen::Array2i start_mp = map_data_->grid.dimensions().getCellIndex({start_node.x, start_node.y});
             const Eigen::Array2i end_mp = map_data_->grid.dimensions().getCellIndex({end_node.x, end_node.y});
 
-            cv::line(*traversal_cost_, cv::Point(start_mp[0], start_mp[1]), cv::Point(end_mp[0], end_mp[1]),
-                     cv::Scalar(path_cost_), 10);
+            cv::line(*traversal_cost_, cv::Point(start_mp[0], start_mp[1]), cv::Point(end_mp[0], end_mp[1]), path_cost_,
+                     10);
         }
     }
 }
