@@ -31,7 +31,7 @@ class AStarPlanner : public navigation_interface::PathPlanner
     double max_holonomic_distance_ = 2.0;
     double max_reverse_distance_ = 4.0;
     double avoid_zone_cost_ = 10.0;
-    double path_cost_ = 0.001;
+    double path_cost_ = 1e-3;
 
     std::vector<Eigen::Vector2d> offsets_;
 
