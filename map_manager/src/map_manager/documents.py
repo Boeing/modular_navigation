@@ -9,6 +9,7 @@ import numpy
 import rospy
 import typing
 from PIL import Image
+from PIL.ImageOps import invert
 from geometry_msgs.msg import Point as PointMsg
 from geometry_msgs.msg import Point32 as Point32Msg
 from geometry_msgs.msg import Polygon as PolygonMsg
@@ -279,7 +280,8 @@ class Map(Document, DocumentMixin):
         # type: (file) -> None
         self.image.seek(0)
         im = Image.open(fp=self.image)
-        im.save(buff, format='PNG', compress_level=1)
+        inverted = invert(im)
+        inverted.save(buff, format='PNG', compress_level=1)
 
     def get_thumbnail_png(self, buff):
         # type: (file) -> None
