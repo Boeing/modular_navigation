@@ -62,6 +62,10 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
 {
     map_ = std::make_shared<OccupancyGrid>(dimensions());
 
+    uint8_t default_value = OccupancyGrid::FREE;
+    if (hdMap().default_zone == hd_map::Zone::EXCLUSION_ZONE)
+        default_value = OccupancyGrid::OCCUPIED;
+
     //
     // Copy the occupancy grid into the costmap
     //
@@ -69,49 +73,52 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
     for (std::size_t index = 0; index < size; ++index)
     {
         map_->cells()[index] =
-            ((int)new_map.data[index]) >= ((int)lethal_threshold_) ? OccupancyGrid::OCCUPIED : OccupancyGrid::FREE;
+            ((int)new_map.data[index]) >= ((int)lethal_threshold_) ? OccupancyGrid::OCCUPIED : default_value;
     }
 
-    // TODO set default zone
-
     //
-    // Raster no-go zones
+    // Raster zones
     //
     for (const hd_map::Zone& zone : hdMap().zones)
     {
-        // Only consider EXCLUSION_ZONE
-        if (zone.zone_type == hd_map::Zone::EXCLUSION_ZONE)
+        int min_x = std::numeric_limits<int>::max();
+        int max_x = 0;
+
+        int min_y = std::numeric_limits<int>::max();
+        int max_y = 0;
+
+        std::vector<Eigen::Array2i> map_polygon;
+        for (const geometry_msgs::Point32& p : zone.polygon.points)
         {
-            int min_x = std::numeric_limits<int>::max();
-            int max_x = 0;
+            const Eigen::Array2i map_point = map_->dimensions().getCellIndex({p.x, p.y});
+            min_x = std::min(map_point.x(), min_x);
+            max_x = std::max(map_point.x(), max_x);
+            min_y = std::min(map_point.y(), min_y);
+            max_y = std::max(map_point.y(), max_y);
+            map_polygon.push_back(map_point);
+        }
+        if (!map_polygon.empty())
+            map_polygon.push_back(map_polygon.front());
 
-            int min_y = std::numeric_limits<int>::max();
-            int max_y = 0;
+        const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
 
-            std::vector<Eigen::Array2i> map_polygon;
-            for (const geometry_msgs::Point32& p : zone.polygon.points)
+        std::vector<Eigen::Array2i> raster;
+        auto append_raster = [&raster](const int x, const int y) { raster.push_back({x, y}); };
+
+        rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
+
+        for (const Eigen::Array2i& p : raster)
+        {
+            if (map_->dimensions().contains(p))
             {
-                const Eigen::Array2i map_point = map_->dimensions().getCellIndex({p.x, p.y});
-                min_x = std::min(map_point.x(), min_x);
-                max_x = std::max(map_point.x(), max_x);
-                min_y = std::min(map_point.y(), min_y);
-                max_y = std::max(map_point.y(), max_y);
-                map_polygon.push_back(map_point);
-            }
-            if (!map_polygon.empty())
-                map_polygon.push_back(map_polygon.front());
-
-            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
-
-            std::vector<Eigen::Array2i> raster;
-            auto append_raster = [&raster](const int x, const int y) { raster.push_back({x, y}); };
-
-            rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
-
-            for (const Eigen::Array2i& p : raster)
-            {
-                if (map_->dimensions().contains(p))
+                if (zone.zone_type == hd_map::Zone::EXCLUSION_ZONE)
                     map_->setOccupied(p);
+                else if (zone.zone_type == hd_map::Zone::DRIVABLE_ZONE)
+                    map_->setFree(p);
+                else
+                {
+                    // do nothing...
+                }
             }
         }
     }

@@ -278,7 +278,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             }
             catch (const tf2::TransformException& e)
             {
-                ROS_WARN_STREAM("DataSource '" << name_ << "' unable to resolve sensor TF");
+                ROS_WARN_STREAM("DataSource '" << name_ << "' unable to resolve sensor TF: " << e.what());
                 data_queue_.flushMessages();
             }
             catch (const std::exception& e)
