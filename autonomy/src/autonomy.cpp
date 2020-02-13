@@ -154,6 +154,8 @@ Autonomy::Autonomy()
 
     XmlRpc::XmlRpcValue costmap_params;
 
+    nh_.getParam("costmap", costmap_params);
+
     std::vector<Eigen::Vector2d> robot_footprint;
     if (costmap_params.hasMember("footprint"))
     {
@@ -166,7 +168,6 @@ Autonomy::Autonomy()
                            {-0.500, 0.000}, {-0.420, 0.420}, {0.420, 0.420}};
     }
 
-    nh_.getParam("costmap", costmap_params);
     auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, robot_footprint, tf_buffer_);
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
     base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], robot_footprint, tf_buffer_);
