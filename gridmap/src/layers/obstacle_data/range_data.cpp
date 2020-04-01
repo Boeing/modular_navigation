@@ -121,7 +121,7 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
     cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), right_pt_map.x(), right_pt_map.y(),
                                map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
 
-    const int cell_range = static_cast<int>(range / map_data_->dimensions().resolution());
+    const std::size_t cell_range = static_cast<std::size_t>(range / map_data_->dimensions().resolution());
 
     auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1,
                                                     const int w2) {
@@ -129,7 +129,7 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
         const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
         const double _w2 = static_cast<double>(w2) / static_cast<double>(w0 + w1 + w2);
 
-        const int dist = cell_range * (1 - _w0);
+        const std::size_t dist = static_cast<std::size_t>(cell_range * (1 - _w0));
 
         if (_w2 > 0.85)
             return;
@@ -137,7 +137,7 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
         if (_w1 > 0.85)
             return;
 
-        ROS_ASSERT(dist < static_cast<int>(log_cost_lookup_[cell_range].size()));
+        ROS_ASSERT(dist < log_cost_lookup_[cell_range].size());
 
         map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
     };

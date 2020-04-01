@@ -1,7 +1,11 @@
+#include <geometry_msgs/PolygonStamped.h>
 #include <gridmap/layers/obstacle_layer.h>
 #include <gridmap/params.h>
 #include <opencv2/imgproc.hpp>
 #include <pluginlib/class_list_macros.h>
+#include <visualization_msgs/Marker.h>
+
+#include <chrono>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::ObstacleLayer, gridmap::Layer)
 
@@ -54,10 +58,48 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
 
     return plugin_ptrs;
 }
+
+visualization_msgs::Marker footprintMarker(const ProbabilityGrid& map_data, const std::set<uint64_t>& footprint,
+                                           const float alpha)
+{
+    visualization_msgs::Marker marker;
+    marker.ns = "points";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::POINTS;
+    marker.header.stamp = ros::Time::now();
+    marker.header.frame_id = "map";
+    marker.frame_locked = true;
+    marker.scale.x = 0.02;
+    marker.scale.y = 0.02;
+    marker.scale.z = 0.00;
+    marker.color.a = 1.f;
+    marker.pose.orientation.w = 1.0;
+
+    for (const uint64_t point_key : footprint)
+    {
+        const Eigen::Array2i p = KeyToIndex(point_key);
+        const Eigen::Vector2d w = map_data.dimensions().getCellCenter(p);
+        geometry_msgs::Point mp;
+        mp.x = w.x();
+        mp.y = w.y();
+        mp.z = 0.0;
+        marker.points.push_back(mp);
+        std_msgs::ColorRGBA c;
+        c.a = alpha;
+        c.r = 0.7f;
+        c.g = 0.7f;
+        c.b = 0.7f;
+        marker.colors.push_back(c);
+    }
+
+    return marker;
+}
+
 }  // namespace
 
 ObstacleLayer::ObstacleLayer()
-    : ds_loader_("gridmap", "gridmap::DataSource"), debug_viz_running_(false), time_decay_running_(false)
+    : ds_loader_("gridmap", "gridmap::DataSource"), debug_viz_running_(false), clear_footprint_running_(false),
+      time_decay_running_(false)
 {
 }
 
@@ -154,6 +196,7 @@ bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb) const
         return false;
 
     // cppcheck-suppress unreadVariable
+    // TODO timeout on lock getting?
     const auto lock = probability_grid_->getLock();
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -215,6 +258,8 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     {
         ros::NodeHandle nh(name());
         debug_viz_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
+        footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 1);
+        polygon_pub_ = nh.advertise<geometry_msgs::PolygonStamped>("polygon", 1);
         if (debug_viz_running_)
         {
             debug_viz_running_ = false;
@@ -222,6 +267,16 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
         }
         debug_viz_running_ = true;
         debug_viz_thread_ = std::thread(&ObstacleLayer::debugVizThread, this, debug_viz_rate_);
+    }
+
+    {
+        if (clear_footprint_running_)
+        {
+            clear_footprint_running_ = false;
+            clear_footprint_thread_.join();
+        }
+        clear_footprint_running_ = true;
+        clear_footprint_thread_ = std::thread(&ObstacleLayer::clearFootprintThread, this, clear_footprint_frequency_);
     }
 
     if (time_decay_)
@@ -359,7 +414,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
                     debug_viz_pub_.publish(grid);
                 }
-                catch (const tf2::TransformException& e)
+                catch (const tf2::TransformException&)
                 {
                     ROS_WARN("Failed to publish debug. Unknown robot pose");
                 }
@@ -369,10 +424,71 @@ void ObstacleLayer::debugVizThread(const double frequency)
     }
 }
 
+void ObstacleLayer::clearFootprintThread(const double frequency)
+{
+    ros::Rate rate(frequency);
+    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
+
+    // TODO this should be connected to TF updates on base_link or even better odom
+
+    while (clear_footprint_running_ && ros::ok())
+    {
+        {
+            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
+            if (_lock.owns_lock() && probability_grid_)
+            {
+                auto pg_lock = probability_grid_->getLock();
+
+                try
+                {
+                    const auto robot_tr = tfBuffer()->lookupTransform(globalFrame(), "base_link", ros::Time(0));
+                    const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
+                    const auto footprint =
+                        buildFootprintSet(probability_grid_->dimensions(), robot_t, robotFootprint(), 0.95);
+
+                    for (const auto& elem : footprint)
+                    {
+                        const Eigen::Array2i index = KeyToIndex(elem);
+                        if (probability_grid_->dimensions().contains(index))
+                            probability_grid_->setMinThres(index);
+                    }
+
+                    if (debug_viz_)
+                    {
+                        geometry_msgs::PolygonStamped polygon;
+                        polygon.header.frame_id = "map";
+                        polygon.header.stamp = robot_tr.header.stamp;
+                        for (const Eigen::Vector2d& p : robotFootprint())
+                        {
+                            geometry_msgs::Point32 point;
+                            const Eigen::Vector2d world_point = robot_t.translation() + robot_t.linear() * p;
+                            point.x = static_cast<float>(world_point.x());
+                            point.y = static_cast<float>(world_point.y());
+                            point.z = 0;
+                            polygon.polygon.points.push_back(point);
+                        }
+                        polygon_pub_.publish(polygon);
+                        footprint_pub_.publish(footprintMarker(*probability_grid_, footprint, 0.8f));
+                    }
+                }
+                catch (const tf2::TransformException&)
+                {
+                    ROS_WARN("Failed to clear robot footprint. Unknown robot pose");
+                }
+            }
+        }
+
+        rate.sleep();
+    }
+}
+
 void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
     ros::Rate rate(frequency);
     const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
+
+    // TODO only decay recently updated cells or cells within the detection radius of the robot (<30m)
+    // Alternatively break the data into blocks and decay blocks in sequence to limit the time holding the mutex
 
     while (time_decay_running_ && ros::ok())
     {

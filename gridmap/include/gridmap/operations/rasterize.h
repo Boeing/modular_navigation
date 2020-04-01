@@ -90,9 +90,10 @@ inline void rasterPolygonFill(ActionType at, const std::vector<Eigen::Array2i>& 
             if ((polygon[i].y() < cell_y && polygon[j].y() >= cell_y) ||
                 (polygon[j].y() < cell_y && polygon[i].y() >= cell_y))
             {
-                nodes_x[n_nodes++] = (static_cast<int>(polygon[i].x() + static_cast<double>(cell_y - polygon[i].y()) /
-                                                                            (polygon[j].y() - polygon[i].y()) *
-                                                                            (polygon[j].x() - polygon[i].x())));
+                nodes_x[n_nodes++] =
+                    static_cast<int>(polygon[i].x() + static_cast<double>(cell_y - polygon[i].y()) /
+                                                          static_cast<double>(polygon[j].y() - polygon[i].y()) *
+                                                          static_cast<double>(polygon[j].x() - polygon[i].x()));
             }
             j = i;
         }

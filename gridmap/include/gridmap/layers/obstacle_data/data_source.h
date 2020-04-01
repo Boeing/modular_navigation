@@ -37,7 +37,7 @@ inline Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
 }
 
 inline std::set<uint64_t> buildFootprintSet(const MapDimensions& dimensions, const Eigen::Isometry2d& robot_pose,
-                                            const std::vector<Eigen::Vector2d>& footprint)
+                                            const std::vector<Eigen::Vector2d>& footprint, const double scale = 1.0)
 {
     int min_x = std::numeric_limits<int>::max();
     int max_x = 0;
@@ -48,7 +48,7 @@ inline std::set<uint64_t> buildFootprintSet(const MapDimensions& dimensions, con
     std::vector<Eigen::Array2i> map_footprint;
     for (const Eigen::Vector2d& p : footprint)
     {
-        const Eigen::Vector2d world_point = robot_pose.translation() + robot_pose.rotation() * p;
+        const Eigen::Vector2d world_point = robot_pose.translation() + robot_pose.linear() * (scale * p);
         const auto map_point = dimensions.getCellIndex(world_point);
         map_footprint.push_back(map_point);
         min_x = std::min(map_point.x(), min_x);
@@ -56,6 +56,7 @@ inline std::set<uint64_t> buildFootprintSet(const MapDimensions& dimensions, con
         min_y = std::min(map_point.y(), min_y);
         max_y = std::max(map_point.y(), max_y);
     }
+    map_footprint.push_back(map_footprint.front());
 
     const std::vector<Eigen::Array2i> connected_poly = connectPolygon(map_footprint);
 
@@ -63,6 +64,10 @@ inline std::set<uint64_t> buildFootprintSet(const MapDimensions& dimensions, con
     auto insert_set = [&footprint_set](const int x, const int y) { footprint_set.insert(IndexToKey({x, y})); };
 
     gridmap::rasterPolygonFill(insert_set, connected_poly, min_x, max_x, min_y, max_y);
+
+    // rasterPolygonFill is not properly including all edges
+    for (const auto p : connected_poly)
+        footprint_set.insert(IndexToKey({p.x(), p.y()}));
 
     return footprint_set;
 }
@@ -144,7 +149,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                                                            boost::bind(&TopicDataSource::callback, this, _1),
                                                            ros::VoidPtr(), &data_queue_);
         ros::NodeHandle g_nh;
-        opts.transport_hints = ros::TransportHints().tcpNoDelay();
+        opts.transport_hints = ros::TransportHints().udp();
         subscriber_ = g_nh.subscribe(opts);
 
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
@@ -164,7 +169,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     virtual bool isDataOk() const override
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(last_updated_mutex_);
         const double delay = (ros::Time::now() - last_updated_).toSec();
         return delay < maximum_sensor_delay_;
     }
@@ -184,7 +189,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
     std::vector<Eigen::Vector2d> robot_footprint_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
+    mutable std::mutex last_updated_mutex_;
     ros::Time last_updated_;
+
     double maximum_sensor_delay_ = 0;
     int sub_sample_ = 0;
     int sub_sample_count_ = 0;
@@ -227,6 +234,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             }
             else
             {
+                std::lock_guard<std::mutex> l(last_updated_mutex_);
                 last_updated_ = msg->header.stamp;
             }
         }
@@ -265,6 +273,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 }
                 else if (result == ros::CallbackQueue::CallOneResult::Empty)
                 {
+                    std::lock_guard<std::mutex> l(last_updated_mutex_);
                     const double delay = (ros::Time::now() - last_updated_).toSec();
                     if (delay > maximum_sensor_delay_)
                     {

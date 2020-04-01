@@ -1,5 +1,6 @@
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
+#include <astar_planner/visualisation.h>
 #include <gridmap/map_data.h>
 #include <gtest/gtest.h>
 #include <hd_map/Map.h>
@@ -10,176 +11,64 @@
 #include <deque>
 #include <random>
 
-TEST(test_astar, test_2d_astar)
+class PlanningTest : public testing::Test
 {
-    const double resolution = 0.02;
-    const double robot_radius = 0.420;
-    const int size_x = static_cast<int>(20.0 / resolution);
-    const int size_y = static_cast<int>(20.0 / resolution);
-
-    auto costmap = std::make_shared<astar_planner::Costmap>();
-    costmap->width = size_x;
-    costmap->height = size_y;
-    costmap->resolution = resolution;
-    costmap->origin_x = -(size_x / 2) * resolution;
-    costmap->origin_y = -(size_y / 2) * resolution;
-
-    costmap->obstacle_map = cv::Mat(size_x, size_y, CV_8U, cv::Scalar(0));
-    cv::circle(costmap->obstacle_map, cv::Point(size_x / 4.0, size_y / 2), 200, cv::Scalar(255), -1, cv::LINE_8);
-    cv::circle(costmap->obstacle_map, cv::Point(3 * size_x / 4.0, size_y / 2), 80, cv::Scalar(255), -1, cv::LINE_8);
-    cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, 3 * size_y / 4.0), 6, cv::Scalar(255), -1, cv::LINE_8);
-    cv::circle(costmap->obstacle_map, cv::Point(size_x / 2.0, size_y / 5.0), 1, cv::Scalar(255), -1, cv::LINE_8);
-
-    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
-
-    auto t0 = std::chrono::steady_clock::now();
-
-    // dilate robot radius
-    cv::Mat dilated;
-    const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / resolution);
-    auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
-    cv::dilate(costmap->obstacle_map, dilated, ellipse);
-
-    // flip
-    cv::bitwise_not(dilated, dilated);
-
-    // find obstacle distances
-    cv::distanceTransform(dilated, costmap->distance_to_collision, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
-
-    std::cout
-        << "preparing costmap took: "
-        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-        << std::endl;
-
-    const astar_planner::State2D goal{size_x / 2, size_y / 2};
-
-    astar_planner::Explore2DCache explore_cache(size_x, size_y);
-
-    std::default_random_engine generator;
-    std::uniform_int_distribution<int> distribution(0, size_x - 1);
-
-    for (size_t i = 0; i < 100; ++i)
+  protected:
+    // cppcheck-suppress unusedFunction
+    virtual void SetUp()
     {
-        const astar_planner::State2D start{distribution(generator), distribution(generator)};
+        const Eigen::Vector2d origin = {-(size_x / 2.) * resolution, -(size_y / 2.) * resolution};
 
-        t0 = std::chrono::steady_clock::now();
+        const hd_map::Map hd_map;
+        const gridmap::MapDimensions dimensions(resolution, origin, {size_x, size_y});
+        map_data = std::make_shared<gridmap::MapData>(hd_map, dimensions);
 
-        const auto shortest_2d = astar_planner::shortestPath2D(start, goal, explore_cache, *costmap.get());
-
-        std::cout
-            << "path to: (" << start.x << ", " << start.y << ")"
-            << " success: " << shortest_2d.success << " in " << shortest_2d.iterations << " took: "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-            << std::endl;
-
-        /*
-        {
-            cv::Mat gray = costmap->obstacle_map.clone();
-            cv::Mat disp;
-            cv::cvtColor(gray, disp, cv::COLOR_GRAY2RGB);
-
-            for (const auto& node : explore_cache.explore_2d)
-            {
-                if (node)
-                {
-                    const double c = node->cost_so_far * 0.4;
-                    disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(c, c, 0);
-                }
-            }
-
-            auto node = explore_cache.explore_2d[costmap->to2DGridIndex(start)];
-            if (node)
-            {
-                do
-                {
-                    disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(0, 200, 0);
-                    node = node->parent;
-                } while (node);
-            }
-
-            disp.at<cv::Vec3b>(start.y, start.x) = cv::Vec3b(255, 0, 0);
-            disp.at<cv::Vec3b>(goal.y, goal.x) = cv::Vec3b(255, 0, 0);
-
-            cv::namedWindow("2d", cv::WINDOW_NORMAL);
-            cv::imshow("2d", disp);
-            cv::waitKey(50);
-        }
-        */
+        cv_im = cv::Mat(map_data->grid.dimensions().size().y(), map_data->grid.dimensions().size().x(), CV_8U,
+                        reinterpret_cast<void*>(map_data->grid.cells().data()));
     }
-}
 
-TEST(test_astar, test_hybrid_astar)
-{
     const double resolution = 0.02;
-    const double robot_radius = 0.420;
+    const double robot_radius = 0.230;
+    const double conservative_radius = 0.400;
+
     const int size_x = static_cast<int>(20.0 / resolution);
     const int size_y = static_cast<int>(20.0 / resolution);
 
-    auto costmap = std::make_shared<astar_planner::Costmap>();
-    costmap->width = size_x;
-    costmap->height = size_y;
-    costmap->resolution = resolution;
-    costmap->origin_x = -(size_x / 2.) * resolution;
-    costmap->origin_y = -(size_y / 2.) * resolution;
+    cv::Mat cv_im;
+    std::shared_ptr<gridmap::MapData> map_data;
 
-    costmap->obstacle_map = cv::Mat(size_x, size_y, CV_8U, cv::Scalar(0));
-    cv::rectangle(costmap->obstacle_map, cv::Point(0, 400), cv::Point(400, 900), cv::Scalar(255), -1, cv::LINE_8);
-    //    cv::rectangle(costmap->obstacle_map, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(255), -1,
-    //    cv::LINE_8);
-    cv::rectangle(costmap->obstacle_map, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(255), -1, cv::LINE_8);
-
-    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
-    cv::rectangle(*costmap->traversal_cost, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(10.0), -1, cv::LINE_8);
-
-    auto t0 = std::chrono::steady_clock::now();
-
-    // dilate robot radius
-    cv::Mat dilated;
-    const int cell_inflation_radius = static_cast<int>(2.0 * robot_radius / resolution);
-    auto ellipse = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
-    cv::dilate(costmap->obstacle_map, dilated, ellipse);
-
-    // flip
-    cv::bitwise_not(dilated, dilated);
-
-    // find obstacle distances
-    cv::distanceTransform(dilated, costmap->distance_to_collision, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
-
-    std::cout
-        << "preparing costmap took: "
-        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-        << std::endl;
+    const size_t max_iterations = 1e5;
+    const double linear_resolution = 0.02;
+    const double angular_resolution = 2 * M_PI / 16;
 
     const std::vector<Eigen::Vector2d> offsets = {{-0.268, 0.000},  {0.268, 0.000},   {0.265, -0.185}, {0.077, -0.185},
                                                   {-0.077, -0.185}, {-0.265, -0.185}, {0.265, 0.185},  {-0.265, 0.185},
                                                   {-0.077, 0.185},  {0.077, 0.185}};
+};
 
-    // backwards
-    const Eigen::Isometry2d start = Eigen::Translation2d(-6, -7.1) * Eigen::Rotation2Dd(0.0);
+TEST_F(PlanningTest, test_home_position)
+{
+    cv::circle(cv_im, cv::Point(250, 310), static_cast<int>(0.1 / resolution), cv::Scalar(255), -1);
+    cv::circle(cv_im, cv::Point(250, 340), static_cast<int>(0.1 / resolution), cv::Scalar(255), -1);
+    cv::circle(cv_im, cv::Point(316, 310), static_cast<int>(0.1 / resolution), cv::Scalar(255), -1);
+    cv::circle(cv_im, cv::Point(316, 340), static_cast<int>(0.1 / resolution), cv::Scalar(255), -1);
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(255), -1, cv::LINE_8);
 
-    //    const Eigen::Isometry2d start = Eigen::Translation2d(-4, 0) * Eigen::Rotation2Dd(0);
-    //    const Eigen::Isometry2d goal = Eigen::Translation2d(4, 0) * Eigen::Rotation2Dd(M_PI / 2.0);
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
 
-    // corridor
-    //    const Eigen::Isometry2d start = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(M_PI);
-    const Eigen::Isometry2d goal = Eigen::Translation2d(5.5, 0) * Eigen::Rotation2Dd(M_PI);
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
 
-    // strafe
-    //    const Eigen::Isometry2d start = Eigen::Translation2d(-6, -8) * Eigen::Rotation2Dd(-M_PI / 2);
-    //    const Eigen::Isometry2d goal = Eigen::Translation2d(-8, -8) * Eigen::Rotation2Dd(-M_PI / 2);
+    const Eigen::Isometry2d start = Eigen::Translation2d(-4.8, -2.2) * Eigen::Rotation2Dd(0);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(-4.42, -3.5) * Eigen::Rotation2Dd(M_PI);
 
-    const size_t max_iterations = 1e6;
-    const astar_planner::CollisionChecker collision_checker(costmap);
-    const double linear_resolution = 0.08;
-    const double angular_resolution = 0.1;
-    const bool allow_backwards = false;
-    const bool allow_strafe = false;
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
 
-    t0 = std::chrono::steady_clock::now();
+    const auto t0 = std::chrono::steady_clock::now();
 
     const astar_planner::PathResult astar_result =
-        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, 0.48f,
-                                   linear_resolution, angular_resolution, allow_backwards, allow_strafe);
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution);
 
     std::cout
         << "planner took: "
@@ -190,114 +79,111 @@ TEST(test_astar, test_hybrid_astar)
     std::cout << "success: " << astar_result.success << std::endl;
     std::cout << "iterations: " << astar_result.iterations << std::endl;
 
-    cv::Mat costmap_u8;
-    costmap->distance_to_collision.convertTo(costmap_u8, CV_8U, 1.0);
+    const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    cv::imwrite("test_home_position.png", disp);
+}
 
-    cv::Mat disp;
-    cv::cvtColor(costmap_u8, disp, cv::COLOR_GRAY2BGR);
+TEST_F(PlanningTest, test_out_of_lane)
+{
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 400), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(0, 0), cv::Point(140, 500), cv::Scalar(255), -1, cv::LINE_8);
 
-    cv::rectangle(disp, cv::Point(0, 400), cv::Point(400, 900), cv::Scalar(0, 255, 255), -1, cv::LINE_8);
-    cv::rectangle(disp, cv::Point(470, 50), cv::Point(800, 800), cv::Scalar(0, 50, 50), -1, cv::LINE_8);
-    cv::rectangle(disp, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(0, 255, 255), -1, cv::LINE_8);
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
 
-    const int mx = static_cast<int>(std::round((goal.translation().x() - costmap->origin_x) / costmap->resolution));
-    const int my = static_cast<int>(std::round((goal.translation().y() - costmap->origin_y) / costmap->resolution));
-    cv::circle(disp, cv::Point(mx, my), 10, cv::Scalar(0, 255, 255), 2, cv::LINE_8);
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
 
-    for (const auto& node : astar_result.explore_cache.explore_2d)
-    {
-        if (node)
-        {
-            const double c = node->cost_so_far * 0.2 * 0.5;
-            disp.at<cv::Vec3b>(node->state.y, node->state.x) += cv::Vec3b(c, c, 0);
-        }
-    }
+    const Eigen::Isometry2d start = Eigen::Translation2d(-4, -7.1) * Eigen::Rotation2Dd(M_PI);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(-4, -3.2) * Eigen::Rotation2Dd(M_PI);
 
-    for (auto node : astar_result.explore_3d)
-    {
-        if (!node.second->parent)
-            continue;
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
 
-        const int start_x =
-            static_cast<int>(std::round((node.second->state.x - costmap->origin_x) / costmap->resolution));
-        const int start_y =
-            static_cast<int>(std::round((node.second->state.y - costmap->origin_y) / costmap->resolution));
+    const auto t0 = std::chrono::steady_clock::now();
 
-        const int end_x =
-            static_cast<int>(std::round((node.second->parent->state.x - costmap->origin_x) / costmap->resolution));
-        const int end_y =
-            static_cast<int>(std::round((node.second->parent->state.y - costmap->origin_y) / costmap->resolution));
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution);
 
-        cv::line(disp, cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100, 100, 0), 1, cv::LINE_8);
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
 
-        const Eigen::Vector2d x_end =
-            Eigen::Vector2d(start_x, start_y) +
-            Eigen::Vector2d(Eigen::Rotation2Dd(node.second->state.theta) * Eigen::Vector2d(4, 0));
-        const Eigen::Vector2d y_end =
-            Eigen::Vector2d(start_x, start_y) +
-            Eigen::Vector2d(Eigen::Rotation2Dd(node.second->state.theta) * Eigen::Vector2d(0, 4));
+    std::cout << "path size: " << astar_result.path.size() << std::endl;
+    std::cout << "success: " << astar_result.success << std::endl;
+    std::cout << "iterations: " << astar_result.iterations << std::endl;
 
-        cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 100), 1);
-        cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 100, 0), 1);
-    }
+    const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    cv::imwrite("test_out_of_lane.png", disp);
+}
 
-    if (astar_result.success)
-    {
+TEST_F(PlanningTest, test_straight_line)
+{
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
 
-        for (size_t i = 0; i < astar_result.path.size(); ++i)
-        {
-            auto& node = astar_result.path[i];
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
 
-            const Eigen::Vector2d position(node->state.x, node->state.y);
-            const Eigen::Rotation2Dd rotation(node->state.theta);
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
 
-            if (i % 20 == 0 || i == astar_result.path.size() - 1)
-            {
-                for (std::size_t c = 0; c < offsets.size(); ++c)
-                {
-                    const Eigen::Vector2d cp_pose = position + rotation * offsets[c];
-                    const int cx =
-                        static_cast<int>(std::round((cp_pose.x() - costmap->origin_x) / costmap->resolution));
-                    const int cy =
-                        static_cast<int>(std::round((cp_pose.y() - costmap->origin_y) / costmap->resolution));
-                    cv::circle(disp, cv::Point(cx, cy), robot_radius / resolution, cv::Scalar(0, 255, 0), 1);
-                }
-            }
+    const Eigen::Isometry2d start = Eigen::Translation2d(0.0, -3.1) * Eigen::Rotation2Dd(M_PI);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(6.0, -3.1) * Eigen::Rotation2Dd(0);
 
-            if (!node->parent)
-                continue;
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
 
-            const int start_x = static_cast<int>(std::round((node->state.x - costmap->origin_x) / costmap->resolution));
-            const int start_y = static_cast<int>(std::round((node->state.y - costmap->origin_y) / costmap->resolution));
+    const auto t0 = std::chrono::steady_clock::now();
 
-            const int end_x =
-                static_cast<int>(std::round((node->parent->state.x - costmap->origin_x) / costmap->resolution));
-            const int end_y =
-                static_cast<int>(std::round((node->parent->state.y - costmap->origin_y) / costmap->resolution));
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution);
 
-            cv::line(disp, cv::Point(start_x, start_y), cv::Point(end_x, end_y), cv::Scalar(100, 255, 0), 1,
-                     cv::LINE_8);
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
 
-            const Eigen::Vector2d x_end =
-                Eigen::Vector2d(start_x, start_y) +
-                Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(6, 0));
-            const Eigen::Vector2d y_end =
-                Eigen::Vector2d(start_x, start_y) +
-                Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(0, 6));
+    std::cout << "path size: " << astar_result.path.size() << std::endl;
+    std::cout << "success: " << astar_result.success << std::endl;
+    std::cout << "iterations: " << astar_result.iterations << std::endl;
 
-            cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 255), 1);
-            cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 255, 0), 1);
-        }
-    }
+    const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    cv::imwrite("test_straight_line.png", disp);
+}
 
-    for (const auto& n : astar_result.path)
-    {
-        const int x = static_cast<int>(std::round((n->state.x - costmap->origin_x) / costmap->resolution));
-        const int y = static_cast<int>(std::round((n->state.y - costmap->origin_y) / costmap->resolution));
-        disp.at<cv::Vec3b>(y, x) = cv::Vec3b(255, 0, 0);
-    }
+TEST_F(PlanningTest, test_reverse)
+{
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
 
-    cv::imwrite("test.png", disp);
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
+
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+
+    const Eigen::Isometry2d start = Eigen::Translation2d(0.0, -2.8) * Eigen::Rotation2Dd(0);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(-2.0, -2.8) * Eigen::Rotation2Dd(0);
+
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
+
+    const auto t0 = std::chrono::steady_clock::now();
+
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution);
+
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
+
+    std::cout << "path size: " << astar_result.path.size() << std::endl;
+    std::cout << "success: " << astar_result.success << std::endl;
+    std::cout << "iterations: " << astar_result.iterations << std::endl;
+
+    const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    cv::imwrite("test_reverse.png", disp);
 }
 
 int main(int argc, char** argv)

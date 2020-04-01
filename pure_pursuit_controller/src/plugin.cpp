@@ -1,10 +1,10 @@
 #include <gridmap/operations/rasterize.h>
 #include <navigation_interface/params.h>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 #include <pluginlib/class_list_macros.h>
 #include <pure_pursuit_controller/plugin.h>
 #include <visualization_msgs/MarkerArray.h>
-
-#define EPS 0.001
 
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
@@ -14,10 +14,15 @@ namespace pure_pursuit_controller
 namespace
 {
 
-std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapData& map_data,
-                                                             const Eigen::Isometry2d& robot_pose,
-                                                             const std::vector<Eigen::Vector2d>& footprint,
-                                                             const float alpha)
+struct CollisionCheck
+{
+    bool in_collision;
+    double min_distance_to_collision;
+    visualization_msgs::Marker marker;
+};
+
+CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen::Isometry2d& robot_pose,
+                                const std::vector<Eigen::Vector2d>& footprint, const float alpha)
 {
     int min_x = std::numeric_limits<int>::max();
     int max_x = 0;
@@ -29,15 +34,37 @@ std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapD
     for (const Eigen::Vector2d& p : footprint)
     {
         const Eigen::Vector2d world_point = robot_pose.translation() + robot_pose.rotation() * p;
-        const auto map_point = map_data.grid.dimensions().getCellIndex(world_point);
+        const auto map_point = grid.dimensions().getCellIndex(world_point);
         map_footprint.push_back(map_point);
         min_x = std::min(map_point.x(), min_x);
         max_x = std::max(map_point.x(), max_x);
         min_y = std::min(map_point.y(), min_y);
         max_y = std::max(map_point.y(), max_y);
     }
+    map_footprint.push_back(map_footprint.front());
 
     const auto connected_poly = gridmap::connectPolygon(map_footprint);
+
+    double min_distance_to_collision = std::numeric_limits<double>::max();
+    {
+        const cv::Mat cv_im = cv::Mat(grid.dimensions().size().y(), grid.dimensions().size().x(), CV_8U,
+                                      reinterpret_cast<void*>(const_cast<uint8_t*>(grid.cells().data())));
+
+        // Invert the costmap data such that all objects are considered zeros
+        cv::Mat inv_cv_im;
+        cv::bitwise_not(cv_im, inv_cv_im);
+
+        // Calculate the distance transform to all objects (zero pixels)
+        cv::Mat dist;
+        cv::distanceTransform(inv_cv_im, dist, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
+
+        for (const auto& p : connected_poly)
+        {
+            const float f = dist.at<float>(p.y(), p.x());
+            const double d = grid.dimensions().resolution() * f;
+            min_distance_to_collision = std::min(min_distance_to_collision, d);
+        }
+    }
 
     visualization_msgs::Marker marker;
     marker.ns = "points";
@@ -53,10 +80,10 @@ std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapD
     marker.pose.orientation.w = 1.0;
 
     bool in_collision = false;
-    auto append_raster = [&map_data, &marker, &in_collision, alpha](const int x, const int y) {
+    auto append_raster = [&grid, &marker, &in_collision, alpha](const int x, const int y) {
         const Eigen::Array2i p{x, y};
 
-        const Eigen::Vector2d w = map_data.grid.dimensions().getCellCenter(p);
+        const Eigen::Vector2d w = grid.dimensions().getCellCenter(p);
         geometry_msgs::Point mp;
         mp.x = w.x();
         mp.y = w.y();
@@ -64,7 +91,7 @@ std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapD
         marker.points.push_back(mp);
         std_msgs::ColorRGBA c;
         c.a = alpha;
-        if (map_data.grid.dimensions().contains(p) && map_data.grid.occupied(p))
+        if (grid.dimensions().contains(p) && grid.occupied(p))
         {
             in_collision = true;
             c.r = 1.0;
@@ -78,7 +105,11 @@ std::pair<bool, visualization_msgs::Marker> robotInCollision(const gridmap::MapD
 
     gridmap::rasterPolygonFill(append_raster, connected_poly, min_x, max_x, min_y, max_y);
 
-    return std::make_pair(in_collision, marker);
+    // rasterPolygonFill is not properly including all edges
+    for (const auto& p : connected_poly)
+        append_raster(p.x(), p.y());
+
+    return {in_collision, min_distance_to_collision, marker};
 }
 
 visualization_msgs::Marker buildMarker(const navigation_interface::KinodynamicState& robot_state,
@@ -116,67 +147,75 @@ visualization_msgs::Marker buildMarker(const navigation_interface::KinodynamicSt
     return marker;
 }
 
-std::pair<std::size_t, double> targetState(const Eigen::Isometry2d& pose,
-                                           const navigation_interface::Trajectory& trajectory)
+std::size_t findClosest(const double look_ahead_time, const std::vector<navigation_interface::KinodynamicState>& nodes,
+                        const Eigen::Isometry2d& pose, const Eigen::Vector3d& velocity, const std::size_t path_index)
 {
+    if (nodes.size() <= 1)
+        return 0;
+
     std::vector<double> distances;
-    std::transform(trajectory.states.begin(), trajectory.states.end(), std::back_inserter(distances),
+    std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
                    [&pose](const navigation_interface::KinodynamicState& state) {
-                       return (state.pose.translation() - pose.translation()).norm();
+                       const double alpha = 0.1;
+                       const Eigen::Rotation2Dd rot(state.pose.linear().inverse() * pose.linear());
+                       return ((state.pose.translation() - pose.translation()).norm()) +
+                              alpha * std::abs(rot.smallestAngle());
                    });
-    auto it = std::min_element(distances.begin(), distances.end());
-    long dist = std::distance(distances.begin(), it);
-    {
-        if (dist < static_cast<int>(trajectory.states.size()) - 1)
-        {
-            const double fut_seg =
-                (trajectory.states[dist + 1].pose.translation() - trajectory.states[dist].pose.translation()).norm();
-            if (distances[dist + 1] < fut_seg)
-            {
-                it++;
-                dist = std::distance(distances.begin(), it);
-            }
-        }
+    auto it_pose = std::min_element(distances.begin() + static_cast<long>(path_index), distances.end());
+    const long dist_pose = std::distance(distances.begin(), it_pose);
 
-        return {dist, *it};
-    }
+    // Look at where the robot will be in the future
+    Eigen::Isometry2d future_state = pose;
+    future_state.pretranslate(look_ahead_time * Eigen::Vector2d(velocity.topRows(2)));
+    future_state.rotate(Eigen::Rotation2Dd(look_ahead_time * velocity[2]));
+
+    std::vector<double> future_distances;
+    std::transform(nodes.begin(), nodes.end(), std::back_inserter(future_distances),
+                   [&future_state](const navigation_interface::KinodynamicState& state) {
+                       const double alpha = 0.1;
+                       const Eigen::Rotation2Dd rot(state.pose.linear().inverse() * future_state.linear());
+                       return ((state.pose.translation() - future_state.translation()).norm()) +
+                              alpha * std::abs(rot.smallestAngle());
+                   });
+    auto it_fut = std::min_element(future_distances.begin() + dist_pose, future_distances.end());
+    const long dist_fut = std::distance(future_distances.begin(), it_fut);
+
+    return static_cast<std::size_t>(dist_fut);
 }
 
-navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& pose,
+navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& robot_pose,
                                                    const navigation_interface::Trajectory& trajectory,
-                                                   const double linear_lookahead, const double angular_lookahead)
+                                                   const std::size_t path_index)
 {
-    const auto target = targetState(pose, trajectory);
-
-    auto it = trajectory.states.begin() + static_cast<int>(target.first);
-    while (
-        it != trajectory.states.end() &&
-        ((it->pose.translation() - pose.translation()).norm() < linear_lookahead &&
-         std::abs(Eigen::Rotation2Dd(it->pose.linear().inverse() * pose.linear()).smallestAngle()) < angular_lookahead))
+    double linear_distance = 0;
+    double angular_distance = 0;
+    for (std::size_t i = path_index; i < trajectory.states.size(); ++i)
     {
-        ++it;
+        const Eigen::Vector2d seg_vec =
+            trajectory.states[i + 1].pose.translation() - trajectory.states[i].pose.translation();
+        const Eigen::Vector2d seg_vec_wrt_robot = trajectory.states[i].pose.linear().inverse() * seg_vec;
+        const Eigen::Vector3d seg_dist = {
+            seg_vec_wrt_robot[0], seg_vec_wrt_robot[1],
+            Eigen::Rotation2Dd(trajectory.states[i].pose.linear().inverse() * trajectory.states[i + 1].pose.linear())
+                .smallestAngle()};
+        linear_distance += seg_dist.topRows(2).norm();
+        angular_distance += std::abs(seg_dist[2]);
+
+        const double linear_d_from_robot = (robot_pose.translation() - trajectory.states[i].pose.translation()).norm();
+        const double angular_d_from_robot = std::abs(
+            Eigen::Rotation2Dd(trajectory.states[i].pose.linear().inverse() * robot_pose.linear()).smallestAngle());
+
+        // force the target state to be at least a certain distance from the robot
+        if (linear_d_from_robot < 0.04 && angular_d_from_robot < 0.2)
+            continue;
+
+        // only exit if the target state is a certain distance along the path from the closest point
+        if (linear_distance > 0.04 || angular_distance > 0.2)
+            return trajectory.states[i];
     }
-
-    if (it == trajectory.states.end())
-        it--;
-
-    const Eigen::Vector2d dir = it->pose.translation() - pose.translation();
-    const double dist = dir.norm();
-
-    const Eigen::Rotation2Dd rot(pose.linear());
-    const Eigen::Rotation2Dd future_rot(it->pose.linear());
-    const Eigen::Rotation2Dd rotation(future_rot.inverse() * rot);
-    const double angle = std::abs(rotation.smallestAngle());
-
-    const double linear_fraction = dist > 0.0 ? (linear_lookahead / dist) : 0.0;
-    const double angular_fraction = angle > 0.0 ? (angular_lookahead / angle) : 0.0;
-
-    const Eigen::Translation2d p = linear_fraction < 1
-                                       ? Eigen::Translation2d(pose.translation() + linear_fraction * dir)
-                                       : Eigen::Translation2d(it->pose.translation());
-    const Eigen::Rotation2Dd o_rot = angular_fraction < 1 ? rot.slerp(angular_fraction, future_rot) : future_rot;
-    return {p * o_rot, it->velocity};
+    return trajectory.states.back();
 }
+
 }  // namespace
 
 PurePursuitController::PurePursuitController()
@@ -193,6 +232,7 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     if (trajectory.states.empty())
         return false;
 
+    path_index_ = 1;  // first pose is under robot
     trajectory_.reset(new navigation_interface::Trajectory(trajectory));
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
@@ -205,6 +245,10 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
 void PurePursuitController::clearTrajectory()
 {
     trajectory_.reset();
+    path_index_ = 0;
+    control_integral_ = Eigen::Vector3d::Zero();
+    control_error_ = Eigen::Vector3d::Zero();
+    last_update_ = ros::SteadyTime(0);
 }
 
 // cppcheck-suppress unusedFunction
@@ -226,7 +270,7 @@ boost::optional<navigation_interface::Trajectory> PurePursuitController::traject
 
 navigation_interface::Controller::Result
     // cppcheck-suppress unusedFunction
-    PurePursuitController::control(const ros::SteadyTime& time,
+    PurePursuitController::control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
                                    const navigation_interface::KinodynamicState& robot_state,
                                    const Eigen::Isometry2d& map_to_odom)
 {
@@ -244,100 +288,10 @@ navigation_interface::Controller::Result
         dt = 0.05;
     last_update_ = time;
 
-    //
-    // Find target i (look 0.5s into the future)
-    //
-    const double linear_lookahead = std::max(0.04, robot_state.velocity.x() * 0.5);
-    const double angular_lookahead = std::max(0.04, robot_state.velocity.z() * 0.5);
-    const auto target_state = targetState(robot_state.pose, *trajectory_, linear_lookahead, angular_lookahead);
-
-    if (debug_viz_)
-        target_state_pub_.publish(buildMarker(robot_state, target_state));
-
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
     const double angle_to_goal =
         std::abs(Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * trajectory_->states.back().pose.linear())
                      .smallestAngle());
-
-    ROS_ASSERT(robot_state.pose.linear().allFinite());
-    ROS_ASSERT(robot_state.pose.translation().allFinite());
-
-    const Eigen::Vector2d target_vec = target_state.pose.translation() - robot_state.pose.translation();
-    const Eigen::Vector2d target_vec_wrt_robot = robot_state.pose.linear().inverse() * target_vec;
-
-    const auto rot_diff = robot_state.pose.linear().inverse() * target_state.pose.linear();
-
-    Eigen::Vector3d control_error;
-    control_error.topRows(2) = target_vec_wrt_robot;
-    control_error[2] = Eigen::Rotation2Dd(rot_diff).smallestAngle();
-
-    ROS_ASSERT(control_error.allFinite());
-
-    const double target_distance = target_vec.norm();
-    ROS_ASSERT_MSG(target_distance > 0, "target_distance: %f", target_distance);
-
-    const Eigen::Vector2d target_direction = target_vec / target_distance;
-    const Eigen::Vector2d target_direction_wrt_robot = robot_state.pose.linear().inverse() * target_direction;
-
-    Eigen::Vector3d target_velocity = Eigen::Vector3d::Zero();
-
-    const double target_speed = target_state.velocity.topRows(2).norm();
-    ROS_ASSERT_MSG(target_speed > 0, "target_speed: %f target_state.velocity: %f %f %f", target_speed,
-                   target_state.velocity[0], target_state.velocity[1], target_state.velocity[2]);
-
-    target_velocity.topRows(2) = (target_state.velocity.topRows(2).norm() * target_direction_wrt_robot);
-
-    const double finish_time = target_distance / target_speed;
-    ROS_ASSERT_MSG(finish_time > 0, "finish time: %f", finish_time);
-
-    target_velocity[2] = control_error[2] / finish_time;
-
-    const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
-    control_error_ = control_error;
-
-    ROS_ASSERT(control_error_.allFinite());
-
-    //
-    // Check immediate collisions
-    //
-    {
-        // TODO need a more intelligent way to lock read access without waiting for path planning
-        // auto lock = map_data_->grid.getLock();
-
-        const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
-        const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
-
-        bool in_collision;
-        visualization_msgs::Marker marker;
-
-        std::tie(in_collision, marker) = robotInCollision(*map_data_, map_robot_pose, robot_footprint_, 1.f);
-        if (debug_viz_)
-            footprint_pub_.publish(marker);
-
-        bool future_in_collision;
-        visualization_msgs::Marker future_marker;
-
-        std::tie(future_in_collision, future_marker) =
-            robotInCollision(*map_data_, map_goal_pose, robot_footprint_, 0.2f);
-        if (debug_viz_)
-            future_footprint_pub_.publish(future_marker);
-
-        if (in_collision)
-        {
-            ROS_WARN_STREAM("Current robot pose is in collision!");
-            result.outcome = navigation_interface::Controller::Outcome::FAILED;
-            last_update_ = ros::SteadyTime(0);
-            return result;
-        }
-
-        if (future_in_collision)
-        {
-            ROS_WARN_STREAM("Target robot pose is in collision!");
-            result.outcome = navigation_interface::Controller::Outcome::FAILED;
-            last_update_ = ros::SteadyTime(0);
-            return result;
-        }
-    }
 
     //
     // Goal condition
@@ -349,119 +303,141 @@ navigation_interface::Controller::Result
         return result;
     }
 
+    const bool final_pid_control = dist_to_goal < goal_radius_ && angle_to_goal < M_PI / 2;
+
     //
-    // PID
+    // Find target
     //
-    if (dist_to_goal < goal_radius_)
+    navigation_interface::KinodynamicState target_state;
+    if (final_pid_control)
+    {
+        path_index_ = trajectory_->states.size() - 1;
+        target_state = trajectory_->states.back();
+    }
+    else
+    {
+        path_index_ =
+            findClosest(look_ahead_time_, trajectory_->states, robot_state.pose, robot_state.velocity, path_index_);
+        target_state = targetState(robot_state.pose, *trajectory_, path_index_);
+    }
+
+    //
+    // Check immediate collisions
+    //
+    double min_distance_to_collision;
+    {
+        // TODO need a more intelligent way to lock read access without waiting for path planning
+        // auto lock = map_data_->grid.getLock();
+        gridmap::OccupancyGrid local_grid(map_data_->grid, local_region);
+        // lock.unlock();
+
+        const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
+        const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
+
+        const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, robot_footprint_, 1.f);
+        min_distance_to_collision = cc.min_distance_to_collision;
+        if (debug_viz_)
+            footprint_pub_.publish(cc.marker);
+
+        const CollisionCheck f_cc = robotInCollision(local_grid, map_goal_pose, robot_footprint_, 0.2f);
+        if (debug_viz_)
+            future_footprint_pub_.publish(f_cc.marker);
+
+        if (cc.in_collision)
+        {
+            ROS_WARN_STREAM("Current robot pose is in collision!");
+            result.outcome = navigation_interface::Controller::Outcome::FAILED;
+            last_update_ = ros::SteadyTime(0);
+            return result;
+        }
+
+        if (f_cc.in_collision)
+        {
+            ROS_WARN_STREAM("Target robot pose is in collision!");
+            result.outcome = navigation_interface::Controller::Outcome::FAILED;
+            last_update_ = ros::SteadyTime(0);
+            return result;
+        }
+    }
+
+    if (debug_viz_)
+        target_state_pub_.publish(buildMarker(robot_state, target_state));
+
+    ROS_ASSERT(robot_state.pose.linear().allFinite());
+    ROS_ASSERT(robot_state.pose.translation().allFinite());
+
+    const Eigen::Vector2d target_vec_wrt_robot =
+        robot_state.pose.linear().inverse() * (target_state.pose.translation() - robot_state.pose.translation());
+    const Eigen::Vector3d control_error = {
+        target_vec_wrt_robot[0], target_vec_wrt_robot[1],
+        Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * target_state.pose.linear()).smallestAngle()};
+    ROS_ASSERT(control_error.allFinite());
+
+    Eigen::Vector3d target_velocity;
+    if (final_pid_control)
     {
         control_integral_ += control_error;
+
+        const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
+        control_error_ = control_error;
+        ROS_ASSERT(control_error_.allFinite());
+
         target_velocity = goal_p_gain_.cwiseProduct(control_error) + goal_i_gain_.cwiseProduct(control_integral_) +
                           goal_d_gain_.cwiseProduct(control_dot_);
     }
     else
     {
+        const auto max_vel =
+            max_velocity_ * std::max(0.20, std::min(1.0, std::min(dist_to_goal, min_distance_to_collision)));
+        target_velocity = control_error.normalized().cwiseProduct(max_vel);
         control_integral_ = Eigen::Vector3d::Zero();
         control_error_ = Eigen::Vector3d::Zero();
     }
     ROS_ASSERT_MSG(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
 
-    double ddx = (target_velocity[0] - robot_state.velocity[0]) / dt;
-    double ddy = (target_velocity[1] - robot_state.velocity[1]) / dt;
-    double ddw = (target_velocity[2] - robot_state.velocity[2]) / dt;
+    Eigen::Vector3d accel = (target_velocity - robot_state.velocity) / dt;
 
     //
     // Max acceleration check
     //
     {
-        double acc_factor_x = 1.0;
-        if (std::abs(ddx) > max_acceleration_x_ && std::signbit(robot_state.velocity.x()) == std::signbit(ddx))
+        double acc_factor = 1.0;
+        for (long i = 0; i < 3; ++i)
         {
-            acc_factor_x = std::abs(ddx / max_acceleration_x_);
+            if (std::abs(accel[i]) > max_acceleration_[i])
+            {
+                acc_factor = std::max(acc_factor, std::abs(accel[i] / max_acceleration_[i]));
+            }
         }
 
-        double acc_factor_y = 1.0;
-        if (std::abs(ddy) > max_acceleration_y_ && std::signbit(robot_state.velocity.y()) == std::signbit(ddy))
-        {
-            acc_factor_y = std::abs(ddy / max_acceleration_y_);
-        }
-
-        double acc_factor_w = 1.0;
-        if (std::abs(ddw) > max_acceleration_w_ && std::signbit(robot_state.velocity.z()) == std::signbit(ddw))
-        {
-            acc_factor_w = std::abs(ddw / max_acceleration_w_);
-        }
-
-        const double acc_factor = std::max(acc_factor_w, std::max(acc_factor_x, acc_factor_y));
-        if (acc_factor > 0)
-        {
-            ddx /= acc_factor;
-            ddy /= acc_factor;
-            ddw /= acc_factor;
-        }
-        else
-        {
-            ddx = 0;
-            ddy = 0;
-            ddw = 0;
-        }
-
-        ROS_ASSERT(std::isfinite(ddx));
-        ROS_ASSERT(std::isfinite(ddy));
-        ROS_ASSERT(std::isfinite(ddw));
+        accel /= acc_factor;
+        ROS_ASSERT(accel.allFinite());
     }
 
     //
     // Integrate new velocity command
     //
-    Eigen::Vector3d x_dot_command;
-    x_dot_command[0] = robot_state.velocity[0] + ddx * dt;
-    x_dot_command[1] = robot_state.velocity[1] + ddy * dt;
-    x_dot_command[2] = robot_state.velocity[2] + ddw * dt;
-    ROS_ASSERT(x_dot_command.allFinite());
+    Eigen::Vector3d vel_command = robot_state.velocity + accel * dt;
+    ROS_ASSERT(vel_command.allFinite());
 
     //
     // Max velocity check
     //
     {
-        double velocity_factor_x = 1.0;
-        if (std::abs(x_dot_command.x()) > max_velocity_x_)
+        double vel_factor = 1.0;
+        for (long i = 0; i < 3; ++i)
         {
-            ROS_DEBUG_STREAM("Velocity in X exceeds limit: " << x_dot_command.x() << " > " << max_velocity_x_);
-            velocity_factor_x = std::abs(x_dot_command.x() / max_velocity_x_);
+            if (std::abs(vel_command[i]) > max_velocity_[i])
+            {
+                vel_factor = std::max(vel_factor, std::abs(vel_command[i] / max_velocity_[i]));
+            }
         }
 
-        double velocity_factor_y = 1.0;
-        if (std::abs(x_dot_command.y()) > max_velocity_y_)
-        {
-            ROS_DEBUG_STREAM("Velocity in Y exceeds limit: " << x_dot_command.y() << " > " << max_velocity_y_);
-            velocity_factor_y = std::abs(x_dot_command.y() / max_velocity_y_);
-        }
-
-        double velocity_factor_w = 1.0;
-        if (std::abs(x_dot_command.z()) > max_velocity_w_)
-        {
-            ROS_DEBUG_STREAM("Velocity in W exceeds limit: " << x_dot_command.z() << " > " << max_velocity_w_);
-            velocity_factor_w = std::abs(x_dot_command.z() / max_velocity_w_);
-        }
-
-        const double velocity_factor = std::max(velocity_factor_w, std::max(velocity_factor_x, velocity_factor_y));
-        if (velocity_factor > 0)
-        {
-            x_dot_command.x() /= velocity_factor;
-            x_dot_command.y() /= velocity_factor;
-            x_dot_command.z() /= velocity_factor;
-        }
-
-        ROS_ASSERT(x_dot_command.allFinite());
-        ROS_ASSERT_MSG(std::abs(x_dot_command.x()) <= max_velocity_x_ + EPS, "dx: %f > %f", x_dot_command.x(),
-                       max_velocity_x_);
-        ROS_ASSERT_MSG(std::abs(x_dot_command.y()) <= max_velocity_y_ + EPS, "dy: %f > %f", x_dot_command.y(),
-                       max_velocity_y_);
-        ROS_ASSERT_MSG(std::abs(x_dot_command.z()) <= max_velocity_w_ + EPS, "dw: %f > %f", x_dot_command.z(),
-                       max_velocity_w_);
+        vel_command /= vel_factor;
+        ROS_ASSERT(vel_command.allFinite());
     }
 
-    result.command = x_dot_command;
+    result.command = vel_command;
     result.outcome = navigation_interface::Controller::Outcome::SUCCESSFUL;
 
     return result;
@@ -470,20 +446,22 @@ navigation_interface::Controller::Result
 // cppcheck-suppress unusedFunction
 void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
 {
-    look_ahead_ = navigation_interface::get_config_with_default_warn<double>(parameters, "look_ahead", look_ahead_,
-                                                                             XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_x_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_velocity_x", max_velocity_x_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_y_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_velocity_y", max_velocity_y_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_w_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_velocity_w", max_velocity_w_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_x_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_acceleration_x", max_acceleration_x_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_y_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_acceleration_y", max_acceleration_y_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_w_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_acceleration_w", max_acceleration_w_, XmlRpc::XmlRpcValue::TypeDouble);
+    look_ahead_time_ = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "look_ahead_time", look_ahead_time_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_[0] = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_velocity_x", max_velocity_[0], XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_[1] = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_velocity_y", max_velocity_[1], XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_[2] = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_velocity_w", max_velocity_[2], XmlRpc::XmlRpcValue::TypeDouble);
+
+    max_acceleration_[0] = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_acceleration_x", max_acceleration_[0], XmlRpc::XmlRpcValue::TypeDouble);
+    max_acceleration_[1] = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_acceleration_y", max_acceleration_[1], XmlRpc::XmlRpcValue::TypeDouble);
+    max_acceleration_[2] = navigation_interface::get_config_with_default_warn<double>(
+        parameters, "max_acceleration_w", max_acceleration_[2], XmlRpc::XmlRpcValue::TypeDouble);
+
     goal_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_radius", goal_radius_,
                                                                               XmlRpc::XmlRpcValue::TypeDouble);
     xy_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(
@@ -518,8 +496,8 @@ void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
     }
     else
     {
-        robot_footprint_ = {{0.480, 0.000},  {0.398, -0.395}, {-0.398, -0.395},
-                            {-0.480, 0.000}, {-0.398, 0.395}, {0.398, 0.395}};
+        robot_footprint_ = {{0.480, 0.000},  {0.380, -0.395}, {-0.380, -0.395},
+                            {-0.480, 0.000}, {-0.380, 0.395}, {0.380, 0.395}};
     }
 
     debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,

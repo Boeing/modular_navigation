@@ -60,23 +60,14 @@ bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        ROS_WARN("Laser sensor is not on gridmap");
+        ROS_WARN("Sensor is not on gridmap");
         return false;
     }
 
-    geometry_msgs::TransformStamped robot_tr;
-    try
-    {
-        robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", msg->header.stamp);
-    }
-    catch (const tf2::TransformException& e)
-    {
-        ROS_ERROR_STREAM("TF lookup failed: " << e.what());
-        return false;
-    }
-
+    const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", msg->header.stamp);
     const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
-    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
+    // add a 5% buffer
+    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_, 1.05);
 
     {
         auto _lock = map_data_->getLock();
@@ -129,12 +120,6 @@ bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
             const Eigen::Array2i index = KeyToIndex(elem.first);
             if (map_data_->dimensions().contains(index))
                 map_data_->update(index, log_odds);
-        }
-        for (auto elem : footprint)
-        {
-            const Eigen::Array2i index = KeyToIndex(elem);
-            if (map_data_->dimensions().contains(index))
-                map_data_->setMinThres(index);
         }
     }
 

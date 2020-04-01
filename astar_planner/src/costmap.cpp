@@ -1,4 +1,5 @@
 #include <astar_planner/costmap.h>
+#include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
 namespace astar_planner
@@ -7,6 +8,7 @@ namespace astar_planner
 std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const double robot_radius)
 {
     auto grid = std::make_shared<Costmap>();
+    grid->inflation_radius = robot_radius;
 
     cv::Mat dilated;
     {
@@ -48,4 +50,5 @@ std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const do
 
     return grid;
 }
+
 }  // namespace astar_planner

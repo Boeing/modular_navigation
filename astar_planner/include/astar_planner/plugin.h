@@ -26,8 +26,8 @@ class AStarPlanner : public navigation_interface::PathPlanner
 
   private:
     bool debug_viz_ = false;
-    double robot_radius_ = 0.210;
-    double conservative_robot_radius_ = 0.480;
+    double robot_radius_ = 0.230;
+    double conservative_robot_radius_ = 0.416;
     double max_holonomic_distance_ = 2.0;
     double max_reverse_distance_ = 4.0;
     double avoid_zone_cost_ = 10.0;
@@ -39,7 +39,6 @@ class AStarPlanner : public navigation_interface::PathPlanner
 
     std::shared_ptr<Costmap> costmap_;
     std::shared_ptr<cv::Mat> traversal_cost_;
-    std::shared_ptr<CollisionChecker> collision_checker_;
 };
 }  // namespace astar_planner
 

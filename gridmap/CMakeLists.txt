@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
     cv_bridge
     geometry_msgs
     hd_map
+    image_geometry
     laser_geometry
     map_msgs
     message_filters
@@ -49,6 +50,7 @@ catkin_package(
         cv_bridge
         geometry_msgs
         hd_map
+        image_geometry
         laser_geometry
         map_msgs
         message_filters
@@ -72,6 +74,7 @@ add_library(${PROJECT_NAME}
     src/grids/probability_grid.cpp
     src/layered_map.cpp
     src/layers/base_map_layer.cpp
+    src/layers/obstacle_data/depth_data.cpp
     src/layers/obstacle_data/laser_data.cpp
     src/layers/obstacle_data/point_cloud_data.cpp
     src/layers/obstacle_data/range_data.cpp

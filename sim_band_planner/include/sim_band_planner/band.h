@@ -13,6 +13,35 @@
 namespace sim_band_planner
 {
 
+template <typename NodeType>
+std::size_t findClosest(const std::vector<NodeType>& nodes, const Eigen::Isometry2d& pose,
+                        const Eigen::Vector3d& velocity)
+{
+    // Calcuate "distance" between current pose and each node where distance is a weighted sum of the linear distance
+    // and the rotational difference. Alpha controls the weighting of the angular difference
+
+    if (nodes.size() <= 1)
+        return 0;
+
+    const double dt = 1.0;
+    Eigen::Isometry2d future_state = pose;
+    future_state.pretranslate(dt * Eigen::Vector2d(velocity.topRows(2)));
+    future_state.rotate(Eigen::Rotation2Dd(dt * velocity[2]));
+
+    // First state is current robot pose, so we skip that
+    std::vector<double> distances;
+    std::transform(
+        nodes.begin() + 1, nodes.end(), std::back_inserter(distances), [&future_state](const NodeType& state) {
+            const double alpha = 0.1;
+            const Eigen::Rotation2Dd rot(state.linear().inverse() * future_state.linear());
+            return ((state.translation() - future_state.translation()).norm()) + alpha * std::abs(rot.smallestAngle());
+        });
+    auto it = std::min_element(distances.begin(), distances.end());
+    const long dist = std::distance(distances.begin(), it);
+
+    return dist;
+}
+
 struct ControlPoint
 {
     explicit ControlPoint(const Eigen::Vector2d& offset) : offset(offset)
@@ -29,17 +58,31 @@ struct Node
     Node() = delete;
 
     Node(const Eigen::Isometry2d& pose, const std::vector<Eigen::Vector2d>& _radius_offsets)
-        : pose(pose), closest_point(0)
+        : nominal(pose), pose(pose), closest_point(0)
     {
         ROS_ASSERT(!_radius_offsets.empty());
         std::transform(_radius_offsets.begin(), _radius_offsets.end(), std::back_inserter(control_points),
                        [](const Eigen::Vector2d& offset) { return ControlPoint(offset); });
     }
 
+    Eigen::Isometry2d nominal;
     Eigen::Isometry2d pose;
+
     std::size_t closest_point;
+
+    // TODO should be refs
     std::vector<ControlPoint> control_points;
+
     Eigen::Vector3d velocity = Eigen::Vector3d::Zero();
+
+    Eigen::Isometry2d::ConstTranslationPart translation() const
+    {
+        return pose.translation();
+    }
+    Eigen::Isometry2d::ConstLinearPart linear() const
+    {
+        return pose.linear();
+    }
 };
 
 struct Band
@@ -69,27 +112,9 @@ struct Band
         return distance;
     }
 
-    std::pair<std::size_t, double> closestSegment(const Eigen::Isometry2d& pose) const
+    std::size_t closestSegment(const Eigen::Isometry2d& pose, const Eigen::Vector3d& velocity) const
     {
-        std::vector<double> distances;
-        std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
-                       [&pose](const Node& node) { return (node.pose.translation() - pose.translation()).norm(); });
-        const auto it = std::min_element(distances.begin(), distances.end());
-        const long dist = std::distance(distances.begin(), it);
-        if (dist > 0 && dist < static_cast<long>(nodes.size()) - 1)
-        {
-            const double prev_seg = (nodes[dist].pose.translation() - nodes[dist - 1].pose.translation()).norm();
-            if (distances[dist - 1] < prev_seg)
-            {
-                return {dist - 1, distances[dist - 1]};
-            }
-            else
-                return {dist, *it};
-        }
-        else
-        {
-            return {dist, *it};
-        }
+        return findClosest(nodes, pose, velocity);
     }
 
     Eigen::Spline<double, 3> spline() const

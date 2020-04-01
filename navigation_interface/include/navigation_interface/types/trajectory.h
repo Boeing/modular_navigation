@@ -13,6 +13,7 @@ struct KinodynamicState
 {
     Eigen::Isometry2d pose;
     Eigen::Vector3d velocity;
+    double min_distance_to_collision;
 };
 
 struct Trajectory

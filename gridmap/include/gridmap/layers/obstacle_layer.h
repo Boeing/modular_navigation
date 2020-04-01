@@ -40,21 +40,29 @@ class ObstacleLayer : public Layer
     pluginlib::ClassLoader<gridmap::DataSource> ds_loader_;
     std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> data_sources_;
 
-    bool debug_viz_ = true;
-    std::atomic<bool> debug_viz_running_;
-    double debug_viz_rate_ = 4.0;
-    std::thread debug_viz_thread_;
-    ros::Publisher debug_viz_pub_;
-    void debugVizThread(const double frequency);
-
     double clamping_thres_min_ = 0.1192;
     double clamping_thres_max_ = 0.971;
     double occ_prob_thres_ = 0.8;
 
+    ros::Publisher debug_viz_pub_;
+    ros::Publisher footprint_pub_;
+    ros::Publisher polygon_pub_;
+
+    bool debug_viz_ = true;
+    std::atomic<bool> debug_viz_running_;
+    double debug_viz_rate_ = 4.0;
+    std::thread debug_viz_thread_;
+    void debugVizThread(const double frequency);
+
+    std::atomic<bool> clear_footprint_running_;
+    double clear_footprint_frequency_ = 10.0;
+    std::thread clear_footprint_thread_;
+    void clearFootprintThread(const double frequency);
+
     bool time_decay_ = true;
     std::atomic<bool> time_decay_running_;
     double time_decay_frequency_ = 1.0 / 10.0;
-    double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 20.0);
+    double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 100.0);
     std::thread time_decay_thread_;
     void timeDecayThread(const double frequency, const double alpha_decay);
 };

@@ -49,14 +49,14 @@ class MapDimensions
 
     Eigen::Array2i getCellIndex(const Eigen::Vector2d& point) const
     {
-        return Eigen::Array2i(std::lround((point.x() - origin_.x()) / resolution_),
-                              std::lround((point.y() - origin_.y()) / resolution_));
+        return Eigen::Array2i(std::round((point.x() - origin_.x()) / resolution_),
+                              std::round((point.y() - origin_.y()) / resolution_));
     }
 
     Eigen::Vector2d getCellCenter(const Eigen::Array2i cell_index) const
     {
-        return {origin_.x() + resolution() * (cell_index.x() + 0.5),
-                origin_.y() + resolution() * (cell_index.y() + 0.5)};
+        return {origin_.x() + resolution() * static_cast<double>(cell_index.x()),
+                origin_.y() + resolution() * static_cast<double>(cell_index.y())};
     }
 
     bool contains(const Eigen::Array2i& cell_index) const

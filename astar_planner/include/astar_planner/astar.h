@@ -46,12 +46,13 @@ struct Explore2DCache
 };
 
 ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore2DCache& explore_cache,
-                              const Costmap& costmap, const float closest_distance = 0);
+                              const Costmap& costmap, const float closest_distance_px = 0);
 
 struct PathResult
 {
     PathResult(const std::size_t size_x, const std::size_t size_y)
-        : success(false), iterations(0), explore_cache(size_x, size_y)
+        : success(false), iterations(0), start_in_collision(false), goal_in_collision(false),
+          explore_cache(size_x, size_y)
     {
     }
 
@@ -66,6 +67,9 @@ struct PathResult
     bool success;
     size_t iterations;
 
+    bool start_in_collision;
+    bool goal_in_collision;
+
     std::vector<Node3D*> path;
 
     Explore2DCache explore_cache;
@@ -74,12 +78,12 @@ struct PathResult
 };
 
 double updateH(const State3D& state, const State3D& goal, Explore2DCache& explore_cache, const Costmap& costmap,
-               const float conservative_radius);
+               const double conservative_radius);
 
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
                        const Costmap& costmap, const CollisionChecker& collision_checker,
-                       const float conservative_radius, const double linear_resolution = 0.1,
-                       const double angular_resolution = 0.2, const bool backwards = false, const bool strafe = false);
+                       const double conservative_radius, const double linear_resolution,
+                       const double angular_resolution);
 }  // namespace astar_planner
 
 #endif
