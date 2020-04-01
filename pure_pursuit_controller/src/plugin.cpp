@@ -1,3 +1,6 @@
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+#include <boost/geometry/geometries/polygon.hpp>
 #include <gridmap/operations/rasterize.h>
 #include <navigation_interface/params.h>
 #include <opencv2/highgui.hpp>
@@ -14,6 +17,18 @@ namespace pure_pursuit_controller
 namespace
 {
 
+typedef boost::geometry::model::d2::point_xy<double> Point;  // Point type for boost polygon library
+
+typedef boost::geometry::model::polygon<Point,           // Point type
+                                        true,            // Orientation is clockwise
+                                        false,           // Closure is implied (last point != first point)
+                                        std::vector,     // Store for points (efficient if all points known in advance)
+                                        std::vector,     // Store for rings (efficient if all holes known in advance)
+                                        std::allocator,  // Point allocator
+                                        std::allocator   // Ring allocator
+                                        >
+    Polygon;
+
 struct CollisionCheck
 {
     bool in_collision;
@@ -22,8 +37,62 @@ struct CollisionCheck
 };
 
 CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen::Isometry2d& robot_pose,
-                                const std::vector<Eigen::Vector2d>& footprint, const float alpha)
+                                const Eigen::Isometry2d& future_pose, const std::vector<Eigen::Vector2d>& footprint,
+                                const float alpha)
 {
+    // Want to interpolate footprint between current robot pose and future robot pose
+    const double linear_step = 0.01;
+    const double angular_step = 0.04;
+    const size_t max_steps = 20;
+    const size_t min_steps = 2;
+
+    // First create interpolated poses
+    std::vector<Eigen::Isometry2d> interpolated;
+    interpolated.push_back(robot_pose);
+
+    const Eigen::Vector2d linear_dir = future_pose.translation() - robot_pose.translation();
+    const double linear_dist = linear_dir.norm();
+    const Eigen::Rotation2Dd rot(robot_pose.linear());
+    const Eigen::Rotation2Dd future_rot(future_pose.linear());
+    const Eigen::Rotation2Dd rot_dir(future_rot.inverse() * rot);
+    const double rot_dist = std::abs(rot_dir.smallestAngle());
+
+    const std::size_t steps =
+        std::min(max_steps, std::max(min_steps, static_cast<std::size_t>(
+                                                    std::max((linear_dist / linear_step), (rot_dist / angular_step)))));
+
+    for (std::size_t j = 1; j < steps; j++)
+    {
+        const double fraction = static_cast<double>(j + 1) / static_cast<double>(steps);
+        const Eigen::Isometry2d pose =
+            Eigen::Translation2d(robot_pose.translation() + fraction * linear_dir) * rot.slerp(fraction, future_rot);
+        interpolated.push_back(pose);
+    }
+
+    // Create vector of polygons. Polygon at each pose starting from robot pose
+    std::vector<Polygon> polygons;
+    for (const Eigen::Isometry2d& pose : interpolated)
+    {
+        Polygon polygon;
+        for (const Eigen::Vector2d& p : footprint)
+        {
+            const Eigen::Vector2d world_point = pose.translation() + pose.rotation() * p;
+            Point point(world_point[0], world_point[1]);
+            boost::geometry::append(polygon.outer(), point);
+        }
+        polygons.push_back(polygon);
+    }
+
+    // Union the footprints
+    Polygon union_output = polygons.front();
+    for (std::size_t i = 1; i < polygons.size(); i++)
+    {
+        std::vector<Polygon> temp;
+        boost::geometry::union_(union_output, polygons[i], temp);
+        ROS_ASSERT_MSG(temp.size() == 1, "Footprint union failed. More than 1 resulting polygons");
+        union_output = temp[0];
+    }
+
     int min_x = std::numeric_limits<int>::max();
     int max_x = 0;
 
@@ -31,10 +100,9 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     int max_y = 0;
 
     std::vector<Eigen::Array2i> map_footprint;
-    for (const Eigen::Vector2d& p : footprint)
+    for (const Point& p : union_output.outer())
     {
-        const Eigen::Vector2d world_point = robot_pose.translation() + robot_pose.rotation() * p;
-        const auto map_point = grid.dimensions().getCellIndex(world_point);
+        const auto map_point = grid.dimensions().getCellIndex(Eigen::Vector2d(p.x(), p.y()));
         map_footprint.push_back(map_point);
         min_x = std::min(map_point.x(), min_x);
         max_x = std::max(map_point.x(), max_x);
@@ -334,26 +402,14 @@ navigation_interface::Controller::Result
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
         const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
 
-        const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, robot_footprint_, 1.f);
+        const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, map_goal_pose, robot_footprint_, 1.f);
         min_distance_to_collision = cc.min_distance_to_collision;
         if (debug_viz_)
             footprint_pub_.publish(cc.marker);
 
-        const CollisionCheck f_cc = robotInCollision(local_grid, map_goal_pose, robot_footprint_, 0.2f);
-        if (debug_viz_)
-            future_footprint_pub_.publish(f_cc.marker);
-
         if (cc.in_collision)
         {
-            ROS_WARN_STREAM("Current robot pose is in collision!");
-            result.outcome = navigation_interface::Controller::Outcome::FAILED;
-            last_update_ = ros::SteadyTime(0);
-            return result;
-        }
-
-        if (f_cc.in_collision)
-        {
-            ROS_WARN_STREAM("Target robot pose is in collision!");
+            ROS_WARN_STREAM("Robot is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
             last_update_ = ros::SteadyTime(0);
             return result;
@@ -507,7 +563,6 @@ void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
         ros::NodeHandle nh("~");
         target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
         footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
-        future_footprint_pub_ = nh.advertise<visualization_msgs::Marker>("future_footprint", 100);
     }
 }
 

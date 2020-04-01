@@ -153,7 +153,6 @@ Autonomy::Autonomy()
     ROS_INFO("Starting");
 
     XmlRpc::XmlRpcValue costmap_params;
-
     nh_.getParam("costmap", costmap_params);
 
     std::vector<Eigen::Vector2d> robot_footprint;

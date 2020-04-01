@@ -33,5 +33,5 @@ if __name__ == '__main__':
     rospy.init_node('client')
 
     while not rospy.is_shutdown():
-        _ = run(8, 14.0, 1.5)
-        _ = run(7.5, 16.6, 1.5)
+        run(8, 14.0, 1.5)
+        run(7.5, 16.6, 1.5)
