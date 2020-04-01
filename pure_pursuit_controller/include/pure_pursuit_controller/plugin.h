@@ -57,7 +57,6 @@ class PurePursuitController : public navigation_interface::Controller
     bool debug_viz_ = true;
     ros::Publisher target_state_pub_;
     ros::Publisher footprint_pub_;
-    ros::Publisher future_footprint_pub_;
 
     std::vector<Eigen::Vector2d> robot_footprint_;
 };
