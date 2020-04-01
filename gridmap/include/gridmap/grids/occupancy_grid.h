@@ -24,6 +24,8 @@ class OccupancyGrid : public Grid2D<uint8_t>
     {
     }
 
+    OccupancyGrid(const OccupancyGrid& grid, const AABB& bb);
+
     virtual ~OccupancyGrid() = default;
 
     inline bool occupied(const std::size_t& cell_index) const

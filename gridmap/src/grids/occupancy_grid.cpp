@@ -8,6 +8,10 @@ const uint8_t OccupancyGrid::UNKNOWN = 1;
 const uint8_t OccupancyGrid::CONFLICT = 2;
 const uint8_t OccupancyGrid::OCCUPIED = 255;
 
+OccupancyGrid::OccupancyGrid(const OccupancyGrid& grid, const AABB& bb) : Grid2D<uint8_t>(grid, bb)
+{
+}
+
 void OccupancyGrid::merge(const OccupancyGrid& map)
 {
     const int size = dimensions().cells();

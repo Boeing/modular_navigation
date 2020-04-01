@@ -63,7 +63,7 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
 
     const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", msg->header.stamp);
     const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
-    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_);
+    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_, 1.00);
 
     const unsigned int cell_raytrace_range =
         static_cast<unsigned int>(raytrace_range_ / map_data_->dimensions().resolution());

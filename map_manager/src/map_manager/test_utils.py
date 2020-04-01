@@ -5,12 +5,17 @@ import tempfile
 from lxml import etree
 
 import rospy
-from geometry_msgs.msg import Point, Point32, Polygon, Pose
+from geometry_msgs.msg import Point as PointMsg
+from geometry_msgs.msg import Point32 as Point32Msg
+from geometry_msgs.msg import Polygon as PolygonMsg
+from geometry_msgs.msg import Pose as PoseMsg
+from geometry_msgs.msg import Quaternion as QuaternionMsg
 from nav_msgs.msg import MapMetaData
 from sensor_msgs.msg import CompressedImage
 
-from hd_map.msg import Map, MapInfo, Node, Path, Zone
+from hd_map.msg import Map, MapInfo, Marker, Node, Path, Zone
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
+from math6d.geometry.quaternion import Quaternion
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +100,9 @@ def generate_cartographer_map(
                     Zone(
                         name=link.attrib['name'] if 'name' in link.attrib else layer,
                         zone_type=zone_type,
-                        polygon=Polygon(
+                        polygon=PolygonMsg(
                             points=[
-                                Point32(point[0], point[1], 0)
+                                Point32Msg(point[0], point[1], 0)
                                 for point in points
                             ]
                         )
@@ -136,6 +141,31 @@ def generate_cartographer_map(
             )
 
     #
+    # Extract the markers
+    #
+    markers = []
+    for model in world.findall('model'):
+        links = model.findall('link')
+        for link in links:
+            layer = (link.attrib['layer'] if 'layer' in link.attrib else '').lower()
+            if layer == 'marker':
+                pose = link.find('pose')
+                values = [float(f) for f in pose.text.split(' ')]
+                if len(values) != 6:
+                    raise Exception('Invalid Pose: {}'.format(values))
+                qt = Quaternion.from_euler_extrinsic(*values[3:])
+                markers.append(
+                    Marker(
+                        name=link.attrib['name'] if 'name' in link.attrib else layer,
+                        marker_type=0,
+                        pose=PoseMsg(
+                            position=PointMsg(values[0], values[1], values[2]),
+                            orientation=QuaternionMsg(x=qt.x, y=qt.y, z=qt.z, w=qt.w)
+                        )
+                    )
+                )
+
+    #
     # Save the map
     #
     add_map_srv = rospy.ServiceProxy(
@@ -153,9 +183,10 @@ def generate_cartographer_map(
                         resolution=resolution,
                         width=map_size[0] / resolution,
                         height=map_size[1] / resolution,
-                        origin=Pose(position=Point(x=map_origin[0], y=map_origin[1]))
+                        origin=PoseMsg(position=PointMsg(x=map_origin[0], y=map_origin[1]))
                     )
                 ),
+                markers=markers,
                 zones=zones,
                 paths=paths,
                 nodes=nodes,

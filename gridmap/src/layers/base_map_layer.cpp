@@ -111,13 +111,23 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
         {
             if (map_->dimensions().contains(p))
             {
-                if (zone.zone_type == hd_map::Zone::EXCLUSION_ZONE)
-                    map_->setOccupied(p);
-                else if (zone.zone_type == hd_map::Zone::DRIVABLE_ZONE)
-                    map_->setFree(p);
-                else
+                const int index = map_->index(p);
+                const bool wall = ((int)new_map.data[index]) >= ((int)lethal_threshold_);
+
+                if (!wall)
                 {
-                    // do nothing...
+                    if (zone.zone_type == hd_map::Zone::EXCLUSION_ZONE)
+                    {
+                        map_->setOccupied(p);
+                    }
+                    else if (zone.zone_type == hd_map::Zone::DRIVABLE_ZONE)
+                    {
+                        map_->setFree(p);
+                    }
+                    else
+                    {
+                        // do nothing...
+                    }
                 }
             }
         }

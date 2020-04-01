@@ -164,8 +164,8 @@ Autonomy::Autonomy()
     else
     {
         ROS_WARN("Loading default robot footprint for Ridgeback");
-        robot_footprint = {{0.500, 0.000},  {0.420, -0.420}, {-0.420, -0.420},
-                           {-0.500, 0.000}, {-0.420, 0.420}, {0.420, 0.420}};
+        robot_footprint = {{+0.490, +0.000}, {+0.408, -0.408}, {-0.408, -0.408},
+                           {-0.490, +0.000}, {-0.408, +0.408}, {+0.408, +0.408}};
     }
 
     auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, robot_footprint, tf_buffer_);
@@ -179,7 +179,7 @@ Autonomy::Autonomy()
 
     odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &Autonomy::odomCallback, this,
                                                   ros::TransportHints().tcpNoDelay());
-    vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/cmd_vel", 1);
+    vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 1, true);
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
@@ -488,7 +488,6 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
 
         {
             const auto t0 = std::chrono::steady_clock::now();
-            layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             const bool success = layered_map_->update();
 
             const double map_update_duration =
@@ -512,6 +511,13 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
                 rate.sleep();
 
                 continue;
+            }
+
+            {
+                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                grid.header.frame_id = "map";
+                grid.header.stamp = ros::Time::now();
+                costmap_publisher_.publish(grid);
             }
         }
 
@@ -550,6 +556,8 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
             bool update = false;
+            ROS_INFO_STREAM("Found a path of length: " << result.path.nodes.size());
+            ROS_ASSERT(!result.path.nodes.empty());
 
             std::lock_guard<std::mutex> lock(path_mutex_);
             if (current_path_)
@@ -584,20 +592,25 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
                                  .smallestAngle());
                 const bool goal_moved = goal_translation > allowed_translation || goal_rotation > allowed_rotation;
 
+                const bool persistence = time_since_successful_recalc > path_persistence_time_;
+
+                // TODO detect localisation jump!
+
                 if (goal_moved)
                 {
                     ROS_INFO_STREAM("GOAL MOVED: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
                 }
-                else if (time_since_successful_recalc > path_persistence_time_ && result.path.length() > 1.0 &&
-                         result.cost < path_swap_fraction_ * cost)
+                else if (persistence && result.cost < path_swap_fraction_ * cost)
                 {
                     ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
                 }
                 else
                 {
-                    ROS_INFO_STREAM("EXISTING PATH: new path cost: " << result.cost << " old path cost: " << cost);
+                    ROS_INFO_STREAM("EXISTING PATH: new path cost: " << result.cost << " old path cost: " << cost
+                                                                     << " persistence: " << time_since_successful_recalc
+                                                                     << " < " << path_persistence_time_);
                 }
 
                 // TODO also swap if tracking error is too high or control has failed
@@ -639,6 +652,16 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
         else
         {
             ROS_WARN("Failed to find a path");
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            const double time_since_successful_recalc = current_path_
+                                                            ? (now - current_path_->last_successful_time).toSec()
+                                                            : std::numeric_limits<double>::max();
+            if (time_since_successful_recalc > 4.0)
+            {
+                ROS_INFO_STREAM("Clearing radius of " << clear_radius_ << "m around robot");
+                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+                // TODO need to update sensors at least once before planning or else we plan through things...
+            }
         }
 
         rate.sleep();
@@ -730,7 +753,6 @@ void Autonomy::trajectoryPlannerThread()
 
         {
             const auto t0 = std::chrono::steady_clock::now();
-            layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
             const bool success = layered_map_->update(roi);
 
             const double map_update_duration =
@@ -755,13 +777,13 @@ void Autonomy::trajectoryPlannerThread()
 
                 continue;
             }
-        }
 
-        {
-            nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg(roi);
-            grid.header.frame_id = "map";
-            grid.header.stamp = ros::Time::now();
-            costmap_publisher_.publish(grid);
+            {
+                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg(roi);
+                grid.header.frame_id = "map";
+                grid.header.stamp = ros::Time::now();
+                costmap_publisher_.publish(grid);
+            }
         }
 
         navigation_interface::TrajectoryPlanner::Result result;
@@ -850,7 +872,7 @@ void Autonomy::controllerThread()
             if (robot_state_.time == last_odom_time)
             {
                 const auto t0 = std::chrono::steady_clock::now();
-                if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(period_ms)) ==
+                if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(2 * period_ms)) ==
                     std::cv_status::timeout)
                 {
                     const double wait_time =
@@ -942,7 +964,7 @@ void Autonomy::controllerThread()
             const auto t0 = std::chrono::steady_clock::now();
 
             // control
-            result = controller_->control(rs.time, rs.robot_state, rs.map_to_odom);
+            result = controller_->control(rs.time, roi, rs.robot_state, rs.map_to_odom);
 
             const double control_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
@@ -967,11 +989,15 @@ void Autonomy::controllerThread()
         vel_pub_.publish(cmd_vel);
 
         // finish if end of path
-        if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE &&
-            current_trajectory_->goal_trajectory)
+        if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE)
         {
-            ROS_INFO("Final trajectory complete");
-            break;
+            if (current_trajectory_->goal_trajectory)
+            {
+                ROS_INFO("Final trajectory complete");
+                break;
+            }
+            else
+                ROS_INFO("Trajectory complete");
         }
     }
 
