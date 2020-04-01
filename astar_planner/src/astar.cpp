@@ -8,6 +8,7 @@
 #include <cinttypes>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <sstream>
 
 namespace astar_planner
@@ -393,7 +394,7 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
                        const Costmap& costmap, const CollisionChecker& collision_checker,
                        const double conservative_radius, const double linear_resolution,
-                       const double angular_resolution)
+                       const double angular_resolution, const GoalSampleSettings& goal_sample_settings)
 {
     PathResult result(static_cast<std::size_t>(costmap.width), static_cast<std::size_t>(costmap.height));
     result.success = false;
@@ -404,18 +405,32 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 
     const State3D start_state{start.translation().x(), start.translation().y(),
                               Eigen::Rotation2Dd(start.linear()).smallestAngle()};
-    const State3D goal_state{goal.translation().x(), goal.translation().y(),
-                             Eigen::Rotation2Dd(goal.linear()).smallestAngle()};
+    const State3D nominal_goal_state{goal.translation().x(), goal.translation().y(),
+                                     Eigen::Rotation2Dd(goal.linear()).smallestAngle()};
 
     if (!collision_checker.isValid(start_state))
     {
         result.start_in_collision = true;
         return result;
     }
-    if (!collision_checker.isValid(goal_state))
+
+    // sample to find valid goal
+    State3D goal_state = nominal_goal_state;
+    std::random_device rd{};
+    std::mt19937 gen{rd()};
+    std::normal_distribution<double> linear_dist{0, goal_sample_settings.linear_std};
+    std::normal_distribution<double> angular_dist{0, goal_sample_settings.angular_std};
+    std::size_t samples = 0;
+    result.goal_in_collision = !collision_checker.isValid(goal_state);
+    while (result.goal_in_collision)
     {
-        result.goal_in_collision = true;
-        return result;
+        if (++samples > goal_sample_settings.max_samples)
+            return result;
+
+        goal_state.x = nominal_goal_state.x + linear_dist(gen);
+        goal_state.y = nominal_goal_state.y + linear_dist(gen);
+        goal_state.theta = wrapAngle(nominal_goal_state.theta + angular_dist(gen));
+        result.goal_in_collision = !collision_checker.isValid(goal_state);
     }
 
     PriorityQueue3D open_set;

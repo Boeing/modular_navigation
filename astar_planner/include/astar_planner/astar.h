@@ -80,10 +80,18 @@ struct PathResult
 double updateH(const State3D& state, const State3D& goal, Explore2DCache& explore_cache, const Costmap& costmap,
                const double conservative_radius);
 
+struct GoalSampleSettings
+{
+    const std::size_t max_samples;
+    const double linear_std;
+    const double angular_std;
+};
+
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
                        const Costmap& costmap, const CollisionChecker& collision_checker,
                        const double conservative_radius, const double linear_resolution,
-                       const double angular_resolution);
+                       const double angular_resolution,
+                       const GoalSampleSettings& goal_sample_settings = {100, 0.1, M_PI / 4.0});
 }  // namespace astar_planner
 
 #endif
