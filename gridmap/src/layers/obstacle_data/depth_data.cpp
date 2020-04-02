@@ -14,8 +14,8 @@ namespace gridmap
 {
 
 DepthData::DepthData()
-    : TopicDataSource<sensor_msgs::Image>("depth"), hit_probability_log_(0), miss_probability_log_(0),
-      obstacle_height_(0), max_range_(0)
+    : TopicDataSource<sensor_msgs::Image>("depth"), got_camera_info_(false), hit_probability_log_(0),
+      miss_probability_log_(0), obstacle_height_(0), max_range_(0)
 {
 }
 
@@ -32,15 +32,9 @@ void DepthData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
         parameters, "camera_info_topic", std::string(name_ + "/camera_info"), XmlRpc::XmlRpcValue::TypeString);
 
     ROS_INFO_STREAM("camera_info_topic: " << camera_info_topic_);
-
-    const auto camera_info =
-        ros::topic::waitForMessage<sensor_msgs::CameraInfo>(camera_info_topic_, ros::Duration(10.0));
-    if (!camera_info)
-    {
-        ROS_ERROR("NO CAM INFO");
-        throw std::runtime_error("No camera info for '" + name_ + "' on topic '" + camera_info_topic_ + "'");
-    }
-    camera_model_.fromCameraInfo(*camera_info);
+    ros::NodeHandle g_nh;
+    camera_info_sub_ =
+        g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000, &DepthData::cameraInfoCallback, this);
 }
 
 void DepthData::onMapDataChanged()
@@ -51,6 +45,22 @@ DepthData::~DepthData()
 {
 }
 
+bool DepthData::isDataOk() const
+{
+    if (!got_camera_info_)
+        return false;
+    std::lock_guard<std::mutex> lock(last_updated_mutex_);
+    const double delay = (ros::Time::now() - last_updated_).toSec();
+    return delay < maximum_sensor_delay_;
+}
+
+void DepthData::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
+{
+    std::lock_guard<std::mutex> lock(camera_info_mutex_);
+    got_camera_info_ = true;
+    camera_model_.fromCameraInfo(*msg);
+}
+
 bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
@@ -59,11 +69,17 @@ bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen
     const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
     const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
 
+    if (!got_camera_info_)
+    {
+        ROS_ERROR_STREAM("No camera info for: " << name());
+        return false;
+    }
+
     // Check sensor is on map
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        ROS_WARN("Sensor is not on gridmap");
+        ROS_WARN_STREAM("Sensor is not on gridmap for: " << name());
         return false;
     }
 
@@ -101,6 +117,8 @@ template <typename T>
 void DepthData::process(std::unordered_map<uint64_t, float>& height_voxels, const Eigen::Isometry3f& sensor_transform,
                         const std::set<uint64_t>& footprint, const sensor_msgs::Image::ConstPtr& msg)
 {
+    std::lock_guard<std::mutex> lock(camera_info_mutex_);
+
     // Use correct principal point from calibration
     const float center_x = camera_model_.cx();
     const float center_y = camera_model_.cy();
