@@ -14,7 +14,7 @@ namespace gridmap
 {
 
 DepthData::DepthData()
-    : TopicDataSource<sensor_msgs::Image>("depth/image_rect_raw"), hit_probability_log_(0), miss_probability_log_(0),
+    : TopicDataSource<sensor_msgs::Image>("depth"), hit_probability_log_(0), miss_probability_log_(0),
       obstacle_height_(0), max_range_(0)
 {
 }
@@ -29,7 +29,7 @@ void DepthData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
         get_config_with_default_warn<double>(parameters, "max_range", 1.5, XmlRpc::XmlRpcValue::TypeDouble));
 
     camera_info_topic_ = get_config_with_default_warn<std::string>(
-        parameters, "camera_info_topic", std::string(name_ + "/depth/camera_info"), XmlRpc::XmlRpcValue::TypeString);
+        parameters, "camera_info_topic", std::string(name_ + "/camera_info"), XmlRpc::XmlRpcValue::TypeString);
 
     ROS_INFO_STREAM("camera_info_topic: " << camera_info_topic_);
 
