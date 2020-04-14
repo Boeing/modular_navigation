@@ -32,6 +32,7 @@ find_package(OpenCV 3 REQUIRED)
 find_package(Eigen3 REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
+find_package(yaml-cpp REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread)
 
 include_directories(SYSTEM
@@ -42,6 +43,7 @@ include_directories(SYSTEM
 
 include_directories(
     include
+    ${YAML_CPP_INCLUDE_DIR}
 )
 
 catkin_package(
@@ -96,16 +98,17 @@ target_link_libraries(${PROJECT_NAME}
     ${Boost_LIBRARIES}
     ${catkin_LIBRARIES}
     ${OpenCV_LIBRARIES}
+    ${YAML_CPP_LIBRARIES}
 )
 
 if(CATKIN_ENABLE_TESTING)
     find_package(rosunit REQUIRED)
 
     catkin_add_gtest(unit_test test/unit_test.cpp)
-    target_link_libraries(unit_test ${PROJECT_NAME} ${OpenCV_LIBRARIES})
+    target_link_libraries(unit_test ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
 
     catkin_add_gtest(test_raytrace test/test_raytrace.cpp)
-    target_link_libraries(test_raytrace ${PROJECT_NAME} ${OpenCV_LIBRARIES})
+    target_link_libraries(test_raytrace ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
 endif()
 
 install(TARGETS
