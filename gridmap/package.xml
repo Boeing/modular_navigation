@@ -30,6 +30,7 @@
     <depend>visualization_msgs</depend>
     <depend>urdf</depend>
     <depend>compressed_depth_image_transport</depend>
+    <depend>yaml-cpp</depend>
 
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>rosconsole</exec_depend>
