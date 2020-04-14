@@ -30,7 +30,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     virtual bool valid(const navigation_interface::Trajectory& trajectory) const override;
     virtual double cost(const navigation_interface::Trajectory& trajectory) const override;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
 
     boost::optional<Band> band() const
@@ -60,10 +60,6 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     double max_window_length_ = 4.0;
     double velocity_decay_ = 0.6;
     double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 100.0);
-
-    double desired_x_speed_ = 0.20;
-    double desired_y_speed_ = 0.10;
-    double desired_w_speed_ = 0.20;
 
     Eigen::Vector3d max_acc_ = {0.1, 0.1, 0.2};
 

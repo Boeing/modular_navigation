@@ -2,6 +2,7 @@
 #define NAVIGATION_INTERFACE_PARAMS
 
 #include <ros/ros.h>
+#include <yaml-cpp/yaml.h>
 
 #include <Eigen/Geometry>
 #include <string>
@@ -96,31 +97,38 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
     }
 }
 
-inline std::vector<Eigen::Vector2d> get_point_list(XmlRpc::XmlRpcValue parameters, const std::string& param_name)
+inline std::vector<Eigen::Vector2d> get_point_list(const YAML::Node& parameters, const std::string& param_name,
+                                                   const std::vector<Eigen::Vector2d>& default_value)
 {
     std::vector<Eigen::Vector2d> result;
-    if (parameters.hasMember(param_name))
+    if (parameters[param_name])
     {
-        XmlRpc::XmlRpcValue& value = parameters[param_name];
-        if (value.getType() != XmlRpc::XmlRpcValue::TypeArray)
+        const YAML::Node& value = parameters[param_name];
+        if (value.Type() != YAML::NodeType::Sequence)
         {
-            throw std::runtime_error("parameters have incorrect type, expects a TypeArray");
+            throw std::runtime_error(param_name + " has incorrect type, expects a Sequence");
         }
-        for (int32_t i = 0; i < value.size(); ++i)
+        for (YAML::const_iterator it = value.begin(); it != value.end(); ++it)
         {
-            if (value[i].getType() != XmlRpc::XmlRpcValue::TypeArray)
+            ROS_ASSERT(it->IsSequence());
+            if (it->Type() != YAML::NodeType::Sequence)
             {
-                throw std::runtime_error("element have incorrect type, expects a TypeArray");
+                throw std::runtime_error(param_name + " element has incorrect type, expects a Sequence");
             }
-            else if (value[i].size() == 2)
+            else if (it->size() == 2)
             {
-                throw std::runtime_error("element has incorrect size, expects a TypeArray");
+                throw std::runtime_error(param_name + " element has incorrect size, expects a TypeArray");
             }
             else
             {
-                result.push_back({static_cast<double>(value[i][0]), static_cast<double>(value[i][1])});
+                result.push_back(
+                    {static_cast<double>((*it)[0].as<double>()), static_cast<double>((*it)[1].as<double>())});
             }
         }
+    }
+    else
+    {
+        return default_value;
     }
     return result;
 }

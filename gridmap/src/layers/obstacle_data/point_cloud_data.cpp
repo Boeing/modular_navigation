@@ -1,5 +1,4 @@
 #include <gridmap/layers/obstacle_data/point_cloud_data.h>
-#include <gridmap/params.h>
 #include <pluginlib/class_list_macros.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 
@@ -18,14 +17,11 @@ PointCloudData::PointCloudData()
 {
 }
 
-void PointCloudData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
+void PointCloudData::onInitialize(const YAML::Node& parameters)
 {
-    miss_probability_log_ = logodds(
-        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
-    obstacle_height_ =
-        get_config_with_default_warn<double>(parameters, "max_obstacle_height", 0.03, XmlRpc::XmlRpcValue::TypeDouble);
-    max_range_ = static_cast<float>(
-        get_config_with_default_warn<double>(parameters, "max_range", 2.0, XmlRpc::XmlRpcValue::TypeDouble));
+    miss_probability_log_ = logodds(parameters["miss_probability_log"].as<double>(0.4));
+    obstacle_height_ = parameters["obstacle_height"].as<double>(0.03);
+    max_range_ = parameters["max_range"].as<float>(2.0);
 }
 
 void PointCloudData::onMapDataChanged()
@@ -47,7 +43,7 @@ PointCloudData::~PointCloudData()
 {
 }
 
-bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
+bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                                  const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
@@ -64,10 +60,8 @@ bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
         return false;
     }
 
-    const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", msg->header.stamp);
-    const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
     // add a 5% buffer
-    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_, 1.05);
+    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.05);
 
     {
         auto _lock = map_data_->getLock();

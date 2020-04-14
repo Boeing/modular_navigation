@@ -15,9 +15,9 @@ class PointCloudData : public TopicDataSource<sensor_msgs::PointCloud2>
     PointCloudData();
     virtual ~PointCloudData() override;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::PointCloud2::ConstPtr& msg,
+    virtual bool processData(const sensor_msgs::PointCloud2::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

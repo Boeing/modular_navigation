@@ -11,6 +11,7 @@
 
     <build_depend>cmake_modules</build_depend>
 
+    <depend>cartographer_ros_msgs</depend>
     <depend>cv_bridge</depend>
     <depend>geometry_msgs</depend>
     <depend>hd_map</depend>
@@ -27,6 +28,8 @@
     <depend>tf2_ros</depend>
     <depend>tf2_sensor_msgs</depend>
     <depend>visualization_msgs</depend>
+    <depend>urdf</depend>
+    <depend>compressed_depth_image_transport</depend>
 
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>rosconsole</exec_depend>

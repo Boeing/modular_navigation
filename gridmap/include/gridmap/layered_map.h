@@ -21,6 +21,8 @@ class LayeredMap
 
     bool update(const AABB& bb);
 
+    void clear();
+
     void clearRadius(const Eigen::Vector2d& pose, const double radius);
 
     void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data);

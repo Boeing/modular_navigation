@@ -344,58 +344,52 @@ double SimBandPlanner::cost(const navigation_interface::Trajectory&) const
 }
 
 // cppcheck-suppress unusedFunction
-void SimBandPlanner::onInitialize(const XmlRpc::XmlRpcValue& parameters)
+void SimBandPlanner::onInitialize(const YAML::Node& parameters)
 {
-    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
-                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
-    num_iterations_ = navigation_interface::get_config_with_default_warn<int>(
-        parameters, "num_iterations", num_iterations_, XmlRpc::XmlRpcValue::TypeInt);
+    debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
 
-    collision_distance_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "collision_distance", collision_distance_, XmlRpc::XmlRpcValue::TypeDouble);
+    offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets",
+                                                    {{-0.268, 0.000},
+                                                     {0.268, 0.000},
+                                                     {0.265, -0.185},
+                                                     {0.077, -0.185},
+                                                     {-0.077, -0.185},
+                                                     {-0.265, -0.185},
+                                                     {0.265, 0.185},
+                                                     {-0.265, 0.185},
+                                                     {-0.077, 0.185},
+                                                     {0.077, 0.185}});
 
-    nominal_force_gain_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "nominal_force_gain", nominal_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
-    internal_force_gain_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "internal_force_gain", internal_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
-    external_force_gain_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "external_force_gain", external_force_gain_, XmlRpc::XmlRpcValue::TypeDouble);
-    rotation_gain_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "rotation_gain", rotation_gain_, XmlRpc::XmlRpcValue::TypeDouble);
+    num_iterations_ = parameters["num_iterations"].as<int>(num_iterations_);
+    collision_distance_ = parameters["collision_distance"].as<double>(collision_distance_);
 
-    max_window_length_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_window_length", max_window_length_, XmlRpc::XmlRpcValue::TypeDouble);
+    nominal_force_gain_ = parameters["nominal_force_gain"].as<double>(nominal_force_gain_);
+    internal_force_gain_ = parameters["internal_force_gain"].as<double>(internal_force_gain_);
+    external_force_gain_ = parameters["external_force_gain"].as<double>(external_force_gain_);
+    rotation_gain_ = parameters["rotation_gain"].as<double>(rotation_gain_);
 
-    velocity_decay_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "velocity_decay", velocity_decay_, XmlRpc::XmlRpcValue::TypeDouble);
-    alpha_decay_ = navigation_interface::get_config_with_default_warn<double>(parameters, "alpha_decay", alpha_decay_,
-                                                                              XmlRpc::XmlRpcValue::TypeDouble);
+    max_window_length_ = parameters["max_window_length"].as<double>(max_window_length_);
 
-    desired_x_speed_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "desired_x_speed", desired_x_speed_, XmlRpc::XmlRpcValue::TypeDouble);
-    desired_y_speed_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "desired_y_speed", desired_y_speed_, XmlRpc::XmlRpcValue::TypeDouble);
-    desired_w_speed_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "desired_w_speed", desired_w_speed_, XmlRpc::XmlRpcValue::TypeDouble);
+    velocity_decay_ = parameters["velocity_decay"].as<double>(velocity_decay_);
+    alpha_decay_ = parameters["alpha_decay"].as<double>(alpha_decay_);
 
-    max_acc_[0] = navigation_interface::get_config_with_default_warn<double>(parameters, "max_x_acc", max_acc_[0],
-                                                                             XmlRpc::XmlRpcValue::TypeDouble);
-    max_acc_[1] = navigation_interface::get_config_with_default_warn<double>(parameters, "max_y_acc", max_acc_[1],
-                                                                             XmlRpc::XmlRpcValue::TypeDouble);
-    max_acc_[2] = navigation_interface::get_config_with_default_warn<double>(parameters, "max_w_acc", max_acc_[2],
-                                                                             XmlRpc::XmlRpcValue::TypeDouble);
+    max_acc_[0] = parameters["max_x_acc"].as<double>(max_acc_[0]);
+    max_acc_[1] = parameters["max_y_acc"].as<double>(max_acc_[1]);
+    max_acc_[2] = parameters["max_w_acc"].as<double>(max_acc_[2]);
 
-    robot_radius_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "robot_radius", robot_radius_, XmlRpc::XmlRpcValue::TypeDouble);
-    if (parameters.hasMember("robot_radius_offsets"))
-    {
-        offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets");
-    }
-    else
-    {
-        offsets_ = {{-0.268, 0.000},  {0.268, 0.000}, {0.265, -0.185}, {0.077, -0.185}, {-0.077, -0.185},
-                    {-0.265, -0.185}, {0.265, 0.185}, {-0.265, 0.185}, {-0.077, 0.185}, {0.077, 0.185}};
-    }
+    robot_radius_ = parameters["robot_radius"].as<double>(robot_radius_);
+
+    offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets",
+                                                    {{-0.268, 0.000},
+                                                     {0.268, 0.000},
+                                                     {0.265, -0.185},
+                                                     {0.077, -0.185},
+                                                     {-0.077, -0.185},
+                                                     {-0.265, -0.185},
+                                                     {0.265, 0.185},
+                                                     {-0.265, 0.185},
+                                                     {-0.077, 0.185},
+                                                     {0.077, 0.185}});
 
     if (debug_viz_)
     {

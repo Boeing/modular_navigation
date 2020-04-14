@@ -3,16 +3,18 @@
 
 #include <gridmap/grids/probability_grid.h>
 #include <gridmap/operations/rasterize.h>
-#include <gridmap/params.h>
+#include <gridmap/robot_tracker.h>
+#include <gridmap/urdf_tree.h>
 #include <ros/callback_queue.h>
 #include <ros/ros.h>
 #include <ros/subscription_queue.h>
-#include <tf2_ros/buffer.h>
+#include <yaml-cpp/yaml.h>
 
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 namespace gridmap
 {
@@ -27,6 +29,12 @@ inline uint64_t IndexToKey(const Eigen::Array2i& index)
 inline Eigen::Array2i KeyToIndex(const uint64_t& key)
 {
     return Eigen::Array2i(static_cast<int32_t>((key >> 32) & 0xFFFFFFFF), static_cast<int32_t>(key & 0xFFFFFFFF));
+}
+
+inline Eigen::Isometry3d embed3d(const Eigen::Isometry2d& pose)
+{
+    return Eigen::Translation3d(pose.translation().x(), pose.translation().y(), 0.0) *
+           Eigen::AngleAxisd(Eigen::Rotation2Dd(pose.rotation()).angle(), Eigen::Vector3d::UnitZ());
 }
 
 inline Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
@@ -78,9 +86,10 @@ class DataSource
     DataSource() = default;
     virtual ~DataSource() = default;
 
-    virtual void initialize(const std::string& name, const std::string& global_frame,
-                            const XmlRpc::XmlRpcValue& parameters, const std::vector<Eigen::Vector2d>& robot_footprint,
-                            const std::shared_ptr<tf2_ros::Buffer>& tf_buffer) = 0;
+    virtual void initialize(const std::string& name, const YAML::Node& parameters,
+                            const std::vector<Eigen::Vector2d>& robot_footprint,
+                            const std::shared_ptr<RobotTracker>& robot_tracker,
+                            const std::shared_ptr<URDFTree>& urdf_tree) = 0;
     virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) = 0;
     virtual std::string name() const = 0;
     virtual bool isDataOk() const = 0;
@@ -122,36 +131,34 @@ template <typename MsgType> class TopicDataSource : public DataSource
     {
     }
 
-    virtual void initialize(const std::string& name, const std::string& global_frame,
-                            const XmlRpc::XmlRpcValue& parameters, const std::vector<Eigen::Vector2d>& robot_footprint,
-                            const std::shared_ptr<tf2_ros::Buffer>& tf_buffer) override
+    virtual void initialize(const std::string& name, const YAML::Node& parameters,
+                            const std::vector<Eigen::Vector2d>& robot_footprint,
+                            const std::shared_ptr<RobotTracker>& robot_tracker,
+                            const std::shared_ptr<URDFTree>& urdf_tree) override
     {
         std::lock_guard<std::mutex> lock(mutex_);
         name_ = name;
-        global_frame_ = global_frame;
         map_data_ = nullptr;
         robot_footprint_ = robot_footprint;
-        tf_buffer_ = tf_buffer;
+        robot_tracker_ = robot_tracker;
+        urdf_tree_ = urdf_tree;
         last_updated_ = ros::Time::now();
 
-        maximum_sensor_delay_ = get_config_with_default_warn<double>(parameters, "maximum_sensor_delay", 1.0,
-                                                                     XmlRpc::XmlRpcValue::TypeDouble);
-        sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
+        maximum_sensor_delay_ = parameters["maximum_sensor_delay"].as<double>(1.0);
+        sub_sample_ = parameters["sub_sample"].as<int>(0);
 
         onInitialize(parameters);
 
         last_updated_ = ros::Time::now();
 
-        const std::string _topic = get_config_with_default_warn<std::string>(
-            parameters, "topic", name_ + "/" + default_topic_, XmlRpc::XmlRpcValue::TypeString);
+        const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
+
         ROS_INFO_STREAM("Subscribing to: " << _topic);
-        auto opts = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
+
+        sub_opts_ = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
                                                            boost::bind(&TopicDataSource::callback, this, _1),
                                                            ros::VoidPtr(), &data_queue_);
-        ros::NodeHandle g_nh;
-        opts.transport_hints = ros::TransportHints().udp();
-        subscriber_ = g_nh.subscribe(opts);
-
+        //        opts.transport_hints = ros::TransportHints();
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
     }
 
@@ -175,19 +182,20 @@ template <typename MsgType> class TopicDataSource : public DataSource
     }
 
   protected:
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
+    virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;
-    virtual bool processData(const typename MsgType::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform) = 0;
+    virtual bool processData(const typename MsgType::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+                             const Eigen::Isometry3d& sensor_transform) = 0;
 
     mutable std::mutex mutex_;
 
     std::string name_;
-    std::string global_frame_;
     std::string default_topic_;
 
     std::shared_ptr<ProbabilityGrid> map_data_;
     std::vector<Eigen::Vector2d> robot_footprint_;
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<RobotTracker> robot_tracker_;
+    std::shared_ptr<URDFTree> urdf_tree_;
 
     mutable std::mutex last_updated_mutex_;
     ros::Time last_updated_;
@@ -200,9 +208,24 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     std::thread data_thread_;
     SizedCallbackQueue data_queue_;
+    ros::SubscribeOptions sub_opts_;
     ros::Subscriber subscriber_;
 
+    std::unordered_map<std::string, Eigen::Isometry3d> transform_cache_;
+
   private:
+    Eigen::Isometry3d getSensorTransform(const std::string& frame_name)
+    {
+        auto it = transform_cache_.find(frame_name);
+        if (it == transform_cache_.end())
+        {
+            bool success;
+            std::tie(it, success) =
+                transform_cache_.insert({frame_name, urdf_tree_->getTransform(frame_name, "base_link")});
+        }
+        return it->second;
+    }
+
     void callback(const typename MsgType::ConstPtr& msg)
     {
         if (sub_sample_ == 0 || (sub_sample_ > 0 && sub_sample_count_ > sub_sample_))
@@ -211,9 +234,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
             std::lock_guard<std::mutex> lock(mutex_);
             if (!map_data_)
-            {
                 return;
-            }
 
             const double delay = (ros::Time::now() - msg->header.stamp).toSec();
             if (delay > maximum_sensor_delay_)
@@ -221,13 +242,12 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 ROS_WARN_STREAM("DataSource '" << name_ << "' incoming data is " << delay << "s old!");
             }
 
-            const auto tr = tf_buffer_->lookupTransform(global_frame_, msg->header.frame_id, msg->header.stamp,
-                                                        ros::Duration(maximum_sensor_delay_));
-            const Eigen::Isometry3d t = Eigen::Translation3d(tr.transform.translation.x, tr.transform.translation.y,
-                                                             tr.transform.translation.z) *
-                                        Eigen::Quaterniond(tr.transform.rotation.w, tr.transform.rotation.x,
-                                                           tr.transform.rotation.y, tr.transform.rotation.z);
-            const bool success = processData(msg, t);
+            const Eigen::Isometry3d sensor_tr = getSensorTransform(msg->header.frame_id);
+            const RobotState robot_state = robot_tracker_->robotState(msg->header.stamp);
+            const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
+            const Eigen::Isometry3d tr = embed3d(robot_pose) * sensor_tr;
+
+            const bool success = processData(msg, robot_pose, tr);
             if (!success)
             {
                 ROS_ERROR_STREAM("Failed to process data for '" << name_ << "'");
@@ -246,10 +266,35 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     void dataThread()
     {
+        ros::NodeHandle g_nh;
+
+        bool connected = false;
+
         while (ros::ok())
         {
             try
             {
+                if (!robot_tracker_->localised())
+                {
+                    if (connected)
+                    {
+                        ROS_INFO_STREAM("Disconnecting data for: " << name_);
+                        subscriber_.shutdown();
+                        data_queue_.flushMessages();
+                        data_queue_.clear();
+                        connected = false;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                    continue;
+                }
+
+                if (!connected)
+                {
+                    ROS_INFO_STREAM("Connecting data for: " << name_);
+                    subscriber_ = g_nh.subscribe(sub_opts_);
+                    connected = true;
+                }
+
                 const auto t0 = std::chrono::steady_clock::now();
                 const auto result = data_queue_.callOne(ros::WallDuration(maximum_sensor_delay_));
                 const double duration =
@@ -284,11 +329,6 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 {
                     ROS_WARN_STREAM("DataSource '" << name_ << "' queue error");
                 }
-            }
-            catch (const tf2::TransformException& e)
-            {
-                ROS_WARN_STREAM("DataSource '" << name_ << "' unable to resolve sensor TF: " << e.what());
-                data_queue_.flushMessages();
             }
             catch (const std::exception& e)
             {

@@ -1,6 +1,5 @@
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/operations/rasterize.h>
-#include <gridmap/params.h>
 #include <pluginlib/class_list_macros.h>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::BaseMapLayer, gridmap::Layer)
@@ -52,10 +51,9 @@ bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb) const
     return true;
 }
 
-void BaseMapLayer::onInitialize(const XmlRpc::XmlRpcValue& parameters)
+void BaseMapLayer::onInitialize(const YAML::Node& parameters)
 {
-    lethal_threshold_ =
-        get_config_with_default_warn<int>(parameters, "lethal_threshold", 50, XmlRpc::XmlRpcValue::TypeInt);
+    lethal_threshold_ = parameters["lethal_threshold"].as<int>(50);
 }
 
 void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)

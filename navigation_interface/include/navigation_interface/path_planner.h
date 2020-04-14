@@ -3,7 +3,7 @@
 
 #include <gridmap/map_data.h>
 #include <navigation_interface/types/path.h>
-#include <xmlrpcpp/XmlRpc.h>
+#include <yaml-cpp/yaml.h>
 
 #include <memory>
 
@@ -35,10 +35,10 @@ class PathPlanner
     virtual bool valid(const Path& path) const = 0;
     virtual double cost(const Path& path) const = 0;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
+    virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;
 
-    void initialize(const XmlRpc::XmlRpcValue& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
+    void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
@@ -47,9 +47,11 @@ class PathPlanner
 
     void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
     {
+        ROS_INFO("Updating map: PathPlanner");
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
         onMapDataChanged();
+        ROS_INFO("Updating map: PathPlanner DONE");
     }
 
   protected:

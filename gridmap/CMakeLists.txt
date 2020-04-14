@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(catkin REQUIRED COMPONENTS
+    cartographer_ros_msgs
     cmake_modules
+    compressed_depth_image_transport
     cv_bridge
     geometry_msgs
     hd_map
@@ -22,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
     tf2_geometry_msgs
     tf2_ros
     tf2_sensor_msgs
+    urdf
     visualization_msgs
 )
 
@@ -47,6 +50,8 @@ catkin_package(
     LIBRARIES
         ${PROJECT_NAME}
     CATKIN_DEPENDS
+        cartographer_ros_msgs
+        compressed_depth_image_transport
         cv_bridge
         geometry_msgs
         hd_map
@@ -62,6 +67,7 @@ catkin_package(
         tf2_geometry_msgs
         tf2_ros
         tf2_sensor_msgs
+        urdf
         visualization_msgs
     DEPENDS
         Boost
@@ -74,6 +80,7 @@ add_library(${PROJECT_NAME}
     src/grids/probability_grid.cpp
     src/layered_map.cpp
     src/layers/base_map_layer.cpp
+    src/layers/obstacle_data/compressed_depth_data.cpp
     src/layers/obstacle_data/depth_data.cpp
     src/layers/obstacle_data/laser_data.cpp
     src/layers/obstacle_data/point_cloud_data.cpp
@@ -81,6 +88,7 @@ add_library(${PROJECT_NAME}
     src/layers/obstacle_layer.cpp
     src/operations/clip_line.cpp
     src/operations/raytrace.cpp
+    src/robot_tracker.cpp
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

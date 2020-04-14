@@ -1,10 +1,11 @@
-#ifndef GRIDMAP_DEPTH_DATA_H
-#define GRIDMAP_DEPTH_DATA_H
+#ifndef GRIDMAP_COMPRESSED_DEPTH_DATA_H
+#define GRIDMAP_COMPRESSED_DEPTH_DATA_H
 
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
 #include <image_geometry/pinhole_camera_model.h>
 #include <ros/ros.h>
+#include <sensor_msgs/CompressedImage.h>
 #include <sensor_msgs/Image.h>
 
 #include <unordered_map>
@@ -12,18 +13,18 @@
 namespace gridmap
 {
 
-class DepthData : public TopicDataSource<sensor_msgs::Image>
+class CompressedDepthData : public TopicDataSource<sensor_msgs::CompressedImage>
 {
   public:
-    DepthData();
-    virtual ~DepthData() override;
+    CompressedDepthData();
+    virtual ~CompressedDepthData() override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
     virtual bool isDataOk() const override;
 
   protected:
-    virtual bool processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::CompressedImage::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

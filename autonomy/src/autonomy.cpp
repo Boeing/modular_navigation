@@ -1,4 +1,5 @@
 #include <autonomy/autonomy.h>
+#include <autonomy/math.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 #include <boost/tokenizer.hpp>
@@ -8,6 +9,7 @@
 #include <map_msgs/OccupancyGridUpdate.h>
 #include <nav_msgs/Path.h>
 #include <navigation_interface/params.h>
+#include <yaml-cpp/yaml.h>
 
 #include <algorithm>
 #include <cmath>
@@ -35,39 +37,22 @@ std::string uuid()
     return ss.str();
 }
 
-Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
-{
-    const double yaw =
-        std::atan2(2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
-                   -1.0 + 2.0 * (pose.orientation.w * pose.orientation.w + pose.orientation.x * pose.orientation.x));
-    return Eigen::Translation2d(pose.position.x, pose.position.y) * Eigen::Rotation2Dd(yaw);
-}
-
-Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
-{
-    const double yaw = std::atan2(2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
-                                  -1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x));
-    return Eigen::Translation2d(tr.translation.x, tr.translation.y) * Eigen::Rotation2Dd(yaw);
-}
-
 template <class PluginType>
-std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& class_name,
+std::shared_ptr<PluginType> load(const YAML::Node& parameters, const std::string& planner_name,
                                  pluginlib::ClassLoader<PluginType>& loader,
                                  const std::shared_ptr<const gridmap::MapData>& costmap)
 {
     try
     {
-        ROS_INFO_STREAM("Starting: " << class_name);
+        const std::string class_name = parameters[planner_name].as<std::string>();
         std::shared_ptr<PluginType> sp(loader.createUnmanagedInstance(class_name));
 
-        XmlRpc::XmlRpcValue params;
-        nh.getParam(loader.getName(class_name), params);
+        const YAML::Node plugin_params = parameters[loader.getName(class_name)];
 
         try
         {
-            ROS_INFO_STREAM("Initialising: " << class_name << "...");
-            sp->initialize(params, costmap);
-            ROS_INFO_STREAM("Successfully initialise: " << class_name);
+            ROS_INFO_STREAM("Loading plugin: " << planner_name << " type: " << class_name);
+            sp->initialize(plugin_params, costmap);
         }
         catch (const std::exception& e)
         {
@@ -84,26 +69,28 @@ std::shared_ptr<PluginType> load(const ros::NodeHandle& nh, const std::string& c
     return nullptr;
 }
 
-std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& parameters,
-                                                           const std::string& global_frame,
+std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& parameters,
                                                            pluginlib::ClassLoader<gridmap::Layer>& loader,
                                                            const std::vector<Eigen::Vector2d>& robot_footprint,
-                                                           const std::shared_ptr<tf2_ros::Buffer>& tf_buffer)
+                                                           const std::shared_ptr<gridmap::RobotTracker>& robot_tracker,
+                                                           std::shared_ptr<gridmap::URDFTree> urdf_tree)
 {
     std::vector<std::shared_ptr<gridmap::Layer>> plugin_ptrs;
-    if (parameters.hasMember("layers"))
+    if (parameters["layers"])
     {
-        XmlRpc::XmlRpcValue my_list = parameters["layers"];
-        for (int32_t i = 0; i < my_list.size(); ++i)
+        const YAML::Node layers_config = parameters["layers"];
+        for (YAML::const_iterator it = layers_config.begin(); it != layers_config.end(); ++it)
         {
-            std::string pname = static_cast<std::string>(my_list[i]["name"]);
-            std::string type = static_cast<std::string>(my_list[i]["type"]);
+            ROS_ASSERT(it->IsMap());
+
+            std::string pname = (*it)["name"].as<std::string>();
+            std::string type = (*it)["type"].as<std::string>();
 
             try
             {
                 ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
                 auto plugin_ptr = std::shared_ptr<gridmap::Layer>(loader.createUnmanagedInstance(type));
-                plugin_ptr->initialize(pname, global_frame, parameters[pname], robot_footprint, tf_buffer);
+                plugin_ptr->initialize(pname, parameters[pname], robot_footprint, robot_tracker, urdf_tree);
                 plugin_ptrs.push_back(plugin_ptr);
             }
             catch (const pluginlib::PluginlibException& e)
@@ -119,12 +106,11 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(XmlRpc::XmlRpcValue& 
 
     return plugin_ptrs;
 }
+
 }  // namespace
 
 Autonomy::Autonomy()
     : nh_("~"),
-
-      tf_buffer_(std::make_shared<tf2_ros::Buffer>()), tf_listener_(*tf_buffer_),
 
       as_(nh_, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1),
           boost::bind(&Autonomy::cancelCallback, this, _1), false),
@@ -136,45 +122,45 @@ Autonomy::Autonomy()
 
       running_(false), execution_thread_running_(false), controller_done_(false),
 
-      current_path_(nullptr), current_trajectory_(nullptr),
-
-      map_publish_frequency_(get_param_with_default_warn("~map_publish_frequency", 1.0)),
-
-      global_frame_("map"),
-
-      clear_radius_(get_param_with_default_warn("~clear_radius", 0.5)),
-
-      path_planner_frequency_(get_param_with_default_warn("~path_planner_frequency", 0.5)),
-      trajectory_planner_frequency_(get_param_with_default_warn("~trajectory_planner_frequency", 8.0)),
-      controller_frequency_(get_param_with_default_warn("~controller_frequency", 10.0)),
-      path_swap_fraction_(get_param_with_default_warn("~path_swap_fraction", 0.40)),
-      localisation_timeout_(get_param_with_default_warn("~localisation_timeout", 4.0))
+      current_path_(nullptr), current_trajectory_(nullptr)
 {
     ROS_INFO("Starting");
 
-    XmlRpc::XmlRpcValue costmap_params;
-    nh_.getParam("costmap", costmap_params);
+    const std::string navigation_config = get_param_or_throw<std::string>("~navigation_config");
 
-    std::vector<Eigen::Vector2d> robot_footprint;
-    if (costmap_params.hasMember("footprint"))
+    YAML::Node root_config;
+    try
     {
-        robot_footprint = navigation_interface::get_point_list(costmap_params, "footprint");
+        root_config = YAML::LoadFile(navigation_config);
     }
-    else
+    catch (const std::exception& e)
     {
-        ROS_WARN("Loading default robot footprint for Ridgeback");
-        robot_footprint = {{+0.490, +0.000}, {+0.408, -0.408}, {-0.408, -0.408},
-                           {-0.490, +0.000}, {-0.408, +0.408}, {+0.408, +0.408}};
+        ROS_ERROR_STREAM("Navigation config is not valid: " << e.what());
+        throw;
     }
 
-    auto layers = loadMapLayers(costmap_params, global_frame_, layer_loader_, robot_footprint, tf_buffer_);
+    map_publish_frequency_ = root_config["map_publish_frequency"].as<double>(1.0);
+    clear_radius_ = root_config["clear_radius"].as<double>(2.0);
+    path_planner_frequency_ = root_config["path_planner_frequency"].as<double>(0.5);
+    trajectory_planner_frequency_ = root_config["trajectory_planner_frequency"].as<double>(8.0);
+    controller_frequency_ = root_config["controller_frequency"].as<double>(10.0);
+    path_swap_fraction_ = root_config["path_swap_fraction"].as<double>(0.40);
+
+    const std::vector<Eigen::Vector2d> robot_footprint = navigation_interface::get_point_list(
+        root_config, "footprint",
+        {{+0.490, +0.000}, {+0.408, -0.408}, {-0.408, -0.408}, {-0.490, +0.000}, {-0.408, +0.408}, {+0.408, +0.408}});
+
+    robot_tracker_.reset(new gridmap::RobotTracker());
+    urdf::Model urdf;
+    urdf.initParam("robot_description");
+    urdf_tree_.reset(new gridmap::URDFTree(urdf));
+
+    const YAML::Node costmap_config = root_config["costmap"];
+
+    auto layers = loadMapLayers(costmap_config, layer_loader_, robot_footprint, robot_tracker_, urdf_tree_);
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
-    base_map_layer->initialize("base_map", global_frame_, costmap_params["base_map"], robot_footprint, tf_buffer_);
+    base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
-
-    const std::string path_planner_name = get_param_or_throw<std::string>("~path_planner");
-    const std::string trajectory_planner_name = get_param_or_throw<std::string>("~trajectory_planner");
-    const std::string controller_name = get_param_or_throw<std::string>("~controller");
 
     odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &Autonomy::odomCallback, this,
                                                   ros::TransportHints().tcpNoDelay());
@@ -183,13 +169,15 @@ Autonomy::Autonomy()
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
-    // Create the path planner
-    path_planner_ = load<navigation_interface::PathPlanner>(nh_, path_planner_name, pp_loader_, nullptr);
+    // Create the planners
+    path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr);
     trajectory_planner_ =
-        load<navigation_interface::TrajectoryPlanner>(nh_, trajectory_planner_name, tp_loader_, nullptr);
-    controller_ = load<navigation_interface::Controller>(nh_, controller_name, c_loader_, nullptr);
+        load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr);
+    controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr);
 
     active_map_sub_ = nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
+    mapper_status_sub_ =
+        nh_.subscribe<cartographer_ros_msgs::SystemState>("/mapper/state", 1, &Autonomy::mapperCallback, this);
 
     costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
@@ -283,6 +271,7 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
 
 void Autonomy::executionThread()
 {
+    ros::Rate rate(1);
     while (execution_thread_running_)
     {
         std::unique_lock<std::mutex> lock(goal_mutex_);
@@ -292,33 +281,34 @@ void Autonomy::executionThread()
             goal_ = nullptr;
         }
 
-        // copy the current robot state
-        RobotState rs;
-        {
-            std::lock_guard<std::mutex> _lock(robot_state_mutex_);
-            rs = robot_state_;
-        }
-
         if (layered_map_->map())
         {
-            if (rs.localised)
+            const gridmap::RobotState robot_state = robot_tracker_->robotState();
+
+            if (robot_state.localised)
             {
                 layered_map_->update();
-            }
 
+                {
+                    nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                    grid.header.frame_id = "map";
+                    grid.header.stamp = ros::Time::now();
+                    costmap_publisher_.publish(grid);
+                }
+            }
+            else
             {
-                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
-                grid.header.frame_id = "map";
-                grid.header.stamp = ros::Time::now();
-                costmap_publisher_.publish(grid);
+                ROS_INFO_STREAM("Robot not localised");
             }
         }
+
+        rate.sleep();
     }
 }
 
 void Autonomy::executeGoal(GoalHandle& goal)
 {
-    ROS_INFO_STREAM("Received New Goal");
+    ROS_INFO_STREAM("Executing goal: " << goal.getGoalID().id);
 
     current_goal_pub_.publish(goal.getGoal()->target_pose);
 
@@ -332,10 +322,16 @@ void Autonomy::executeGoal(GoalHandle& goal)
     controller_done_ = false;
     running_ = true;
 
+    if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
+    {
+        goal.setRejected();
+        ROS_WARN_STREAM("Goal is not in global frame: " << global_frame_);
+        return;
+    }
+
     // start the threads
-    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this,
-                                               convert(goal.getGoal()->target_pose.pose),
-                                               goal.getGoal()->target_pose.header.frame_id));
+    path_planner_thread_.reset(
+        new std::thread(&Autonomy::pathPlannerThread, this, convert(goal.getGoal()->target_pose.pose)));
     trajectory_planner_thread_.reset(new std::thread(&Autonomy::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&Autonomy::controllerThread, this));
 
@@ -344,7 +340,6 @@ void Autonomy::executeGoal(GoalHandle& goal)
     {
         if (goal.getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
         {
-            goal.setCanceled();
             break;
         }
 
@@ -413,7 +408,6 @@ void Autonomy::goalCallback(GoalHandle goal)
         }
     }
     execution_condition_.notify_all();
-    ROS_INFO_STREAM("Received goal done");
 }
 
 void Autonomy::cancelCallback(GoalHandle goal)
@@ -428,46 +422,15 @@ void Autonomy::cancelCallback(GoalHandle goal)
     }
 }
 
-std::unique_ptr<Eigen::Isometry2d> Autonomy::transformGoal(const Eigen::Isometry2d& goal, const std::string& frame_id)
-{
-    try
-    {
-        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, frame_id, ros::Time(0));
-
-        if (tr.header.stamp > ros::Time(0) &&
-            std::abs((tr.header.stamp - ros::Time::now()).toSec()) > localisation_timeout_)
-        {
-            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->" << frame_id
-                                                                              << ") is stale");
-            return nullptr;
-        }
-
-        const auto transform = convert(tr.transform);
-        return std::make_unique<Eigen::Isometry2d>(transform * goal);
-    }
-    catch (const tf2::TransformException&)
-    {
-        ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->" << frame_id
-                                                                          << ") is missing");
-    }
-
-    return nullptr;
-}
-
-void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::string& frame_id)
+void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal)
 {
     ros::WallRate rate(path_planner_frequency_);
 
     while (running_)
     {
-        // copy the current robot state
-        RobotState rs;
-        {
-            std::lock_guard<std::mutex> lock(robot_state_mutex_);
-            rs = robot_state_;
-        }
+        const gridmap::RobotState robot_state = robot_tracker_->robotState();
 
-        if (!rs.localised)
+        if (!robot_state.localised)
         {
             std::lock_guard<std::mutex> lock(path_mutex_);
             current_path_.reset();
@@ -482,8 +445,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             continue;
         }
 
-        const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
-        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
 
         {
             const auto t0 = std::chrono::steady_clock::now();
@@ -520,28 +482,12 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             }
         }
 
-        const auto transformed_goal = transformGoal(goal, frame_id);
-        if (!transformed_goal)
-        {
-            std::lock_guard<std::mutex> lock(path_mutex_);
-            current_path_.reset();
-
-            // publish
-            nav_msgs::Path gui_path;
-            gui_path.header.frame_id = global_frame_;
-            path_pub_.publish(gui_path);
-
-            rate.sleep();
-
-            continue;
-        }
-
         navigation_interface::PathPlanner::Result result;
         const auto now = ros::SteadyTime::now();
         {
             const auto t0 = std::chrono::steady_clock::now();
             ROS_INFO("Path Planning...");
-            result = path_planner_->plan(global_robot_pose, *transformed_goal);
+            result = path_planner_->plan(robot_pose, goal);
 
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
@@ -565,10 +511,10 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
                 navigation_interface::Path path = current_path_->path;
                 if (!path.nodes.empty())
                 {
-                    const auto closest = path.closestSegment(global_robot_pose);
+                    const auto closest = path.closestSegment(robot_pose);
                     if (closest.first != 0)
                         path.nodes.erase(path.nodes.begin(), path.nodes.begin() + static_cast<long>(closest.first));
-                    path.nodes.insert(path.nodes.begin(), global_robot_pose);
+                    path.nodes.insert(path.nodes.begin(), robot_pose);
                 }
 
                 // get the current path cost
@@ -581,26 +527,11 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
 
                 const double time_since_successful_recalc = (now - current_path_->last_successful_time).toSec();
 
-                // if transformed goal has changed (gt res) then force a path swap
-                const double allowed_translation = layered_map_->map()->grid.dimensions().resolution() * 4;
-                const double allowed_rotation = 0.1;
-                const double goal_translation =
-                    (transformed_goal->translation() - current_path_->goal.translation()).norm();
-                const double goal_rotation =
-                    std::abs(Eigen::Rotation2Dd(transformed_goal->linear().inverse() * current_path_->goal.linear())
-                                 .smallestAngle());
-                const bool goal_moved = goal_translation > allowed_translation || goal_rotation > allowed_rotation;
-
                 const bool persistence = time_since_successful_recalc > path_persistence_time_;
 
                 // TODO detect localisation jump!
 
-                if (goal_moved)
-                {
-                    ROS_INFO_STREAM("GOAL MOVED: new path cost: " << result.cost << " old path cost: " << cost);
-                    update = true;
-                }
-                else if (persistence && result.cost < path_swap_fraction_ * cost)
+                if (persistence && result.cost < path_swap_fraction_ * cost)
                 {
                     ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
@@ -623,8 +554,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal, const std::strin
             if (update)
             {
                 result.path.id = uuid();
-                current_path_.reset(
-                    new TrackingPath{*transformed_goal, now, result.cost, now, result.cost, result.path});
+                current_path_.reset(new TrackingPath{goal, now, result.cost, now, result.cost, result.path});
 
                 // publish
                 nav_msgs::Path gui_path;
@@ -711,14 +641,9 @@ void Autonomy::trajectoryPlannerThread()
             continue;
         }
 
-        // copy the current robot state
-        RobotState rs;
-        {
-            std::lock_guard<std::mutex> lock(robot_state_mutex_);
-            rs = robot_state_;
-        }
+        const gridmap::RobotState robot_state = robot_tracker_->robotState();
 
-        if (!rs.localised)
+        if (!robot_state.localised)
         {
             std::lock_guard<std::mutex> lock(trajectory_mutex_);
             current_trajectory_.reset();
@@ -734,7 +659,7 @@ void Autonomy::trajectoryPlannerThread()
         }
 
         // update costmap around robot
-        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
         const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
 
         const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
@@ -790,7 +715,8 @@ void Autonomy::trajectoryPlannerThread()
             const auto t0 = std::chrono::steady_clock::now();
 
             // optimise path
-            result = trajectory_planner_->plan(roi, rs.robot_state, rs.map_to_odom);
+            const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
+            result = trajectory_planner_->plan(roi, ks, robot_state.map_to_odom);
 
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
@@ -856,7 +782,7 @@ void Autonomy::trajectoryPlannerThread()
 void Autonomy::controllerThread()
 {
     const long period_ms = static_cast<long>(1000.0 / controller_frequency_);
-    ros::SteadyTime last_odom_time;
+    ros::Time last_odom_time(0);
 
     ROS_ASSERT(layered_map_);
     const int size_x = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
@@ -865,31 +791,22 @@ void Autonomy::controllerThread()
     while (running_)
     {
         // wait for a new odom (or timeout)
-        RobotState rs;
+        gridmap::RobotState robot_state = robot_tracker_->robotState();
+        try
         {
-            std::unique_lock<std::mutex> lock(robot_state_mutex_);
-            if (robot_state_.time == last_odom_time)
-            {
-                const auto t0 = std::chrono::steady_clock::now();
-                if (robot_state_conditional_.wait_for(lock, std::chrono::milliseconds(2 * period_ms)) ==
-                    std::cv_status::timeout)
-                {
-                    const double wait_time =
-                        std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                            .count();
-                    ROS_ERROR_STREAM("Did not receive an odom message at the desired frequency: last: "
-                                     << robot_state_.time << " waited: " << wait_time);
-                    vel_pub_.publish(geometry_msgs::Twist());
-                    continue;
-                }
-            }
-            rs = robot_state_;
-            last_odom_time = robot_state_.time;
+            if (robot_state.odom.time.toNSec() == last_odom_time.toNSec())
+                robot_state = robot_tracker_->waitForRobotState(2 * period_ms);
         }
+        catch (const std::exception& e)
+        {
+            ROS_ERROR_STREAM(e.what());
+            vel_pub_.publish(geometry_msgs::Twist());
+        }
+        last_odom_time = robot_state.odom.time;
 
         // check if a new trajectory is available
         std::lock_guard<std::mutex> lock(trajectory_mutex_);
-        if (current_trajectory_ && rs.localised)
+        if (current_trajectory_ && robot_state.localised)
         {
             const auto p = controller_->trajectoryId();
             if (!p || current_trajectory_->trajectory.id != p.get())
@@ -904,7 +821,7 @@ void Autonomy::controllerThread()
         }
 
         // update costmap around robot
-        const Eigen::Isometry2d robot_pose = rs.map_to_odom * rs.robot_state.pose;
+        const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
         const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
 
         const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
@@ -944,13 +861,12 @@ void Autonomy::controllerThread()
         }
 
         // Update feedback to correspond to our current position
-        const Eigen::Isometry2d global_robot_pose = rs.map_to_odom * rs.robot_state.pose;
         const Eigen::Quaterniond qt = Eigen::Quaterniond(
-            Eigen::AngleAxisd(Eigen::Rotation2Dd(global_robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
+            Eigen::AngleAxisd(Eigen::Rotation2Dd(robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
         autonomy::DriveFeedback feedback;
         feedback.base_position.header.frame_id = global_frame_;
-        feedback.base_position.pose.position.x = global_robot_pose.translation().x();
-        feedback.base_position.pose.position.y = global_robot_pose.translation().y();
+        feedback.base_position.pose.position.x = robot_pose.translation().x();
+        feedback.base_position.pose.position.y = robot_pose.translation().y();
         feedback.base_position.pose.orientation.w = qt.w();
         feedback.base_position.pose.orientation.x = qt.x();
         feedback.base_position.pose.orientation.y = qt.y();
@@ -963,7 +879,9 @@ void Autonomy::controllerThread()
             const auto t0 = std::chrono::steady_clock::now();
 
             // control
-            result = controller_->control(rs.time, roi, rs.robot_state, rs.map_to_odom);
+            const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
+            const auto t = ros::SteadyTime::now();
+            result = controller_->control(t, roi, ks, robot_state.map_to_odom);
 
             const double control_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
@@ -1008,38 +926,26 @@ void Autonomy::controllerThread()
 
 void Autonomy::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
 {
-    RobotState robot_state;
-    robot_state.time = ros::SteadyTime::now();
-
-    robot_state.robot_state.pose = convert(msg->pose.pose);
-    robot_state.robot_state.velocity =
-        Eigen::Vector3d(msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.angular.z);
-
-    try
-    {
-        const geometry_msgs::TransformStamped tr = tf_buffer_->lookupTransform(global_frame_, "odom", ros::Time(0));
-        robot_state.map_to_odom = convert(tr.transform);
-        robot_state.localised = true;
-
-        if (tr.header.stamp > ros::Time(0) &&
-            std::abs((msg->header.stamp - tr.header.stamp).toSec()) > localisation_timeout_)
-        {
-            ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform ("
-                                            << global_frame_ << "->odom) is stale: "
-                                            << (msg->header.stamp - tr.header.stamp).toSec() << "s");
-            robot_state.localised = false;
-        }
-    }
-    catch (const tf2::TransformException&)
-    {
-        ROS_WARN_STREAM_THROTTLE(1, "Robot is not localised: transform (" << global_frame_ << "->odom) is missing");
-        robot_state.localised = false;
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(robot_state_mutex_);
-        robot_state_ = robot_state;
-    }
-    robot_state_conditional_.notify_all();
+    robot_tracker_->addOdometryData(*msg);
 }
+
+void Autonomy::mapperCallback(const cartographer_ros_msgs::SystemState::ConstPtr& msg)
+{
+    const bool was_localised = robot_tracker_->localised();
+    robot_tracker_->addLocalisationData(*msg);
+    const bool is_localised = robot_tracker_->localised();
+
+    // reset the layers when localisation switches
+    if (was_localised != is_localised)
+    {
+        if (is_localised)
+            ROS_INFO_STREAM("Robot localised!");
+        else
+            ROS_INFO_STREAM("Robot not localised!");
+
+        if (layered_map_->map())
+            layered_map_->clear();
+    }
+}
+
 }  // namespace autonomy
