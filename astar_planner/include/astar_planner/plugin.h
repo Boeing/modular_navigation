@@ -21,15 +21,13 @@ class AStarPlanner : public navigation_interface::PathPlanner
     virtual bool valid(const navigation_interface::Path& path) const override;
     virtual double cost(const navigation_interface::Path& path) const override;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
 
   private:
     bool debug_viz_ = false;
     double robot_radius_ = 0.230;
     double conservative_robot_radius_ = 0.416;
-    double max_holonomic_distance_ = 2.0;
-    double max_reverse_distance_ = 4.0;
     double avoid_zone_cost_ = 10.0;
     double path_cost_ = 1e-3;
 

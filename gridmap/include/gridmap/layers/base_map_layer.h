@@ -21,7 +21,7 @@ class BaseMapLayer : public Layer
     virtual bool update(OccupancyGrid& grid) const override;
     virtual bool update(OccupancyGrid& grid, const AABB& bb) const override;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
 
     virtual bool clear() override

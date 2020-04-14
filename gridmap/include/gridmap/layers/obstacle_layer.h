@@ -26,7 +26,7 @@ class ObstacleLayer : public Layer
     virtual bool update(OccupancyGrid& grid) const override;
     virtual bool update(OccupancyGrid& grid, const AABB& bb) const override;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
 
     virtual bool clear() override;
@@ -45,12 +45,10 @@ class ObstacleLayer : public Layer
     double occ_prob_thres_ = 0.8;
 
     ros::Publisher debug_viz_pub_;
-    ros::Publisher footprint_pub_;
-    ros::Publisher polygon_pub_;
 
     bool debug_viz_ = true;
     std::atomic<bool> debug_viz_running_;
-    double debug_viz_rate_ = 4.0;
+    double debug_viz_frequency_ = 4.0;
     std::thread debug_viz_thread_;
     void debugVizThread(const double frequency);
 
@@ -61,8 +59,8 @@ class ObstacleLayer : public Layer
 
     bool time_decay_ = true;
     std::atomic<bool> time_decay_running_;
-    double time_decay_frequency_ = 1.0 / 10.0;
-    double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 100.0);
+    double time_decay_frequency_ = 1.0;
+    double alpha_decay_ = 1.0 - std::pow(0.001, 1.0 / 10.0);
     std::thread time_decay_thread_;
     void timeDecayThread(const double frequency, const double alpha_decay);
 };

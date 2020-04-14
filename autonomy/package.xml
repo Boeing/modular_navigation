@@ -22,6 +22,7 @@
     <depend>std_srvs</depend>
     <depend>tf2_geometry_msgs</depend>
     <depend>tf2_ros</depend>
+    <depend>yaml-cpp</depend>
 
     <depend>actionlib_msgs</depend>
 

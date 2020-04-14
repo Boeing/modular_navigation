@@ -27,7 +27,7 @@ class PurePursuitController : public navigation_interface::Controller
                            const navigation_interface::KinodynamicState& robot_state,
                            const Eigen::Isometry2d& map_to_odom) override;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
 
   private:
@@ -42,9 +42,9 @@ class PurePursuitController : public navigation_interface::Controller
     Eigen::Vector3d max_velocity_ = {0.25, 0.15, 0.25};
     Eigen::Vector3d max_acceleration_ = {0.5, 0.5, 0.5};
 
-    double goal_radius_ = 0.08;
+    double goal_radius_ = 0.10;
 
-    double xy_goal_tolerance_ = 0.002;
+    double xy_goal_tolerance_ = 0.02;
     double yaw_goal_tolerance_ = 0.01;
 
     Eigen::Vector3d goal_p_gain_ = {0.5, 0.5, 0.2};

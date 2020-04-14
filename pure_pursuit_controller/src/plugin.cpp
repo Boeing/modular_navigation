@@ -128,10 +128,10 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
 
         for (const auto& p : connected_poly)
         {
-            const float f = dist.at<float>(p.y(), p.x());
-            const double d = grid.dimensions().resolution() * f;
-            min_distance_to_collision = std::min(min_distance_to_collision, d);
+            const double f = static_cast<double>(dist.at<float>(p.y(), p.x()));
+            min_distance_to_collision = std::min(min_distance_to_collision, f);
         }
+        min_distance_to_collision *= grid.dimensions().resolution();
     }
 
     visualization_msgs::Marker marker;
@@ -352,7 +352,7 @@ navigation_interface::Controller::Result
     }
 
     double dt = std::max(0.01, time.toSec() - last_update_.toSec());
-    if (last_update_ == ros::SteadyTime(0))
+    if (last_update_.toSec() < 0.001)
         dt = 0.05;
     last_update_ = time;
 
@@ -500,64 +500,40 @@ navigation_interface::Controller::Result
 }
 
 // cppcheck-suppress unusedFunction
-void PurePursuitController::onInitialize(const XmlRpc::XmlRpcValue& parameters)
+void PurePursuitController::onInitialize(const YAML::Node& parameters)
 {
-    look_ahead_time_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "look_ahead_time", look_ahead_time_, XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_[0] = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_velocity_x", max_velocity_[0], XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_[1] = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_velocity_y", max_velocity_[1], XmlRpc::XmlRpcValue::TypeDouble);
-    max_velocity_[2] = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_velocity_w", max_velocity_[2], XmlRpc::XmlRpcValue::TypeDouble);
+    look_ahead_time_ = parameters["look_ahead_time"].as<double>(look_ahead_time_);
 
-    max_acceleration_[0] = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_acceleration_x", max_acceleration_[0], XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_[1] = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_acceleration_y", max_acceleration_[1], XmlRpc::XmlRpcValue::TypeDouble);
-    max_acceleration_[2] = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "max_acceleration_w", max_acceleration_[2], XmlRpc::XmlRpcValue::TypeDouble);
+    max_velocity_[0] = parameters["max_velocity_x"].as<double>(max_velocity_[0]);
+    max_velocity_[1] = parameters["max_velocity_y"].as<double>(max_velocity_[1]);
+    max_velocity_[2] = parameters["max_velocity_w"].as<double>(max_velocity_[2]);
 
-    goal_radius_ = navigation_interface::get_config_with_default_warn<double>(parameters, "goal_radius", goal_radius_,
-                                                                              XmlRpc::XmlRpcValue::TypeDouble);
-    xy_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "xy_goal_tolerance", xy_goal_tolerance_, XmlRpc::XmlRpcValue::TypeDouble);
-    yaw_goal_tolerance_ = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "yaw_goal_tolerance", yaw_goal_tolerance_, XmlRpc::XmlRpcValue::TypeDouble);
+    max_acceleration_[0] = parameters["max_acceleration_x"].as<double>(max_acceleration_[0]);
+    max_acceleration_[1] = parameters["max_acceleration_y"].as<double>(max_acceleration_[1]);
+    max_acceleration_[2] = parameters["max_acceleration_w"].as<double>(max_acceleration_[2]);
 
-    goal_p_gain_.x() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_p_gain_x", goal_p_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_p_gain_.y() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_p_gain_y", goal_p_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_p_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_p_gain_z", goal_p_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_radius_ = parameters["goal_radius"].as<double>(goal_radius_);
 
-    goal_i_gain_.x() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_i_gain_x", goal_i_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_i_gain_.y() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_i_gain_y", goal_i_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_i_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_i_gain_z", goal_i_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+    xy_goal_tolerance_ = parameters["xy_goal_tolerance"].as<double>(xy_goal_tolerance_);
+    yaw_goal_tolerance_ = parameters["yaw_goal_tolerance"].as<double>(yaw_goal_tolerance_);
 
-    goal_d_gain_.x() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_d_gain_x", goal_d_gain_.x(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_d_gain_.y() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_d_gain_y", goal_d_gain_.y(), XmlRpc::XmlRpcValue::TypeDouble);
-    goal_d_gain_.z() = navigation_interface::get_config_with_default_warn<double>(
-        parameters, "goal_d_gain_z", goal_d_gain_.z(), XmlRpc::XmlRpcValue::TypeDouble);
+    goal_p_gain_[0] = parameters["goal_p_gain_x"].as<double>(goal_p_gain_[0]);
+    goal_p_gain_[1] = parameters["goal_p_gain_y"].as<double>(goal_p_gain_[1]);
+    goal_p_gain_[2] = parameters["goal_p_gain_w"].as<double>(goal_p_gain_[2]);
 
-    if (parameters.hasMember("footprint"))
-    {
-        robot_footprint_ = navigation_interface::get_point_list(parameters, "footprint");
-    }
-    else
-    {
-        robot_footprint_ = {{0.480, 0.000},  {0.380, -0.395}, {-0.380, -0.395},
-                            {-0.480, 0.000}, {-0.380, 0.395}, {0.380, 0.395}};
-    }
+    goal_i_gain_[0] = parameters["goal_i_gain_x"].as<double>(goal_i_gain_[0]);
+    goal_i_gain_[1] = parameters["goal_i_gain_y"].as<double>(goal_i_gain_[1]);
+    goal_i_gain_[2] = parameters["goal_i_gain_w"].as<double>(goal_i_gain_[2]);
 
-    debug_viz_ = navigation_interface::get_config_with_default_warn<bool>(parameters, "debug_viz", debug_viz_,
-                                                                          XmlRpc::XmlRpcValue::TypeBoolean);
+    goal_d_gain_[0] = parameters["goal_d_gain_x"].as<double>(goal_d_gain_[0]);
+    goal_d_gain_[1] = parameters["goal_d_gain_y"].as<double>(goal_d_gain_[1]);
+    goal_d_gain_[2] = parameters["goal_d_gain_w"].as<double>(goal_d_gain_[2]);
+
+    robot_footprint_ = navigation_interface::get_point_list(
+        parameters, "footprint",
+        {{0.480, 0.000}, {0.380, -0.395}, {-0.380, -0.395}, {-0.480, 0.000}, {-0.380, 0.395}, {0.380, 0.395}});
+
+    debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
         ros::NodeHandle nh("~");

@@ -1,7 +1,6 @@
 #include <gridmap/layers/obstacle_data/range_data.h>
 #include <gridmap/operations/clip_line.h>
 #include <gridmap/operations/rasterize.h>
-#include <gridmap/params.h>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -26,24 +25,17 @@ RangeData::~RangeData()
 {
 }
 
-void RangeData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
+void RangeData::onInitialize(const YAML::Node& parameters)
 {
-    hit_probability_ =
-        get_config_with_default_warn<double>(parameters, "hit_probability", 0.99, XmlRpc::XmlRpcValue::TypeDouble);
-    miss_probability_ =
-        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble);
+    hit_probability_ = parameters["hit_probability_log"].as<double>(0.99);
+    miss_probability_ = parameters["miss_probability_log"].as<double>(0.4);
 
-    std_deviation_ =
-        get_config_with_default_warn<double>(parameters, "std_deviation", 0.06, XmlRpc::XmlRpcValue::TypeDouble);
+    std_deviation_ = parameters["std_deviation"].as<double>(0.06);
 
-    max_range_ = get_config_with_default_warn<double>(parameters, "max_range", 1.5, XmlRpc::XmlRpcValue::TypeDouble);
+    max_range_ = parameters["max_range"].as<double>(1.5);
 
-    obstacle_range_ =
-        get_config_with_default_warn<double>(parameters, "obstacle_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
-    raytrace_range_ =
-        get_config_with_default_warn<double>(parameters, "raytrace_range", 1.2, XmlRpc::XmlRpcValue::TypeDouble);
-
-    sub_sample_ = get_config_with_default_warn<int>(parameters, "sub_sample", 0, XmlRpc::XmlRpcValue::TypeInt);
+    obstacle_range_ = parameters["obstacle_range"].as<double>(1.2);
+    raytrace_range_ = parameters["raytrace_range"].as<double>(1.2);
 
     ROS_ASSERT(obstacle_range_ <= max_range_);
     ROS_ASSERT(raytrace_range_ <= max_range_);
@@ -85,7 +77,8 @@ void RangeData::onMapDataChanged()
     }
 }
 
-bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform)
+bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen::Isometry2d&,
+                            const Eigen::Isometry3d& sensor_transform)
 {
     ROS_ASSERT(std::abs(msg->max_range - max_range_) < std::numeric_limits<double>::epsilon());
 

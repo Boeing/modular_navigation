@@ -18,9 +18,9 @@ class LaserData : public TopicDataSource<sensor_msgs::LaserScan>
     {
     }
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::LaserScan::ConstPtr& msg,
+    virtual bool processData(const sensor_msgs::LaserScan::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

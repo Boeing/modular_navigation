@@ -22,6 +22,8 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
+find_package(yaml-cpp REQUIRED)
+
 add_action_files(
     DIRECTORY
         action
@@ -46,6 +48,7 @@ catkin_package(CATKIN_DEPENDS
 
 include_directories(
     include
+    ${YAML_CPP_INCLUDE_DIR}
 )
 
 include_directories(SYSTEM
@@ -55,6 +58,7 @@ include_directories(SYSTEM
 
 add_executable(${PROJECT_NAME}
     include/${PROJECT_NAME}/${PROJECT_NAME}.h
+    include/${PROJECT_NAME}/math.h
     src/${PROJECT_NAME}.cpp
     src/main.cpp
 )
@@ -62,11 +66,19 @@ add_executable(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     ${Boost_LIBRARIES}
     ${catkin_LIBRARIES}
+    ${YAML_CPP_LIBRARIES}
 )
 
 add_dependencies(${PROJECT_NAME}
     ${${PROJECT_NAME}_EXPORTED_TARGETS}
     ${catkin_EXPORTED_TARGETS}
+)
+
+catkin_install_python(
+    PROGRAMS
+    scripts/fake_localisation.py
+    DESTINATION
+    ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 install(TARGETS ${PROJECT_NAME}

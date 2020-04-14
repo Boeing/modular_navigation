@@ -1,5 +1,8 @@
+#include <compressed_depth_image_transport/codec.h>
+#include <compressed_depth_image_transport/compression_common.h>
+#include <gridmap/layers/obstacle_data/compressed_depth_data.h>
 #include <gridmap/layers/obstacle_data/depth.h>
-#include <gridmap/layers/obstacle_data/depth_data.h>
+#include <image_transport/subscriber.h>
 #include <pluginlib/class_list_macros.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/image_encodings.h>
@@ -9,18 +12,18 @@
 #include <cstdint>
 #include <unordered_set>
 
-PLUGINLIB_EXPORT_CLASS(gridmap::DepthData, gridmap::DataSource)
+PLUGINLIB_EXPORT_CLASS(gridmap::CompressedDepthData, gridmap::DataSource)
 
 namespace gridmap
 {
 
-DepthData::DepthData()
-    : TopicDataSource<sensor_msgs::Image>("depth"), got_camera_info_(false), hit_probability_log_(0),
-      miss_probability_log_(0), obstacle_height_(0), min_range_(0), max_range_(0)
+CompressedDepthData::CompressedDepthData()
+    : TopicDataSource<sensor_msgs::CompressedImage>("depth/compressedDepth"), got_camera_info_(false),
+      hit_probability_log_(0), miss_probability_log_(0), obstacle_height_(0), min_range_(0), max_range_(0)
 {
 }
 
-void DepthData::onInitialize(const YAML::Node& parameters)
+void CompressedDepthData::onInitialize(const YAML::Node& parameters)
 {
     miss_probability_log_ = logodds(parameters["miss_probability"].as<double>(0.4));
     obstacle_height_ = logodds(parameters["max_obstacle_height"].as<double>(0.10));
@@ -29,32 +32,32 @@ void DepthData::onInitialize(const YAML::Node& parameters)
     camera_info_topic_ = parameters["camera_info_topic"].as<std::string>(std::string(name_ + "/camera_info"));
 
     ros::NodeHandle g_nh;
-    camera_info_sub_ =
-        g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000, &DepthData::cameraInfoCallback, this);
+    camera_info_sub_ = g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000,
+                                                               &CompressedDepthData::cameraInfoCallback, this);
 }
 
-void DepthData::onMapDataChanged()
+void CompressedDepthData::onMapDataChanged()
 {
 }
 
-DepthData::~DepthData()
+CompressedDepthData::~CompressedDepthData()
 {
 }
 
-bool DepthData::isDataOk() const
+bool CompressedDepthData::isDataOk() const
 {
-    return got_camera_info_ && TopicDataSource<sensor_msgs::Image>::isDataOk();
+    return got_camera_info_ && TopicDataSource<sensor_msgs::CompressedImage>::isDataOk();
 }
 
-void DepthData::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
+void CompressedDepthData::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
 {
     std::lock_guard<std::mutex> lock(camera_info_mutex_);
     got_camera_info_ = true;
     camera_model_.fromCameraInfo(*msg);
 }
 
-bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
-                            const Eigen::Isometry3d& sensor_transform)
+bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstPtr& msg,
+                                      const Eigen::Isometry2d& robot_pose, const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
 
@@ -76,6 +79,8 @@ bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen
         return false;
     }
 
+    const sensor_msgs::Image::Ptr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
+
     // add a 5% buffer
     const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.05);
 
@@ -86,11 +91,11 @@ bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen
 
         std::unordered_map<uint64_t, float> height_voxels;
 
-        if (msg->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
-            projectDepth<uint16_t>(height_voxels, min_range_, max_range_, t_f, footprint, msg, camera_model_,
+        if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
+            projectDepth<uint16_t>(height_voxels, min_range_, max_range_, t_f, footprint, image, camera_model_,
                                    map_data_->dimensions());
-        else if (msg->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
-            projectDepth<float>(height_voxels, min_range_, max_range_, t_f, footprint, msg, camera_model_,
+        else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
+            projectDepth<float>(height_voxels, min_range_, max_range_, t_f, footprint, image, camera_model_,
                                 map_data_->dimensions());
         else
             ROS_ASSERT_MSG(false, "Unsupported depth image format");

@@ -1,6 +1,5 @@
 #include <gridmap/layers/obstacle_data/laser_data.h>
 #include <gridmap/operations/clip_line.h>
-#include <gridmap/params.h>
 #include <pluginlib/class_list_macros.h>
 
 #include <chrono>
@@ -16,27 +15,22 @@ LaserData::LaserData()
 {
 }
 
-void LaserData::onInitialize(const XmlRpc::XmlRpcValue& parameters)
+void LaserData::onInitialize(const YAML::Node& parameters)
 {
-    hit_probability_log_ = logodds(
-        get_config_with_default_warn<double>(parameters, "hit_probability", 0.8, XmlRpc::XmlRpcValue::TypeDouble));
-    miss_probability_log_ = logodds(
-        get_config_with_default_warn<double>(parameters, "miss_probability", 0.4, XmlRpc::XmlRpcValue::TypeDouble));
-    min_obstacle_height_ =
-        get_config_with_default_warn<double>(parameters, "min_obstacle_height", 0.0, XmlRpc::XmlRpcValue::TypeDouble);
-    max_obstacle_height_ =
-        get_config_with_default_warn<double>(parameters, "max_obstacle_height", 2.0, XmlRpc::XmlRpcValue::TypeDouble);
-    obstacle_range_ =
-        get_config_with_default_warn<double>(parameters, "obstacle_range", 3.5, XmlRpc::XmlRpcValue::TypeDouble);
-    raytrace_range_ =
-        get_config_with_default_warn<double>(parameters, "raytrace_range", 4.0, XmlRpc::XmlRpcValue::TypeDouble);
+    hit_probability_log_ = logodds(parameters["hit_probability_log"].as<double>(0.8));
+    miss_probability_log_ = logodds(parameters["miss_probability_log"].as<double>(0.4));
+    min_obstacle_height_ = parameters["min_obstacle_height"].as<double>(0.0);
+    max_obstacle_height_ = parameters["max_obstacle_height"].as<double>(2.0);
+    obstacle_range_ = parameters["obstacle_range"].as<double>(3.5);
+    raytrace_range_ = parameters["raytrace_range"].as<double>(4.0);
 }
 
 void LaserData::onMapDataChanged()
 {
 }
 
-bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const Eigen::Isometry3d& sensor_transform)
+bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+                            const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();
     const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
@@ -61,9 +55,7 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
         }
     }
 
-    const auto robot_tr = tf_buffer_->lookupTransform(global_frame_, "base_link", msg->header.stamp);
-    const Eigen::Isometry2d robot_t = convert(robot_tr.transform);
-    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_t, robot_footprint_, 1.00);
+    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.00);
 
     const unsigned int cell_raytrace_range =
         static_cast<unsigned int>(raytrace_range_ / map_data_->dimensions().resolution());

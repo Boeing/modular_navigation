@@ -40,6 +40,13 @@ bool LayeredMap::update(const AABB& bb)
     return success;
 }
 
+void LayeredMap::clear()
+{
+    ROS_ASSERT(map_data_);
+    for (const auto& layer : layers_)
+        layer->clear();
+}
+
 void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
 {
     ROS_ASSERT(map_data_);
@@ -47,11 +54,8 @@ void LayeredMap::clearRadius(const Eigen::Vector2d& pose, const double radius)
     const Eigen::Vector2i cell_index = map_data_->grid.dimensions().getCellIndex(pose);
     const int cell_radius = static_cast<int>(radius / map_data_->grid.dimensions().resolution());
 
-    // update from layers
     for (const auto& layer : layers_)
-    {
         layer->clearRadius(cell_index, cell_radius);
-    }
 }
 
 void LayeredMap::setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)

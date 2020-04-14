@@ -5,15 +5,14 @@
 #include <autonomy/DriveAction.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <gridmap/layered_map.h>
+#include <gridmap/robot_tracker.h>
+#include <gridmap/urdf_tree.h>
 #include <nav_msgs/Odometry.h>
 #include <navigation_interface/controller.h>
 #include <navigation_interface/path_planner.h>
 #include <navigation_interface/trajectory_planner.h>
 #include <pluginlib/class_loader.h>
 #include <ros/ros.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <tf2_ros/buffer.h>
-#include <tf2_ros/transform_listener.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -25,20 +24,6 @@
 
 namespace autonomy
 {
-
-template <typename T> T get_param_with_default_warn(const std::string& param_name, const T& default_val)
-{
-    T param_val;
-    if (ros::param::has(param_name))
-    {
-        if (ros::param::get(param_name, param_val))
-        {
-            return param_val;
-        }
-    }
-    ROS_WARN_STREAM("Using default value for " << param_name << "=" << default_val);
-    return default_val;
-}
 
 template <typename T> T get_param_or_throw(const std::string& param_name)
 {
@@ -52,15 +37,6 @@ template <typename T> T get_param_or_throw(const std::string& param_name)
     }
     throw std::runtime_error("Must specify: " + param_name);
 }
-
-struct RobotState
-{
-    ros::SteadyTime time;
-    navigation_interface::KinodynamicState robot_state;
-
-    bool localised;  // true if map_to_odom is valid
-    Eigen::Isometry2d map_to_odom;
-};
 
 struct ControlTrajectory
 {
@@ -100,16 +76,11 @@ class Autonomy
     void goalCallback(GoalHandle goal);
     void cancelCallback(GoalHandle goal);
 
-    std::unique_ptr<Eigen::Isometry2d> transformGoal(const Eigen::Isometry2d& goal, const std::string& frame_id);
-
-    void pathPlannerThread(const Eigen::Isometry2d& goal, const std::string& frame_id);
+    void pathPlannerThread(const Eigen::Isometry2d& goal);
     void trajectoryPlannerThread();
     void controllerThread();
 
     ros::NodeHandle nh_;
-
-    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-    tf2_ros::TransformListener tf_listener_;
 
     std::mutex goal_mutex_;
     std::unique_ptr<GoalHandle> goal_;
@@ -155,24 +126,24 @@ class Autonomy
     std::mutex trajectory_mutex_;
 
     // Configuration
-    const double map_publish_frequency_;
+    const std::string global_frame_ = "map";
 
-    const std::string global_frame_;
-
-    const double clear_radius_;
-
-    const double path_planner_frequency_;
-    const double trajectory_planner_frequency_;
-    const double controller_frequency_;
-    const double path_swap_fraction_;
-    const double localisation_timeout_;
+    double map_publish_frequency_;
+    double clear_radius_;
+    double path_planner_frequency_;
+    double trajectory_planner_frequency_;
+    double controller_frequency_;
+    double path_swap_fraction_;
     const double path_persistence_time_ = 6.0;
 
-    std::mutex robot_state_mutex_;
-    std::condition_variable robot_state_conditional_;
-    RobotState robot_state_;
+    std::shared_ptr<gridmap::URDFTree> urdf_tree_;
+    std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
+
     ros::Subscriber odom_sub_;
     void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+
+    ros::Subscriber mapper_status_sub_;
+    void mapperCallback(const cartographer_ros_msgs::SystemState::ConstPtr& msg);
 };
 
 }  // namespace autonomy

@@ -5,7 +5,7 @@
 #include <gridmap/map_data.h>
 #include <navigation_interface/types/control.h>
 #include <navigation_interface/types/trajectory.h>
-#include <xmlrpcpp/XmlRpc.h>
+#include <yaml-cpp/yaml.h>
 
 #include <memory>
 
@@ -42,10 +42,10 @@ class Controller
     virtual Result control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
                            const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom) = 0;
 
-    virtual void onInitialize(const XmlRpc::XmlRpcValue& parameters) = 0;
+    virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;
 
-    void initialize(const XmlRpc::XmlRpcValue& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
+    void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
@@ -54,9 +54,11 @@ class Controller
 
     void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
     {
+        ROS_INFO("Updating map: Controller");
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
         onMapDataChanged();
+        ROS_INFO("Updating map: Controller DONE");
     }
 
   protected:
