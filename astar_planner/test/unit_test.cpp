@@ -186,6 +186,40 @@ TEST_F(PlanningTest, test_reverse)
     cv::imwrite("test_reverse.png", disp);
 }
 
+TEST_F(PlanningTest, test_strafe)
+{
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
+
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+
+    const Eigen::Isometry2d start = Eigen::Translation2d(0.0, -2.8) * Eigen::Rotation2Dd(M_PI / 2.0);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(0.4, -2.8) * Eigen::Rotation2Dd(M_PI / 2.0);
+
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
+
+    const auto t0 = std::chrono::steady_clock::now();
+
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution);
+
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
+
+    std::cout << "path size: " << astar_result.path.size() << std::endl;
+    std::cout << "success: " << astar_result.success << std::endl;
+    std::cout << "iterations: " << astar_result.iterations << std::endl;
+
+    const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    cv::imwrite("test_strafe.png", disp);
+}
+
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);

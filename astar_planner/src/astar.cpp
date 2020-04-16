@@ -142,7 +142,7 @@ struct ExploreDirection
 
 const double BACKWARDS_MULT = 1.4;
 const double STRAFE_MULT = 2.0;
-const double ANGULAR_MULT = 0.1 / M_PI;
+const double ANGULAR_MULT = 0.5 / M_PI;
 
 }  // namespace
 

@@ -68,8 +68,7 @@ def generate_cartographer_map(
 
     str_cmd = ' '.join(cmd)
 
-    _null = open(os.devnull, 'w')
-    subprocess.check_call(str_cmd, shell=True, stdout=_null, stderr=subprocess.STDOUT)
+    subprocess.check_call(str_cmd, shell=True, stderr=subprocess.STDOUT)
     temp_pb_f.seek(0)
     pb_bytes = temp_pb_f.read()
 
