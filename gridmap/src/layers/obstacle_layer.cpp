@@ -300,9 +300,10 @@ void ObstacleLayer::debugVizThread(const double frequency)
     while (debug_viz_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::timed_mutex> _lock(map_mutex_);
+            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
-            if (debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ && robot_state.localised)
+            if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
+                robot_state.localised)
             {
                 grid.header.frame_id = "map";
                 grid.info.resolution = static_cast<float>(probability_grid_->dimensions().resolution());
@@ -380,9 +381,9 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
     while (clear_footprint_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::timed_mutex> _lock(map_mutex_);
+            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
-            if (probability_grid_ && robot_state.localised)
+            if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
                 const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
                 const auto footprint =
@@ -405,6 +406,7 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
 void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
     ros::Rate rate(frequency);
+    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
 
     // divide the grid into a set of blocks which we can mark as dirty
     // only update dirty blocks
@@ -462,9 +464,9 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     while (time_decay_running_ && ros::ok())
     {
         {
-            std::lock_guard<std::timed_mutex> _lock(map_mutex_);
+            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
-            if (probability_grid_ && robot_state.localised)
+            if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
                 const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
                 const Eigen::Array2i robot_map = probability_grid_->dimensions().getCellIndex(robot_pose.translation());
