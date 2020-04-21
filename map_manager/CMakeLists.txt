@@ -44,6 +44,7 @@ catkin_package(
 
 catkin_install_python(
     PROGRAMS
+    scripts/download_pbstream.py
     scripts/${PROJECT_NAME}_node.py
     scripts/save_cartographer_map.py
     scripts/save_gmapping_map.py
