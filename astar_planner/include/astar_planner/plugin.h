@@ -28,7 +28,7 @@ class AStarPlanner : public navigation_interface::PathPlanner
     bool debug_viz_ = false;
     double robot_radius_ = 0.230;
     double conservative_robot_radius_ = 0.416;
-    double avoid_zone_cost_ = 10.0;
+    double avoid_zone_cost_ = 4.0;
     double path_cost_ = 1e-3;
 
     std::vector<Eigen::Vector2d> offsets_;

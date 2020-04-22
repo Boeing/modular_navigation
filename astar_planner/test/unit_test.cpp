@@ -152,6 +152,42 @@ TEST_F(PlanningTest, test_straight_line)
     cv::imwrite("test_straight_line.png", disp);
 }
 
+TEST_F(PlanningTest, test_avoid_zone)
+{
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
+    //    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
+
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+    cv::rectangle(*costmap->traversal_cost, cv::Point(600, 200), cv::Point(800, 500), cv::Scalar(10.0), -1, cv::LINE_8);
+
+    const Eigen::Isometry2d start = Eigen::Translation2d(0.0, -3.1) * Eigen::Rotation2Dd(M_PI);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(5.5, -3.1) * Eigen::Rotation2Dd(0);
+
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
+
+    const auto t0 = std::chrono::steady_clock::now();
+
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution);
+
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
+
+    std::cout << "path size: " << astar_result.path.size() << std::endl;
+    std::cout << "success: " << astar_result.success << std::endl;
+    std::cout << "iterations: " << astar_result.iterations << std::endl;
+
+    cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    //    cv::rectangle(disp, cv::Point(600, 200), cv::Point(800, 500), cv::Scalar(100, 0, 0), -1, cv::LINE_8);
+    cv::imwrite("test_avoid_zone.png", disp);
+}
+
 TEST_F(PlanningTest, test_reverse)
 {
     cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);

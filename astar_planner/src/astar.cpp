@@ -121,7 +121,7 @@ double translatingNearWallsCost(const int x, const int y, const Costmap& costmap
 
 double rotatingNearWallsCost(const double distance_to_collision_m)
 {
-    return distance_to_collision_m < 0.5 ? std::min(100.0, 0.5 / std::pow(distance_to_collision_m, 4.0)) : 1.0;
+    return distance_to_collision_m < 0.5 ? std::min(20.0, 0.5 / std::pow(distance_to_collision_m, 4.0)) : 1.0;
 }
 
 double rotatingNearWallsCost(const int x, const int y, const Costmap& costmap)
@@ -218,9 +218,6 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
 
         const std::size_t current_index = costmap.to2DGridIndex(current_node->state);
 
-        const double traversal_cost_scale =
-            static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(current_index)));
-
         ROS_ASSERT(!current_node->visited);
         current_node->visited = true;
 
@@ -263,6 +260,9 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
             // add cost to distance from collisions
             // this keeps a nice boundary away from objects
             const double collision_cost = translatingNearWallsCost(new_state.x, new_state.y, costmap);
+
+            const double traversal_cost_scale =
+                static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(new_index)));
 
             const double cost_so_far =
                 current_node->cost_so_far + directions_2d_cost[i] * traversal_cost_scale * collision_cost;
@@ -352,8 +352,9 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
                                           static_cast<double>(simplified_path[simplified_path.size() - 1].y() -
                                                               simplified_path[simplified_path.size() - 2].y())};
 
-            const double goal_rnwc = rotatingNearWallsCost(static_cast<int>(goal_x), static_cast<int>(goal_y), costmap);
-            path_angle += goal_rnwc * angle2vecs(end_pose_dir, end_dir);
+            const double rotating_near_walls_cost =
+                rotatingNearWallsCost(static_cast<int>(goal_x), static_cast<int>(goal_y), costmap);
+            path_angle += rotating_near_walls_cost * angle2vecs(end_pose_dir, end_dir);
 
             straight_cost = shortest_2d * costmap.resolution + ANGULAR_MULT * path_angle;
         }
@@ -369,19 +370,24 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
                 const double x_cost = std::abs((trans_dir[0] > 0) ? trans_dir[0] : BACKWARDS_MULT * trans_dir[0]);
                 const double y_cost = std::abs(STRAFE_MULT * trans_dir[1]);
 
+                const std::size_t new_index = costmap.to2DGridIndex(
+                    State2D{static_cast<int>(simplified_path[i].x()), static_cast<int>(simplified_path[i].y())});
+                const double traversal_cost_scale =
+                    static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(new_index)));
+
                 const double collision_cost =
                     translatingNearWallsCost(static_cast<int>(simplified_path.back().x()),
                                              static_cast<int>(simplified_path.back().y()), costmap);
-                strafe_cost += (x_cost + y_cost) * costmap.resolution * collision_cost;
+                strafe_cost += (x_cost + y_cost) * costmap.resolution * collision_cost * traversal_cost_scale;
             }
 
             // add rotation cost at end
             const double rotating_near_walls_cost =
                 rotatingNearWallsCost(static_cast<int>(goal_x), static_cast<int>(goal_y), costmap);
-            strafe_cost += ANGULAR_MULT * rotating_near_walls_cost * std::abs(wrapAngle(goal.theta - state.theta));
+            strafe_cost += ANGULAR_MULT * std::abs(wrapAngle(goal.theta - state.theta)) * rotating_near_walls_cost;
         }
 
-        return std::min(1.1 * strafe_cost, 1.1 * straight_cost);
+        return std::min(std::pow(strafe_cost, 1.1), 1.1 * straight_cost);
     }
     else
     {
@@ -472,6 +478,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         const auto current_index = StateToIndex(current_node->state, linear_resolution, angular_resolution);
         const auto current_key = IndexToKey(current_index);
 
+        /*
+        // traversal cost is currently only being considered in the heuristic
         const int state_x =
             static_cast<int>(std::round((current_node->state.x - costmap.origin_x) / costmap.resolution));
         const int state_y =
@@ -480,6 +488,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         const std::size_t state_index = costmap.to2DGridIndex(state2d);
         const double traversal_cost_scale =
             static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(state_index)));
+        */
 
         const double distance_to_goal_x = std::abs(current_node->state.x - goal_state.x);
         const double distance_to_goal_y = std::abs(current_node->state.y - goal_state.y);
@@ -550,7 +559,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
             const double translation_cost = step_mult * directions[i].linear_cost * collision_cost;
             const double rotation_cost = directions[i].angular_cost;
             const double cost_so_far =
-                current_node->cost_so_far + (translation_cost + rotation_cost) * traversal_cost_scale;
+                current_node->cost_so_far + (translation_cost + rotation_cost) * 1.0;  // traversal_cost_scale;
             if (cost_so_far < new_node->second->cost_so_far)
             {
                 const double old_cost = new_node->second->cost();
