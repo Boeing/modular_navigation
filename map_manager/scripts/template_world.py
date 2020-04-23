@@ -2,16 +2,17 @@
 
 import argparse
 import logging
-import numpy
+import math
 import os
 import uuid
 from matplotlib.path import Path
-from numpy import dot, empty_like
 
 import ezdxf
 import jinja2
+import numpy
 from ezdxf.legacy.graphics import Circle
 from ezdxf.legacy.polyline import Polyline
+from numpy import dot, empty_like
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ def run(dxf_file, world_template_file, output_sdf_file):
     bollards = []
     walls = []
     raw_paths = []
+    markers = []
 
     thickness = 20
 
@@ -79,6 +81,17 @@ def run(dxf_file, world_template_file, output_sdf_file):
             if layer == 'paths':
                 points = [p for p in obj.points()]
                 raw_paths.append(points)
+
+            elif layer.startswith('pose_'):
+                points = [(p[0] / 1000.0, p[1] / 1000.0) for p in obj.points()]
+                assert (len(points) == 2)
+                dx = points[1][0] - points[0][0]
+                dy = points[1][1] - points[0][1]
+                markers.append({
+                    'name': '{}'.format(layer[5:]),
+                    'center': '{} {}'.format(points[0][0], points[0][1]),
+                    'rotation': math.atan2(dy, dx)
+                })
 
             else:
                 points = [numpy.array([p[0], p[1]]) for p in obj.points()]
@@ -181,6 +194,7 @@ def run(dxf_file, world_template_file, output_sdf_file):
     logger.info('Found {} paths'.format(len(raw_paths)))
     logger.info('Found {} bollards'.format(len(bollards)))
     logger.info('Found {} walls'.format(len(walls)))
+    logger.info('Found {} markers'.format(len(markers)))
 
     nodes = {}
     paths = []
@@ -259,7 +273,7 @@ def run(dxf_file, world_template_file, output_sdf_file):
     template_env = jinja2.Environment(loader=template_loader)
     template = template_env.get_template(os.path.basename(world_template_file))
 
-    out = template.render(bollards=bollards, walls=walls, nodes=nodes, paths=paths)
+    out = template.render(bollards=bollards, walls=walls, nodes=nodes, paths=paths, markers=markers)
 
     with open(output_sdf_file, 'w') as f:
         f.write(out)

@@ -126,7 +126,7 @@
             {% for bollard in bollards %}
             <link name='{{ bollard.name }}'>
                 <pose frame=''>{{ bollard.center }} 0 0 0 0</pose>
-                <visual name='{{ bollard.name }}visual'>
+                <visual name='{{ bollard.name }}_visual'>
                     <pose frame=''>0 0 0.3 0 0 0</pose>
                     <geometry>
                         <cylinder>
@@ -142,7 +142,7 @@
                         <ambient>1 1 1 1</ambient>
                     </material>
                 </visual>
-                <collision name='{{ bollard.name }}collision'>
+                <collision name='{{ bollard.name }}_collision'>
                     <pose frame=''>0 0 0.3 0 0 0</pose>
                     <geometry>
                         <cylinder>
@@ -167,6 +167,27 @@
                 <node>{{ node }}</node>
                 {% endfor %}
             </path>
+            {% endfor %}
+
+            {% for marker in markers %}
+            <link name='{{ marker.name }}' layer='marker'>
+                <pose frame=''>{{ marker.center }} 0 0 0 {{ marker.rotation }}</pose>
+                <visual name='{{ marker.name }}_visual'>
+                    <pose frame=''>0 0 0 0 0 0</pose>
+                    <geometry>
+                        <sphere>
+                            <radius>0.1</radius>
+                        </sphere>
+                    </geometry>
+                    <material>
+                        <script>
+                            <uri>file://media/materials/scripts/gazebo.material</uri>
+                            <name>Gazebo/Green</name>
+                        </script>
+                        <ambient>1 1 1 1</ambient>
+                    </material>
+                </visual>
+            </link>
             {% endfor %}
 
             <static>1</static>
