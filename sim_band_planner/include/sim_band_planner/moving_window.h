@@ -24,10 +24,11 @@ navigation_interface::Path filterDuplicates(const navigation_interface::Path& pa
     {
         const auto prev = filtered.nodes.back();
         const auto p = path.nodes[i];
-        if (!(prev.translation().isApprox(p.translation(), 0.01) && prev.linear().isApprox(p.linear(), 0.01)))
+        const auto  delta = prev.inverse() * p;
+        if ((delta.translation().norm() > 0.01))
             filtered.nodes.push_back(p);
     }
-
+    filtered.nodes.push_back(path.nodes.back());
     return filtered;
 }
 
