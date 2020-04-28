@@ -399,8 +399,8 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
 
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
                        const Costmap& costmap, const CollisionChecker& collision_checker,
-                       const double conservative_radius, const double linear_resolution,
-                       const double angular_resolution, const GoalSampleSettings& goal_sample_settings)
+                       const double conservative_radius, double linear_resolution, const double angular_resolution,
+                       const navigation_interface::PathPlanner::GoalSampleSettings& goal_sample_settings)
 {
     PathResult result(static_cast<std::size_t>(costmap.width), static_cast<std::size_t>(costmap.height));
     result.success = false;
@@ -421,22 +421,45 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
     }
 
     // sample to find valid goal
-    State3D goal_state = nominal_goal_state;
-    std::random_device rd{};
-    std::mt19937 gen{rd()};
-    std::normal_distribution<double> linear_dist{0, goal_sample_settings.linear_std};
-    std::normal_distribution<double> angular_dist{0, goal_sample_settings.angular_std};
-    std::size_t samples = 0;
-    result.goal_in_collision = !collision_checker.isValid(goal_state);
-    while (result.goal_in_collision)
-    {
-        if (++samples > goal_sample_settings.max_samples)
-            return result;
+    ROS_ASSERT_MSG(goal_sample_settings.std_x >= 0.0, "Goal Sample Standard Deviation X is negative");
+    ROS_ASSERT_MSG(goal_sample_settings.std_y >= 0.0, "Goal Sample Standard Deviation Y is negative");
+    ROS_ASSERT_MSG(goal_sample_settings.std_w >= 0.0, "Goal Sample Standard Deviation W is negative");
 
-        goal_state.x = nominal_goal_state.x + linear_dist(gen);
-        goal_state.y = nominal_goal_state.y + linear_dist(gen);
-        goal_state.theta = wrapAngle(nominal_goal_state.theta + angular_dist(gen));
-        result.goal_in_collision = !collision_checker.isValid(goal_state);
+    State3D goal_state = nominal_goal_state;
+    result.goal_in_collision = !collision_checker.isValid(goal_state);
+
+    if (goal_sample_settings.std_x > std::numeric_limits<double>::epsilon() ||
+        goal_sample_settings.std_y > std::numeric_limits<double>::epsilon() ||
+        goal_sample_settings.std_w > std::numeric_limits<double>::epsilon())
+    {
+        std::random_device rd{};
+        std::mt19937 gen{rd()};
+        std::normal_distribution<double> dist_x{
+            0, std::max(std::numeric_limits<double>::epsilon(), goal_sample_settings.std_x)};
+        std::normal_distribution<double> dist_y{
+            0, std::max(std::numeric_limits<double>::epsilon(), goal_sample_settings.std_y)};
+        std::normal_distribution<double> dist_w{
+            0, std::max(std::numeric_limits<double>::epsilon(), goal_sample_settings.std_w)};
+        std::size_t samples = 0;
+
+        while (result.goal_in_collision)
+        {
+            if (++samples > goal_sample_settings.max_samples)
+                return result;
+
+            const Eigen::Isometry2d sample_wrt_robot =
+                Eigen::Translation2d(dist_x(gen), dist_y(gen)) * Eigen::Rotation2Dd(dist_w(gen));
+            const Eigen::Isometry2d sample_wrt_goal = goal * sample_wrt_robot;
+
+            goal_state.x = sample_wrt_goal.translation().x();
+            goal_state.y = sample_wrt_goal.translation().y();
+            goal_state.theta = Eigen::Rotation2Dd(sample_wrt_goal.linear()).smallestAngle();
+            result.goal_in_collision = !collision_checker.isValid(goal_state);
+        }
+    }
+    else if (result.goal_in_collision)
+    {
+        return result;
     }
 
     PriorityQueue3D open_set;

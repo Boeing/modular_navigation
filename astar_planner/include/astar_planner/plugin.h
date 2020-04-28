@@ -16,7 +16,8 @@ class AStarPlanner : public navigation_interface::PathPlanner
     AStarPlanner();
     ~AStarPlanner();
 
-    virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal) override;
+    virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal,
+                        const GoalSampleSettings& sample) override;
 
     virtual bool valid(const navigation_interface::Path& path) const override;
     virtual double cost(const navigation_interface::Path& path) const override;

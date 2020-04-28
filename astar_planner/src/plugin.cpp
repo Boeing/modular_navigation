@@ -63,9 +63,8 @@ AStarPlanner::~AStarPlanner()
 {
 }
 
-// cppcheck-suppress unusedFunction
-navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isometry2d& start,
-                                                             const Eigen::Isometry2d& goal)
+navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
+    AStarPlanner::plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const GoalSampleSettings& sample)
 {
     navigation_interface::PathPlanner::Result result;
 
@@ -82,7 +81,7 @@ navigation_interface::PathPlanner::Result AStarPlanner::plan(const Eigen::Isomet
 
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap_, collision_checker,
-                                   conservative_robot_radius_, linear_resolution, angular_resolution);
+                                   conservative_robot_radius_, linear_resolution, angular_resolution, sample);
 
     ROS_INFO_STREAM(
         "astar took "

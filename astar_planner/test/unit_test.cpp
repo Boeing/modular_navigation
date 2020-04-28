@@ -66,9 +66,11 @@ TEST_F(PlanningTest, test_home_position)
 
     const auto t0 = std::chrono::steady_clock::now();
 
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
+
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
-                                   linear_resolution, angular_resolution);
+                                   linear_resolution, angular_resolution, goal_sample_settings);
 
     std::cout
         << "planner took: "
@@ -101,9 +103,11 @@ TEST_F(PlanningTest, test_out_of_lane)
 
     const auto t0 = std::chrono::steady_clock::now();
 
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
+
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
-                                   linear_resolution, angular_resolution);
+                                   linear_resolution, angular_resolution, goal_sample_settings);
 
     std::cout
         << "planner took: "
@@ -135,9 +139,11 @@ TEST_F(PlanningTest, test_straight_line)
 
     const auto t0 = std::chrono::steady_clock::now();
 
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
+
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
-                                   linear_resolution, angular_resolution);
+                                   linear_resolution, angular_resolution, goal_sample_settings);
 
     std::cout
         << "planner took: "
@@ -170,9 +176,11 @@ TEST_F(PlanningTest, test_avoid_zone)
 
     const auto t0 = std::chrono::steady_clock::now();
 
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
+
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
-                                   linear_resolution, angular_resolution);
+                                   linear_resolution, angular_resolution, goal_sample_settings);
 
     std::cout
         << "planner took: "
@@ -205,9 +213,11 @@ TEST_F(PlanningTest, test_reverse)
 
     const auto t0 = std::chrono::steady_clock::now();
 
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
+
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
-                                   linear_resolution, angular_resolution);
+                                   linear_resolution, angular_resolution, goal_sample_settings);
 
     std::cout
         << "planner took: "
@@ -239,9 +249,11 @@ TEST_F(PlanningTest, test_strafe)
 
     const auto t0 = std::chrono::steady_clock::now();
 
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
+
     const astar_planner::PathResult astar_result =
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
-                                   linear_resolution, angular_resolution);
+                                   linear_resolution, angular_resolution, goal_sample_settings);
 
     std::cout
         << "planner took: "
@@ -254,6 +266,43 @@ TEST_F(PlanningTest, test_strafe)
 
     const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
     cv::imwrite("test_strafe.png", disp);
+}
+
+TEST_F(PlanningTest, test_goal_sampling)
+{
+    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 300), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 400), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(0, 0), cv::Point(140, 500), cv::Scalar(255), -1, cv::LINE_8);
+
+    auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
+
+    // Set unit traversal cost
+    costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
+
+    const Eigen::Isometry2d start = Eigen::Translation2d(-4, -7.1) * Eigen::Rotation2Dd(M_PI);
+    const Eigen::Isometry2d goal = Eigen::Translation2d(-4, -4.2) * Eigen::Rotation2Dd(M_PI);
+
+    const astar_planner::CollisionChecker collision_checker(*costmap, offsets);
+
+    const auto t0 = std::chrono::steady_clock::now();
+
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {1.0, 1.0, 0, 100};
+
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, *costmap.get(), collision_checker, conservative_radius,
+                                   linear_resolution, angular_resolution, goal_sample_settings);
+
+    std::cout
+        << "planner took: "
+        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+        << std::endl;
+
+    std::cout << "path size: " << astar_result.path.size() << std::endl;
+    std::cout << "success: " << astar_result.success << std::endl;
+    std::cout << "iterations: " << astar_result.iterations << std::endl;
+
+    const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
+    cv::imwrite("test_goal_sampling.png", disp);
 }
 
 int main(int argc, char** argv)
