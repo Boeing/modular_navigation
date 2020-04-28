@@ -1,4 +1,8 @@
 geometry_msgs/PoseStamped target_pose
+float64 std_x
+float64 std_y
+float64 std_w
+uint64 max_samples
 ---
 ---
 geometry_msgs/PoseStamped base_position

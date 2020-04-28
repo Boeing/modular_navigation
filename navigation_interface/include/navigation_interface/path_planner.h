@@ -27,10 +27,19 @@ class PathPlanner
         Path path;
     };
 
+    struct GoalSampleSettings
+    {
+        const double std_x;
+        const double std_y;
+        const double std_w;
+        const std::size_t max_samples;
+    };
+
     PathPlanner() = default;
     virtual ~PathPlanner() = default;
 
-    virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal) = 0;
+    virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal,
+                        const GoalSampleSettings& sample) = 0;
 
     virtual bool valid(const Path& path) const = 0;
     virtual double cost(const Path& path) const = 0;

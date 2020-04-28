@@ -322,16 +322,12 @@ void Autonomy::executeGoal(GoalHandle& goal)
     controller_done_ = false;
     running_ = true;
 
-    if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
-    {
-        goal.setRejected();
-        ROS_WARN_STREAM("Goal is not in global frame: " << global_frame_);
-        return;
-    }
+    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {
+        goal.getGoal()->std_x, goal.getGoal()->std_y, goal.getGoal()->std_w, goal.getGoal()->max_samples};
 
     // start the threads
-    path_planner_thread_.reset(
-        new std::thread(&Autonomy::pathPlannerThread, this, convert(goal.getGoal()->target_pose.pose)));
+    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this,
+                                               convert(goal.getGoal()->target_pose.pose), goal_sample_settings));
     trajectory_planner_thread_.reset(new std::thread(&Autonomy::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&Autonomy::controllerThread, this));
 
@@ -380,7 +376,24 @@ void Autonomy::goalCallback(GoalHandle goal)
 {
     ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x
                                       << ", " << goal.getGoal()->target_pose.pose.position.y << ")");
+    ROS_INFO_STREAM("Goal standard deviations: X: " << goal.getGoal()->std_x << ", Y: " << goal.getGoal()->std_y
+                                                    << ", W: " << goal.getGoal()->std_w
+                                                    << ", Max Samples: " << goal.getGoal()->max_samples);
     {
+        if (goal.getGoal()->std_x < 0.0 || goal.getGoal()->std_y < 0.0 || goal.getGoal()->std_w < 0.0)
+        {
+            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Bad sample settings");
+            goal.setRejected();
+            return;
+        }
+
+        if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
+        {
+            goal.setRejected();
+            ROS_WARN_STREAM("Goal is not in global frame: " << global_frame_);
+            return;
+        }
+
         std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
         if (!lock.owns_lock())
         {
@@ -422,7 +435,8 @@ void Autonomy::cancelCallback(GoalHandle goal)
     }
 }
 
-void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal)
+void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
+                                 const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings)
 {
     ros::WallRate rate(path_planner_frequency_);
 
@@ -487,7 +501,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal)
         {
             const auto t0 = std::chrono::steady_clock::now();
             ROS_INFO("Path Planning...");
-            result = path_planner_->plan(robot_pose, goal);
+            result = path_planner_->plan(robot_pose, goal, goal_sample_settings);
 
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)

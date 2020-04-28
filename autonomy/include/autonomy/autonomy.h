@@ -76,7 +76,8 @@ class Autonomy
     void goalCallback(GoalHandle goal);
     void cancelCallback(GoalHandle goal);
 
-    void pathPlannerThread(const Eigen::Isometry2d& goal);
+    void pathPlannerThread(const Eigen::Isometry2d& goal,
+                           const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings);
     void trajectoryPlannerThread();
     void controllerThread();
 
