@@ -106,6 +106,7 @@ class Autonomy
     ros::Publisher costmap_updates_publisher_;
 
     ros::Publisher current_goal_pub_;
+    ros::Publisher path_goal_pub_;
     ros::Publisher vel_pub_;
 
     ros::Publisher path_pub_;
