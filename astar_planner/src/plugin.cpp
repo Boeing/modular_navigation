@@ -205,8 +205,6 @@ navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
             result.path.nodes.push_back(p);
         }
 
-        result.path.nodes.push_back(goal);
-
         result.cost = astar_result.path.front()->cost_so_far;
         result.outcome = navigation_interface::PathPlanner::Outcome::SUCCESSFUL;
     }

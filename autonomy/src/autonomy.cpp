@@ -166,6 +166,7 @@ Autonomy::Autonomy()
                                                   ros::TransportHints().tcpNoDelay());
     vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
     current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 1, true);
+    path_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("path_goal", 1, true);
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
@@ -542,10 +543,13 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 const double time_since_successful_recalc = (now - current_path_->last_successful_time).toSec();
 
                 const bool persistence = time_since_successful_recalc > path_persistence_time_;
+                const bool path_now_valid =
+                    result.cost < std::numeric_limits<double>::max() && cost >= std::numeric_limits<double>::max();
+                const bool found_better_path = result.cost < (path_swap_fraction_ * cost);
 
                 // TODO detect localisation jump!
 
-                if (persistence && result.cost < path_swap_fraction_ * cost)
+                if ((path_now_valid && persistence) || (found_better_path && persistence && path.length() > 1.0))
                 {
                     ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
@@ -589,6 +593,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
 
                     gui_path.poses.push_back(p);
                 }
+                path_goal_pub_.publish(gui_path.poses.back());
                 path_pub_.publish(gui_path);
             }
         }
@@ -927,8 +932,6 @@ void Autonomy::controllerThread()
                 ROS_INFO("Final trajectory complete");
                 break;
             }
-            else
-                ROS_INFO("Trajectory complete");
         }
     }
 
