@@ -600,6 +600,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
         else
         {
             ROS_WARN("Failed to find a path");
+            /*
             std::lock_guard<std::mutex> lock(path_mutex_);
             const double time_since_successful_recalc = current_path_
                                                             ? (now - current_path_->last_successful_time).toSec()
@@ -610,6 +611,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
                 // TODO need to update sensors at least once before planning or else we plan through things...
             }
+            */
         }
 
         rate.sleep();
