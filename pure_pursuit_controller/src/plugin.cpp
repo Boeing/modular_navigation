@@ -443,8 +443,10 @@ navigation_interface::Controller::Result
     }
     else
     {
-        const auto max_vel =
-            max_velocity_ * std::max(0.20, std::min(1.0, std::min(dist_to_goal, min_distance_to_collision)));
+        const double max_avoid_distance = 2.0;
+        const double d = std::min(max_avoid_distance, std::min(dist_to_goal, min_distance_to_collision));
+        const double velocity_scale = std::max(0.20, d / max_avoid_distance);
+        const auto max_vel = max_velocity_ * velocity_scale;
         target_velocity = control_error.normalized().cwiseProduct(max_vel);
         control_integral_ = Eigen::Vector3d::Zero();
         control_error_ = Eigen::Vector3d::Zero();
