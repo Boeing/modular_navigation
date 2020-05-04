@@ -44,6 +44,8 @@ class PurePursuitController : public navigation_interface::Controller
 
     double goal_radius_ = 0.10;
 
+    double tracking_error_ = 0.25;
+
     double xy_goal_tolerance_ = 0.02;
     double yaw_goal_tolerance_ = 0.01;
 

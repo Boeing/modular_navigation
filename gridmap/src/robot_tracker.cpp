@@ -135,7 +135,8 @@ void RobotTracker::addOdometryData(const nav_msgs::Odometry& odometry_data)
 void RobotTracker::addLocalisationData(const cartographer_ros_msgs::SystemState& localisation)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    localisation_.localised = localisation.localisation_status == cartographer_ros_msgs::SystemState::LOCALISED;
+    localisation_.localised = localisation.localisation_status == cartographer_ros_msgs::SystemState::LOCALISED ||
+                              localisation.localisation_status == cartographer_ros_msgs::SystemState::PAUSED;
     localisation_.map_to_odom = convert(localisation.localisation.transform);
 }
 

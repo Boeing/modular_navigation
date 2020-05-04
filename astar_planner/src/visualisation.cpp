@@ -85,7 +85,8 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
                 Eigen::Vector2d(start_x, start_y) +
                 Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(0, 10));
 
-            cv::circle(disp, cv::Point(start_x, start_y), 0.480 / costmap.resolution, cv::Scalar(0, 255, 0), 1);
+            //            cv::circle(disp, cv::Point(start_x, start_y), 0.480 / costmap.resolution, cv::Scalar(0, 255,
+            //            0), 1);
 
             cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 255), 1);
             cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 255, 0), 1);

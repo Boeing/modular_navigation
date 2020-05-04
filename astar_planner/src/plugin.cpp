@@ -19,7 +19,8 @@ namespace astar_planner
 namespace
 {
 
-double pathCost(const navigation_interface::Path& path, const astar_planner::CollisionChecker& collision_checker)
+double pathCost(const navigation_interface::Path& path, const astar_planner::CollisionChecker& collision_checker,
+                const double conservative_radius)
 {
     for (std::size_t i = 0; i < path.nodes.size(); ++i)
     {
@@ -36,20 +37,19 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
     {
         const Eigen::Vector2d dir = path.nodes[i + 1].translation() - path.nodes[i].translation();
         const Eigen::Vector2d dir_wrt_robot = path.nodes[i].linear().inverse() * dir;
+        const Eigen::Rotation2Dd rotation(path.nodes[i].linear().inverse() * path.nodes[i + 1].linear());
 
-        double x_cost = dir_wrt_robot.x();
+        const double x_cost = std::abs((dir_wrt_robot[0] > 0) ? dir_wrt_robot[0] : BACKWARDS_MULT * dir_wrt_robot[0]);
+        const double y_cost = std::abs(STRAFE_MULT * dir_wrt_robot[1]);
 
-        // strafing is very expensive
-        double y_cost = 4.0 * dir_wrt_robot.y();
+        const Eigen::Array2i map_point = collision_checker.costmap().getCellIndex(path.nodes[i].translation());
 
-        // backwards motion is expensive
-        if (dir_wrt_robot.x() > 0)
-            x_cost *= 1.5;
+        const double collision_cost =
+            collisionCost(map_point.x(), map_point.y(), collision_checker.costmap(), conservative_radius);
+        const double traversal_cost = traversalCost(map_point.x(), map_point.y(), collision_checker.costmap());
 
-        cost += x_cost + y_cost;
-        cost += std::abs(wrapAngle(Eigen::Rotation2Dd(path.nodes[i + 1].linear()).smallestAngle() -
-                                   Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle())) /
-                M_PI;
+        cost += (x_cost + y_cost) * traversal_cost * collision_cost;
+        cost += std::abs(rotation.smallestAngle()) * ANGULAR_MULT * collision_cost;
     }
     return cost;
 }
@@ -83,8 +83,8 @@ navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
         astar_planner::hybridAStar(start, goal, max_iterations, *costmap_, collision_checker,
                                    conservative_robot_radius_, linear_resolution, angular_resolution, sample);
 
-    ROS_INFO_STREAM(
-        "astar took "
+    ROS_DEBUG_STREAM(
+        "Hybrid A Star took "
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
         << " iterations: " << astar_result.iterations);
 
@@ -226,7 +226,7 @@ bool AStarPlanner::valid(const navigation_interface::Path& path) const
     ROS_ASSERT(costmap_);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_);
-    return pathCost(path, collision_checker) < std::numeric_limits<double>::max();
+    return pathCost(path, collision_checker, conservative_robot_radius_) < std::numeric_limits<double>::max();
 }
 
 double AStarPlanner::cost(const navigation_interface::Path& path) const
@@ -235,7 +235,7 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
     ROS_ASSERT(costmap_);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_);
-    return pathCost(path, collision_checker);
+    return pathCost(path, collision_checker, conservative_robot_radius_);
 }
 
 // cppcheck-suppress unusedFunction
@@ -313,33 +313,34 @@ void AStarPlanner::onMapDataChanged()
         }
     }
 
-    // TODO turn this back on when it is more stable with the heuristic
-    /*
-        for (const hd_map::Path& path : map_data_->hd_map.paths)
+    for (const hd_map::Path& path : map_data_->hd_map.paths)
+    {
+        ROS_INFO_STREAM("Loading path: " << path.name);
+        for (size_t i = 0; i < path.nodes.size() - 1; ++i)
         {
-            for (size_t i = 0; i < path.nodes.size() - 1; ++i)
-            {
-                const std::string first_id = path.nodes[i];
-                const std::string next_id = path.nodes[i + 1];
+            const std::string first_id = path.nodes[i];
+            const std::string next_id = path.nodes[i + 1];
 
-                auto first_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
-                                             [&first_id](const hd_map::Node& n) { return n.id == first_id; });
-                ROS_ASSERT(first_it != map_data_->hd_map.nodes.end());
-                hd_map::Node start_node = *first_it;
+            auto first_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
+                                         [&first_id](const hd_map::Node& n) { return n.id == first_id; });
+            ROS_ASSERT(first_it != map_data_->hd_map.nodes.end());
+            hd_map::Node start_node = *first_it;
 
-                auto next_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
-                                            [&next_id](const hd_map::Node& n) { return n.id == next_id; });
-                ROS_ASSERT(next_it != map_data_->hd_map.nodes.end());
-                hd_map::Node end_node = *next_it;
+            auto next_it = std::find_if(map_data_->hd_map.nodes.begin(), map_data_->hd_map.nodes.end(),
+                                        [&next_id](const hd_map::Node& n) { return n.id == next_id; });
+            ROS_ASSERT(next_it != map_data_->hd_map.nodes.end());
+            hd_map::Node end_node = *next_it;
 
-                const Eigen::Array2i start_mp = map_data_->grid.dimensions().getCellIndex({start_node.x, start_node.y});
-                const Eigen::Array2i end_mp = map_data_->grid.dimensions().getCellIndex({end_node.x, end_node.y});
+            const Eigen::Array2i start_mp = map_data_->grid.dimensions().getCellIndex({start_node.x, start_node.y});
+            const Eigen::Array2i end_mp = map_data_->grid.dimensions().getCellIndex({end_node.x, end_node.y});
 
-                cv::line(*traversal_cost_, cv::Point(start_mp[0], start_mp[1]), cv::Point(end_mp[0], end_mp[1]),
-       path_cost_, 10);
-            }
+            cv::line(*traversal_cost_, cv::Point(start_mp[0], start_mp[1]), cv::Point(end_mp[0], end_mp[1]), path_cost_,
+                     10);
         }
-        */
+    }
+
+    // blue the traversal cost map to help provide a smooth manifold for planning
+    cv::GaussianBlur(*traversal_cost_, *traversal_cost_, cv::Size(11, 11), 0);
 }
 
 }  // namespace astar_planner

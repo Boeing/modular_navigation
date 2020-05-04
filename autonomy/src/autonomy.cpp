@@ -501,7 +501,6 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
         const auto now = ros::SteadyTime::now();
         {
             const auto t0 = std::chrono::steady_clock::now();
-            ROS_INFO("Path Planning...");
             result = path_planner_->plan(robot_pose, goal, goal_sample_settings);
 
             const double plan_duration =
@@ -509,14 +508,14 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                     .count();
             if (plan_duration > rate.expectedCycleTime().toSec())
                 ROS_WARN_STREAM("Path Planning took too long: " << plan_duration << "s");
-            else
-                ROS_INFO_STREAM("Path Planning took " << plan_duration);
         }
+
+        if (!running_)
+            break;
 
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
             bool update = false;
-            ROS_INFO_STREAM("Found a path of length: " << result.path.nodes.size());
             ROS_ASSERT(!result.path.nodes.empty());
 
             std::lock_guard<std::mutex> lock(path_mutex_);
@@ -551,15 +550,10 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
 
                 if ((path_now_valid && persistence) || (found_better_path && persistence && path.length() > 1.0))
                 {
-                    ROS_INFO_STREAM("NEW PATH: new path cost: " << result.cost << " old path cost: " << cost);
                     update = true;
                 }
-                else
-                {
-                    ROS_INFO_STREAM("EXISTING PATH: new path cost: " << result.cost << " old path cost: " << cost
-                                                                     << " persistence: " << time_since_successful_recalc
-                                                                     << " < " << path_persistence_time_);
-                }
+
+                ROS_INFO_STREAM("Path: old_cost: " << cost << " new_cost: " << result.cost << " swap: " << update);
 
                 // TODO also swap if tracking error is too high or control has failed
             }
@@ -600,18 +594,26 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
         else
         {
             ROS_WARN("Failed to find a path");
-            /*
+
             std::lock_guard<std::mutex> lock(path_mutex_);
             const double time_since_successful_recalc = current_path_
                                                             ? (now - current_path_->last_successful_time).toSec()
                                                             : std::numeric_limits<double>::max();
+
+            // In the situation of persistent
             if (time_since_successful_recalc > 4.0)
             {
+                current_path_.reset();
+
+                std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
+                current_trajectory_.reset();
+
                 ROS_INFO_STREAM("Clearing radius of " << clear_radius_ << "m around robot");
                 layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
-                // TODO need to update sensors at least once before planning or else we plan through things...
+
+                ROS_INFO("Waiting for sensors to stabilize...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(2000));
             }
-            */
         }
 
         rate.sleep();
@@ -744,8 +746,6 @@ void Autonomy::trajectoryPlannerThread()
                     .count();
             if (plan_duration > rate.expectedCycleTime().toSec())
                 ROS_WARN_STREAM("Trajectory Planning took too long: " << plan_duration << "s");
-            else
-                ROS_INFO_STREAM("Trajectory Planning took " << plan_duration);
         }
 
         // update trajectory for the controller
@@ -806,8 +806,8 @@ void Autonomy::controllerThread()
     ros::Time last_odom_time(0);
 
     ROS_ASSERT(layered_map_);
-    const int size_x = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
-    const int size_y = static_cast<int>(2.0 / layered_map_->map()->grid.dimensions().resolution());
+    const int size_x = static_cast<int>(5.0 / layered_map_->map()->grid.dimensions().resolution());
+    const int size_y = static_cast<int>(5.0 / layered_map_->map()->grid.dimensions().resolution());
 
     while (running_)
     {
