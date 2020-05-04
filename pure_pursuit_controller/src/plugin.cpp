@@ -429,6 +429,15 @@ navigation_interface::Controller::Result
         Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * target_state.pose.linear()).smallestAngle()};
     ROS_ASSERT(control_error.allFinite());
 
+    if (target_vec_wrt_robot.norm() > tracking_error_)
+    {
+        ROS_WARN_STREAM("Tracking error. Distance to target: " << target_vec_wrt_robot.norm() << " > "
+                                                               << tracking_error_);
+        result.outcome = navigation_interface::Controller::Outcome::FAILED;
+        last_update_ = ros::SteadyTime(0);
+        return result;
+    }
+
     Eigen::Vector3d target_velocity;
     if (final_pid_control)
     {
@@ -443,7 +452,7 @@ navigation_interface::Controller::Result
     }
     else
     {
-        const double max_avoid_distance = 2.0;
+        const double max_avoid_distance = 1.0;
         const double d = std::min(max_avoid_distance, std::min(dist_to_goal, min_distance_to_collision));
         const double velocity_scale = std::max(0.20, d / max_avoid_distance);
         const auto max_vel = max_velocity_ * velocity_scale;

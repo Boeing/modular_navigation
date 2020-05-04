@@ -29,7 +29,7 @@ class PlanningTest : public testing::Test
 
     const double resolution = 0.02;
     const double robot_radius = 0.230;
-    const double conservative_radius = 0.400;
+    const double conservative_radius = 0.416;
 
     const int size_x = static_cast<int>(20.0 / resolution);
     const int size_y = static_cast<int>(20.0 / resolution);
@@ -37,7 +37,7 @@ class PlanningTest : public testing::Test
     cv::Mat cv_im;
     std::shared_ptr<gridmap::MapData> map_data;
 
-    const size_t max_iterations = 1e5;
+    const size_t max_iterations = 1e6;
     const double linear_resolution = 0.02;
     const double angular_resolution = 2 * M_PI / 16;
 
@@ -125,7 +125,7 @@ TEST_F(PlanningTest, test_out_of_lane)
 TEST_F(PlanningTest, test_straight_line)
 {
     cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
-    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+    //    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
 
     auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
 
@@ -161,13 +161,16 @@ TEST_F(PlanningTest, test_straight_line)
 TEST_F(PlanningTest, test_avoid_zone)
 {
     cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
-    //    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 600), cv::Point(1000, 700), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(700, 520), cv::Point(740, 2000), cv::Scalar(255), -1, cv::LINE_8);
 
     auto costmap = astar_planner::buildCostmap(*map_data, robot_radius);
 
     // Set unit traversal cost
     costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
     cv::rectangle(*costmap->traversal_cost, cv::Point(600, 200), cv::Point(800, 500), cv::Scalar(10.0), -1, cv::LINE_8);
+
+    cv::GaussianBlur(*costmap->traversal_cost, *costmap->traversal_cost, cv::Size(11, 11), 0);
 
     const Eigen::Isometry2d start = Eigen::Translation2d(0.0, -3.1) * Eigen::Rotation2Dd(M_PI);
     const Eigen::Isometry2d goal = Eigen::Translation2d(5.5, -3.1) * Eigen::Rotation2Dd(0);

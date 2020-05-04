@@ -106,48 +106,34 @@ std::vector<Eigen::Vector2d> simplifyDouglasPeucker(const std::vector<Eigen::Vec
     return out;
 }
 
-double translatingNearWallsCost(const double distance_to_collision_m)
-{
-    return distance_to_collision_m < 1.0 ? std::min(4.0, std::max(1.0, 1.0 / (std::pow(distance_to_collision_m, 0.2))))
-                                         : 1.0;
-}
-
-double translatingNearWallsCost(const int x, const int y, const Costmap& costmap)
-{
-    const double distance_to_collision_px = static_cast<double>(costmap.distance_to_collision.at<float>(y, x));
-    const double distance_to_collision_m = distance_to_collision_px * costmap.resolution;
-    return translatingNearWallsCost(distance_to_collision_m);
-}
-
-double rotatingNearWallsCost(const double distance_to_collision_m)
-{
-    return distance_to_collision_m < 0.5 ? std::min(20.0, 0.5 / std::pow(distance_to_collision_m, 4.0)) : 1.0;
-}
-
-double rotatingNearWallsCost(const int x, const int y, const Costmap& costmap)
-{
-    const double distance_to_collision_px = static_cast<double>(costmap.distance_to_collision.at<float>(y, x));
-    const double distance_to_collision_m = distance_to_collision_px * costmap.resolution;
-    return rotatingNearWallsCost(distance_to_collision_m);
-}
-
 struct ExploreDirection
 {
     double x;
     double y;
     double rotation;
-    double linear_cost;
-    double angular_cost;
 };
-
-const double BACKWARDS_MULT = 1.4;
-const double STRAFE_MULT = 2.0;
-const double ANGULAR_MULT = 0.5 / M_PI;
 
 }  // namespace
 
+// This is using the costmap (which is inflated the robot offset radius)
+// Since we are considering the robot as a point for this check we need to subtract the conservative radius
+double collisionCost(const int map_x, const int map_y, const Costmap& costmap, const double conservative_radius)
+{
+    ROS_ASSERT(conservative_radius >= costmap.inflation_radius);
+    const double distance_to_collision_px = static_cast<double>(costmap.distance_to_collision.at<float>(map_y, map_x));
+    const double distance_to_collision_m =
+        (distance_to_collision_px * costmap.resolution) - (conservative_radius - costmap.inflation_radius);
+    return distance_to_collision_m < 1.0 ? std::min(4.0, std::max(1.0, 1.0 / (std::pow(distance_to_collision_m, 0.2))))
+                                         : 1.0;
+}
+
+double traversalCost(const int map_x, const int map_y, const Costmap& costmap)
+{
+    return static_cast<double>(costmap.traversal_cost->at<float>(map_y, map_x));
+}
+
 ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore2DCache& explore_cache,
-                              const Costmap& costmap, const float closest_distance_px)
+                              const Costmap& costmap, const double conservative_radius)
 {
     ROS_ASSERT(start.x >= 0);
     ROS_ASSERT(start.x < costmap.width);
@@ -162,6 +148,11 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
     ROS_ASSERT(goal.y < costmap.height);
 
     ROS_ASSERT(costmap.traversal_cost);
+
+    const float closest_distance_px =
+        static_cast<float>((conservative_radius - costmap.inflation_radius) / costmap.resolution);
+
+    ROS_ASSERT(closest_distance_px >= 0);
 
     if (costmap.distance_to_collision.at<float>(start.y, start.x) <= closest_distance_px)
     {
@@ -227,6 +218,10 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
             break;
         }
 
+        const double collision_cost_first =
+            collisionCost(current_node->state.x, current_node->state.y, costmap, conservative_radius);
+        const double traversal_cost_first = traversalCost(current_node->state.x, current_node->state.y, costmap);
+
         for (std::size_t i = 0; i < directions_2d.size(); ++i)
         {
             const State2D new_state = current_node->state + directions_2d[i];
@@ -259,13 +254,14 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
 
             // add cost to distance from collisions
             // this keeps a nice boundary away from objects
-            const double collision_cost = translatingNearWallsCost(new_state.x, new_state.y, costmap);
+            const double collision_cost_second = collisionCost(new_state.x, new_state.y, costmap, conservative_radius);
+            const double collision_cost = std::max(collision_cost_first, collision_cost_second);
 
-            const double traversal_cost_scale =
-                static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(new_index)));
+            const double traversal_cost_second = traversalCost(new_state.x, new_state.y, costmap);
+            const double traversal_cost = std::max(traversal_cost_first, traversal_cost_second);
 
             const double cost_so_far =
-                current_node->cost_so_far + directions_2d_cost[i] * traversal_cost_scale * collision_cost;
+                current_node->cost_so_far + directions_2d_cost[i] * traversal_cost * collision_cost;
             if (cost_so_far < new_node->cost_so_far)
             {
                 new_node->cost_so_far = cost_so_far;
@@ -300,11 +296,11 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
     const State2D start_state{start_x, start_y};
     const State2D goal_state{goal_x, goal_y};
 
+    if (start_state == goal_state)
+        return 0.0;
+
     // shortest path 2d with obstacles
-    const float closest_distance =
-        static_cast<float>((conservative_radius - costmap.inflation_radius) / costmap.resolution);
-    ROS_ASSERT(closest_distance >= 0);
-    auto ret = shortestPath2D(start_state, goal_state, explore_cache, costmap, closest_distance);
+    auto ret = shortestPath2D(start_state, goal_state, explore_cache, costmap, conservative_radius);
 
     if (ret.success)
     {
@@ -321,13 +317,16 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
             path.push_back({node->state.x, node->state.y});
             node = node->parent;
         } while (node);
-        const std::vector<Eigen::Vector2d> simplified_path = simplifyDouglasPeucker(path, 8, 16);
+        const std::vector<Eigen::Vector2d> simplified_path = simplifyDouglasPeucker(path, 3, 6);
 
-        ROS_ASSERT(simplified_path.size() >= 2);
+        ROS_ASSERT_MSG(simplified_path.size() >= 2, "Size: %i Start: %i %i Goal: %i %i", simplified_path.size(),
+                       start_x, start_y, goal_x, goal_y);
 
         // estimate cost to drive in straight line and rotate
         {
             double path_angle = 0;
+
+            // Add the estimated rotations throughout the path
             if (simplified_path.size() > 2)
             {
                 for (size_t i = 0; i < simplified_path.size() - 2; ++i)
@@ -337,24 +336,40 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
                     const Eigen::Vector2d dir_next{
                         static_cast<double>(simplified_path[i + 2].x() - simplified_path[i].x()),
                         static_cast<double>(simplified_path[i + 2].y() - simplified_path[i].y())};
-                    path_angle += angle2vecs(dir, dir_next);
+                    const double collision_cost_first =
+                        collisionCost(static_cast<int>(simplified_path[i].x()),
+                                      static_cast<int>(simplified_path[i].y()), costmap, conservative_radius);
+                    const double collision_cost_second =
+                        collisionCost(static_cast<int>(simplified_path[i + 1].x()),
+                                      static_cast<int>(simplified_path[i + 1].y()), costmap, conservative_radius);
+                    const double collision_cost = std::max(collision_cost_first, collision_cost_second);
+                    path_angle += angle2vecs(dir, dir_next) * collision_cost;
                 }
             }
 
-            const Eigen::Vector2d start_pose_dir = Eigen::Rotation2Dd(state.theta) * Eigen::Vector2d::UnitX();
-            const Eigen::Vector2d start_dir{static_cast<double>(simplified_path[1].x() - simplified_path[0].x()),
-                                            static_cast<double>(simplified_path[1].y() - simplified_path[0].y())};
-            path_angle += angle2vecs(start_pose_dir, start_dir);
+            // Add the rotation at the start
+            {
+                const Eigen::Vector2d start_pose_dir = Eigen::Rotation2Dd(state.theta) * Eigen::Vector2d::UnitX();
+                const Eigen::Vector2d start_dir{static_cast<double>(simplified_path[1].x() - simplified_path[0].x()),
+                                                static_cast<double>(simplified_path[1].y() - simplified_path[0].y())};
+                const double collision_cost =
+                    collisionCost(static_cast<int>(simplified_path[0].x()), static_cast<int>(simplified_path[0].y()),
+                                  costmap, conservative_radius);
+                path_angle += angle2vecs(start_pose_dir, start_dir) * collision_cost;
+            }
 
-            const Eigen::Vector2d end_pose_dir = Eigen::Rotation2Dd(goal.theta) * Eigen::Vector2d::UnitX();
-            const Eigen::Vector2d end_dir{static_cast<double>(simplified_path[simplified_path.size() - 1].x() -
-                                                              simplified_path[simplified_path.size() - 2].x()),
-                                          static_cast<double>(simplified_path[simplified_path.size() - 1].y() -
-                                                              simplified_path[simplified_path.size() - 2].y())};
-
-            const double rotating_near_walls_cost =
-                rotatingNearWallsCost(static_cast<int>(goal_x), static_cast<int>(goal_y), costmap);
-            path_angle += rotating_near_walls_cost * angle2vecs(end_pose_dir, end_dir);
+            // Add the rotation at the end
+            {
+                const Eigen::Vector2d end_pose_dir = Eigen::Rotation2Dd(goal.theta) * Eigen::Vector2d::UnitX();
+                const Eigen::Vector2d end_dir{static_cast<double>(simplified_path[simplified_path.size() - 1].x() -
+                                                                  simplified_path[simplified_path.size() - 2].x()),
+                                              static_cast<double>(simplified_path[simplified_path.size() - 1].y() -
+                                                                  simplified_path[simplified_path.size() - 2].y())};
+                const double collision_cost =
+                    collisionCost(static_cast<int>(simplified_path.back().x()),
+                                  static_cast<int>(simplified_path.back().y()), costmap, conservative_radius);
+                path_angle += angle2vecs(end_pose_dir, end_dir) * collision_cost;
+            }
 
             straight_cost = shortest_2d * costmap.resolution + ANGULAR_MULT * path_angle;
         }
@@ -370,29 +385,73 @@ double updateH(const State3D& state, const State3D& goal, Explore2DCache& explor
                 const double x_cost = std::abs((trans_dir[0] > 0) ? trans_dir[0] : BACKWARDS_MULT * trans_dir[0]);
                 const double y_cost = std::abs(STRAFE_MULT * trans_dir[1]);
 
-                const std::size_t new_index = costmap.to2DGridIndex(
-                    State2D{static_cast<int>(simplified_path[i].x()), static_cast<int>(simplified_path[i].y())});
-                const double traversal_cost_scale =
-                    static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(new_index)));
+                const double traversal_cost_first = traversalCost(static_cast<int>(simplified_path[i].x()),
+                                                                  static_cast<int>(simplified_path[i].y()), costmap);
+                const double traversal_cost_second =
+                    traversalCost(static_cast<int>(simplified_path[i + 1].x()),
+                                  static_cast<int>(simplified_path[i + 1].y()), costmap);
+                const double traversal_cost = std::max(traversal_cost_first, traversal_cost_second);
 
-                const double collision_cost =
-                    translatingNearWallsCost(static_cast<int>(simplified_path.back().x()),
-                                             static_cast<int>(simplified_path.back().y()), costmap);
-                strafe_cost += (x_cost + y_cost) * costmap.resolution * collision_cost * traversal_cost_scale;
+                const double collision_cost_first =
+                    collisionCost(static_cast<int>(simplified_path[i].x()), static_cast<int>(simplified_path[i].y()),
+                                  costmap, conservative_radius);
+                const double collision_cost_second =
+                    collisionCost(static_cast<int>(simplified_path[i + 1].x()),
+                                  static_cast<int>(simplified_path[i + 1].y()), costmap, conservative_radius);
+                const double collision_cost = std::max(collision_cost_first, collision_cost_second);
+
+                strafe_cost += (x_cost + y_cost) * costmap.resolution * traversal_cost * collision_cost;
             }
 
             // add rotation cost at end
-            const double rotating_near_walls_cost =
-                rotatingNearWallsCost(static_cast<int>(goal_x), static_cast<int>(goal_y), costmap);
-            strafe_cost += ANGULAR_MULT * std::abs(wrapAngle(goal.theta - state.theta)) * rotating_near_walls_cost;
+            const double collision_cost =
+                collisionCost(static_cast<int>(simplified_path.back().x()),
+                              static_cast<int>(simplified_path.back().y()), costmap, conservative_radius);
+            strafe_cost += ANGULAR_MULT * std::abs(wrapAngle(goal.theta - state.theta)) * collision_cost;
         }
 
-        return std::min(std::pow(strafe_cost, 1.1), 1.1 * straight_cost);
+        // Debug visualisation
+        /*
+                {
+                    cv::Mat disp;
+                    cv::cvtColor(costmap.obstacle_map, disp, cv::COLOR_GRAY2BGR);
+
+                    double max_cost_so_far = 0;
+                    for (const auto& node : explore_cache.explore_2d)
+                    {
+                        if (node && node->cost_so_far < std::numeric_limits<double>::max())
+                            max_cost_so_far = std::max(node->cost_so_far, max_cost_so_far);
+                    }
+
+                    for (const auto& node : explore_cache.explore_2d)
+                    {
+                        if (node)
+                        {
+                            const unsigned char c = static_cast<unsigned char>(255.0 - 255.0 * node->cost_so_far /
+           max_cost_so_far); disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(c, c, 0);
+                        }
+                    }
+
+                    node = ret.node;  // start node
+                    do
+                    {
+                        disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(0, 0, 200);
+                        node = node->parent;
+                    } while (node);
+
+                    cv::namedWindow("win", cv::WINDOW_NORMAL);
+                    cv::imshow("win", disp);
+                    cv::waitKey(0);
+                }
+        */
+
+        // Overestimate the cost slightly to help speed up planning
+        // If we overestimate we rule out possible paths more aggressively, which reduces the overall search space
+        // The downside is the path is less optimal
+        return std::min(1.1 * strafe_cost, 1.1 * straight_cost);
     }
     else
     {
-        // TODO perhaps warn in this case - it's pretty much no go
-        ROS_WARN_STREAM("Failed to find a 2d path to goal!");
         return std::numeric_limits<double>::max();
     }
 }
@@ -479,14 +538,14 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
     // start exploring from start state
     handles[start_key] = open_set.push(start_node);
 
-    // x, y, rotation, linear_cost, angular_cost
+    // x, y, rotation
     const std::vector<ExploreDirection> directions = {
-        {linear_resolution, 0, 0, linear_resolution, 0},                    // forwards
-        {-linear_resolution, 0, 0, BACKWARDS_MULT * linear_resolution, 0},  // backwards
-        {0, linear_resolution, 0, STRAFE_MULT * linear_resolution, 0},      // left
-        {0, -linear_resolution, 0, STRAFE_MULT * linear_resolution, 0},     // right
-        {0, 0, angular_resolution, 0, ANGULAR_MULT * angular_resolution},   // rotate left
-        {0, 0, -angular_resolution, 0, ANGULAR_MULT * angular_resolution},  // rotate right
+        {linear_resolution, 0, 0},   // forwards
+        {-linear_resolution, 0, 0},  // backwards
+        {0, linear_resolution, 0},   // left
+        {0, -linear_resolution, 0},  // right
+        {0, 0, angular_resolution},  // rotate left
+        {0, 0, -angular_resolution}  // rotate right
     };
 
     result.iterations = 0;
@@ -500,18 +559,6 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 
         const auto current_index = StateToIndex(current_node->state, linear_resolution, angular_resolution);
         const auto current_key = IndexToKey(current_index);
-
-        /*
-        // traversal cost is currently only being considered in the heuristic
-        const int state_x =
-            static_cast<int>(std::round((current_node->state.x - costmap.origin_x) / costmap.resolution));
-        const int state_y =
-            static_cast<int>(std::round((current_node->state.y - costmap.origin_y) / costmap.resolution));
-        const State2D state2d{state_x, state_y};
-        const std::size_t state_index = costmap.to2DGridIndex(state2d);
-        const double traversal_cost_scale =
-            static_cast<double>(costmap.traversal_cost->at<float>(static_cast<int>(state_index)));
-        */
 
         const double distance_to_goal_x = std::abs(current_node->state.x - goal_state.x);
         const double distance_to_goal_y = std::abs(current_node->state.y - goal_state.y);
@@ -528,20 +575,27 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
             break;
         }
 
+        const Eigen::Array2i map_cell = costmap.getCellIndex({current_node->state.x, current_node->state.y});
+        const double traversal_cost_first = traversalCost(map_cell.x(), map_cell.y(), costmap);
+        const double collision_cost_first = collisionCost(map_cell.x(), map_cell.y(), costmap, conservative_radius);
+
         const double distance_to_collision_px = collision_checker.clearance(current_node->state);
         const double distance_to_collision_m = distance_to_collision_px * costmap.resolution;
-        const double collision_cost = translatingNearWallsCost(distance_to_collision_m);
 
-        const double step_mult = std::max(
-            1.0, std::min(0.80 * std::min(distance_to_goal, distance_to_collision_m) / linear_resolution, 4.0));
+        const double max_multiple = 20.0;
+        const double step_mult =
+            std::max(1.0, std::min(0.80 * std::min(distance_to_goal, distance_to_collision_m) / linear_resolution,
+                                   max_multiple));
+        ROS_ASSERT(step_mult >= 1.0);
+        ROS_ASSERT(step_mult <= max_multiple);
 
         for (std::size_t i = 0; i < directions.size(); ++i)
         {
             State3D new_state = current_node->state;
-            const Eigen::Vector2d new_position = step_mult * (Eigen::Rotation2Dd(current_node->state.theta) *
-                                                              Eigen::Vector2d(directions[i].x, directions[i].y));
-            new_state.x += new_position.x();
-            new_state.y += new_position.y();
+            const Eigen::Vector2d trans = step_mult * (Eigen::Rotation2Dd(current_node->state.theta) *
+                                                       Eigen::Vector2d(directions[i].x, directions[i].y));
+            new_state.x += trans.x();
+            new_state.y += trans.y();
             new_state.theta = wrapAngle(current_node->state.theta + directions[i].rotation);
 
             const auto new_index = StateToIndex(new_state, linear_resolution, angular_resolution);
@@ -579,10 +633,22 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
                 continue;
             }
 
-            const double translation_cost = step_mult * directions[i].linear_cost * collision_cost;
-            const double rotation_cost = directions[i].angular_cost;
-            const double cost_so_far =
-                current_node->cost_so_far + (translation_cost + rotation_cost) * 1.0;  // traversal_cost_scale;
+            const Eigen::Array2i new_map_cell = costmap.getCellIndex({new_state.x, new_state.y});
+            const double collision_cost_second =
+                collisionCost(new_map_cell.x(), new_map_cell.y(), costmap, conservative_radius);
+            const double traversal_cost_second = traversalCost(new_map_cell.x(), new_map_cell.y(), costmap);
+
+            const double x_cost =
+                step_mult * std::abs((directions[i].x > 0) ? directions[i].x : BACKWARDS_MULT * directions[i].x);
+            const double y_cost = step_mult * std::abs(STRAFE_MULT * directions[i].y);
+
+            const double collision_cost = (collision_cost_first + collision_cost_second) / 2.0;
+            const double traversal_cost = (traversal_cost_first + traversal_cost_second) / 2.0;
+
+            const double rotation_cost = std::abs(directions[i].rotation) * ANGULAR_MULT * collision_cost;
+            const double translation_cost = (x_cost + y_cost) * collision_cost * traversal_cost;
+
+            const double cost_so_far = current_node->cost_so_far + (translation_cost + rotation_cost);
             if (cost_so_far < new_node->second->cost_so_far)
             {
                 const double old_cost = new_node->second->cost();

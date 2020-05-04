@@ -31,6 +31,12 @@ struct Costmap
 
     double inflation_radius;
 
+    inline Eigen::Array2i getCellIndex(const Eigen::Vector2d& point) const
+    {
+        return Eigen::Array2i(std::round((point.x() - origin_x) / resolution),
+                              std::round((point.y() - origin_y) / resolution));
+    }
+
     inline std::size_t to2DGridIndex(const State2D& state) const
     {
         return static_cast<std::size_t>(width * state.y + state.x);
@@ -50,9 +56,9 @@ class CollisionChecker
 
     bool isWithinBounds(const State3D& state) const
     {
-        const int mx = static_cast<int>((state.x - costmap_.origin_x) / costmap_.resolution - 0.5);
-        const int my = static_cast<int>((state.y - costmap_.origin_y) / costmap_.resolution - 0.5);
-        return (mx >= 0 && mx < costmap_.width && my >= 0 && my < costmap_.height);
+        const Eigen::Array2i map_cell = costmap_.getCellIndex({state.x, state.y});
+        return (map_cell.x() >= 0 && map_cell.x() < costmap_.width && map_cell.y() >= 0 &&
+                map_cell.y() < costmap_.height);
     }
 
     bool isValid(const State3D& state) const
@@ -68,14 +74,13 @@ class CollisionChecker
             const Eigen::Vector2d offset_xy =
                 Eigen::Vector2d(state.x, state.y) + Eigen::Vector2d(Eigen::Rotation2Dd(state.theta) * offset);
 
-            const int mx = static_cast<int>(std::round((offset_xy.x() - costmap_.origin_x) / costmap_.resolution));
-            const int my = static_cast<int>(std::round((offset_xy.y() - costmap_.origin_y) / costmap_.resolution));
+            const Eigen::Array2i map_cell = costmap_.getCellIndex(offset_xy);
 
             double d = 0;
-            if (mx >= 0 && mx < costmap_.distance_to_collision.cols && my >= 0 &&
-                my < costmap_.distance_to_collision.rows)
+            if (map_cell.x() >= 0 && map_cell.x() < costmap_.distance_to_collision.cols && map_cell.y() >= 0 &&
+                map_cell.y() < costmap_.distance_to_collision.rows)
             {
-                d = static_cast<double>(costmap_.distance_to_collision.at<float>(my, mx));
+                d = static_cast<double>(costmap_.distance_to_collision.at<float>(map_cell.y(), map_cell.x()));
             }
             min_distance = std::min(min_distance, d);
         }
@@ -105,6 +110,11 @@ class CollisionChecker
     const std::vector<Eigen::Vector2d> offsets() const
     {
         return offsets_;
+    }
+
+    const Costmap& costmap() const
+    {
+        return costmap_;
     }
 
   private:

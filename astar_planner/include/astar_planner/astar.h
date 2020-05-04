@@ -17,6 +17,10 @@
 namespace astar_planner
 {
 
+const double BACKWARDS_MULT = 1.3;
+const double STRAFE_MULT = 2.0;
+const double ANGULAR_MULT = 0.5 / M_PI;
+
 struct ShortestPath2D
 {
     bool success;
@@ -46,8 +50,12 @@ struct Explore2DCache
     }
 };
 
+double collisionCost(const int map_x, const int map_y, const Costmap& costmap, const double conservative_radius);
+
+double traversalCost(const int map_x, const int map_y, const Costmap& costmap);
+
 ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore2DCache& explore_cache,
-                              const Costmap& costmap, const float closest_distance_px = 0);
+                              const Costmap& costmap, const double conservative_radius);
 
 struct PathResult
 {
