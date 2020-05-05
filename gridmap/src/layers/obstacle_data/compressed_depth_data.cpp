@@ -1,5 +1,6 @@
 #include <compressed_depth_image_transport/codec.h>
 #include <compressed_depth_image_transport/compression_common.h>
+#include <cv_bridge/cv_bridge.h>
 #include <gridmap/layers/obstacle_data/compressed_depth_data.h>
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <image_transport/subscriber.h>
@@ -29,7 +30,11 @@ void CompressedDepthData::onInitialize(const YAML::Node& parameters)
     obstacle_height_ = parameters["max_obstacle_height"].as<double>(0.10);
     min_range_ = parameters["min_range"].as<float>(0.15);
     max_range_ = parameters["max_range"].as<float>(1.5);
+    image_mask_ = parameters["image_mask"].as<std::string>(std::string());
     camera_info_topic_ = parameters["camera_info_topic"].as<std::string>(std::string(name_ + "/camera_info"));
+
+    if (!image_mask_.empty())
+        cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(image_mask_, cv::IMREAD_GRAYSCALE));
 
     ros::NodeHandle g_nh;
     camera_info_sub_ = g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000,
@@ -80,6 +85,10 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
     }
 
     const sensor_msgs::Image::Ptr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
+    const cv_bridge::CvImageConstPtr cv_image = cv_bridge::toCvShare(image);
+
+    if (cv_image_mask_)
+        cv::bitwise_and(*cv_image_mask_, cv_image->image, cv_image->image);
 
     // add a 5% buffer
     const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.05);
@@ -92,11 +101,11 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
         std::unordered_map<uint64_t, float> height_voxels;
 
         if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
-            projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint, image,
-                                   camera_model_, map_data_->dimensions());
+            projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
+                                   cv_image->image, camera_model_, map_data_->dimensions());
         else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
-            projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint, image,
-                                camera_model_, map_data_->dimensions());
+            projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
+                                cv_image->image, camera_model_, map_data_->dimensions());
         else
             ROS_ASSERT_MSG(false, "Unsupported depth image format");
 
