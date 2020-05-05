@@ -59,7 +59,7 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
     {
         for (int u = 0; u < msg.cols; ++u)
         {
-            const T d = msg.at<T>(u, v);
+            const T d = msg.at<T>(v, u);
 
             if (!DepthTraits<T>::valid(d))
                 continue;
