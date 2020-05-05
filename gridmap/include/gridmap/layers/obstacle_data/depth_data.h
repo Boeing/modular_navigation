@@ -4,6 +4,8 @@
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
 #include <image_geometry/pinhole_camera_model.h>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 
@@ -40,6 +42,9 @@ class DepthData : public TopicDataSource<sensor_msgs::Image>
     double obstacle_height_;
     float min_range_;
     float max_range_;
+
+    std::string image_mask_;
+    std::unique_ptr<cv::Mat> cv_image_mask_;
 
     image_geometry::PinholeCameraModel camera_model_;
 };

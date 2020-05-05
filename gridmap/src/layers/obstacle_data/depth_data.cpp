@@ -1,3 +1,4 @@
+#include <cv_bridge/cv_bridge.h>
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <gridmap/layers/obstacle_data/depth_data.h>
 #include <pluginlib/class_list_macros.h>
@@ -26,7 +27,11 @@ void DepthData::onInitialize(const YAML::Node& parameters)
     obstacle_height_ = parameters["max_obstacle_height"].as<double>(0.10);
     min_range_ = parameters["min_range"].as<float>(0.15);
     max_range_ = parameters["max_range"].as<float>(1.5);
+    image_mask_ = parameters["image_mask"].as<std::string>(std::string());
     camera_info_topic_ = parameters["camera_info_topic"].as<std::string>(std::string(name_ + "/camera_info"));
+
+    if (!image_mask_.empty())
+        cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(image_mask_, cv::IMREAD_GRAYSCALE));
 
     ros::NodeHandle g_nh;
     camera_info_sub_ =
@@ -79,6 +84,11 @@ bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen
     // add a 5% buffer
     const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.05);
 
+    const cv_bridge::CvImageConstPtr cv_image = cv_bridge::toCvShare(msg);
+
+    if (cv_image_mask_)
+        cv::bitwise_and(*cv_image_mask_, cv_image->image, cv_image->image);
+
     {
         // cppcheck-suppress unreadVariable
         auto _lock = map_data_->getLock();
@@ -87,11 +97,11 @@ bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen
         std::unordered_map<uint64_t, float> height_voxels;
 
         if (msg->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
-            projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint, msg,
-                                   camera_model_, map_data_->dimensions());
+            projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
+                                   cv_image->image, camera_model_, map_data_->dimensions());
         else if (msg->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
-            projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint, msg,
-                                camera_model_, map_data_->dimensions());
+            projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
+                                cv_image->image, camera_model_, map_data_->dimensions());
         else
             ROS_ASSERT_MSG(false, "Unsupported depth image format");
 

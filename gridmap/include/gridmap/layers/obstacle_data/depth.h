@@ -4,8 +4,8 @@
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
 #include <image_geometry/pinhole_camera_model.h>
+#include <opencv2/core/core.hpp>
 #include <ros/ros.h>
-#include <sensor_msgs/Image.h>
 
 #include <unordered_map>
 
@@ -44,7 +44,7 @@ template <> struct DepthTraits<float>
 template <typename T>
 void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const float min_range, const float max_range,
                   const float obstacle_height, const Eigen::Isometry3f& sensor_transform,
-                  const std::set<uint64_t>& footprint, const sensor_msgs::Image::ConstPtr& msg,
+                  const std::set<uint64_t>& footprint, const cv::Mat& msg,
                   const image_geometry::PinholeCameraModel& camera_model, const MapDimensions& map_dimensions)
 {
     // Use correct principal point from calibration
@@ -55,13 +55,11 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
     const float constant_x = unit_scaling / static_cast<float>(camera_model.fx());
     const float constant_y = unit_scaling / static_cast<float>(camera_model.fy());
 
-    const T* depth_row = reinterpret_cast<const T*>(&msg->data[0]);
-    int row_step = msg->step / sizeof(T);
-    for (int v = 0; v < (int)msg->height; ++v, depth_row += row_step)
+    for (int v = 0; v < msg.rows; ++v)
     {
-        for (int u = 0; u < (int)msg->width; ++u)
+        for (int u = 0; u < msg.cols; ++u)
         {
-            T d = depth_row[u];
+            const T d = msg.at<T>(u, v);
 
             if (!DepthTraits<T>::valid(d))
                 continue;
@@ -84,6 +82,10 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
 
             const auto key = IndexToKey(pt_map);
 
+            // Check if point is inside footprint
+            // If inside footprint then we need to discount points on the robot
+            // A hack at the moment is to allow points above 400mm within the robot footprint
+            // This is not ideal and perhaps we need a second footprint to cover the cabinet
             if (footprint.count(key) > 0)
             {
                 if (pt.z() < 0.40f)
