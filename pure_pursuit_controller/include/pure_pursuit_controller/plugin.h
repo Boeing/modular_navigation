@@ -40,7 +40,7 @@ class PurePursuitController : public navigation_interface::Controller
     double look_ahead_time_ = 0.5;
 
     Eigen::Vector3d max_velocity_ = {0.25, 0.15, 0.25};
-    Eigen::Vector3d max_acceleration_ = {0.5, 0.5, 0.5};
+    Eigen::Vector3d max_acceleration_ = {0.8, 0.5, 0.8};
 
     double goal_radius_ = 0.10;
 

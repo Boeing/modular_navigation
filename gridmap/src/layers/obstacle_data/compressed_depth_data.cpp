@@ -7,10 +7,10 @@
 #include <pluginlib/class_list_macros.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/image_encodings.h>
-#include <sensor_msgs/point_cloud2_iterator.h>
 
 #include <chrono>
 #include <cstdint>
+#include <string>
 #include <unordered_set>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::CompressedDepthData, gridmap::DataSource)
@@ -34,7 +34,11 @@ void CompressedDepthData::onInitialize(const YAML::Node& parameters)
     camera_info_topic_ = parameters["camera_info_topic"].as<std::string>(std::string(name_ + "/camera_info"));
 
     if (!image_mask_.empty())
-        cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(image_mask_, cv::IMREAD_GRAYSCALE));
+    {
+        ROS_INFO_STREAM("Loading image mask: " << image_mask_);
+        const std::string resolved_path = getPackageUriPath(image_mask_);
+        cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(resolved_path, cv::IMREAD_GRAYSCALE));
+    }
 
     ros::NodeHandle g_nh;
     camera_info_sub_ = g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000,
@@ -85,10 +89,8 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
     }
 
     const sensor_msgs::Image::Ptr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
-    const cv_bridge::CvImageConstPtr cv_image = cv_bridge::toCvShare(image);
 
-    if (cv_image_mask_)
-        cv::bitwise_and(*cv_image_mask_, cv_image->image, cv_image->image);
+    const cv_bridge::CvImageConstPtr cv_image = getImage(image, cv_image_mask_);
 
     // add a 5% buffer
     const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.05);

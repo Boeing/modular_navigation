@@ -366,6 +366,7 @@ navigation_interface::Controller::Result
     //
     if (angle_to_goal < yaw_goal_tolerance_ && dist_to_goal < xy_goal_tolerance_)
     {
+        ROS_INFO_STREAM("Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
         last_update_ = ros::SteadyTime(0);
         return result;
