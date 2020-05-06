@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
     nav_msgs
     pluginlib
     roscpp
+    rospack
     sensor_msgs
     std_msgs
     tf2_geometry_msgs

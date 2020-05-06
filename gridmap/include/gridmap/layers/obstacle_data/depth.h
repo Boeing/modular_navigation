@@ -6,6 +6,7 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv2/core/core.hpp>
 #include <ros/ros.h>
+#include <rospack/rospack.h>
 
 #include <unordered_map>
 
@@ -108,6 +109,61 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
             }
         }
     }
+}
+
+template <typename T> void maskImage(cv::Mat& image, const cv::Mat& mask)
+{
+    ROS_ASSERT_MSG(image.size == mask.size, "Image and mask are not the same size.");
+
+    for (unsigned int i = 0; i < image.total(); ++i)
+    {
+        if (!mask.at<uint8_t>(i))
+        {
+            image.at<T>(i) = 0;
+        }
+    }
+}
+
+inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::Image::ConstPtr& image,
+                                                 const std::unique_ptr<cv::Mat>& cv_image_mask)
+{
+    if (cv_image_mask)
+    {
+        const cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(image);
+        if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
+            maskImage<uint16_t>(cv_image->image, *cv_image_mask);
+        else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
+            maskImage<float>(cv_image->image, *cv_image_mask);
+        return cv_image;
+    }
+    else
+    {
+        const cv_bridge::CvImageConstPtr cv_image = cv_bridge::toCvShare(image);
+        return cv_image;
+    }
+}
+
+inline std::string getPackageUriPath(const std::string& package_uri)
+{
+    ROS_ASSERT(!package_uri.empty());
+
+    const std::string prefix = "package://";
+    ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
+    std::string path = package_uri;
+    path.erase(0, prefix.length());
+    const std::string package_name = path.substr(0, path.find("/"));
+    path.erase(0, package_name.length());
+
+    std::string package_dir;
+    rospack::Rospack rospack;
+    std::vector<std::string> search_path;
+    if (!rospack.getSearchPathFromEnv(search_path))
+        return std::string();
+    rospack.crawl(search_path, true);
+    if (!rospack.find(package_name, package_dir))
+        throw std::runtime_error("Unable to find package: " + package_name);
+
+    return (package_dir + path);
 }
 
 }  // namespace gridmap
