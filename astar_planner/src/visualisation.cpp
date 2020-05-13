@@ -25,26 +25,34 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
     double max_cost_so_far = 0;
     for (const auto& node : astar_result.explore_cache.explore_2d)
     {
-        if (node && node->cost_so_far < std::numeric_limits<double>::max())
-            max_cost_so_far = std::max(node->cost_so_far, max_cost_so_far);
+        if (node.second.cost_so_far < std::numeric_limits<double>::max())
+            max_cost_so_far = std::max(node.second.cost_so_far, max_cost_so_far);
     }
 
     for (const auto& node : astar_result.explore_cache.explore_2d)
     {
-        if (node)
-        {
-            const unsigned char c = static_cast<unsigned char>(255.0 - 255.0 * node->cost_so_far / max_cost_so_far);
-            disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(c, c, 0);
-        }
+        const unsigned char c = static_cast<unsigned char>(255.0 - 255.0 * node.second.cost_so_far / max_cost_so_far);
+        disp.at<cv::Vec3b>(node.second.state.y, node.second.state.x) = cv::Vec3b(c, c, 0);
     }
 
     double max_cost_3d = 0;
     double min_cost_3d = std::numeric_limits<double>::max();
     for (const auto& node : astar_result.explore_3d)
     {
-        if (node.second->cost() < std::numeric_limits<double>::max())
-            max_cost_3d = std::max(node.second->cost(), max_cost_3d);
-        min_cost_3d = std::min(node.second->cost(), min_cost_3d);
+        if (node.second->cost_so_far < std::numeric_limits<double>::max())
+            max_cost_3d = std::max(node.second->cost_so_far, max_cost_3d);
+        min_cost_3d = std::min(node.second->cost_so_far, min_cost_3d);
+    }
+
+    std::size_t max_count = 0;
+    std::unordered_map<size_t, size_t> counts;
+    for (auto node : astar_result.explore_3d)
+    {
+        const Eigen::Array2i cell = costmap.getCellIndex({node.second->state.x, node.second->state.y});
+        const std::size_t idx = costmap.to2DGridIndex({cell.x(), cell.y()});
+        counts[idx]++;
+        if (counts[idx] > max_count)
+            max_count = counts[idx];
     }
 
     for (auto node : astar_result.explore_3d)
@@ -52,18 +60,13 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
         if (!node.second->parent)
             continue;
 
-        const int start_x =
-            static_cast<int>(std::round((node.second->state.x - costmap.origin_x) / costmap.resolution));
-        const int start_y =
-            static_cast<int>(std::round((node.second->state.y - costmap.origin_y) / costmap.resolution));
+        const Eigen::Array2i cell = costmap.getCellIndex({node.second->state.x, node.second->state.y});
+        const std::size_t idx = costmap.to2DGridIndex({cell.x(), cell.y()});
 
         const unsigned char c = static_cast<unsigned char>(
-            std::max(0.0, 255.0 * (node.second->cost() - min_cost_3d) / (max_cost_3d - min_cost_3d)));
+            std::max(0.0, 255.0 * static_cast<double>(counts[idx]) / static_cast<double>(max_count)));
 
-        if (node.second->visited)
-            disp.at<cv::Vec3b>(start_y, start_x) = cv::Vec3b(0, c, 0);
-        else
-            disp.at<cv::Vec3b>(start_y, start_x) = cv::Vec3b(0, c, c);
+        disp.at<cv::Vec3b>(cell.y(), cell.x()) = cv::Vec3b(0, c, 0);
     }
 
     if (astar_result.success)
@@ -85,18 +88,34 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
                 Eigen::Vector2d(start_x, start_y) +
                 Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(0, 10));
 
-            //            cv::circle(disp, cv::Point(start_x, start_y), 0.480 / costmap.resolution, cv::Scalar(0, 255,
-            //            0), 1);
+            if (i % 20 == 0)
+                cv::circle(disp, cv::Point(start_x, start_y), 0.416 / costmap.resolution, cv::Scalar(0, 255, 0), 1);
 
             cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 255), 1);
             cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 255, 0), 1);
         }
     }
 
+    if (!astar_result.path.empty())
+    {
+        auto first_node = astar_result.path.back();
+        const Eigen::Array2i start_cell = costmap.getCellIndex({first_node->state.x, first_node->state.y});
+        const std::size_t start_index = costmap.to2DGridIndex({start_cell.x(), start_cell.y()});
+        auto node_it = astar_result.explore_cache.explore_2d.find(start_index);
+        if (node_it != astar_result.explore_cache.explore_2d.end())
+        {
+            auto node = &node_it->second;
+            do
+            {
+                disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(255, 0, 0);
+                node = node->parent;
+            } while (node);
+        }
+    }
+
     return disp;
 }
 
-// cppcheck-suppress unusedFunction
 void drawDot(const Costmap& costmap, const PathResult& astar_result, const Eigen::Isometry2d& goal,
              const std::string& graph_path, const double linear_resolution, const double angular_resolution)
 {
@@ -179,7 +198,6 @@ void drawDot(const Costmap& costmap, const PathResult& astar_result, const Eigen
     boost::write_graphviz_dp(dotfile, graph, dp);
 }
 
-// cppcheck-suppress unusedFunction
 bool drawPathSVG(const PathResult& astar_result, const std::string& svg_path)
 {
     ROS_ASSERT(astar_result.success);

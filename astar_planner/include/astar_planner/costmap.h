@@ -4,6 +4,8 @@
 #include <astar_planner/node.h>
 #include <gridmap/map_data.h>
 #include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include <Eigen/Geometry>
 #include <memory>
@@ -31,6 +33,48 @@ struct Costmap
 
     double inflation_radius;
 
+    Costmap(const gridmap::MapData& map_data, const double robot_radius)
+    {
+        inflation_radius = robot_radius;
+
+        width = map_data.grid.dimensions().size().x();
+        height = map_data.grid.dimensions().size().y();
+
+        resolution = map_data.grid.dimensions().resolution();
+
+        origin_x = map_data.grid.dimensions().origin().x();
+        origin_y = map_data.grid.dimensions().origin().y();
+
+        obstacle_map = obstacle_map;
+
+        const int size_x = map_data.grid.dimensions().size().x();
+        const int size_y = map_data.grid.dimensions().size().y();
+        const cv::Mat raw(size_y, size_x, CV_8U,
+                          reinterpret_cast<void*>(const_cast<uint8_t*>(map_data.grid.cells().data())));
+        obstacle_map = raw.clone();
+    }
+
+    void processObstacleMap()
+    {
+        cv::Mat dilated;
+        {
+            // dilate robot radius
+            const int cell_inflation_radius = static_cast<int>(2.0 * inflation_radius / resolution);
+            auto ellipse =
+                cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+            cv::dilate(obstacle_map, dilated, ellipse);
+        }
+
+        // flip
+        cv::bitwise_not(dilated, dilated);
+
+        // allocate
+        distance_to_collision = cv::Mat(dilated.size(), CV_32F);
+
+        // find obstacle distances
+        cv::distanceTransform(dilated, distance_to_collision, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
+    }
+
     inline Eigen::Array2i getCellIndex(const Eigen::Vector2d& point) const
     {
         return Eigen::Array2i(std::round((point.x() - origin_x) / resolution),
@@ -43,16 +87,40 @@ struct Costmap
     }
 };
 
-std::shared_ptr<Costmap> buildCostmap(const gridmap::MapData& map_data, const double robot_radius);
-
 class CollisionChecker
 {
   public:
-    explicit CollisionChecker(const Costmap& costmap, const std::vector<Eigen::Vector2d>& offsets)
-        : costmap_(costmap), offsets_(offsets)
+    CollisionChecker(const Costmap& costmap, const std::vector<Eigen::Vector2d>& offsets,
+                     const double conservative_radius)
+        : costmap_(costmap), offsets_(offsets), conservative_radius_(conservative_radius)
     {
+        ROS_ASSERT(conservative_radius >= costmap.inflation_radius);
+        // check that the conservative radius is larger than the width of the robot
+        for (const auto& offset : offsets_)
+            ROS_ASSERT_MSG(conservative_radius >= std::abs(offset.y()) + costmap.inflation_radius,
+                           "conservative_radius: %f offset.y(): %f inflation_radius: %f", conservative_radius,
+                           offset.y(), costmap.inflation_radius);
+
+        // build collision cost lookup table
+        collision_cost_lut_ = std::vector<double>(lut_size_, 0);
+        for (int i = 0; i < lut_size_; ++i)
+        {
+            const double distance_to_collision_m = i * lut_step_size_;
+            collision_cost_lut_[i] = std::min(10.0, std::max(1.0, lut_max_dist_ / (distance_to_collision_m)));
+        }
     }
-    virtual ~CollisionChecker() = default;
+
+    double collisionCost(const int distance_to_collision_px) const
+    {
+        if (distance_to_collision_px < lut_size_)
+        {
+            return collision_cost_lut_[distance_to_collision_px];
+        }
+        else
+        {
+            return 1.0;
+        }
+    }
 
     bool isWithinBounds(const State3D& state) const
     {
@@ -71,10 +139,12 @@ class CollisionChecker
         double min_distance = std::numeric_limits<double>::max();
         for (const auto& offset : offsets_)
         {
-            const Eigen::Vector2d offset_xy =
-                Eigen::Vector2d(state.x, state.y) + Eigen::Vector2d(Eigen::Rotation2Dd(state.theta) * offset);
+            const double st = std::sin(state.theta);
+            const double ct = std::cos(state.theta);
+            const double offset_x = state.x + (offset.x() * ct - offset.y() * st);
+            const double offset_y = state.y + (offset.x() * st + offset.y() * ct);
 
-            const Eigen::Array2i map_cell = costmap_.getCellIndex(offset_xy);
+            const Eigen::Array2i map_cell = costmap_.getCellIndex({offset_x, offset_y});
 
             double d = 0;
             if (map_cell.x() >= 0 && map_cell.x() < costmap_.distance_to_collision.cols && map_cell.y() >= 0 &&
@@ -94,17 +164,13 @@ class CollisionChecker
 
     bool isValid(const State2D& state) const
     {
-        // TODO simple radius check from centre of robot
         return clearance(state) > 0.0;
     }
 
     double clearance(const State2D& state) const
     {
-        if (isWithinBounds(state))
-        {
-            return static_cast<double>(costmap_.distance_to_collision.at<float>(state.y, state.x));
-        }
-        return 0;
+        // assumes the state is valid!!
+        return static_cast<double>(costmap_.distance_to_collision.at<float>(state.y, state.x));
     }
 
     const std::vector<Eigen::Vector2d> offsets() const
@@ -117,9 +183,20 @@ class CollisionChecker
         return costmap_;
     }
 
+    double conservativeRadius() const
+    {
+        return conservative_radius_;
+    }
+
   private:
     const Costmap& costmap_;
     const std::vector<Eigen::Vector2d>& offsets_;
+    const double conservative_radius_;
+
+    const double lut_max_dist_ = 1.2;
+    const double lut_step_size_ = 0.02;
+    const int lut_size_ = lut_max_dist_ / lut_step_size_;
+    std::vector<double> collision_cost_lut_;
 };
 }  // namespace astar_planner
 

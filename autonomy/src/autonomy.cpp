@@ -455,6 +455,8 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             gui_path.header.frame_id = global_frame_;
             path_pub_.publish(gui_path);
 
+            ROS_INFO_STREAM("Robot not localised. Unable to plan!");
+
             rate.sleep();
 
             continue;
@@ -523,9 +525,11 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             {
                 // trim the current path to the robot pose
                 navigation_interface::Path path = current_path_->path;
+                double distance_to_old_path = 0;
                 if (!path.nodes.empty())
                 {
                     const auto closest = path.closestSegment(robot_pose);
+                    distance_to_old_path = closest.second;
                     if (closest.first != 0)
                         path.nodes.erase(path.nodes.begin(), path.nodes.begin() + static_cast<long>(closest.first));
                     path.nodes.insert(path.nodes.begin(), robot_pose);
@@ -541,21 +545,30 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
 
                 const double time_since_successful_recalc = (now - current_path_->last_successful_time).toSec();
 
-                const bool persistence = time_since_successful_recalc > path_persistence_time_;
-                const bool path_now_valid =
-                    result.cost < std::numeric_limits<double>::max() && cost >= std::numeric_limits<double>::max();
-                const bool found_better_path = result.cost < (path_swap_fraction_ * cost);
+                const bool old_path_expired = time_since_successful_recalc > path_persistence_time_;
+                const bool old_path_possible = cost < std::numeric_limits<double>::max();
+                const bool new_path_possible = result.cost < std::numeric_limits<double>::max();
+                const bool new_path_much_better = result.cost < (path_swap_fraction_ * cost);
+                const bool old_path_is_long = path.length() > 1.0;
+                const bool robot_near_old_path = distance_to_old_path < 0.25;
 
-                // TODO detect localisation jump!
+                // if we are no longer close to the old path then update
+                const bool case_1 = !robot_near_old_path && new_path_possible;
 
-                if ((path_now_valid && persistence) || (found_better_path && persistence && path.length() > 1.0))
-                {
-                    update = true;
-                }
+                // when path becomes impossible wait a bit before swapping to a new path
+                const bool case_2 = !old_path_possible && new_path_possible && old_path_expired;
 
-                ROS_INFO_STREAM("Path: old_cost: " << cost << " new_cost: " << result.cost << " swap: " << update);
+                // if the new path is much better while the old path is still possible then swap
+                const bool case_3 = new_path_much_better && old_path_possible && old_path_is_long;
 
-                // TODO also swap if tracking error is too high or control has failed
+                update = case_1 || case_2 || case_3;
+
+                ROS_INFO_STREAM("swap: " << update << " old_cost: " << cost << " (" << old_path_possible << ")"
+                                         << " new_cost: " << result.cost << " (" << new_path_possible << ")"
+                                         << " new_is_better: " << new_path_much_better << " time_invalid: "
+                                         << time_since_successful_recalc << "s (" << old_path_expired << ")"
+                                         << " dist_to_old: " << distance_to_old_path << "m (" << robot_near_old_path
+                                         << ")");
             }
             else
             {

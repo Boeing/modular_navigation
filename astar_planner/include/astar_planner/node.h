@@ -2,6 +2,7 @@
 #define ASTAR_PLANNER_NODE_H
 
 #include <boost/heap/binomial_heap.hpp>
+#include <ros/assert.h>
 
 #include <array>
 #include <cmath>
@@ -13,7 +14,7 @@ inline double wrapAngle(double angle)
 {
     while (angle > M_PI)
         angle -= 2 * M_PI;
-    while (angle < -M_PI)
+    while (angle <= -M_PI)
         angle += 2 * M_PI;
     return angle;
 }
@@ -139,6 +140,7 @@ struct CompareNodes
 {
     bool operator()(const Node3D* lhs, const Node3D* rhs) const
     {
+        //        return lhs->cost_to_go > rhs->cost_to_go;
         return lhs->cost() > rhs->cost();
     }
     bool operator()(const Node2D* lhs, const Node2D* rhs) const
@@ -149,6 +151,13 @@ struct CompareNodes
 
 inline Node3dIndex StateToIndex(const State3D& state, const double linear_resolution, const double angular_resolution)
 {
+    // TODO perhaps bounds check
+    //    ROS_ASSERT_MSG(state.x < linear_resolution * std::numeric_limits<int>::max(), "state: %f %f", state.x,
+    //    state.y); ROS_ASSERT_MSG(state.y < linear_resolution * std::numeric_limits<int>::max(), "state: %f %f",
+    //    state.x, state.y); ROS_ASSERT_MSG(state.x > linear_resolution * std::numeric_limits<int>::min(), "state: %f
+    //    %f", state.x, state.y); ROS_ASSERT_MSG(state.y > linear_resolution * std::numeric_limits<int>::min(), "state:
+    //    %f %f", state.x, state.y);
+
     const int x = static_cast<int>(std::round(state.x / linear_resolution));
     const int y = static_cast<int>(std::round(state.y / linear_resolution));
     const int theta = static_cast<int>(std::round(state.theta / angular_resolution));

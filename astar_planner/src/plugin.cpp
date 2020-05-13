@@ -1,9 +1,11 @@
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
+#include <astar_planner/visualisation.h>
 #include <gridmap/operations/rasterize.h>
 #include <gridmap/operations/raytrace.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <navigation_interface/params.h>
+#include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pluginlib/class_list_macros.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -19,22 +21,16 @@ namespace astar_planner
 namespace
 {
 
-double pathCost(const navigation_interface::Path& path, const astar_planner::CollisionChecker& collision_checker,
-                const double conservative_radius)
+double pathCost(const navigation_interface::Path& path, const astar_planner::CollisionChecker& collision_checker)
 {
-    for (std::size_t i = 0; i < path.nodes.size(); ++i)
+    double cost = 0.0;
+    for (std::size_t i = 0; i < path.nodes.size() - 1; ++i)
     {
         const State3D state{path.nodes[i].translation().x(), path.nodes[i].translation().y(),
                             Eigen::Rotation2Dd(path.nodes[i].linear()).smallestAngle()};
         if (!collision_checker.isValid(state))
-        {
             return std::numeric_limits<double>::max();
-        }
-    }
 
-    double cost = 0.0;
-    for (std::size_t i = 0; i < path.nodes.size() - 1; ++i)
-    {
         const Eigen::Vector2d dir = path.nodes[i + 1].translation() - path.nodes[i].translation();
         const Eigen::Vector2d dir_wrt_robot = path.nodes[i].linear().inverse() * dir;
         const Eigen::Rotation2Dd rotation(path.nodes[i].linear().inverse() * path.nodes[i + 1].linear());
@@ -44,12 +40,14 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
 
         const Eigen::Array2i map_point = collision_checker.costmap().getCellIndex(path.nodes[i].translation());
 
-        const double collision_cost =
-            collisionCost(map_point.x(), map_point.y(), collision_checker.costmap(), conservative_radius);
+        const double collision_cost = collisionCost(map_point.x(), map_point.y(), collision_checker);
         const double traversal_cost = traversalCost(map_point.x(), map_point.y(), collision_checker.costmap());
 
+        const double d_to_collision_m = collision_checker.clearance(state) * collision_checker.costmap().resolution;
+        const double rotation_collision_cost = rotationCollisionCost(d_to_collision_m);
+
         cost += (x_cost + y_cost) * traversal_cost * collision_cost;
-        cost += std::abs(rotation.smallestAngle()) * ANGULAR_MULT * collision_cost;
+        cost += std::abs(rotation.smallestAngle()) * ANGULAR_MULT * rotation_collision_cost;
     }
     return cost;
 }
@@ -68,129 +66,62 @@ navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
 {
     navigation_interface::PathPlanner::Result result;
 
-    costmap_ = buildCostmap(*map_data_, robot_radius_);
+    {
+        // cppcheck-suppress unreadVariable
+        auto lock = map_data_->grid.getLock();
+        costmap_ = std::make_shared<Costmap>(*map_data_, robot_radius_);
+    }
+
+    // clear the robot footprint
+    const int radius_px = static_cast<int>(robot_radius_ / costmap_->resolution);
+    for (const auto& offset : offsets_)
+    {
+        const Eigen::Vector2d p = start * offset;
+        const Eigen::Array2i map_cell = costmap_->getCellIndex({p.x(), p.y()});
+        cv::circle(costmap_->obstacle_map, cv::Point(map_cell.x(), map_cell.y()), radius_px, cv::Scalar(0), -1);
+    }
+
+    costmap_->processObstacleMap();
+
     ROS_ASSERT(traversal_cost_);
     costmap_->traversal_cost = traversal_cost_;
-    const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_);
+    const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, conservative_robot_radius_);
 
-    const size_t max_iterations = 1e5;
-    const double linear_resolution = 0.02;
-    const double angular_resolution = 2 * M_PI / 16;
+    const size_t max_iterations = 3e5;
+    const double linear_resolution = 0.04;
+    const double angular_resolution = M_PI / 12;
 
     const auto t0 = std::chrono::steady_clock::now();
 
-    const astar_planner::PathResult astar_result =
-        astar_planner::hybridAStar(start, goal, max_iterations, *costmap_, collision_checker,
-                                   conservative_robot_radius_, linear_resolution, angular_resolution, sample);
+    const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, sample);
 
-    ROS_DEBUG_STREAM(
+    ROS_INFO_STREAM(
         "Hybrid A Star took "
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-        << " iterations: " << astar_result.iterations);
+        << " iterations: " << astar_result.iterations << " nodes: " << astar_result.explore_3d.size());
 
     if (debug_viz_)
     {
         if (explore_pub_.getNumSubscribers() > 0)
         {
-            visualization_msgs::MarkerArray ma;
+            cv::Mat disp = astar_planner::visualise(*costmap_, astar_result);
+            cv::cvtColor(disp, disp, cv::COLOR_BGR2GRAY);
 
-            visualization_msgs::Marker delete_all;
-            delete_all.action = visualization_msgs::Marker::DELETEALL;
-            ma.markers.push_back(delete_all);
+            nav_msgs::OccupancyGrid og;
+            og.header.stamp = ros::Time::now();
+            og.info.resolution = costmap_->resolution;
+            og.info.width = costmap_->width;
+            og.info.height = costmap_->height;
+            og.data.resize(static_cast<size_t>(og.info.width * og.info.height));
+            og.info.origin.position.x = costmap_->origin_x;
+            og.info.origin.position.y = costmap_->origin_y;
+            og.info.origin.orientation.w = 1.0;
 
-            const auto now = ros::Time::now();
+            unsigned char* input = (unsigned char*)(disp.data);
+            std::copy_n(input, og.data.size(), &og.data[0]);
 
-            auto make_cylider = [&ma, &now](const std_msgs::ColorRGBA& color, const double radius, const double height,
-                                            const Eigen::Isometry3d& pose) {
-                visualization_msgs::Marker marker;
-                marker.ns = "cylinder";
-                marker.id = static_cast<int>(ma.markers.size());
-                marker.type = visualization_msgs::Marker::CYLINDER;
-                marker.action = visualization_msgs::Marker::ADD;
-                marker.header.stamp = now;
-                marker.header.frame_id = "map";
-                marker.frame_locked = true;
-                marker.scale.x = radius;
-                marker.scale.y = radius;
-                marker.scale.z = height;
-                marker.color = color;
-                const Eigen::Quaterniond qt(pose.linear());
-                marker.pose.orientation.w = qt.w();
-                marker.pose.orientation.x = qt.x();
-                marker.pose.orientation.y = qt.y();
-                marker.pose.orientation.z = qt.z();
-                marker.pose.position.x = pose.translation().x();
-                marker.pose.position.y = pose.translation().y();
-                marker.pose.position.z = pose.translation().z();
-                return marker;
-            };
-
-            std_msgs::ColorRGBA red;
-            red.r = 1.0;
-            red.a = 1.0;
-
-            std_msgs::ColorRGBA green;
-            green.g = 1.0;
-            green.a = 1.0;
-
-            std_msgs::ColorRGBA blue;
-            blue.b = 1.0;
-            blue.a = 1.0;
-
-            const double length = 0.02;
-            const double radius = 0.002;
-
-            for (auto node : astar_result.explore_3d)
-            {
-                const Eigen::Vector3d _position(node.second->state.x, node.second->state.y, 0.0);
-                const Eigen::Quaterniond _rotation(
-                    Eigen::AngleAxisd(node.second->state.theta, Eigen::Vector3d::UnitZ()));
-                const Eigen::Isometry3d pose = Eigen::Translation3d(_position) * _rotation;
-
-                // X Axis
-                const Eigen::Isometry3d x_pose = pose * (Eigen::Translation3d(length / 2.0, 0, 0) *
-                                                         Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitY()));
-                ma.markers.push_back(make_cylider(red, radius, length, x_pose));
-
-                // Y Axis
-                const Eigen::Isometry3d y_pose = pose * (Eigen::Translation3d(0, length / 2.0, 0) *
-                                                         Eigen::AngleAxisd(M_PI / 2.0, Eigen::Vector3d::UnitX()));
-                ma.markers.push_back(make_cylider(green, radius, length, y_pose));
-
-                // Z Axis
-                const Eigen::Isometry3d z_pose =
-                    pose * (Eigen::Translation3d(0, 0, length / 2.0) * Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()));
-                ma.markers.push_back(make_cylider(blue, radius, length, z_pose));
-
-                if (node.second->parent)
-                {
-                    visualization_msgs::Marker marker;
-                    marker.ns = "line";
-                    marker.id = static_cast<int>(ma.markers.size());
-                    marker.type = visualization_msgs::Marker::LINE_STRIP;
-                    marker.action = visualization_msgs::Marker::ADD;
-                    marker.header.stamp = now;
-                    marker.header.frame_id = "map";
-                    marker.frame_locked = true;
-                    marker.scale.x = 0.002;
-                    marker.scale.y = 0.002;
-                    marker.scale.z = 0.002;
-                    marker.color.g = 1.0;
-                    marker.color.a = 1.0;
-                    marker.pose.orientation.w = 1;
-                    geometry_msgs::Point p1;
-                    p1.x = _position.x();
-                    p1.y = _position.y();
-                    geometry_msgs::Point p2;
-                    p2.x = node.second->parent->state.x;
-                    p2.y = node.second->parent->state.y;
-                    marker.points.push_back(p1);
-                    marker.points.push_back(p2);
-                    ma.markers.push_back(marker);
-                }
-            }
-
-            explore_pub_.publish(ma);
+            explore_pub_.publish(og);
         }
     }
 
@@ -225,8 +156,8 @@ bool AStarPlanner::valid(const navigation_interface::Path& path) const
     // assume this is called immediately after plan to re-use the data structures
     ROS_ASSERT(costmap_);
 
-    const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_);
-    return pathCost(path, collision_checker, conservative_robot_radius_) < std::numeric_limits<double>::max();
+    const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, conservative_robot_radius_);
+    return pathCost(path, collision_checker) < std::numeric_limits<double>::max();
 }
 
 double AStarPlanner::cost(const navigation_interface::Path& path) const
@@ -234,8 +165,8 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
     // assume this is called immediately after plan to re-use the data structures
     ROS_ASSERT(costmap_);
 
-    const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_);
-    return pathCost(path, collision_checker, conservative_robot_radius_);
+    const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, conservative_robot_radius_);
+    return pathCost(path, collision_checker);
 }
 
 // cppcheck-suppress unusedFunction
@@ -262,7 +193,7 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
     if (debug_viz_)
     {
         ros::NodeHandle nh("~");
-        explore_pub_ = nh.advertise<visualization_msgs::MarkerArray>("expansion", 100);
+        explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("expansion", 100);
     }
 }
 
