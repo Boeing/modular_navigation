@@ -1,14 +1,36 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 import rospy
+from cartographer_ros_msgs.msg import StatusCode, StatusResponse
+from cartographer_ros_msgs.msg import SystemState
+from cartographer_ros_msgs.srv import StartLocalisation, StartLocalisationResponse
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped, Vector3
 from std_msgs.msg import Header
+from std_srvs.srv import Trigger, TriggerResponse
 from tf2_msgs.msg import TFMessage
 
-from cartographer_ros_msgs.msg import SystemState
+
+def start_localisation_callback(_):
+    return StartLocalisationResponse(status=StatusResponse(code=StatusCode.OK))
+
+
+def stop_localisation_callback(_):
+    TriggerResponse(success=True)
+
 
 if __name__ == '__main__':
     rospy.init_node('fake_localisation')
+
+    start_loc_srv = rospy.Service(
+        name='/mapper/start_localisation',
+        service_class=StartLocalisation,
+        handler=start_localisation_callback
+    )
+    stop_loc_srv = rospy.Service(
+        name='/mapper/stop_localisation',
+        service_class=Trigger,
+        handler=stop_localisation_callback
+    )
 
     pub = rospy.Publisher(name='/mapper/state', data_class=SystemState, queue_size=1, latch=True)
 
