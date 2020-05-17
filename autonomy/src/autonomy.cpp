@@ -440,6 +440,8 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                                  const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings)
 {
     ros::WallRate rate(path_planner_frequency_);
+    autonomy::DriveFeedback feedback;
+    feedback.state = autonomy::DriveFeedback::NO_PLAN;
 
     while (running_)
     {
@@ -454,6 +456,10 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             nav_msgs::Path gui_path;
             gui_path.header.frame_id = global_frame_;
             path_pub_.publish(gui_path);
+
+            feedback.state = autonomy::DriveFeedback::NO_PLAN;
+            ROS_ASSERT(goal_);
+            goal_->publishFeedback(feedback);
 
             ROS_INFO_STREAM("Robot not localised. Unable to plan!");
 
@@ -485,6 +491,10 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 nav_msgs::Path gui_path;
                 gui_path.header.frame_id = global_frame_;
                 path_pub_.publish(gui_path);
+
+                feedback.state = autonomy::DriveFeedback::NO_PLAN;
+                ROS_ASSERT(goal_);
+                goal_->publishFeedback(feedback);
 
                 rate.sleep();
 
@@ -603,6 +613,8 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 path_goal_pub_.publish(gui_path.poses.back());
                 path_pub_.publish(gui_path);
             }
+
+            feedback.state = autonomy::DriveFeedback::GOOD_PLAN;
         }
         else
         {
@@ -616,6 +628,8 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             // In the situation of persistent
             if (time_since_successful_recalc > 4.0)
             {
+                feedback.state = autonomy::DriveFeedback::STUCK;
+
                 current_path_.reset();
 
                 std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
@@ -624,10 +638,14 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 ROS_INFO_STREAM("Clearing radius of " << clear_radius_ << "m around robot");
                 layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
 
-                ROS_INFO("Waiting for sensors to stabilize...");
+                ROS_INFO("Waiting for sensors to stabilise...");
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
             }
         }
+
+        // Update feedback to correspond to our current position
+        ROS_ASSERT(goal_);
+        goal_->publishFeedback(feedback);
 
         rate.sleep();
     }
@@ -893,20 +911,6 @@ void Autonomy::controllerThread()
                 continue;
             }
         }
-
-        // Update feedback to correspond to our current position
-        const Eigen::Quaterniond qt = Eigen::Quaterniond(
-            Eigen::AngleAxisd(Eigen::Rotation2Dd(robot_pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
-        autonomy::DriveFeedback feedback;
-        feedback.base_position.header.frame_id = global_frame_;
-        feedback.base_position.pose.position.x = robot_pose.translation().x();
-        feedback.base_position.pose.position.y = robot_pose.translation().y();
-        feedback.base_position.pose.orientation.w = qt.w();
-        feedback.base_position.pose.orientation.x = qt.x();
-        feedback.base_position.pose.orientation.y = qt.y();
-        feedback.base_position.pose.orientation.z = qt.z();
-        ROS_ASSERT(goal_);
-        goal_->publishFeedback(feedback);
 
         navigation_interface::Controller::Result result;
         {
