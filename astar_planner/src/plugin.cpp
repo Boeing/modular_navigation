@@ -89,7 +89,7 @@ navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
 
     const size_t max_iterations = 3e5;
     const double linear_resolution = 0.04;
-    const double angular_resolution = M_PI / 12;
+    const double angular_resolution = M_PI / 16;
 
     const auto t0 = std::chrono::steady_clock::now();
 

@@ -39,8 +39,7 @@ class PlanningTest : public testing::Test
 
     const size_t max_iterations = 1e6;
     const double linear_resolution = 2 * 0.02;
-    const double angular_resolution = M_PI / 12;
-    //    const double linear_resolution = 0.1; // resolution / std::tan(angular_resolution);
+    const double angular_resolution = M_PI / 16;
 
     const std::vector<Eigen::Vector2d> offsets = {{-0.268, 0.000},  {0.268, 0.000},   {0.265, -0.185}, {0.077, -0.185},
                                                   {-0.077, -0.185}, {-0.265, -0.185}, {0.265, 0.185},  {-0.265, 0.185},
@@ -163,15 +162,15 @@ TEST_F(PlanningTest, test_straight_line)
     const cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
     cv::imwrite("test_straight_line.png", disp);
 
-    astar_planner::drawPathSVG(astar_result, "result.svg");
-    astar_planner::drawDot(*costmap, astar_result, goal, "result.dot", linear_resolution, angular_resolution);
+    //    astar_planner::drawPathSVG(astar_result, "result.svg");
+    //    astar_planner::drawDot(*costmap, astar_result, goal, "result.dot", linear_resolution, angular_resolution);
 }
 
 TEST_F(PlanningTest, test_avoid_zone)
 {
     cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
-    cv::rectangle(cv_im, cv::Point(200, 600), cv::Point(1000, 700), cv::Scalar(255), -1, cv::LINE_8);
-    cv::rectangle(cv_im, cv::Point(700, 520), cv::Point(740, 2000), cv::Scalar(255), -1, cv::LINE_8);
+    cv::rectangle(cv_im, cv::Point(200, 700), cv::Point(1000, 800), cv::Scalar(255), -1, cv::LINE_8);
+    //    cv::rectangle(cv_im, cv::Point(700, 520), cv::Point(740, 2000), cv::Scalar(255), -1, cv::LINE_8);
 
     cv::circle(cv_im, cv::Point(400, 400), 5, cv::Scalar(255), -1, cv::LINE_8);
     cv::circle(cv_im, cv::Point(500, 400), 5, cv::Scalar(255), -1, cv::LINE_8);
@@ -191,9 +190,8 @@ TEST_F(PlanningTest, test_avoid_zone)
 
     // Set unit traversal cost
     costmap->traversal_cost = std::make_shared<cv::Mat>(size_y, size_x, CV_32F, cv::Scalar(1.0));
-    cv::rectangle(*costmap->traversal_cost, cv::Point(600, 200), cv::Point(800, 500), cv::Scalar(10.0), -1, cv::LINE_8);
-
-    cv::GaussianBlur(*costmap->traversal_cost, *costmap->traversal_cost, cv::Size(11, 11), 0);
+    cv::rectangle(*costmap->traversal_cost, cv::Point(600, 200), cv::Point(800, 600), cv::Scalar(100.0), -1,
+                  cv::LINE_8);
 
     const Eigen::Isometry2d start = Eigen::Translation2d(0.0, -3.0) * Eigen::Rotation2Dd(M_PI);
     const Eigen::Isometry2d goal = Eigen::Translation2d(5.5, -3.1) * Eigen::Rotation2Dd(0);
@@ -218,10 +216,9 @@ TEST_F(PlanningTest, test_avoid_zone)
     std::cout << "nodes: " << astar_result.explore_3d.size() << std::endl;
 
     cv::Mat disp = astar_planner::visualise(*costmap, astar_result);
-    cv::rectangle(disp, cv::Point(600, 200), cv::Point(800, 500), cv::Scalar(100, 0, 0), 1, cv::LINE_8);
+    cv::rectangle(disp, cv::Point(600 * 4, 200 * 4), cv::Point(800 * 4, 600 * 4), cv::Scalar(100, 0, 0), 10,
+                  cv::LINE_8);
     cv::imwrite("test_avoid_zone.png", disp);
-
-    astar_planner::drawPathSVG(astar_result, "result.svg");
 }
 
 TEST_F(PlanningTest, test_reverse)

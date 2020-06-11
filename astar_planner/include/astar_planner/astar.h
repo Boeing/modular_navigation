@@ -67,6 +67,9 @@ struct PathResult
         }
     }
 
+    Eigen::Isometry2d start;
+    Eigen::Isometry2d goal;
+
     bool success;
     size_t iterations;
 
