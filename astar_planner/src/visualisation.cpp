@@ -16,34 +16,33 @@ namespace astar_planner
 cv::Mat visualise(const Costmap& costmap, const PathResult& astar_result)
 {
     cv::Mat disp;
-    cv::cvtColor(costmap.obstacle_map, disp, cv::COLOR_GRAY2BGR);
+    costmap.distance_to_collision.convertTo(disp, CV_8U, 1.0, 0);
+    cv::cvtColor(disp, disp, cv::COLOR_GRAY2BGR);
     return visualise(disp, costmap, astar_result);
 }
 
 cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar_result)
 {
-    double max_cost_so_far = 0;
-    for (const auto& node : astar_result.explore_cache.explore_2d)
+
+    // draw the 2d heuristic cost values
+    // draw as a blue gradient
     {
-        if (node.second.cost_so_far < std::numeric_limits<double>::max())
-            max_cost_so_far = std::max(node.second.cost_so_far, max_cost_so_far);
+        double max_cost_so_far = 0;
+        for (const auto& node : astar_result.explore_cache.explore_2d)
+        {
+            if (node.second.cost_so_far < std::numeric_limits<double>::max())
+                max_cost_so_far = std::max(node.second.cost_so_far, max_cost_so_far);
+        }
+
+        for (const auto& node : astar_result.explore_cache.explore_2d)
+        {
+            const unsigned char c =
+                static_cast<unsigned char>(255.0 - 255.0 * node.second.cost_so_far / max_cost_so_far);
+            disp.at<cv::Vec3b>(node.second.state.y, node.second.state.x) = cv::Vec3b(c, c, 0);
+        }
     }
 
-    for (const auto& node : astar_result.explore_cache.explore_2d)
-    {
-        const unsigned char c = static_cast<unsigned char>(255.0 - 255.0 * node.second.cost_so_far / max_cost_so_far);
-        disp.at<cv::Vec3b>(node.second.state.y, node.second.state.x) = cv::Vec3b(c, c, 0);
-    }
-
-    double max_cost_3d = 0;
-    double min_cost_3d = std::numeric_limits<double>::max();
-    for (const auto& node : astar_result.explore_3d)
-    {
-        if (node.second->cost_so_far < std::numeric_limits<double>::max())
-            max_cost_3d = std::max(node.second->cost_so_far, max_cost_3d);
-        min_cost_3d = std::min(node.second->cost_so_far, min_cost_3d);
-    }
-
+    // Count how often a cell is visited during 3d exploration
     std::size_t max_count = 0;
     std::unordered_map<size_t, size_t> counts;
     for (auto node : astar_result.explore_3d)
@@ -55,6 +54,7 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
             max_count = counts[idx];
     }
 
+    // visualise 3d exploration
     for (auto node : astar_result.explore_3d)
     {
         if (!node.second->parent)
@@ -69,6 +69,61 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
         disp.at<cv::Vec3b>(cell.y(), cell.x()) = cv::Vec3b(0, c, 0);
     }
 
+    // super sample the image
+    const int scale = 4;
+    cv::resize(disp, disp, cv::Size(0, 0), scale, scale, cv::INTER_CUBIC);
+
+    // visualise 3d exploration connections
+    cv::Mat overlay;
+    disp.copyTo(overlay);
+    for (auto node : astar_result.explore_3d)
+    {
+        if (!node.second->parent)
+            continue;
+
+        const Eigen::Array2i cell = costmap.getCellIndex({node.second->state.x, node.second->state.y}) * scale;
+        const Eigen::Array2i parent_cell =
+            costmap.getCellIndex({node.second->parent->state.x, node.second->parent->state.y}) * scale;
+
+        cv::line(overlay, cv::Point(parent_cell.x(), parent_cell.y()), cv::Point(cell.x(), cell.y()),
+                 cv::Scalar(0, 255, 255), 1);
+    }
+    const double alpha = 0.3;
+    cv::addWeighted(overlay, alpha, disp, 1 - alpha, 0, disp);
+
+    // draw the start
+    {
+        const Eigen::Rotation2Dd rotation(astar_result.start.linear());
+        const Eigen::Array2i start_cell = costmap.getCellIndex(astar_result.start.translation()) * scale;
+
+        const Eigen::Vector2d x_end = Eigen::Vector2d(start_cell.x(), start_cell.y()) +
+                                      Eigen::Vector2d(rotation * Eigen::Vector2d(10 * scale, 0));
+        const Eigen::Vector2d y_end = Eigen::Vector2d(start_cell.x(), start_cell.y()) +
+                                      Eigen::Vector2d(rotation * Eigen::Vector2d(0, 10 * scale));
+
+        cv::line(disp, cv::Point(start_cell.x(), start_cell.y()), cv::Point(x_end.x(), x_end.y()),
+                 cv::Scalar(0, 0, 255), 2);
+        cv::line(disp, cv::Point(start_cell.x(), start_cell.y()), cv::Point(y_end.x(), y_end.y()),
+                 cv::Scalar(0, 255, 0), 2);
+    }
+
+    // draw the goal
+    {
+        const Eigen::Rotation2Dd rotation(astar_result.goal.linear());
+        const Eigen::Array2i start_cell = costmap.getCellIndex(astar_result.goal.translation()) * scale;
+
+        const Eigen::Vector2d x_end = Eigen::Vector2d(start_cell.x(), start_cell.y()) +
+                                      Eigen::Vector2d(rotation * Eigen::Vector2d(10 * scale, 0));
+        const Eigen::Vector2d y_end = Eigen::Vector2d(start_cell.x(), start_cell.y()) +
+                                      Eigen::Vector2d(rotation * Eigen::Vector2d(0, 10 * scale));
+
+        cv::line(disp, cv::Point(start_cell.x(), start_cell.y()), cv::Point(x_end.x(), x_end.y()),
+                 cv::Scalar(0, 0, 255), 2);
+        cv::line(disp, cv::Point(start_cell.x(), start_cell.y()), cv::Point(y_end.x(), y_end.y()),
+                 cv::Scalar(0, 255, 0), 2);
+    }
+
+    // trace out the resulting path
     if (astar_result.success)
     {
         for (size_t i = 0; i < astar_result.path.size(); i++)
@@ -78,24 +133,22 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
             const Eigen::Vector2d position(node->state.x, node->state.y);
             const Eigen::Rotation2Dd rotation(node->state.theta);
 
-            const int start_x = static_cast<int>(std::round((node->state.x - costmap.origin_x) / costmap.resolution));
-            const int start_y = static_cast<int>(std::round((node->state.y - costmap.origin_y) / costmap.resolution));
+            const Eigen::Array2i start_cell = costmap.getCellIndex(position) * scale;
 
-            const Eigen::Vector2d x_end =
-                Eigen::Vector2d(start_x, start_y) +
-                Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(10, 0));
-            const Eigen::Vector2d y_end =
-                Eigen::Vector2d(start_x, start_y) +
-                Eigen::Vector2d(Eigen::Rotation2Dd(node->state.theta) * Eigen::Vector2d(0, 10));
+            const Eigen::Vector2d x_end = Eigen::Vector2d(start_cell.x(), start_cell.y()) +
+                                          Eigen::Vector2d(rotation * Eigen::Vector2d(10 * scale, 0));
+            const Eigen::Vector2d y_end = Eigen::Vector2d(start_cell.x(), start_cell.y()) +
+                                          Eigen::Vector2d(rotation * Eigen::Vector2d(0, 10 * scale));
 
-            if (i % 20 == 0)
-                cv::circle(disp, cv::Point(start_x, start_y), 0.416 / costmap.resolution, cv::Scalar(0, 255, 0), 1);
-
-            cv::line(disp, cv::Point(start_x, start_y), cv::Point(x_end.x(), x_end.y()), cv::Scalar(0, 0, 255), 1);
-            cv::line(disp, cv::Point(start_x, start_y), cv::Point(y_end.x(), y_end.y()), cv::Scalar(0, 255, 0), 1);
+            cv::line(disp, cv::Point(start_cell.x(), start_cell.y()), cv::Point(x_end.x(), x_end.y()),
+                     cv::Scalar(0, 0, 255), 2);
+            cv::line(disp, cv::Point(start_cell.x(), start_cell.y()), cv::Point(y_end.x(), y_end.y()),
+                     cv::Scalar(0, 255, 0), 2);
         }
     }
 
+    // draw the 2d heuristic shortest path
+    // draw as a blue line
     if (!astar_result.path.empty())
     {
         auto first_node = astar_result.path.back();
@@ -107,7 +160,7 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
             auto node = &node_it->second;
             do
             {
-                disp.at<cv::Vec3b>(node->state.y, node->state.x) = cv::Vec3b(255, 0, 0);
+                cv::circle(disp, cv::Point(node->state.x * scale, node->state.y * scale), 2, cv::Scalar(255, 0, 0), -1);
                 node = node->parent;
             } while (node);
         }
@@ -116,6 +169,7 @@ cv::Mat visualise(cv::Mat& disp, const Costmap& costmap, const PathResult& astar
     return disp;
 }
 
+// cppcheck-suppress unusedFunction
 void drawDot(const Costmap& costmap, const PathResult& astar_result, const Eigen::Isometry2d& goal,
              const std::string& graph_path, const double linear_resolution, const double angular_resolution)
 {
@@ -198,6 +252,7 @@ void drawDot(const Costmap& costmap, const PathResult& astar_result, const Eigen
     boost::write_graphviz_dp(dotfile, graph, dp);
 }
 
+// cppcheck-suppress unusedFunction
 bool drawPathSVG(const PathResult& astar_result, const std::string& svg_path)
 {
     ROS_ASSERT(astar_result.success);

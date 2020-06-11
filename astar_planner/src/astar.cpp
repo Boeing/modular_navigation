@@ -44,7 +44,7 @@ double collisionCost(const int map_x, const int map_y, const CollisionChecker& c
 
 double rotationCollisionCost(const double distance_to_collision_m)
 {
-    return std::min(80.0, std::max(1.0, 1.0 / (distance_to_collision_m)));
+    return std::min(60.0, std::max(1.0, 1.0 / (distance_to_collision_m * distance_to_collision_m)));
 }
 
 double traversalCost(const int map_x, const int map_y, const Costmap& costmap)
@@ -229,7 +229,7 @@ double updateH(const State2D& state, const State2D& goal, Explore2DCache& explor
     {
         const double shortest_2d = ret.success ? ret.node->cost_so_far : std::numeric_limits<double>::max();
         ROS_ASSERT(std::isfinite(shortest_2d));
-        return shortest_2d * costmap.resolution;
+        return shortest_2d * costmap.resolution * 1.1;
     }
     else
     {
@@ -244,6 +244,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 {
     const Costmap& costmap = collision_checker.costmap();
     PathResult result;
+    result.start = start;
+    result.goal = goal;
     result.success = false;
     result.start_in_collision = false;
     result.goal_in_collision = false;
@@ -358,7 +360,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 
         const double distance_to_goal_x = std::abs(current_node->state.x - goal_state.x);
         const double distance_to_goal_y = std::abs(current_node->state.y - goal_state.y);
-        const double distance_to_goal =
+        const double distance_to_goal_m =
             std::sqrt(distance_to_goal_x * distance_to_goal_x + distance_to_goal_y * distance_to_goal_y);
         const double rotation_to_goal = std::abs(wrapAngle(current_node->state.theta - goal_state.theta));
 
@@ -378,9 +380,27 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         const double distance_to_collision_px = collision_checker.clearance(current_node->state);
         const double distance_to_collision_m = distance_to_collision_px * costmap.resolution;
 
+        const double d_to_collision_or_goal = std::min(distance_to_collision_m, distance_to_goal_m);
+
+        // discretize
+        double res_mult = 1.0;
+        if (d_to_collision_or_goal < 0.2)
+        {
+            res_mult = 1;
+        }
+        else if (d_to_collision_or_goal < 0.4)
+        {
+            res_mult = 2;
+        }
+        else
+        {
+            res_mult = 4;
+        }
+
         const double s1 = std::abs(costmap.resolution / std::cos(current_node->state.theta));
         const double s2 = std::abs(costmap.resolution / std::sin(current_node->state.theta));
-        const double step_mult = 2.0 * std::min(s1, s2) / costmap.resolution;
+        // I think this needs to be sqrt(2) = 1.4, use 1.5 to help rounding up
+        const double step_mult = 1.5 * res_mult * std::min(s1, s2) / costmap.resolution;
 
         ROS_ASSERT(step_mult >= 1.0);
 
@@ -389,7 +409,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         const double distance_to_start =
             std::sqrt(distance_to_start_x * distance_to_start_x + distance_to_start_y * distance_to_start_y);
 
-        const double d_to_stuff = std::min(std::min(distance_to_collision_m, distance_to_goal), distance_to_start);
+        const double d_to_stuff = std::min(d_to_collision_or_goal, distance_to_start);
         const std::vector<ExploreDirection>& current_directions = d_to_stuff > 0.5 ? directions : extra_directions;
 
         for (std::size_t i = 0; i < current_directions.size(); ++i)
@@ -407,25 +427,6 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
                 const double dy = step_mult * (current_directions[i].x * st + current_directions[i].y * ct);
                 new_state.x += dx;
                 new_state.y += dy;
-            }
-
-            // discretize
-            double res_mult = 1.0;
-            if (distance_to_collision_m > 0.2)
-            {
-                res_mult = 2;
-            }
-            else if (distance_to_collision_m > 0.4)
-            {
-                res_mult = 4;
-            }
-            else if (distance_to_collision_m > 0.6)
-            {
-                res_mult = 6;
-            }
-            else if (distance_to_collision_m > 0.8)
-            {
-                res_mult = 8;
             }
 
             const auto down_index = StateToIndex(new_state, linear_resolution * res_mult, angular_resolution);
