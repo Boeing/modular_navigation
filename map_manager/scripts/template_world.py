@@ -76,6 +76,9 @@ def run(dxf_file, world_template_file, output_sdf_file):
     for obj in msp.query('*'):
         layer = obj.get_dxf_attrib('layer')
 
+        # Convert all strings to lowercase. Sometimes CAD packages save as uppercase.
+        layer = layer.lower()
+
         if isinstance(obj, Polyline):
 
             if layer == 'paths':
