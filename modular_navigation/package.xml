@@ -2,7 +2,7 @@
 <package format="2">
     <name>modular_navigation</name>
     <version>0.1.0</version>
-    <description>modular_navigation metapackage</description>
+    <description>Robot navigation stack</description>
     <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
     <author>Boeing</author>
     <license>Boeing Proprietary</license>

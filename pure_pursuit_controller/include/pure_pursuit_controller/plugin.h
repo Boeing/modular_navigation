@@ -37,24 +37,28 @@ class PurePursuitController : public navigation_interface::Controller
     ros::SteadyTime last_update_;
 
     // Parameters
-    double look_ahead_time_ = 0.5;
+    double look_ahead_time_ = 1.5;
+    unsigned int interpolation_steps_ = 20;
 
-    Eigen::Vector3d max_velocity_ = {0.25, 0.15, 0.25};
-    Eigen::Vector3d max_acceleration_ = {0.8, 0.5, 0.8};
-
-    double goal_radius_ = 0.10;
+    Eigen::Vector3d max_velocity_ = {0.20, 0.20, 0.20};
+    double max_translation_accel_ = 0.2;
+    double max_rotation_accel_ = 0.2;
 
     double tracking_error_ = 0.25;
 
     double xy_goal_tolerance_ = 0.02;
     double yaw_goal_tolerance_ = 0.01;
 
-    Eigen::Vector3d goal_p_gain_ = {0.5, 0.5, 0.2};
-    Eigen::Vector3d goal_i_gain_ = {0.0, 0.0, 0.0};
-    Eigen::Vector3d goal_d_gain_ = {0.0, 0.0, 0.0};
+    Eigen::Vector3d p_gain_ = {1.1, 1.1, 1.1};
+    Eigen::Vector3d d_gain_ = {0.4, 0.4, 0.4};
+
+    // I term only activated when close to goal to close the steady-state error
+    Eigen::Vector3d i_gain_ = {0.1, 0.1, 0.1};
 
     Eigen::Vector3d control_error_;
     Eigen::Vector3d control_integral_;
+    Eigen::Vector3d control_integral_max_ = {2.0, 2.0, 2.0};
+    Eigen::Vector3d prev_cmd_vel = {0.0, 0.0, 0.0};
 
     bool debug_viz_ = true;
     ros::Publisher target_state_pub_;

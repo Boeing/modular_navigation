@@ -17,7 +17,7 @@
 namespace astar_planner
 {
 
-const double BACKWARDS_MULT = 1.3;
+const double BACKWARDS_MULT = 1.5;
 const double STRAFE_MULT = 2.0;
 const double ANGULAR_MULT = 0.4 / M_PI;
 

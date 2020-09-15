@@ -96,18 +96,18 @@ struct MovingWindow
         return end_i == nominal_path.nodes.size();
     }
 
-    void updateWindow(const Eigen::Isometry2d& pose, const Eigen::Vector3d& velocity, const double max_length)
+    void updateWindow(const Eigen::Isometry2d& pose, const double max_length)
     {
         if (!window.nodes.empty())
         {
             // trim the window
-            const std::size_t closest = window.closestSegment(pose, velocity);
+            const std::size_t closest = window.closestSegment(pose);
             window.nodes.erase(window.nodes.begin(), window.nodes.begin() + static_cast<int>(closest));
         }
         else
         {
             // start appending at the closest robot pose
-            const std::size_t closest = findClosest(nominal_path.nodes, pose, velocity);
+            const std::size_t closest = findClosest(nominal_path.nodes, pose);
             end_i = closest;
             ROS_ASSERT(closest < nominal_path.nodes.size());
         }

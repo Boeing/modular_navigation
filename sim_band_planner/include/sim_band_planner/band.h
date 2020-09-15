@@ -13,33 +13,65 @@
 namespace sim_band_planner
 {
 
-template <typename NodeType>
-std::size_t findClosest(const std::vector<NodeType>& nodes, const Eigen::Isometry2d& pose,
-                        const Eigen::Vector3d& velocity)
+// We can treat rotation like a Z axis, so we can calculate a 3D norm between any two poses
+template <typename NodeType1, typename NodeType2>
+double dist(const NodeType1& pose_1, const NodeType2& pose_2, const double a_weight)
 {
-    // Calcuate "distance" between current pose and each node where distance is a weighted sum of the linear distance
-    // and the rotational difference. Alpha controls the weighting of the angular difference
+    const double diff_x = pose_2.translation().x() - pose_1.translation().x();
+    const double diff_y = pose_2.translation().y() - pose_1.translation().y();
+    const double diff_a = Eigen::Rotation2Dd(pose_1.linear().inverse() * pose_2.linear()).smallestAngle();
 
-    if (nodes.size() <= 1)
-        return 0;
+    return (diff_x * diff_x) + (diff_y * diff_y) + a_weight * (diff_a * diff_a);
+}
 
-    const double dt = 1.0;
-    Eigen::Isometry2d future_state = pose;
-    future_state.pretranslate(dt * Eigen::Vector2d(velocity.topRows(2)));
-    future_state.rotate(Eigen::Rotation2Dd(dt * velocity[2]));
+template <typename NodeType> std::size_t findClosest(const std::vector<NodeType>& nodes, const Eigen::Isometry2d& pose)
+{
+    if (nodes.size() <= 2)
+        return nodes.size() - 1;
 
-    // First state is current robot pose, so we skip that
     std::vector<double> distances;
-    std::transform(
-        nodes.begin() + 1, nodes.end(), std::back_inserter(distances), [&future_state](const NodeType& state) {
-            const double alpha = 0.1;
-            const Eigen::Rotation2Dd rot(state.linear().inverse() * future_state.linear());
-            return ((state.translation() - future_state.translation()).norm()) + alpha * std::abs(rot.smallestAngle());
-        });
-    auto it = std::min_element(distances.begin(), distances.end());
-    const long dist = std::distance(distances.begin(), it);
+    std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
+                   [&pose](const NodeType& state) { return dist(state, pose, 0.1); });
+    const auto closest_it = std::min_element(distances.begin(), distances.end());
+    const std::size_t closest_i = std::distance(distances.begin(), closest_it);
 
-    return dist;
+    if (closest_i == 0 || closest_i == nodes.size() - 1)
+    {
+        return static_cast<std::size_t>(closest_i);
+    }
+
+    // Resolve ambiguity
+    // Find midpoints  -----A------M1---closest_i---M2-------B------->
+    Eigen::Isometry2d m_1;
+    Eigen::Isometry2d m_2;
+    {
+        // Calculate pose of M1
+        const Eigen::Vector2d translation_vec = nodes[closest_i].translation() - nodes[closest_i - 1].translation();
+        const Eigen::Rotation2Dd rot(nodes[closest_i - 1].linear());
+        const Eigen::Rotation2Dd target_rot(nodes[closest_i].linear());
+
+        m_1 = Eigen::Translation2d(nodes[closest_i - 1].translation() + 0.99 * translation_vec) *
+              rot.slerp(0.99, target_rot);
+    }
+
+    {
+        // Calculate pose of M2
+        const Eigen::Vector2d translation_vec = nodes[closest_i + 1].translation() - nodes[closest_i].translation();
+        const Eigen::Rotation2Dd rot(nodes[closest_i].linear());
+        const Eigen::Rotation2Dd target_rot(nodes[closest_i + 1].linear());
+
+        m_2 =
+            Eigen::Translation2d(nodes[closest_i].translation() + 0.01 * translation_vec) * rot.slerp(0.01, target_rot);
+    }
+
+    if (dist(m_1, pose, 0.1) < dist(m_2, pose, 0.1))
+    {
+        return static_cast<std::size_t>(closest_i - 1);
+    }
+    else
+    {
+        return static_cast<std::size_t>(closest_i);
+    }
 }
 
 struct ControlPoint
@@ -112,9 +144,9 @@ struct Band
         return distance;
     }
 
-    std::size_t closestSegment(const Eigen::Isometry2d& pose, const Eigen::Vector3d& velocity) const
+    std::size_t closestSegment(const Eigen::Isometry2d& pose) const
     {
-        return findClosest(nodes, pose, velocity);
+        return findClosest(nodes, pose);
     }
 
     Eigen::Spline<double, 3> spline() const
