@@ -431,6 +431,9 @@ void Autonomy::cancelCallback(GoalHandle goal)
     {
         if (goal_ && goal.getGoalID().id == goal_->getGoalID().id)
         {
+            autonomy::DriveFeedback feedback;
+            feedback.state = autonomy::DriveFeedback::NO_PLAN;
+            goal_->publishFeedback(feedback);
             goal.setCanceled();
         }
     }

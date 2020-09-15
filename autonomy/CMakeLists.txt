@@ -37,12 +37,15 @@ generate_messages(DEPENDENCIES
 )
 
 catkin_package(CATKIN_DEPENDS
+    actionlib
     actionlib_msgs
     geometry_msgs
+    gridmap
     map_manager
     message_runtime
     nav_msgs
     roscpp
+    std_srvs
     tf2_geometry_msgs
 )
 

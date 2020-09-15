@@ -99,7 +99,7 @@ navigation_interface::TrajectoryPlanner::Result
         // Take a window of the planning scene at the robot pose
         const Eigen::Isometry2d robot_pose = map_to_odom * robot_state.pose;
 
-        moving_window_->updateWindow(robot_pose, robot_state.velocity, max_window_length_);
+        moving_window_->updateWindow(robot_pose, max_window_length_);
 
         auto lock = map_data_->grid.getLock();
         gridmap::Grid2D<uint8_t> local_grid(map_data_->grid, local_region);

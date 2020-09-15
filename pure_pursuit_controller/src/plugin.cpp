@@ -123,12 +123,12 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
         cv::bitwise_not(cv_im, inv_cv_im);
 
         // Calculate the distance transform to all objects (zero pixels)
-        cv::Mat dist;
-        cv::distanceTransform(inv_cv_im, dist, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
+        cv::Mat distance;
+        cv::distanceTransform(inv_cv_im, distance, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
 
         for (const auto& p : connected_poly)
         {
-            const double f = static_cast<double>(dist.at<float>(p.y(), p.x()));
+            const double f = static_cast<double>(distance.at<float>(p.y(), p.x()));
             min_distance_to_collision = std::min(min_distance_to_collision, f);
         }
         min_distance_to_collision *= grid.dimensions().resolution();
@@ -215,73 +215,124 @@ visualization_msgs::Marker buildMarker(const navigation_interface::KinodynamicSt
     return marker;
 }
 
-std::size_t findClosest(const double look_ahead_time, const std::vector<navigation_interface::KinodynamicState>& nodes,
-                        const Eigen::Isometry2d& pose, const Eigen::Vector3d& velocity, const std::size_t path_index)
+// We can treat rotation like a Z axis, so we can calculate a 3D norm between any two poses
+double dist(const Eigen::Isometry2d& pose_1, const Eigen::Isometry2d& pose_2, const double a_weight)
 {
-    if (nodes.size() <= 1)
-        return 0;
+    const double diff_x = pose_2.translation().x() - pose_1.translation().x();
+    const double diff_y = pose_2.translation().y() - pose_1.translation().y();
+    const double diff_a = Eigen::Rotation2Dd(pose_1.linear().inverse() * pose_2.linear()).smallestAngle();
 
-    std::vector<double> distances;
-    std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
-                   [&pose](const navigation_interface::KinodynamicState& state) {
-                       const double alpha = 0.1;
-                       const Eigen::Rotation2Dd rot(state.pose.linear().inverse() * pose.linear());
-                       return ((state.pose.translation() - pose.translation()).norm()) +
-                              alpha * std::abs(rot.smallestAngle());
-                   });
-    auto it_pose = std::min_element(distances.begin() + static_cast<long>(path_index), distances.end());
-    const long dist_pose = std::distance(distances.begin(), it_pose);
-
-    // Look at where the robot will be in the future
-    Eigen::Isometry2d future_state = pose;
-    future_state.pretranslate(look_ahead_time * Eigen::Vector2d(velocity.topRows(2)));
-    future_state.rotate(Eigen::Rotation2Dd(look_ahead_time * velocity[2]));
-
-    std::vector<double> future_distances;
-    std::transform(nodes.begin(), nodes.end(), std::back_inserter(future_distances),
-                   [&future_state](const navigation_interface::KinodynamicState& state) {
-                       const double alpha = 0.1;
-                       const Eigen::Rotation2Dd rot(state.pose.linear().inverse() * future_state.linear());
-                       return ((state.pose.translation() - future_state.translation()).norm()) +
-                              alpha * std::abs(rot.smallestAngle());
-                   });
-    auto it_fut = std::min_element(future_distances.begin() + dist_pose, future_distances.end());
-    const long dist_fut = std::distance(future_distances.begin(), it_fut);
-
-    return static_cast<std::size_t>(dist_fut);
+    return (diff_x * diff_x) + (diff_y * diff_y) + a_weight * (diff_a * diff_a);
 }
 
-navigation_interface::KinodynamicState targetState(const Eigen::Isometry2d& robot_pose,
-                                                   const navigation_interface::Trajectory& trajectory,
-                                                   const std::size_t path_index)
+// Find the node on the path that is closest to the robot.
+// If the robot is between two nodes, it will always pick the one in front to prevent back-tracking
+// Because the nodes aren't evenly spaced, this is actually not a trivial problem
+std::size_t findClosest(const std::vector<navigation_interface::KinodynamicState>& nodes, const Eigen::Isometry2d& pose)
 {
-    double linear_distance = 0;
-    double angular_distance = 0;
-    for (std::size_t i = path_index; i < trajectory.states.size(); ++i)
+    if (nodes.size() <= 2)
+        return nodes.size() - 1;
+
+    std::vector<double> distances;
+    std::transform(
+        nodes.begin(), nodes.end(), std::back_inserter(distances),
+        [&pose](const navigation_interface::KinodynamicState& state) { return dist(state.pose, pose, 0.1); });
+    const auto closest_it = std::min_element(distances.begin(), distances.end());
+    const std::size_t closest_i = std::distance(distances.begin(), closest_it);
+
+    if (closest_i == 0 || closest_i == nodes.size() - 1)
     {
-        const Eigen::Vector2d seg_vec =
-            trajectory.states[i + 1].pose.translation() - trajectory.states[i].pose.translation();
-        const Eigen::Vector2d seg_vec_wrt_robot = trajectory.states[i].pose.linear().inverse() * seg_vec;
-        const Eigen::Vector3d seg_dist = {
-            seg_vec_wrt_robot[0], seg_vec_wrt_robot[1],
-            Eigen::Rotation2Dd(trajectory.states[i].pose.linear().inverse() * trajectory.states[i + 1].pose.linear())
-                .smallestAngle()};
-        linear_distance += seg_dist.topRows(2).norm();
-        angular_distance += std::abs(seg_dist[2]);
-
-        const double linear_d_from_robot = (robot_pose.translation() - trajectory.states[i].pose.translation()).norm();
-        const double angular_d_from_robot = std::abs(
-            Eigen::Rotation2Dd(trajectory.states[i].pose.linear().inverse() * robot_pose.linear()).smallestAngle());
-
-        // force the target state to be at least a certain distance from the robot
-        if (linear_d_from_robot < 0.04 && angular_d_from_robot < 0.2)
-            continue;
-
-        // only exit if the target state is a certain distance along the path from the closest point
-        if (linear_distance > 0.04 || angular_distance > 0.2)
-            return trajectory.states[i];
+        return static_cast<std::size_t>(closest_i);
     }
-    return trajectory.states.back();
+
+    // Resolve ambiguity by checking points slightly before and after the closest node
+    // Find midpoints  -----A------M1---closest_i---M2-------B------->
+    Eigen::Isometry2d m_1;
+    Eigen::Isometry2d m_2;
+    {
+        // Calculate pose of M1
+        const Eigen::Vector2d translation_vec =
+            nodes[closest_i].pose.translation() - nodes[closest_i - 1].pose.translation();
+        const Eigen::Rotation2Dd rot(nodes[closest_i - 1].pose.linear());
+        const Eigen::Rotation2Dd target_rot(nodes[closest_i].pose.linear());
+
+        m_1 = Eigen::Translation2d(nodes[closest_i - 1].pose.translation() + 0.99 * translation_vec) *
+              rot.slerp(0.99, target_rot);
+    }
+
+    {
+        // Calculate pose of M2
+        const Eigen::Vector2d translation_vec =
+            nodes[closest_i + 1].pose.translation() - nodes[closest_i].pose.translation();
+        const Eigen::Rotation2Dd rot(nodes[closest_i].pose.linear());
+        const Eigen::Rotation2Dd target_rot(nodes[closest_i + 1].pose.linear());
+
+        m_2 = Eigen::Translation2d(nodes[closest_i].pose.translation() + 0.01 * translation_vec) *
+              rot.slerp(0.01, target_rot);
+    }
+
+    if (dist(m_1, pose, 0.1) < dist(m_2, pose, 0.1))
+    {
+        return static_cast<std::size_t>(closest_i);
+    }
+    else
+    {
+        return static_cast<std::size_t>(closest_i + 1);
+    }
+}
+
+// Performs a lookahead to give the robot a "carrot" to chase
+navigation_interface::KinodynamicState lookAhead(const std::vector<navigation_interface::KinodynamicState>& nodes,
+                                                 const Eigen::Isometry2d& robot_pose, const Eigen::Vector3d& velocity,
+                                                 const std::size_t path_index, const double look_ahead_time,
+                                                 const unsigned int interpolation_steps)
+{
+    Eigen::Isometry2d future_pose = robot_pose;
+    future_pose.pretranslate(look_ahead_time * Eigen::Vector2d(velocity.topRows(2)));
+    future_pose.rotate(Eigen::Rotation2Dd(look_ahead_time * velocity[2]));
+
+    // To prevent the robot from getting stuck with 0 lookahead, set a minimum of 5cm
+    // Note: these are squared distances!
+    const double required_distance = std::max(0.0025, dist(robot_pose, future_pose, 0.1));
+
+    for (std::size_t i = path_index; i < nodes.size(); ++i)
+    {
+        const double dist_to_node = dist(robot_pose, nodes[i].pose, 0.1);
+
+        // Found first node that is far enough. Now interpolate between previous node and this node.
+        if (dist_to_node > required_distance)
+        {
+            const Eigen::Isometry2d start_pose = (i == 0) ? robot_pose : nodes[i - 1].pose;
+            const Eigen::Vector2d translation_vec = nodes[i].pose.translation() - start_pose.translation();
+            const Eigen::Rotation2Dd rot(start_pose.linear());
+            const Eigen::Rotation2Dd target_rot(nodes[i].pose.linear());
+
+            Eigen::Isometry2d prev_interpolated_pose = nodes[i].pose;
+
+            for (int j = interpolation_steps; j >= 0; j--)
+            {
+                // Step from front to back to avoid finding a point behind the robot.
+                const double fraction = static_cast<double>(j) / static_cast<double>(interpolation_steps);
+                const Eigen::Isometry2d interpolated_pose =
+                    Eigen::Translation2d(start_pose.translation() + fraction * translation_vec) *
+                    rot.slerp(fraction, target_rot);
+
+                // Found pose just within range. Return the previous one (just outside)
+                if (dist(interpolated_pose, robot_pose, 0.1) < required_distance)
+                {
+                    navigation_interface::KinodynamicState target_state = nodes[i];
+                    target_state.pose = prev_interpolated_pose;
+                    return target_state;
+                }
+
+                prev_interpolated_pose = interpolated_pose;
+            }
+
+            // None of the interpolated poses are within required_distance. Just use the node itself.
+            return nodes[i];
+        }
+    }
+    return nodes.back();
 }
 
 }  // namespace
@@ -304,7 +355,7 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     trajectory_.reset(new navigation_interface::Trajectory(trajectory));
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
-    last_update_ = ros::SteadyTime(0);
+    last_update_ = ros::SteadyTime::now();
 
     return true;
 }
@@ -316,7 +367,7 @@ void PurePursuitController::clearTrajectory()
     path_index_ = 0;
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
-    last_update_ = ros::SteadyTime(0);
+    last_update_ = ros::SteadyTime::now();
 }
 
 // cppcheck-suppress unusedFunction
@@ -351,9 +402,8 @@ navigation_interface::Controller::Result
         return result;
     }
 
-    double dt = std::max(0.01, time.toSec() - last_update_.toSec());
-    if (last_update_.toSec() < 0.001)
-        dt = 0.05;
+    double dt = time.toSec() - last_update_.toSec();
+    ROS_ASSERT_MSG(dt > 0.0, "Pure Pursuit - Negative time step!");
     last_update_ = time;
 
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
@@ -368,27 +418,29 @@ navigation_interface::Controller::Result
     {
         ROS_INFO_STREAM("Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
-        last_update_ = ros::SteadyTime(0);
+        last_update_ = ros::SteadyTime::now();
         return result;
     }
-
-    const bool final_pid_control = dist_to_goal < goal_radius_ && angle_to_goal < M_PI / 2;
 
     //
     // Find target
     //
+    // path_index is the index closest to where the robot is currently
+    // target_state is the pose the robot is aiming for
     navigation_interface::KinodynamicState target_state;
-    if (final_pid_control)
+    path_index_ = findClosest(trajectory_->states, robot_state.pose);
+
+    const double dist_to_closest = dist(robot_state.pose, trajectory_->states[path_index_].pose, 0.1);
+    if (dist_to_closest > tracking_error_)
     {
-        path_index_ = trajectory_->states.size() - 1;
-        target_state = trajectory_->states.back();
+        ROS_WARN_STREAM("Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
+        result.outcome = navigation_interface::Controller::Outcome::FAILED;
+        last_update_ = ros::SteadyTime::now();
+        return result;
     }
-    else
-    {
-        path_index_ =
-            findClosest(look_ahead_time_, trajectory_->states, robot_state.pose, robot_state.velocity, path_index_);
-        target_state = targetState(robot_state.pose, *trajectory_, path_index_);
-    }
+
+    target_state = lookAhead(trajectory_->states, robot_state.pose, robot_state.velocity, path_index_, look_ahead_time_,
+                             interpolation_steps_);
 
     //
     // Check immediate collisions
@@ -412,7 +464,7 @@ navigation_interface::Controller::Result
         {
             ROS_WARN_STREAM("Robot is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
-            last_update_ = ros::SteadyTime(0);
+            last_update_ = ros::SteadyTime::now();
             return result;
         }
     }
@@ -423,6 +475,9 @@ navigation_interface::Controller::Result
     ROS_ASSERT(robot_state.pose.linear().allFinite());
     ROS_ASSERT(robot_state.pose.translation().allFinite());
 
+    //
+    // PD control (PID when close to goal)
+    //
     const Eigen::Vector2d target_vec_wrt_robot =
         robot_state.pose.linear().inverse() * (target_state.pose.translation() - robot_state.pose.translation());
     const Eigen::Vector3d control_error = {
@@ -430,74 +485,83 @@ navigation_interface::Controller::Result
         Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * target_state.pose.linear()).smallestAngle()};
     ROS_ASSERT(control_error.allFinite());
 
-    if (target_vec_wrt_robot.norm() > tracking_error_)
-    {
-        ROS_WARN_STREAM("Tracking error. Distance to target: " << target_vec_wrt_robot.norm() << " > "
-                                                               << tracking_error_);
-        result.outcome = navigation_interface::Controller::Outcome::FAILED;
-        last_update_ = ros::SteadyTime(0);
-        return result;
-    }
-
     Eigen::Vector3d target_velocity;
+
+    const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
+    control_error_ = control_error;
+    ROS_ASSERT(control_error_.allFinite());
+
+    const bool final_pid_control = path_index_ == trajectory_->states.size() - 1;
     if (final_pid_control)
     {
         control_integral_ += control_error;
 
-        const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
-        control_error_ = control_error;
-        ROS_ASSERT(control_error_.allFinite());
+        // Integrator wind-up prevention clamp
+        for (unsigned int i = 0; i < 3; ++i)
+        {
+            control_integral_[i] =
+                std::min(std::max(-control_integral_max_[i], control_integral_[i]), control_integral_max_[i]);
+        }
 
-        target_velocity = goal_p_gain_.cwiseProduct(control_error) + goal_i_gain_.cwiseProduct(control_integral_) +
-                          goal_d_gain_.cwiseProduct(control_dot_);
+        target_velocity = p_gain_.cwiseProduct(control_error) + i_gain_.cwiseProduct(control_integral_) +
+                          d_gain_.cwiseProduct(control_dot_);
     }
     else
     {
-        const double max_avoid_distance = 1.0;
-        const double d = std::min(max_avoid_distance, std::min(dist_to_goal, min_distance_to_collision));
-        const double velocity_scale = std::max(0.20, d / max_avoid_distance);
-        const auto max_vel = max_velocity_ * velocity_scale;
-        target_velocity = control_error.normalized().cwiseProduct(max_vel);
-        control_integral_ = Eigen::Vector3d::Zero();
-        control_error_ = Eigen::Vector3d::Zero();
+        target_velocity = p_gain_.cwiseProduct(control_error) + d_gain_.cwiseProduct(control_dot_);
     }
-    ROS_ASSERT_MSG(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
 
-    Eigen::Vector3d accel = (target_velocity - robot_state.velocity) / dt;
+    ROS_ASSERT_MSG(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
 
     //
     // Max acceleration check
     //
-    {
-        double acc_factor = 1.0;
-        for (long i = 0; i < 3; ++i)
-        {
-            if (std::abs(accel[i]) > max_acceleration_[i])
-            {
-                acc_factor = std::max(acc_factor, std::abs(accel[i] / max_acceleration_[i]));
-            }
-        }
+    Eigen::Vector3d vel_command = target_velocity;
 
-        accel /= acc_factor;
-        ROS_ASSERT(accel.allFinite());
+    const Eigen::Vector2d translation_dv(target_velocity[0] - prev_cmd_vel[0], target_velocity[1] - prev_cmd_vel[1]);
+    const double rotation_dv = target_velocity[2] - prev_cmd_vel[2];
+
+    // We limit the X and Y accelerations together to preserve the direction
+    const double translation_accel = translation_dv.norm() / dt;
+    if (translation_accel > max_translation_accel_)
+    {
+        // ROS_INFO_STREAM("Excessive translation acceleration: " << translation_accel << " > " <<
+        // max_translation_accel_);
+        vel_command[0] = prev_cmd_vel[0] + translation_dv[0] * (max_translation_accel_ / translation_accel);
+        vel_command[1] = prev_cmd_vel[1] + translation_dv[1] * (max_translation_accel_ / translation_accel);
     }
 
-    //
-    // Integrate new velocity command
-    //
-    Eigen::Vector3d vel_command = robot_state.velocity + accel * dt;
+    const double rotation_accel = std::abs(rotation_dv) / dt;
+    if (rotation_accel > max_rotation_accel_)
+    {
+        // ROS_INFO_STREAM("Excessive rotation acceleration: " << rotation_accel << " > " << max_rotation_accel_);
+        vel_command[2] = prev_cmd_vel[2] + rotation_dv * (max_rotation_accel_ / rotation_accel);
+    }
+
     ROS_ASSERT(vel_command.allFinite());
+
+    prev_cmd_vel = vel_command;
 
     //
     // Max velocity check
     //
+
+    // Limit max velocity based on distance to nearest obstacle
+    const double max_avoid_distance = 0.5;
+    const double d = std::min(max_avoid_distance, min_distance_to_collision);
+    const double velocity_scale = std::max(0.20, d / max_avoid_distance);
+
+    Eigen::Vector3d augmented_max_vel = {std::min(max_velocity_[0], max_velocity_[0] * velocity_scale),
+                                         std::min(max_velocity_[1], max_velocity_[1] * velocity_scale),
+                                         std::min(max_velocity_[2], max_velocity_[2] * velocity_scale)};
+
     {
         double vel_factor = 1.0;
         for (long i = 0; i < 3; ++i)
         {
-            if (std::abs(vel_command[i]) > max_velocity_[i])
+            if (std::abs(vel_command[i]) > augmented_max_vel[i])
             {
-                vel_factor = std::max(vel_factor, std::abs(vel_command[i] / max_velocity_[i]));
+                vel_factor = std::max(vel_factor, std::abs(vel_command[i] / augmented_max_vel[i]));
             }
         }
 
@@ -520,26 +584,27 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     max_velocity_[1] = parameters["max_velocity_y"].as<double>(max_velocity_[1]);
     max_velocity_[2] = parameters["max_velocity_w"].as<double>(max_velocity_[2]);
 
-    max_acceleration_[0] = parameters["max_acceleration_x"].as<double>(max_acceleration_[0]);
-    max_acceleration_[1] = parameters["max_acceleration_y"].as<double>(max_acceleration_[1]);
-    max_acceleration_[2] = parameters["max_acceleration_w"].as<double>(max_acceleration_[2]);
-
-    goal_radius_ = parameters["goal_radius"].as<double>(goal_radius_);
+    max_translation_accel_ = parameters["max_translation_accel"].as<double>(max_translation_accel_);
+    max_rotation_accel_ = parameters["max_rotation_accel"].as<double>(max_rotation_accel_);
 
     xy_goal_tolerance_ = parameters["xy_goal_tolerance"].as<double>(xy_goal_tolerance_);
     yaw_goal_tolerance_ = parameters["yaw_goal_tolerance"].as<double>(yaw_goal_tolerance_);
 
-    goal_p_gain_[0] = parameters["goal_p_gain_x"].as<double>(goal_p_gain_[0]);
-    goal_p_gain_[1] = parameters["goal_p_gain_y"].as<double>(goal_p_gain_[1]);
-    goal_p_gain_[2] = parameters["goal_p_gain_w"].as<double>(goal_p_gain_[2]);
+    p_gain_[0] = parameters["p_gain_x"].as<double>(p_gain_[0]);
+    p_gain_[1] = parameters["p_gain_y"].as<double>(p_gain_[1]);
+    p_gain_[2] = parameters["p_gain_w"].as<double>(p_gain_[2]);
 
-    goal_i_gain_[0] = parameters["goal_i_gain_x"].as<double>(goal_i_gain_[0]);
-    goal_i_gain_[1] = parameters["goal_i_gain_y"].as<double>(goal_i_gain_[1]);
-    goal_i_gain_[2] = parameters["goal_i_gain_w"].as<double>(goal_i_gain_[2]);
+    i_gain_[0] = parameters["i_gain_x"].as<double>(i_gain_[0]);
+    i_gain_[1] = parameters["i_gain_y"].as<double>(i_gain_[1]);
+    i_gain_[2] = parameters["i_gain_w"].as<double>(i_gain_[2]);
 
-    goal_d_gain_[0] = parameters["goal_d_gain_x"].as<double>(goal_d_gain_[0]);
-    goal_d_gain_[1] = parameters["goal_d_gain_y"].as<double>(goal_d_gain_[1]);
-    goal_d_gain_[2] = parameters["goal_d_gain_w"].as<double>(goal_d_gain_[2]);
+    d_gain_[0] = parameters["d_gain_x"].as<double>(d_gain_[0]);
+    d_gain_[1] = parameters["d_gain_y"].as<double>(d_gain_[1]);
+    d_gain_[2] = parameters["d_gain_w"].as<double>(d_gain_[2]);
+
+    control_integral_max_[0] = parameters["control_integral_max_x"].as<double>(control_integral_max_[0]);
+    control_integral_max_[1] = parameters["control_integral_max_y"].as<double>(control_integral_max_[1]);
+    control_integral_max_[2] = parameters["control_integral_max_w"].as<double>(control_integral_max_[2]);
 
     robot_footprint_ = navigation_interface::get_point_list(
         parameters, "footprint",
