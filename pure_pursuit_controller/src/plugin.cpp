@@ -547,7 +547,7 @@ navigation_interface::Controller::Result
     //
 
     // Limit max velocity based on distance to nearest obstacle
-    const double max_avoid_distance = 0.5;
+    const double max_avoid_distance = 0.6;
     const double d = std::min(max_avoid_distance, min_distance_to_collision);
     const double velocity_scale = std::max(0.20, d / max_avoid_distance);
 
