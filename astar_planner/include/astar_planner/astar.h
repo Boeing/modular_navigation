@@ -17,10 +17,6 @@
 namespace astar_planner
 {
 
-const double BACKWARDS_MULT = 1.5;
-const double STRAFE_MULT = 2.0;
-const double ANGULAR_MULT = 0.4 / M_PI;
-
 struct ShortestPath2D
 {
     bool success;
@@ -89,7 +85,8 @@ double updateH(const State2D& state, const State2D& goal, Explore2DCache& explor
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
                        const CollisionChecker& collision_checker, const double linear_resolution,
                        const double angular_resolution,
-                       const navigation_interface::PathPlanner::GoalSampleSettings& goal_sample_settings);
+                       const navigation_interface::PathPlanner::GoalSampleSettings& goal_sample_settings,
+                       const double backwards_mult, const double strafe_mult, const double rotation_mult);
 }  // namespace astar_planner
 
 #endif
