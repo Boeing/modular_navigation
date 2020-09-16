@@ -547,9 +547,8 @@ navigation_interface::Controller::Result
     //
 
     // Limit max velocity based on distance to nearest obstacle
-    const double max_avoid_distance = 0.6;
-    const double d = std::min(max_avoid_distance, min_distance_to_collision);
-    const double velocity_scale = std::max(0.20, d / max_avoid_distance);
+    const double d = std::max(min_avoid_distance_, std::min(max_avoid_distance_, min_distance_to_collision));
+    const double velocity_scale = d / max_avoid_distance_;
 
     Eigen::Vector3d augmented_max_vel = {std::min(max_velocity_[0], max_velocity_[0] * velocity_scale),
                                          std::min(max_velocity_[1], max_velocity_[1] * velocity_scale),
@@ -605,6 +604,9 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     control_integral_max_[0] = parameters["control_integral_max_x"].as<double>(control_integral_max_[0]);
     control_integral_max_[1] = parameters["control_integral_max_y"].as<double>(control_integral_max_[1]);
     control_integral_max_[2] = parameters["control_integral_max_w"].as<double>(control_integral_max_[2]);
+
+    max_avoid_distance_ = parameters["max_avoid_distance"].as<double>(max_avoid_distance_);
+    min_avoid_distance_ = parameters["min_avoid_distance"].as<double>(min_avoid_distance_);
 
     robot_footprint_ = navigation_interface::get_point_list(
         parameters, "footprint",

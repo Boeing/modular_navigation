@@ -34,6 +34,10 @@ class AStarPlanner : public navigation_interface::PathPlanner
     double avoid_zone_cost_ = 4.0;
     double path_cost_ = 0.2;
 
+    double backwards_mult_ = 1.5;
+    double strafe_mult_ = 1.5;
+    double rotation_mult_ = 0.3 / M_PI;
+
     std::vector<Eigen::Vector2d> offsets_;
 
     ros::Publisher explore_pub_;

@@ -21,7 +21,8 @@ namespace astar_planner
 namespace
 {
 
-double pathCost(const navigation_interface::Path& path, const astar_planner::CollisionChecker& collision_checker)
+double pathCost(const navigation_interface::Path& path, const astar_planner::CollisionChecker& collision_checker,
+                const double backwards_mult, const double strafe_mult, const double rotation_mult)
 {
     double cost = 0.0;
     for (std::size_t i = 0; i < path.nodes.size() - 1; ++i)
@@ -35,8 +36,8 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
         const Eigen::Vector2d dir_wrt_robot = path.nodes[i].linear().inverse() * dir;
         const Eigen::Rotation2Dd rotation(path.nodes[i].linear().inverse() * path.nodes[i + 1].linear());
 
-        const double x_cost = std::abs((dir_wrt_robot[0] > 0) ? dir_wrt_robot[0] : BACKWARDS_MULT * dir_wrt_robot[0]);
-        const double y_cost = std::abs(STRAFE_MULT * dir_wrt_robot[1]);
+        const double x_cost = std::abs((dir_wrt_robot[0] > 0) ? dir_wrt_robot[0] : backwards_mult * dir_wrt_robot[0]);
+        const double y_cost = std::abs(strafe_mult * dir_wrt_robot[1]);
 
         const Eigen::Array2i map_point = collision_checker.costmap().getCellIndex(path.nodes[i].translation());
 
@@ -47,7 +48,7 @@ double pathCost(const navigation_interface::Path& path, const astar_planner::Col
         const double rotation_collision_cost = rotationCollisionCost(d_to_collision_m);
 
         cost += (x_cost + y_cost) * traversal_cost * collision_cost;
-        cost += std::abs(rotation.smallestAngle()) * ANGULAR_MULT * rotation_collision_cost;
+        cost += std::abs(rotation.smallestAngle()) * rotation_mult * rotation_collision_cost;
     }
     return cost;
 }
@@ -93,8 +94,9 @@ navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
 
     const auto t0 = std::chrono::steady_clock::now();
 
-    const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, sample);
+    const astar_planner::PathResult astar_result =
+        astar_planner::hybridAStar(start, goal, max_iterations, collision_checker, linear_resolution,
+                                   angular_resolution, sample, backwards_mult_, strafe_mult_, rotation_mult_);
 
     ROS_INFO_STREAM(
         "Hybrid A Star took "
@@ -157,7 +159,8 @@ bool AStarPlanner::valid(const navigation_interface::Path& path) const
     ROS_ASSERT(costmap_);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, conservative_robot_radius_);
-    return pathCost(path, collision_checker) < std::numeric_limits<double>::max();
+    return pathCost(path, collision_checker, backwards_mult_, strafe_mult_, rotation_mult_) <
+           std::numeric_limits<double>::max();
 }
 
 double AStarPlanner::cost(const navigation_interface::Path& path) const
@@ -166,7 +169,7 @@ double AStarPlanner::cost(const navigation_interface::Path& path) const
     ROS_ASSERT(costmap_);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, conservative_robot_radius_);
-    return pathCost(path, collision_checker);
+    return pathCost(path, collision_checker, backwards_mult_, strafe_mult_, rotation_mult_);
 }
 
 // cppcheck-suppress unusedFunction
@@ -177,6 +180,10 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
     conservative_robot_radius_ = parameters["conservative_robot_radius"].as<double>(conservative_robot_radius_);
     avoid_zone_cost_ = parameters["avoid_zone_cost"].as<double>(avoid_zone_cost_);
     path_cost_ = parameters["path_cost"].as<double>(path_cost_);
+
+    backwards_mult_ = parameters["backwards_mult"].as<double>(backwards_mult_);
+    strafe_mult_ = parameters["strafe_mult"].as<double>(strafe_mult_);
+    rotation_mult_ = parameters["rotation_mult"].as<double>(rotation_mult_);
 
     offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets",
                                                     {{-0.268, 0.000},

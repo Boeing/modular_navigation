@@ -240,7 +240,8 @@ double updateH(const State2D& state, const State2D& goal, Explore2DCache& explor
 PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const size_t max_iterations,
                        const CollisionChecker& collision_checker, double linear_resolution,
                        const double angular_resolution,
-                       const navigation_interface::PathPlanner::GoalSampleSettings& goal_sample_settings)
+                       const navigation_interface::PathPlanner::GoalSampleSettings& goal_sample_settings,
+                       const double backwards_mult, const double strafe_mult, const double rotation_mult)
 {
     const Costmap& costmap = collision_checker.costmap();
     PathResult result;
@@ -474,8 +475,8 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
 
             const double trans_w = wrapAngle(new_state.theta - current_node->state.theta);
 
-            const double x_cost = std::abs((dx > 0) ? dx : BACKWARDS_MULT * dx);
-            const double y_cost = std::abs(STRAFE_MULT * dy);
+            const double x_cost = std::abs((dx > 0) ? dx : backwards_mult * dx);
+            const double y_cost = std::abs(strafe_mult * dy);
 
             const Eigen::Array2i new_map_cell = costmap.getCellIndex({new_state.x, new_state.y});
             const double collision_cost_second = collisionCost(new_map_cell.x(), new_map_cell.y(), collision_checker);
@@ -487,7 +488,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
             const double new_state_d_to_collision_m = collision_checker.clearance(new_state) * costmap.resolution;
             const double rotation_collision_cost = rotationCollisionCost(new_state_d_to_collision_m);
 
-            const double rotation_cost = std::abs(trans_w) * ANGULAR_MULT * rotation_collision_cost;
+            const double rotation_cost = std::abs(trans_w) * rotation_mult * rotation_collision_cost;
             const double translation_cost = (x_cost + y_cost) * collision_cost * traversal_cost;
 
             const double cost = translation_cost + rotation_cost;

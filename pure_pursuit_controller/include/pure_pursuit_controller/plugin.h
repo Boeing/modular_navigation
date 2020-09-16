@@ -60,6 +60,11 @@ class PurePursuitController : public navigation_interface::Controller
     Eigen::Vector3d control_integral_max_ = {2.0, 2.0, 2.0};
     Eigen::Vector3d prev_cmd_vel = {0.0, 0.0, 0.0};
 
+    // When approaching an obstacle, the speed will be scaled linearly between
+    // max_avoid_distance_ and min_avoid_distance_
+    double max_avoid_distance_ = 0.6;
+    double min_avoid_distance_ = 0.12;
+
     bool debug_viz_ = true;
     ros::Publisher target_state_pub_;
     ros::Publisher footprint_pub_;
