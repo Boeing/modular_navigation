@@ -1,12 +1,13 @@
 #ifndef GRIDMAP_ROBOT_TRACKER
 #define GRIDMAP_ROBOT_TRACKER
 
+#include <Eigen/Geometry>
+
 #include <boost/circular_buffer.hpp>
 #include <cartographer_ros_msgs/SystemState.h>
 #include <nav_msgs/Odometry.h>
 #include <ros/time.h>
 
-#include <Eigen/Geometry>
 #include <condition_variable>
 #include <memory>
 #include <mutex>

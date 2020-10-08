@@ -1,10 +1,10 @@
 #ifndef AUTONOMY_MATH
 #define AUTONOMY_MATH
 
+#include <Eigen/Geometry>
+
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/Transform.h>
-
-#include <Eigen/Geometry>
 
 namespace autonomy
 {

@@ -1,10 +1,11 @@
 #ifndef sim_band_planner_DISTANCE_FIELD_H
 #define sim_band_planner_DISTANCE_FIELD_H
 
+#include <Eigen/Geometry>
+
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
-#include <Eigen/Geometry>
 #include <chrono>
 #include <vector>
 

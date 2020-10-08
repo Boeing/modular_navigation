@@ -1,10 +1,10 @@
 #ifndef ASTAR_PLANNER_VISUALISATION_H
 #define ASTAR_PLANNER_VISUALISATION_H
 
+#include <Eigen/Geometry>
+
 #include <astar_planner/astar.h>
 #include <astar_planner/costmap.h>
-
-#include <Eigen/Geometry>
 
 namespace astar_planner
 {

@@ -12,6 +12,7 @@
 
 #include <Eigen/LU>
 #include <Eigen/QR>
+
 #include <algorithm>
 #include <functional>
 #include <numeric>
