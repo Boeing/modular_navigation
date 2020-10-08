@@ -1,11 +1,11 @@
+#include <Eigen/Core>
+
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/operations/rasterize.h>
 #include <gridmap/operations/raytrace.h>
 #include <gtest/gtest.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-
-#include <Eigen/Core>
 
 /*
 TEST(test_raytrace, test_raytrace)

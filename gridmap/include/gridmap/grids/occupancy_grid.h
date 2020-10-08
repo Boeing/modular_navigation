@@ -1,10 +1,11 @@
 #ifndef GRIDMAP_OCCUPANCY_GRID_H
 #define GRIDMAP_OCCUPANCY_GRID_H
 
+#include <Eigen/Geometry>
+
 #include <gridmap/grids/grid_2d.h>
 #include <nav_msgs/OccupancyGrid.h>
 
-#include <Eigen/Geometry>
 #include <cmath>
 #include <mutex>
 #include <vector>
