@@ -1,0 +1,19 @@
+{% block header %}
+
+{% block title %}<b>Map Manager</b>{% endblock %}
+
+{% endblock %}
+
+{% block content %}
+
+<ul>
+{% for map in maps %}
+  <li>
+      <h4>{{ map.name }}</h4>
+       <img src="maps/{{map.name}}/thumbnail.png" alt="Map Thumbnail">
+  </li>
+{% endfor %}
+</ul>
+
+{% endblock %}
+

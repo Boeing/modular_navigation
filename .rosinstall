@@ -1,0 +1,6 @@
+- git:
+    local-name: math6d
+    uri: 'https://github.com/boeing/math6d'
+- git:
+    local-name: modular_cartographer
+    uri: 'https://github.com/boeing/modular_cartographer.git'

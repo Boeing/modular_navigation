@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>astar_planner</name>
+    <version>0.1.0</version>
+    <description>astar_planner</description>
+    <maintainer email="william.ko@boeing.com">William Ko</maintainer>
+    <author>Boeing</author>
+    <license>Boeing Proprietary</license>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <depend>cv_bridge</depend>
+    <depend>eigen</depend>
+    <depend>geometry_msgs</depend>
+    <depend>gridmap</depend>
+    <depend>hd_map</depend>
+    <depend>libopencv-dev</depend>
+    <depend>nav_msgs</depend>
+    <depend>navigation_interface</depend>
+    <depend>pluginlib</depend>
+    <depend>roscpp</depend>
+    <depend>tf2_ros</depend>
+    <depend>visualization_msgs</depend>
+
+    <test_depend>rosunit</test_depend>
+
+    <export>
+        <navigation_interface plugin="${prefix}/plugin.xml"/>
+    </export>
+</package>

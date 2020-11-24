@@ -1,0 +1,250 @@
+<?xml version="1.0"?>
+<robot name="robot" xmlns:xacro="http://ros.org/wiki/xacro">
+
+    <!-- Simulation Plugins -->
+    <gazebo>
+        <gravity>0</gravity>
+        <self_collide>0</self_collide>
+
+        <plugin name="gazebo_planar_move_plugin" filename="libgazebo_planar_move_plugin.so">
+            <robot_namespace>/</robot_namespace>
+            <robot_frame>base_link</robot_frame>
+            <odometry_frame>odom</odometry_frame>
+            <odometry_topic>odom</odometry_topic>
+            <command_topic>cmd_vel</command_topic>
+            <control_mode>position</control_mode>
+            <publish_odometry>true</publish_odometry>
+            <publish_tf>true</publish_tf>
+        </plugin>
+    </gazebo>
+
+    <link name="base_link">
+        <visual>
+            <origin xyz="0 0 0.05"/>
+            <geometry>
+                <box size="0.5 0.5 0.1"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.05"/>
+            <geometry>
+                <box size="0.5 0.5 0.1"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1"/>
+            <inertia
+                    ixx="1" ixy="0" ixz="0"
+                    iyy="1" iyz="0"
+                    izz="1"/>
+        </inertial>
+    </link>
+    <gazebo reference="base_link">
+        <mu1>0.0</mu1>
+        <mu2>0.0</mu2>
+        <maxVel>0.0</maxVel>
+        <minDepth>0.001</minDepth>
+        <kp>1000000.0</kp>
+        <kd>1.0</kd>
+        <material>Gazebo/Black</material>
+    </gazebo>
+
+    <xacro:macro name="laser_sensor" params="suffix rotation">
+        <joint name="laser_joint_${suffix}" type="fixed">
+            <origin xyz="0 0 0.4" rpy="0 0 ${rotation}"/>
+            <child link="laser_${suffix}"/>
+            <parent link="base_link"/>
+        </joint>
+        <link name="laser_${suffix}">
+            <visual>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <mass value="1"/>
+                <origin xyz="0 0 0"/>
+                <inertia
+                        ixx="1" ixy="0" ixz="0"
+                        iyy="1" iyz="0"
+                        izz="1"/>
+            </inertial>
+        </link>
+        <gazebo reference="laser_${suffix}">
+            <sensor type="ray" name="laser_${suffix}">
+                <pose>0 0 0 0 0 0</pose>
+                <visualize>false</visualize>
+                <update_rate>40</update_rate>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>540</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-2.35619</min_angle>
+                            <max_angle>2.35619</max_angle>
+                        </horizontal>
+                    </scan>
+                    <range>
+                        <min>0.1</min>
+                        <max>30.0</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                    <noise>
+                        <type>gaussian</type>
+                        <mean>0.0</mean>
+                        <stddev>0.001</stddev>
+                    </noise>
+                </ray>
+                <plugin name="gazebo_laser_plugin" filename="libgazebo_laser_plugin.so">
+                    <frame_name>laser_${suffix}</frame_name>
+                    <robot_namespace>/</robot_namespace>
+                </plugin>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:laser_sensor suffix="front" rotation="0.0"/>
+    <xacro:laser_sensor suffix="back" rotation="${pi}"/>
+
+    <xacro:macro name="sonar_sensor" params="suffix rotation">
+        <joint name="sonar_${suffix}_joint" type="fixed">
+            <origin xyz="0 0 0.4" rpy="0 0 ${rotation}"/>
+            <child link="sonar_${suffix}"/>
+            <parent link="base_link"/>
+        </joint>
+        <link name="sonar_${suffix}">
+            <visual>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </visual>
+            <collision>
+                <origin xyz="0 0 0"/>
+                <geometry>
+                    <cylinder length="0.05" radius="0.05"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <mass value="1"/>
+                <origin xyz="0 0 0"/>
+                <inertia
+                        ixx="1" ixy="0" ixz="0"
+                        iyy="1" iyz="0"
+                        izz="1"/>
+            </inertial>
+        </link>
+        <gazebo reference="sonar_${suffix}">
+            <sensor type="ray" name="sonar_${suffix}">
+                <pose>0 0 0 0 0 0</pose>
+                <visualize>true</visualize>
+                <update_rate>10</update_rate>
+                <ray>
+                    <scan>
+                        <horizontal>
+                            <samples>10</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.4</min_angle>
+                            <max_angle>0.4</max_angle>
+                        </horizontal>
+                        <vertical>
+                            <samples>10</samples>
+                            <resolution>1</resolution>
+                            <min_angle>-0.2</min_angle>
+                            <max_angle>0.2</max_angle>
+                        </vertical>
+                    </scan>
+                    <range>
+                        <min>0.15</min>
+                        <max>1.5</max>
+                        <resolution>0.01</resolution>
+                    </range>
+                </ray>
+                <plugin name="gazebo_range_plugin" filename="libgazebo_range_plugin.so">
+                    <robot_namespace>/</robot_namespace>
+                    <field_of_view>0.8</field_of_view>
+                </plugin>
+            </sensor>
+        </gazebo>
+    </xacro:macro>
+
+    <!--<xacro:sonar_sensor suffix="0" rotation="-3.0"/>-->
+    <!--<xacro:sonar_sensor suffix="1" rotation="-2.5"/>-->
+    <!--<xacro:sonar_sensor suffix="2" rotation="-2.0"/>-->
+    <!--<xacro:sonar_sensor suffix="3" rotation="-1.5"/>-->
+    <!--<xacro:sonar_sensor suffix="4" rotation="-1.0"/>-->
+    <!--<xacro:sonar_sensor suffix="5" rotation="-0.5"/>-->
+    <!--<xacro:sonar_sensor suffix="6" rotation="0.0"/>-->
+    <!--<xacro:sonar_sensor suffix="7" rotation="0.5"/>-->
+    <!--<xacro:sonar_sensor suffix="8" rotation="1.0"/>-->
+    <!--<xacro:sonar_sensor suffix="9" rotation="1.5"/>-->
+    <!--<xacro:sonar_sensor suffix="10" rotation="2.0"/>-->
+    <!--<xacro:sonar_sensor suffix="11" rotation="2.5"/>-->
+    <!--<xacro:sonar_sensor suffix="12" rotation="3.0"/>-->
+
+    <joint name="camera_joint" type="fixed">
+        <origin xyz="0.0 0.0 0.6" rpy="0.0 ${pi/2} 0.0"/>
+        <parent link="base_link"/>
+        <child link="camera"/>
+    </joint>
+    <gazebo reference="camera_joint">
+        <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+    <link name="camera">
+        <inertial>
+            <mass value="1"/>
+            <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+        </inertial>
+        <visual>
+            <origin xyz="0 0 0.01" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.016" length="0.080"/>
+            </geometry>
+            <material name="black"/>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0.01" rpy="0 0 0"/>
+            <geometry>
+                <cylinder radius="0.016" length="0.080"/>
+            </geometry>
+        </collision>
+    </link>
+    <gazebo reference="camera">
+        <material>Gazebo/Grey</material>
+        <sensor type="camera" name="camera">
+            <update_rate>1</update_rate>
+            <camera name="camera">
+                <pose>0 0 0 0 ${-pi/2} ${pi/2}</pose>
+                <horizontal_fov>1.5</horizontal_fov>
+                <image>
+                    <width>2560</width>
+                    <height>1920</height>
+                    <format>R8G8B8</format>
+                </image>
+                <clip>
+                    <near>0.01</near>
+                    <far>100</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.00</stddev>
+                </noise>
+            </camera>
+            <plugin name="camera_controller" filename="libgazebo_modular_camera_plugin.so">
+                <camera_name>camera</camera_name>
+                <updateRate>0</updateRate>
+                <frame_name>camera</frame_name>
+            </plugin>
+        </sensor>
+    </gazebo>
+
+</robot>

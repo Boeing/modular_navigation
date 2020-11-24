@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>gridmap</name>
+    <version>0.1.0</version>
+    <description>Probability Gridmap</description>
+    <maintainer email="william.ko@boeing.com">William Ko</maintainer>
+    <author>Boeing</author>
+    <license>Boeing Proprietary</license>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <build_depend>cmake_modules</build_depend>
+
+    <depend>cartographer_ros_msgs</depend>
+    <depend>cv_bridge</depend>
+    <depend>geometry_msgs</depend>
+    <depend>hd_map</depend>
+    <depend>image_geometry</depend>
+    <depend>laser_geometry</depend>
+    <depend>map_msgs</depend>
+    <depend>message_filters</depend>
+    <depend>nav_msgs</depend>
+    <depend>pluginlib</depend>
+    <depend>roscpp</depend>
+    <depend>rospack</depend>
+    <depend>sensor_msgs</depend>
+    <depend>std_msgs</depend>
+    <depend>tf2_geometry_msgs</depend>
+    <depend>tf2_ros</depend>
+    <depend>tf2_sensor_msgs</depend>
+    <depend>visualization_msgs</depend>
+    <depend>urdf</depend>
+    <depend>compressed_depth_image_transport</depend>
+    <depend>yaml-cpp</depend>
+
+    <exec_depend>message_runtime</exec_depend>
+    <exec_depend>rosconsole</exec_depend>
+
+    <test_depend>map_server</test_depend>
+    <test_depend>rosbag</test_depend>
+    <test_depend>rostest</test_depend>
+    <test_depend>rosunit</test_depend>
+
+    <export>
+      <gridmap plugin="${prefix}/plugins.xml"/>
+    </export>
+</package>

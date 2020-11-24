@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>modular_navigation</name>
+    <version>0.1.0</version>
+    <description>Robot navigation stack</description>
+    <maintainer email="william.ko@boeing.com">William Ko</maintainer>
+    <author>Boeing</author>
+    <license>Boeing Proprietary</license>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <exec_depend>astar_planner</exec_depend>
+    <exec_depend>autonomy</exec_depend>
+    <exec_depend>gridmap</exec_depend>
+    <exec_depend>navigation_interface</exec_depend>
+    <exec_depend>pure_pursuit_controller</exec_depend>
+    <exec_depend>sim_band_planner</exec_depend>
+
+    <export>
+        <metapackage/>
+    </export>
+
+</package>

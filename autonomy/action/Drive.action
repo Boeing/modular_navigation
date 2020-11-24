@@ -1,0 +1,14 @@
+geometry_msgs/PoseStamped target_pose
+float64 std_x
+float64 std_y
+float64 std_w
+uint64 max_samples
+---
+---
+uint8 state
+
+uint8 UNKNOWN=0
+uint8 NO_PLAN=1
+uint8 GOOD_PLAN=2
+uint8 STUCK=3
+uint8 COLLISION=4
