@@ -1,10 +1,11 @@
 #ifndef GRIDMAP_RASTERIZE_H
 #define GRIDMAP_RASTERIZE_H
 
-#include <gridmap/operations/raytrace.h>
-
 #include <Eigen/Core>
 #include <Eigen/Geometry>
+
+#include <gridmap/operations/raytrace.h>
+
 #include <array>
 
 namespace gridmap

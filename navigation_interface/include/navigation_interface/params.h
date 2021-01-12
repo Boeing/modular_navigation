@@ -1,10 +1,11 @@
 #ifndef NAVIGATION_INTERFACE_PARAMS
 #define NAVIGATION_INTERFACE_PARAMS
 
+#include <Eigen/Geometry>
+
 #include <ros/ros.h>
 #include <yaml-cpp/yaml.h>
 
-#include <Eigen/Geometry>
 #include <string>
 
 namespace navigation_interface

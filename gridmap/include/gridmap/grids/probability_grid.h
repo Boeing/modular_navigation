@@ -1,9 +1,10 @@
 #ifndef GRIDMAP_PROBABILITY_GRID_H
 #define GRIDMAP_PROBABILITY_GRID_H
 
+#include <Eigen/Geometry>
+
 #include <gridmap/grids/grid_2d.h>
 
-#include <Eigen/Geometry>
 #include <cmath>
 #include <mutex>
 #include <vector>

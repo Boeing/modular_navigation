@@ -41,6 +41,10 @@ class PlanningTest : public testing::Test
     const double linear_resolution = 2 * 0.02;
     const double angular_resolution = M_PI / 16;
 
+    const double backwards_mult = 1.0;
+    const double strafe_mult = 1.0;
+    const double rotation_mult = 1.0;
+
     const std::vector<Eigen::Vector2d> offsets = {{-0.268, 0.000},  {0.268, 0.000},   {0.265, -0.185}, {0.077, -0.185},
                                                   {-0.077, -0.185}, {-0.265, -0.185}, {0.265, 0.185},  {-0.265, 0.185},
                                                   {-0.077, 0.185},  {0.077, 0.185}};
@@ -70,7 +74,8 @@ TEST_F(PlanningTest, test_home_position)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "
@@ -109,7 +114,8 @@ TEST_F(PlanningTest, test_out_of_lane)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "
@@ -147,7 +153,8 @@ TEST_F(PlanningTest, test_straight_line)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "
@@ -203,7 +210,8 @@ TEST_F(PlanningTest, test_avoid_zone)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "
@@ -242,7 +250,8 @@ TEST_F(PlanningTest, test_reverse)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "
@@ -279,7 +288,8 @@ TEST_F(PlanningTest, test_strafe)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {0, 0, 0, 0};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "
@@ -317,7 +327,8 @@ TEST_F(PlanningTest, test_goal_sampling)
     const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {1.0, 1.0, 0, 100};
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
-        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings);
+        start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, goal_sample_settings,
+        backwards_mult, strafe_mult, rotation_mult);
 
     std::cout
         << "planner took: "

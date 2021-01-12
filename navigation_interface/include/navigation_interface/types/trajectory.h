@@ -1,9 +1,10 @@
 #ifndef NAVIGATION_INTERFACE_TRAJECTORY_H
 #define NAVIGATION_INTERFACE_TRAJECTORY_H
 
+#include <Eigen/Geometry>
+
 #include <std_msgs/Header.h>
 
-#include <Eigen/Geometry>
 #include <vector>
 
 namespace navigation_interface

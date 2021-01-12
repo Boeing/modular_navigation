@@ -1,9 +1,9 @@
 #ifndef GRIDMAP_URDF_TREE
 #define GRIDMAP_URDF_TREE
 
-#include <urdf/model.h>
-
 #include <Eigen/Geometry>
+
+#include <urdf/model.h>
 
 namespace gridmap
 {

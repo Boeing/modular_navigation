@@ -1,3 +1,5 @@
+#include <Eigen/Geometry>
+
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
 #include <astar_planner/visualisation.h>
@@ -10,7 +12,6 @@
 #include <pluginlib/class_list_macros.h>
 #include <visualization_msgs/MarkerArray.h>
 
-#include <Eigen/Geometry>
 #include <chrono>
 
 PLUGINLIB_EXPORT_CLASS(astar_planner::AStarPlanner, navigation_interface::PathPlanner)
