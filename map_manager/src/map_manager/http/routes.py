@@ -54,7 +54,8 @@ def get_occupancy_grid_msg(map_name):
     return send_file(
         filename_or_fp=fp,
         mimetype='application/octet-stream',
-        attachment_filename='{}.msg'.format(map_doc.name)
+        attachment_filename='{}.msg'.format(map_doc.name),
+        cache_timeout=1
     )
 
 
@@ -76,7 +77,8 @@ def get_png(map_name):
     return send_file(
         filename_or_fp=fp,
         mimetype='image/png',
-        attachment_filename='{}.png'.format(map_doc.name)
+        attachment_filename='{}.png'.format(map_doc.name),
+        cache_timeout=1
     )
 
 
@@ -98,5 +100,6 @@ def get_thumbnail_png(map_name):
     return send_file(
         filename_or_fp=fp,
         mimetype='image/png',
-        attachment_filename='{}.png'.format(map_doc.name)
+        attachment_filename='{}.png'.format(map_doc.name),
+        cache_timeout=1
     )
