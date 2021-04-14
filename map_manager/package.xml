@@ -18,11 +18,11 @@
     <exec_depend>math6d</exec_depend>
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>python-blinker</exec_depend>
-    <exec_depend>python-flask</exec_depend>
+    <exec_depend>python3-flask</exec_depend>
     <exec_depend>python-mongoengine</exec_depend>
-    <exec_depend>python-opengl</exec_depend>
-    <exec_depend>python-pymongo</exec_depend>
-    <exec_depend>python-requests</exec_depend>
+    <exec_depend>python3-opengl</exec_depend>
+    <exec_depend>python3-pymongo</exec_depend>
+    <exec_depend>python3-requests</exec_depend>
     <exec_depend>python-typing</exec_depend>
     <exec_depend>rospy</exec_depend>
     <exec_depend>std_msgs</exec_depend>

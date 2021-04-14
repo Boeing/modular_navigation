@@ -5,7 +5,7 @@ add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS geometry_msgs gridmap tf2_ros)
 
-find_package(OpenCV 3 REQUIRED)
+find_package(OpenCV 4 REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 catkin_package(INCLUDE_DIRS include CATKIN_DEPENDS geometry_msgs gridmap tf2_ros)
