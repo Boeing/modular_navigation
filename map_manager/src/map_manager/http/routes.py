@@ -1,4 +1,4 @@
-import StringIO
+import io
 from functools import wraps
 
 from flask import abort, send_file, render_template
@@ -46,7 +46,7 @@ def get_occupancy_grid_msg(map_name):
 
     map_msg = map_doc.get_occupancy_grid_msg()  # type: MapMsg
 
-    fp = StringIO.StringIO()
+    fp = io.StringIO()
     map_msg.serialize(fp)
     fp.flush()
     fp.seek(0)
@@ -69,7 +69,7 @@ def get_png(map_name):
     except (DoesNotExist, ValidationError):
         raise abort(404)
 
-    fp = StringIO.StringIO()
+    fp = io.StringIO()
     map_doc.get_png(fp)
     fp.flush()
     fp.seek(0)
@@ -92,7 +92,7 @@ def get_thumbnail_png(map_name):
     except (DoesNotExist, ValidationError):
         raise abort(404)
 
-    fp = StringIO.StringIO()
+    fp = io.StringIO()
     map_doc.get_thumbnail_png(fp)
     fp.flush()
     fp.seek(0)
