@@ -43,15 +43,15 @@ def triangulate(polygon):
                 p3 = gl_data.current_shape.pop(0)
                 gl_data.triangles.append([p1, p2, p3])
         else:
-            print "Unknown tessellation style:", gl_data.tess_style
+            print("Unknown tessellation style: {}".format(gl_data.tess_style))
         gl_data.tess_style = None
         gl_data.current_shape = []
 
     def cb_error(what):
-        print "error:", what
+        print("error: {}".format(what))
 
     def cb_combine(c, v, weight):
-        print "combine:", c, v, weight, "(this will probably cause problems)"
+        print("combine:" + c + v + weight + "(this will probably cause problems)")
         return c[0], c[1], c[2]
 
     tess = OpenGL.GLU.gluNewTess()
