@@ -3,6 +3,7 @@ import os
 import subprocess
 import tempfile
 from lxml import etree
+from math import ceil
 
 import rospy
 from geometry_msgs.msg import Point as PointMsg
@@ -180,8 +181,8 @@ def generate_cartographer_map(
                     name='sim_map',
                     meta_data=MapMetaData(
                         resolution=resolution,
-                        width=map_size[0] / resolution,
-                        height=map_size[1] / resolution,
+                        width=ceil(map_size[0] / resolution),
+                        height=ceil(map_size[1] / resolution),
                         origin=PoseMsg(position=PointMsg(x=map_origin[0], y=map_origin[1]))
                     )
                 ),
