@@ -4,7 +4,7 @@ include:
 
 catkin_run_tests:
   services:
-    - name: sres.web.boeing.com:5000/mongo:3.6.2
+    - name: sres.web.boeing.com:5000/mongo:3.6.23
       alias: mongo
   variables:
     MONGO_HOST: mongo
