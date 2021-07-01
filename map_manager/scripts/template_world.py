@@ -4,14 +4,14 @@ import argparse
 import logging
 import math
 import os
+import sys
 import uuid
 from matplotlib.path import Path
 
 import ezdxf
 import jinja2
 import numpy
-from ezdxf.legacy.graphics import Circle
-from ezdxf.legacy.polyline import Polyline
+from ezdxf.entities.dxfentity import DXFEntity
 from numpy import dot, empty_like
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,15 @@ def run(dxf_file, world_template_file, output_sdf_file):
     assert os.path.isfile(world_template_file)
 
     logger.info('Loading DXF: {}'.format(dxf_file))
-    doc = ezdxf.readfile(dxf_file)
+    try:
+        doc = ezdxf.readfile(dxf_file)
+    except IOError:
+        logger.error('Not a DXF file or a generic I/O error.')
+        sys.exit(1)
+    except ezdxf.DXFStructureError:
+        logger.error('Invalid or corrupted DXF file.')
+        sys.exit(2)
+
     msp = doc.modelspace()
 
     bollards = []
@@ -73,13 +81,14 @@ def run(dxf_file, world_template_file, output_sdf_file):
 
     thickness = 20
 
+    obj: DXFEntity
     for obj in msp.query('*'):
         layer = obj.get_dxf_attrib('layer')
 
         # Convert all strings to lowercase. Sometimes CAD packages save as uppercase.
         layer = layer.lower()
 
-        if isinstance(obj, Polyline):
+        if obj.dxftype() == 'POLYLINE':
 
             if layer == 'paths':
                 points = [p for p in obj.points()]
@@ -183,7 +192,7 @@ def run(dxf_file, world_template_file, output_sdf_file):
                     'collision': has_collision
                 })
 
-        elif isinstance(obj, Circle):
+        elif obj.dxftype() == 'CIRCLE':
             center = obj.get_dxf_attrib('center')
             radius = obj.get_dxf_attrib('radius')
             bollards.append({
