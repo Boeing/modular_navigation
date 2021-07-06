@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# This script converts a DXF into a world file (SDF)
+
 import argparse
 import logging
 import math
@@ -88,14 +90,22 @@ def run(dxf_file, world_template_file, output_sdf_file):
         # Convert all strings to lowercase. Sometimes CAD packages save as uppercase.
         layer = layer.lower()
 
-        if obj.dxftype() == 'POLYLINE':
+        if obj.dxftype() in ['LWPOLYLINE', 'POLYLINE']:  # Newer DXF versions use Lightweight Polyline instead
 
             if layer == 'paths':
-                points = [p for p in obj.points()]
+                if obj.dxftype() == 'POLYLINE':
+                    points = [p for p in obj.points()]
+                else:
+                    points = [p for p in obj.get_points()]
+
                 raw_paths.append(points)
 
             elif layer.startswith('pose_'):
-                points = [(p[0] / 1000.0, p[1] / 1000.0) for p in obj.points()]
+                if obj.dxftype() == 'POLYLINE':
+                    points = [(p[0] / 1000.0, p[1] / 1000.0) for p in obj.points()]
+                else:
+                    points = [(p[0] / 1000.0, p[1] / 1000.0) for p in obj.get_points()]
+
                 assert (len(points) == 2)
                 dx = points[1][0] - points[0][0]
                 dy = points[1][1] - points[0][1]
@@ -106,7 +116,11 @@ def run(dxf_file, world_template_file, output_sdf_file):
                 })
 
             else:
-                points = [numpy.array([p[0], p[1]]) for p in obj.points()]
+                if obj.dxftype() == 'POLYLINE':
+                    points = [numpy.array([p[0], p[1]]) for p in obj.points()]
+                else:
+                    points = [numpy.array([p[0], p[1]]) for p in obj.get_points()]
+
                 points.reverse()
 
                 # If not closed then build a thickness around the polyline
