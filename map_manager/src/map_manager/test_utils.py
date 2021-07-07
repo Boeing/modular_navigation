@@ -38,6 +38,7 @@ def generate_cartographer_map(
         resolution=0.02,
         map_origin=(-30, -10),
         map_size=(64, 64),
+        map_free_space_size=10.0,
         submap_locations=((30, 22, 64, 32), (46, 22, 64, 32))
 ):
     assert os.path.isdir(cartographer_configuration_directory)
@@ -61,7 +62,9 @@ def generate_cartographer_map(
         '--map_origin',  # bottom left corner position
         '{},{}'.format(*map_origin),
         '--map_size',
-        '{},{}'.format(*map_size)
+        '{},{}'.format(*map_size),
+        '--map_free_space_size',
+        '{}'.format(map_free_space_size)
     ]
 
     for s in submap_locations:
