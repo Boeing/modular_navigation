@@ -1,6 +1,6 @@
 include:
   - project: robotics/continuous_integration
-    file: /pipelines/.ros-pkg-ci.yml
+    file: /pipelines/.ros-noetic-pkg-ci.yml
 
 catkin_run_tests:
   services:
