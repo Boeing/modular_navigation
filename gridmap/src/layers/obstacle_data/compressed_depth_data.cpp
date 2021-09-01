@@ -1,7 +1,7 @@
-#include <compressed_depth_image_transport/codec.h>
-#include <compressed_depth_image_transport/compression_common.h>
 #include <cv_bridge/cv_bridge.h>
 #include <gridmap/layers/obstacle_data/compressed_depth_data.h>
+#include <gridmap/layers/obstacle_data/compressed_depth_image_transport/codec.h>
+#include <gridmap/layers/obstacle_data/compressed_depth_image_transport/compression_common.h>
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <image_transport/subscriber.h>
 #include <pluginlib/class_list_macros.h>

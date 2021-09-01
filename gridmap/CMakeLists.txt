@@ -10,7 +10,6 @@ find_package(
     COMPONENTS
         cartographer_ros_msgs
         cmake_modules
-        compressed_depth_image_transport
         cv_bridge
         geometry_msgs
         hd_map
@@ -49,7 +48,6 @@ catkin_package(
     ${PROJECT_NAME}
     CATKIN_DEPENDS
     cartographer_ros_msgs
-    compressed_depth_image_transport
     cv_bridge
     geometry_msgs
     hd_map
@@ -84,6 +82,8 @@ add_library(
     src/layers/obstacle_data/laser_data.cpp
     src/layers/obstacle_data/point_cloud_data.cpp
     src/layers/obstacle_data/range_data.cpp
+    src/layers/obstacle_data/compressed_depth_image_transport/codec.cpp
+    src/layers/obstacle_data/compressed_depth_image_transport/rvl_codec.cpp
     src/layers/obstacle_layer.cpp
     src/operations/clip_line.cpp
     src/operations/raytrace.cpp
