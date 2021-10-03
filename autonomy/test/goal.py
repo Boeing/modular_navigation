@@ -26,7 +26,7 @@ def run(x, y, angle):
 
     client.send_goal(goal)
     client.wait_for_result()
-    print client.get_result()
+    print(client.get_result())
 
 
 if __name__ == '__main__':
