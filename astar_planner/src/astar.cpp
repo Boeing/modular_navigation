@@ -227,8 +227,10 @@ double updateH(const State2D& state, const State2D& goal, Explore2DCache& explor
 
     if (ret.success)
     {
-        const double shortest_2d = ret.success ? ret.node->cost_so_far : std::numeric_limits<double>::max();
+        const double shortest_2d = ret.node->cost_so_far;
         ROS_ASSERT(std::isfinite(shortest_2d));
+        // Why do we multiply by 1.1? 
+        // Might be because of taking into account rotation in Djikstra
         return shortest_2d * costmap.resolution * 1.1;
     }
     else
