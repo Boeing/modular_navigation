@@ -1,7 +1,7 @@
 import calendar
 import logging
 from datetime import datetime, date
-from io import BytesIO
+from io import BytesIO, TextIOWrapper
 
 import math6d
 import mongoengine
@@ -277,14 +277,14 @@ class Map(Document, DocumentMixin):
     default_zone = IntField()  # type: int
 
     def get_png(self, buff):
-        # type: (file) -> None
+        # type: (TextIOWrapper) -> None
         self.image.seek(0)
         im = Image.open(fp=self.image)
         inverted = invert(im)
         inverted.save(buff, format='PNG', compress_level=1)
 
     def get_thumbnail_png(self, buff):
-        # type: (file) -> None
+        # type: (TextIOWrapper) -> None
         self.thumbnail.seek(0)
         im = Image.open(fp=self.thumbnail)
         im.save(buff, format='PNG', compress_level=1)

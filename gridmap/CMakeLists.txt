@@ -78,12 +78,12 @@ add_library(
     src/layered_map.cpp
     src/layers/base_map_layer.cpp
     src/layers/obstacle_data/compressed_depth_data.cpp
+    src/layers/obstacle_data/compressed_depth_image_transport/codec.cpp
+    src/layers/obstacle_data/compressed_depth_image_transport/rvl_codec.cpp
     src/layers/obstacle_data/depth_data.cpp
     src/layers/obstacle_data/laser_data.cpp
     src/layers/obstacle_data/point_cloud_data.cpp
     src/layers/obstacle_data/range_data.cpp
-    src/layers/obstacle_data/compressed_depth_image_transport/codec.cpp
-    src/layers/obstacle_data/compressed_depth_image_transport/rvl_codec.cpp
     src/layers/obstacle_layer.cpp
     src/operations/clip_line.cpp
     src/operations/raytrace.cpp

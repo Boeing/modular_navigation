@@ -63,8 +63,9 @@ AStarPlanner::~AStarPlanner()
 {
 }
 
-navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
-    AStarPlanner::plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal, const GoalSampleSettings& sample)
+navigation_interface::PathPlanner::Result
+    AStarPlanner::plan(const Eigen::Isometry2d& start,  // cppcheck-suppress unusedFunction
+                       const Eigen::Isometry2d& goal, const GoalSampleSettings& sample)
 {
     navigation_interface::PathPlanner::Result result;
 
@@ -153,7 +154,6 @@ navigation_interface::PathPlanner::Result  // cppcheck-suppress unusedFunction
     return result;
 }
 
-// cppcheck-suppress unusedFunction
 bool AStarPlanner::valid(const navigation_interface::Path& path) const
 {
     // assume this is called immediately after plan to re-use the data structures

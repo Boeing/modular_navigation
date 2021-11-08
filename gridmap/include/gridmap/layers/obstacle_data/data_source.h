@@ -217,13 +217,18 @@ template <typename MsgType> class TopicDataSource : public DataSource
     Eigen::Isometry3d getSensorTransform(const std::string& frame_name)
     {
         auto it = transform_cache_.find(frame_name);
+        Eigen::Isometry3d output;
         if (it == transform_cache_.end())
         {
+            output = urdf_tree_->getTransform(frame_name, "base_link");
             bool success;
-            std::tie(it, success) =
-                transform_cache_.insert({frame_name, urdf_tree_->getTransform(frame_name, "base_link")});
+            std::tie(it, success) = transform_cache_.insert({frame_name, output});
         }
-        return it->second;
+        else
+        {
+            output = it->second;
+        }
+        return output;
     }
 
     void callback(const typename MsgType::ConstPtr& msg)
