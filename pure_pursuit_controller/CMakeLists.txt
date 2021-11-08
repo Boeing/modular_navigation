@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(pure_pursuit_controller)
 
 add_definitions(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS gridmap navigation_interface pluginlib roscpp)
 
-find_package(OpenCV 3 REQUIRED)
+find_package(OpenCV 4 REQUIRED)
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 

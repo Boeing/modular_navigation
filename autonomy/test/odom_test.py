@@ -21,13 +21,13 @@ def on_odom(odom_msg):
 
 sub = rospy.Subscriber(name='/odom', data_class=Odometry, callback=on_odom, tcp_nodelay=True)
 
-print 'collecting data...'
+print('collecting data...')
 
 rospy.spin()
 
 na = numpy.array(delta_array)
-print ' min delay: {}'.format(numpy.min(na))
-print ' max delay: {}'.format(numpy.max(na))
-print 'mean delay: {}'.format(numpy.mean(na))
-print ' med delay: {}'.format(numpy.median(na))
-print ' std delay: {}'.format(numpy.std(na))
+print(' min delay: {}'.format(numpy.min(na)))
+print(' max delay: {}'.format(numpy.max(na)))
+print('mean delay: {}'.format(numpy.mean(na)))
+print(' med delay: {}'.format(numpy.median(na)))
+print(' std delay: {}'.format(numpy.std(na)))

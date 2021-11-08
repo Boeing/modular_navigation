@@ -213,12 +213,12 @@ Eigen::Vector3d nominalForce(const Node& curr, const double gain)
     const Eigen::Vector2d dir = curr.nominal.translation() - curr.pose.translation();
     const Eigen::Rotation2Dd rot = Eigen::Rotation2Dd(curr.nominal.linear().inverse() * curr.pose.linear());
 
-    const double dist = dir.norm();
-    ROS_ASSERT(std::isfinite(dist));
+    const double distance = dir.norm();
+    ROS_ASSERT(std::isfinite(distance));
 
     Eigen::Vector3d _force;
-    _force[0] = gain * std::exp(dist) * dir.x();
-    _force[1] = gain * std::exp(dist) * dir.y();
+    _force[0] = gain * std::exp(distance) * dir.x();
+    _force[1] = gain * std::exp(distance) * dir.y();
     _force[2] = -0.1 * gain * rot.smallestAngle();
 
     ROS_ASSERT(_force.allFinite());

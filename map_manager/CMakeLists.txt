@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(map_manager)
 
 find_package(catkin REQUIRED COMPONENTS geometry_msgs hd_map message_generation nav_msgs sensor_msgs)

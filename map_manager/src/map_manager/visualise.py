@@ -179,7 +179,7 @@ def build_marker_array(map_obj):
                 )
             )
 
-    print marker_array
+    print(marker_array)
 
     for marker in map_obj.markers:
         marker_array.markers += build_pose_markers(
