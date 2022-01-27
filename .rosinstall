@@ -1,8 +1,6 @@
 - git:
     local-name: math6d
-    uri: 'https://git.web.boeing.com/robotics/ros/math6d'
-    version: dev/noetic
+    uri: https://git.web.boeing.com/robotics/ros/math6d
 - git:
     local-name: modular_cartographer
-    uri: 'https://git.web.boeing.com/brta-robotics/ros/modular_cartographer.git'
-    version: dev/noetic
+    uri: https://git.web.boeing.com/brta-robotics/ros/modular_cartographer.git

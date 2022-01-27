@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
 import logging
+
 import flask
 import mongoengine
+import pymongo
 import rospy.impl.rosout
 
 from map_manager.config import DATABASE_NAME, RESOURCE_PORT
 from map_manager.ros_wrapper import RosWrapper
 from map_manager.http.routes import map_api
+
 logger = logging.getLogger(__name__)
 
 name = 'map_manager'
@@ -36,7 +39,24 @@ if __name__ == '__main__':
     # Connect to the db
     #
     logger.info('Connecting to {}:{}'.format(mongo_hostname, mongo_port))
-    database = mongoengine.connect(db=DATABASE_NAME, host=mongo_hostname, port=mongo_port)
+    try:
+        database = mongoengine.connect(
+            db=DATABASE_NAME,
+            host=mongo_hostname,
+            port=mongo_port,
+            serverSelectionTimeoutMS=30)
+    except mongoengine.ConnectionFailure as e:
+        logger.error("Failed to connect to Mongodb", exc_info=e)
+        raise e
+
+    #
+    # Force check to make sure Mongo is alive
+    #
+    try:
+        server = database.server_info()
+    except pymongo.errors.ServerSelectionTimeoutError as e:
+        logger.error("Mongodb is offline", exc_info=e)
+        raise e
 
     obj = RosWrapper()
     app = flask.Flask(__name__, template_folder='src/map_manager/http')
