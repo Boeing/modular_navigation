@@ -84,9 +84,11 @@ boost::optional<navigation_interface::Path> SimBandPlanner::path() const
 navigation_interface::TrajectoryPlanner::Result
     // cppcheck-suppress unusedFunction
     SimBandPlanner::plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
-                         const Eigen::Isometry2d& map_to_odom)
+                         const Eigen::Isometry2d& map_to_odom, const double avoid_distance)
 {
     navigation_interface::TrajectoryPlanner::Result result;
+
+    const double inflated_robot_radius = robot_radius_ + std::max(0.0, avoid_distance);
 
     if (!moving_window_)
     {
@@ -101,7 +103,7 @@ navigation_interface::TrajectoryPlanner::Result
 
         moving_window_->updateWindow(robot_pose, max_window_length_);
 
-        auto lock = map_data_->grid.getLock();
+        auto lock = map_data_->grid.getReadLock();
         gridmap::Grid2D<uint8_t> local_grid(map_data_->grid, local_region);
         lock.unlock();
 
@@ -110,7 +112,7 @@ navigation_interface::TrajectoryPlanner::Result
                                       reinterpret_cast<void*>(local_grid.cells().data()));
 
         DistanceField distance_field(cv_im, local_grid.dimensions().origin().x(), local_grid.dimensions().origin().y(),
-                                     local_grid.dimensions().resolution(), robot_radius_);
+                                     local_grid.dimensions().resolution(), inflated_robot_radius);
 
         Band sim_band(offsets_);
 
@@ -204,7 +206,7 @@ navigation_interface::TrajectoryPlanner::Result
                     const sim_band_planner::ControlPoint& cp = node.control_points[node.closest_point];
                     const Eigen::Vector2d cp_pose = node.pose.translation() + node.pose.linear() * cp.offset;
                     const Eigen::Vector2d obj_pose =
-                        cp_pose + (cp.distance + robot_radius_) * cp.gradient.cast<double>();
+                        cp_pose + (cp.distance + inflated_robot_radius) * cp.gradient.cast<double>();
 
                     geometry_msgs::Point start;
                     start.x = node.pose.translation().x();
@@ -244,11 +246,11 @@ navigation_interface::TrajectoryPlanner::Result
 
                 const std_msgs::ColorRGBA color = distanceToColor(cp.distance);
 
-                ma.markers.push_back(make_cylider(color, robot_radius_ * 2.0, 0.1, pose));
+                ma.markers.push_back(make_cylider(color, inflated_robot_radius * 2.0, 0.1, pose));
 
                 {
                     const Eigen::Vector2d obj_pose =
-                        position + (cp.distance + robot_radius_) * cp.gradient.cast<double>();
+                        position + (cp.distance + inflated_robot_radius) * cp.gradient.cast<double>();
 
                     geometry_msgs::Point start;
                     start.x = position.x();
@@ -333,12 +335,12 @@ navigation_interface::TrajectoryPlanner::Result
 }
 
 // cppcheck-suppress unusedFunction
-bool SimBandPlanner::valid(const navigation_interface::Trajectory&) const
+bool SimBandPlanner::valid(const navigation_interface::Trajectory&, const double) const
 {
     return true;
 }
 
-double SimBandPlanner::cost(const navigation_interface::Trajectory&) const
+double SimBandPlanner::cost(const navigation_interface::Trajectory&, const double) const
 {
     return 0.0;
 }

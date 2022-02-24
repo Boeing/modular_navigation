@@ -10,7 +10,6 @@ from map_manager.documents import Map
 
 logger = logging.getLogger(__name__)
 
-name = 'map_manager'
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -22,4 +21,4 @@ if __name__ == '__main__':
     map_obj = Map.objects(name=args.map_name).get()
 
     with open(args.pbstream, 'w') as f:
-        f.write(map_obj.map_data.read())
+        f.write(map_obj.pbstream.read())

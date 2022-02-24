@@ -25,10 +25,10 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     virtual boost::optional<navigation_interface::Path> path() const override;
 
     virtual Result plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
-                        const Eigen::Isometry2d& map_to_odom) override;
+                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance) override;
 
-    virtual bool valid(const navigation_interface::Trajectory& trajectory) const override;
-    virtual double cost(const navigation_interface::Trajectory& trajectory) const override;
+    virtual bool valid(const navigation_interface::Trajectory& trajectory, const double) const override;
+    virtual double cost(const navigation_interface::Trajectory& trajectory, const double) const override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;

@@ -1,0 +1,6 @@
+# an empty map_name will use the currently loaded map
+string map_name
+---
+string node_graph
+bool success
+string message

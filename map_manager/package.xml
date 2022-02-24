@@ -10,16 +10,20 @@
     <buildtool_depend>catkin</buildtool_depend>
 
     <depend>geometry_msgs</depend>
-    <depend>hd_map</depend>
+    <depend>graph_map</depend>
     <depend>message_generation</depend>
     <depend>nav_msgs</depend>
     <depend>sensor_msgs</depend>
+    <depend>python-types-requests</depend>
 
     <exec_depend>math6d</exec_depend>
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>python-blinker</exec_depend>
+    <exec_depend>python3-ezdxf</exec_depend>
     <exec_depend>python3-flask</exec_depend>
+    <exec_depend>python3-matplotlib</exec_depend>
     <exec_depend>python-mongoengine</exec_depend>
+    <exec_depend>python3-networkx</exec_depend>
     <exec_depend>python3-opengl</exec_depend>
     <exec_depend>python3-pymongo</exec_depend>
     <exec_depend>python3-requests</exec_depend>

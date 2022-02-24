@@ -16,11 +16,12 @@ class AStarPlanner : public navigation_interface::PathPlanner
     AStarPlanner();
     ~AStarPlanner();
 
-    virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal,
-                        const GoalSampleSettings& sample) override;
+    virtual Result plan(const gridmap::AABB& local_region, const Eigen::Isometry2d& start,
+                        const Eigen::Isometry2d& goal, const GoalSampleSettings& sample, const double avoid_distance,
+                        const double backwards_mult, const double strafe_mult, const double rotation_mult) override;
 
-    virtual bool valid(const navigation_interface::Path& path) const override;
-    virtual double cost(const navigation_interface::Path& path) const override;
+    virtual bool valid(const navigation_interface::Path& path, const double avoid_distance) const override;
+    virtual double cost(const navigation_interface::Path& path, const double avoid_distance) const override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
@@ -31,8 +32,6 @@ class AStarPlanner : public navigation_interface::PathPlanner
     // width of default offset = 0.185
     // conservative = width + robot_radius = 0.185 + 0.230 = 0.415
     double conservative_robot_radius_ = 0.416;
-    double avoid_zone_cost_ = 4.0;
-    double path_cost_ = 0.2;
 
     double backwards_mult_ = 1.5;
     double strafe_mult_ = 1.5;

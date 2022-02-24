@@ -13,6 +13,7 @@
 #include <navigation_interface/trajectory_planner.h>
 #include <pluginlib/class_loader.h>
 #include <ros/ros.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -68,16 +69,15 @@ class Autonomy
     virtual ~Autonomy();
 
   private:
-    void activeMapCallback(const hd_map::MapInfo::ConstPtr& map);
+    void activeMapCallback(const map_manager::MapInfo::ConstPtr& map);
 
     void executionThread();
-    void executeGoal(GoalHandle& goal);
+    void executeGoal();
 
     void goalCallback(GoalHandle goal);
-    void cancelCallback(GoalHandle goal);
+    void cancelCallback(GoalHandle);
 
-    void pathPlannerThread(const Eigen::Isometry2d& goal,
-                           const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings);
+    void pathPlannerThread();
     void trajectoryPlannerThread();
     void controllerThread();
 
@@ -85,7 +85,7 @@ class Autonomy
 
     std::mutex goal_mutex_;
     std::unique_ptr<GoalHandle> goal_;
-    std::condition_variable execution_condition_;
+    geometry_msgs::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     actionlib::ActionServer<autonomy::DriveAction> as_;
 
@@ -93,6 +93,10 @@ class Autonomy
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
     pluginlib::ClassLoader<navigation_interface::TrajectoryPlanner> tp_loader_;
     pluginlib::ClassLoader<navigation_interface::Controller> c_loader_;
+
+    std::shared_ptr<gridmap::MapData> path_planner_map_data_;
+    std::shared_ptr<gridmap::MapData> trajectory_planner_map_data_;
+    std::shared_ptr<gridmap::MapData> controller_map_data_;
 
     std::shared_ptr<navigation_interface::PathPlanner> path_planner_;
     std::shared_ptr<navigation_interface::TrajectoryPlanner> trajectory_planner_;
@@ -112,6 +116,13 @@ class Autonomy
     ros::Publisher path_pub_;
     ros::Publisher trajectory_pub_;
 
+    ros::Publisher planner_map_update_pub_;
+    ros::Publisher trajectory_map_update_pub_;
+    ros::Publisher control_map_update_pub_;
+
+    tf2_ros::Buffer tfBuffer_;
+    tf2_ros::TransformListener tfListener_;
+
     std::atomic<bool> running_;
     std::atomic<bool> execution_thread_running_;
 
@@ -130,7 +141,7 @@ class Autonomy
     // Configuration
     const std::string global_frame_ = "map";
 
-    double map_publish_frequency_;
+    double max_planning_distance_;
     double clear_radius_;
     double path_planner_frequency_;
     double trajectory_planner_frequency_;

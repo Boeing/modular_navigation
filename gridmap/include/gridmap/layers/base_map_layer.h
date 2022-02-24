@@ -1,6 +1,8 @@
 #ifndef GRIDMAP_BASE_MAP_LAYER_H
 #define GRIDMAP_BASE_MAP_LAYER_H
 
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
 #include <gridmap/grids/occupancy_grid.h>
 #include <gridmap/layers/layer.h>
 #include <nav_msgs/OccupancyGrid.h>
@@ -26,12 +28,14 @@ class BaseMapLayer : public Layer
 
     virtual bool clear() override
     {
-        std::lock_guard<std::timed_mutex> g(map_mutex_);
+        // cppcheck-suppress unreadVariable
+        const auto lock = getReadLock();
         return bool(map_);
     }
     virtual bool clearRadius(const Eigen::Vector2i&, const int) override
     {
-        std::lock_guard<std::timed_mutex> g(map_mutex_);
+        // cppcheck-suppress unreadVariable
+        const auto lock = getReadLock();
         return bool(map_);
     }
 

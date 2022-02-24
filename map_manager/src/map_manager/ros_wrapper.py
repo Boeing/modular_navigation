@@ -13,19 +13,19 @@ from tf2_msgs.msg import TFMessage
 
 from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
-from hd_map.msg import MapInfo as MapInfoMsg
-from hd_map.msg import Marker as MarkerMsg
-from hd_map.msg import Zone as ZoneMsg
-from map_manager.documents import Map, Marker, Point, Pose, Quaternion, Zone
+from map_manager.msg import MapInfo as MapInfoMsg
+from map_manager.documents import Map
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.srv import DeleteMap, DeleteMapRequest, DeleteMapResponse
 from map_manager.srv import GetActiveMap, GetActiveMapRequest, GetActiveMapResponse
-from map_manager.srv import GetMap, GetMapRequest, GetMapResponse
+from map_manager.srv import GetAreaTree, GetAreaTreeRequest, GetAreaTreeResponse
+from map_manager.srv import GetMapInfo, GetMapInfoRequest, GetMapInfoResponse
+from map_manager.srv import GetNodeGraph, GetNodeGraphRequest, GetNodeGraphResponse
 from map_manager.srv import GetOccupancyGrid, GetOccupancyGridRequest, GetOccupancyGridResponse
+from map_manager.srv import GetZones, GetZonesRequest, GetZonesResponse
 from map_manager.srv import ListMaps, ListMapsRequest, ListMapsResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
-from map_manager.srv import UpdateMap, UpdateMapRequest, UpdateMapResponse
-from map_manager.visualise import build_marker_array
+from map_manager.visualise import build_zones_marker_array, build_areas_marker_array, build_graph_marker_array
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +64,16 @@ class RosWrapper(object):
 
         self.__delete_map = rospy.Service('~delete_map', DeleteMap, handler=self.__delete_map_cb)
 
-        self.__get_map = rospy.Service('~get_map', GetMap, handler=self.__get_map_cb)
+        self.__get_map_info = rospy.Service('~get_map_info', GetMapInfo, handler=self.__get_map_info_cb)
         self.__get_og = rospy.Service('~get_occupancy_grid', GetOccupancyGrid, handler=self.__get_occupancy_grid_cb)
+        self.__get_node_graph = rospy.Service('~get_node_graph', GetNodeGraph, handler=self.__get_node_graph_cb)
+        self.__get_area_tree = rospy.Service('~get_area_tree', GetAreaTree, handler=self.__get_area_tree_cb)
+        self.__get_zones = rospy.Service('~get_zones', GetZones, handler=self.__get_zones_cb)
 
-        self.__list_map = rospy.Service('~list_maps', ListMaps, handler=self.__list_maps_cb)
+        self.__list_maps = rospy.Service('~list_maps', ListMaps, handler=self.__list_maps_cb)
 
         self.__set_active_map = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
         self.__get_active_map = rospy.Service('~get_active_map', GetActiveMap, handler=self.__get_active_map_cb)
-
-        self.__update_map = rospy.Service('~update_map', UpdateMap, handler=self.__update_map_cb)
 
         # Initialise a unit world->map transform
         self.__static_tf_pub = rospy.Publisher("/tf_static", TFMessage, queue_size=100, latch=True)
@@ -96,8 +97,10 @@ class RosWrapper(object):
         #
         self.__active_map_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__og_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__data_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__marker_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__pbstream_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__zones_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__areas_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__graph_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__init_publishers()
 
         # Load the most recently modified Map by default
@@ -125,14 +128,26 @@ class RosWrapper(object):
             latch=True,
             queue_size=100
         )
-        self.__data_pub = rospy.Publisher(
-            name='~map_data',
+        self.__pbstream_pub = rospy.Publisher(
+            name='~pbstream',
             data_class=UInt8MultiArray,
             latch=True,
             queue_size=100
         )
-        self.__marker_pub = rospy.Publisher(
-            name='~markers',
+        self.__zones_pub = rospy.Publisher(
+            name='~zones',
+            data_class=MarkerArrayMsg,
+            latch=True,
+            queue_size=100
+        )
+        self.__areas_pub = rospy.Publisher(
+            name='~areas',
+            data_class=MarkerArrayMsg,
+            latch=True,
+            queue_size=100
+        )
+        self.__graph_pub = rospy.Publisher(
+            name='~graph',
             data_class=MarkerArrayMsg,
             latch=True,
             queue_size=100
@@ -145,24 +160,29 @@ class RosWrapper(object):
     @exception_wrapper(AddMapResponse)
     def __add_map_cb(self, req):
         # type: (AddMapRequest) -> AddMapResponse
-        logger.info('Request to add a new Map: {}'.format(req.map.info.name))
+        logger.info('Request to add a new Map: {}'.format(req.map_info.name))
 
         if len(req.occupancy_grid.data) <= 0:
             return AddMapResponse(
                 success=False,
-                message='No map data'
+                message='No occupancy grid'
             )
 
-        map_obj = Map.from_msg(map_msg=req.map, occupancy_grid_msg=req.occupancy_grid)
+        map_query = Map.objects(name=req.map_info.name)
+        if map_query.count():
+            map_obj = map_query.first()
+            logger.info('Map {} already exists in the database. Overwriting.'.format(req.map_info.name))
+            map_obj.delete()
+        else:
+            map_obj = Map()
 
-        if req.map_data:
-            map_obj.map_data.new_file()
-            map_obj.map_data.write(req.map_data)
-            map_obj.map_data.close()
+        map_obj = Map.from_msg(map_info_msg=req.map_info, zone_msgs=req.zones,
+                               occupancy_grid_msg=req.occupancy_grid, pbstream_msg=req.pbstream,
+                               node_graph_json=req.node_graph, area_tree_json=req.area_tree)
 
         map_obj.save()
 
-        self.__load_map(map_name=req.map.info.name)
+        self.__load_map(map_name=req.map_info.name)
 
         return AddMapResponse(
             success=True
@@ -208,9 +228,9 @@ class RosWrapper(object):
             success=True
         )
 
-    @exception_wrapper(GetMapResponse)
-    def __get_map_cb(self, req):
-        # type: (GetMapRequest) -> GetMapResponse
+    @exception_wrapper(GetMapInfoResponse)
+    def __get_map_info_cb(self, req):
+        # type: (GetMapInfoRequest) -> GetMapInfoResponse
 
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
@@ -219,8 +239,56 @@ class RosWrapper(object):
 
         map_obj = Map.objects(name=req.map_name).get()
 
-        return GetMapResponse(
-            map=map_obj.get_map_msg(),
+        return GetMapInfoResponse(
+            map_info=map_obj.get_map_info_msg(),
+            success=True
+        )
+
+    @exception_wrapper(GetZonesResponse)
+    def __get_zones_cb(self, req):
+        # type: (GetZonesRequest) -> GetZonesResponse
+
+        # map_name: an empty id will use the currently loaded map
+        if not req.map_name:
+            if self.__map_name:
+                req.map_name = self.__map_name
+
+        map_obj: Map = Map.objects(name=req.map_name).get()
+
+        return GetZonesResponse(
+            zones=[zone.get_msg() for zone in map_obj.zones],
+            success=True
+        )
+
+    @exception_wrapper(GetNodeGraphResponse)
+    def __get_node_graph_cb(self, req):
+        # type: (GetNodeGraphRequest) -> GetNodeGraphResponse
+
+        # map_name: an empty id will use the currently loaded map
+        if not req.map_name:
+            if self.__map_name:
+                req.map_name = self.__map_name
+
+        map_obj: Map = Map.objects(name=req.map_name).get()
+
+        return GetNodeGraphResponse(
+            node_graph=map_obj.node_graph,
+            success=True
+        )
+
+    @exception_wrapper(GetAreaTreeResponse)
+    def __get_area_tree_cb(self, req):
+        # type: (GetAreaTreeRequest) -> GetAreaTreeResponse
+
+        # map_name: an empty id will use the currently loaded map
+        if not req.map_name:
+            if self.__map_name:
+                req.map_name = self.__map_name
+
+        map_obj: Map = Map.objects(name=req.map_name).get()
+
+        return GetAreaTreeResponse(
+            area_tree=map_obj.area_tree,
             success=True
         )
 
@@ -233,7 +301,7 @@ class RosWrapper(object):
         # type: (ListMapsRequest) -> ListMapsResponse
         return ListMapsResponse(
             active_map=self.__map_name if self.__map_name else '',
-            maps=[obj.get_map_info_msg() for obj in Map.objects],
+            map_infos=[obj.get_map_info_msg() for obj in Map.objects],
             success=True
         )
 
@@ -262,67 +330,6 @@ class RosWrapper(object):
         )
 
     #
-    # UPDATE callbacks
-    #
-
-    @exception_wrapper(UpdateMapResponse)
-    def __update_map_cb(self, req):
-        # type: (UpdateMapRequest) -> UpdateMapResponse
-        logger.info('Request to update Map: {}'.format(req.map_name))
-
-        # map_name: an empty id will use the currently loaded map
-        if not req.map_name:
-            if self.__map_name:
-                req.map_name = self.__map_name
-
-        map_obj = Map.objects(name=req.map_name).get()
-
-        for marker_msg in req.markers:
-            assert isinstance(marker_msg, MarkerMsg)
-            try:
-                marker = next(m for m in map_obj.markers if m.name == marker_msg.name)  # type: Marker
-            except StopIteration:
-                marker = Marker(name=marker_msg.name)
-                map_obj.markers.append(marker)
-
-            marker.marker_type = marker_msg.marker_type
-            marker.pose = Pose(
-                position=Point(
-                    x=marker_msg.pose.position.x,
-                    y=marker_msg.pose.position.y,
-                    z=marker_msg.pose.position.z
-                ),
-                quaternion=Quaternion(
-                    w=marker_msg.pose.orientation.w,
-                    x=marker_msg.pose.orientation.x,
-                    y=marker_msg.pose.orientation.y,
-                    z=marker_msg.pose.orientation.z
-                )
-            )
-
-        for zone_msg in req.zones:
-            assert isinstance(zone_msg, ZoneMsg)
-            try:
-                zone = next(z for z in map_obj.zones if z.name == zone_msg.name)  # type: Zone
-            except StopIteration:
-                zone = Zone(name=zone_msg.name)
-                map_obj.zones.append(zone)
-
-            zone.zone_type = zone_msg.zone_type
-            zone.polygon = []
-            for point in zone_msg.polygon.points:
-                zone.polygon.append(Point(x=point.x, y=point.y, z=point.z))
-
-        map_obj.save()
-
-        if req.map_name == self.__map_name:
-            self.__load_map(self.__map_name)
-
-        return UpdateMapResponse(
-            success=True
-        )
-
-    #
     # Internal load functions
     #
 
@@ -341,12 +348,16 @@ class RosWrapper(object):
             grid = map_obj.get_occupancy_grid_msg()
             self.__og_pub.publish(grid)
 
-            if map_obj.map_data:
-                self.__data_pub.publish(UInt8MultiArray(data=map_obj.map_data.read()))
+            if map_obj.pbstream:
+                self.__pbstream_pub.publish(UInt8MultiArray(data=map_obj.pbstream.read()))
             else:
-                self.__data_pub.publish(UInt8MultiArray())
+                self.__pbstream_pub.publish(UInt8MultiArray())
 
-            self.__marker_pub.publish(build_marker_array(map_obj))
+            self.__zones_pub.publish(build_zones_marker_array(map_obj))
+            self.__areas_pub.publish(build_areas_marker_array(map_obj))
+            self.__graph_pub.publish(build_graph_marker_array(map_obj,
+                                                              node_params={'lifetime': rospy.Duration(0)},
+                                                              edge_params={'lifetime': rospy.Duration(0)}))
 
         except Exception as e:
             logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))

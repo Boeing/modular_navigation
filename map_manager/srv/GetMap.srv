@@ -1,6 +1,0 @@
-# an empty map will use the currently loaded map
-string map_name
----
-hd_map/Map map
-bool success
-string message

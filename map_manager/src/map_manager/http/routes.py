@@ -7,7 +7,7 @@ from jinja2 import TemplateNotFound
 from mongoengine import DoesNotExist, ValidationError
 from requests.status_codes import codes
 
-from hd_map.msg import Map as MapMsg
+from map_manager.msg import MapInfo as MapMsg
 from map_manager.documents import Map
 from map_manager.http.cross_domain import cross_domain
 

@@ -1,22 +1,40 @@
 import logging
 import math
-
-import rospy
 import typing
+
+import networkx as nx
+import rospy
 from geometry_msgs.msg import Point as PointMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
 from geometry_msgs.msg import Vector3 as Vector3Msg
-from math6d.geometry import Quaternion, Vector3
+from graph_map.area_manager import AreaManager
+from graph_map.node import Node
+from graph_map.node_graph_manager import NodeGraphManager
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
-from hd_map.msg import Zone as ZoneMsg
-from map_manager import tess
-from map_manager.documents import Map as MapDocument
-from map_manager.documents import Zone as ZoneDocument
+from map_manager.documents import Color as ColorDoc
+from map_manager.documents import Map as MapDoc
+from map_manager.documents import Point as PointDoc
+from map_manager.documents import Polygon as PolygonDoc
+from map_manager.documents import Region as RegionDoc
+from map_manager.tess import triangulate
+from math6d.geometry import Quaternion, Vector3
 
 logger = logging.getLogger(__name__)
+
+
+def sort_clockwise(points):
+    val = ((points[1][1] - points[0][1]) * (points[2][0] - points[1][0])) - \
+          ((points[1][0] - points[0][0]) * (points[2][1] - points[1][1]))
+
+    if (val < 0):
+        # Counterclockwise orientation
+        return [points[0], points[2], points[1]]
+    else:
+        # Collinear or clockwise orientation
+        return points
 
 
 def build_cylinder_marker(start_point, end_point, color, radius):
@@ -99,93 +117,214 @@ def build_pose_markers(pose, size=0.05):
     ]
 
 
-def build_zone_markers(zone):
-    # type: (ZoneDocument) -> typing.Sequence[Marker]
+def build_node_markers(node: Node, color, radius, height, lifetime):
     markers = list()  # type: typing.List[Marker]
 
-    if zone.zone_type == ZoneMsg.EXCLUSION_ZONE:
-        color = ColorRGBA(1.0, 0.0, 0.2, 0.2)
-    elif zone.zone_type == ZoneMsg.DRIVABLE_ZONE:
-        color = ColorRGBA(0.0, 1.0, 0.2, 0.1)
-    elif zone.zone_type == ZoneMsg.AVOID_ZONE:
-        color = ColorRGBA(1.0, 0.6, 0.0, 0.2)
-    else:
-        color = ColorRGBA(1.0, 1.0, 1.0, 1.0)
+    up_vec = Vector3(0, 0, 1)
+    qt = Quaternion.from_axis_angle(axis=up_vec, angle=0)
+
+    markers.append(
+        Marker(
+            type=Marker.CYLINDER,
+            pose=PoseMsg(
+                position=PointMsg(x=node.x, y=node.y, z=0.0),
+                orientation=QuaternionMsg(
+                    qt.x, qt.y, qt.z, qt.w
+                )
+            ),
+            frame_locked=True,
+            scale=Vector3Msg(
+                radius,
+                radius,
+                height
+            ),
+            color=color,
+            lifetime=lifetime
+        )
+    )
+
+    return markers
+
+
+def build_edge_marker(start: Node, end: Node, color: ColorRGBA, diameter: float, lifetime: rospy.Duration):
+    return Marker(
+        type=Marker.ARROW,
+        points=[
+            PointMsg(
+                start.x,
+                start.y,
+                0
+            ),
+            PointMsg(
+                end.x,
+                end.y,
+                0
+            ),
+        ],
+        pose=PoseMsg(
+            orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
+        ),
+        scale=Vector3Msg(
+            diameter,
+            diameter * 6,
+            0.5
+        ),
+        frame_locked=True,
+        color=color,
+        lifetime=lifetime
+    )
+
+
+def build_region_markers(region):
+    # type: (RegionDoc) -> typing.Sequence[Marker]
+    markers = list()  # type: typing.List[Marker]
 
     polygon_points = [
         (point.x, point.y, point.z)
-        for point in zone.polygon
+        for point in region.polygon.points
     ]
-    triangles = tess.triangulate(polygon_points)
+
+    triangles = triangulate(polygon_points)
+
+    pose = PoseMsg(
+        orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
+    )
     triangle_marker = Marker(
         type=Marker.TRIANGLE_LIST,
         frame_locked=True,
+        pose=pose,
         scale=Vector3Msg(1.0, 1.0, 1.0),
-        color=color
+        color=region.color.get_msg()
     )
-    for t in triangles:
-        # Forward triangle
-        triangle_marker.points.append(PointMsg(*polygon_points[t[0]]))
-        triangle_marker.points.append(PointMsg(*polygon_points[t[1]]))
-        triangle_marker.points.append(PointMsg(*polygon_points[t[2]]))
 
-        # Reverse triangle
-        triangle_marker.points.append(PointMsg(*polygon_points[t[0]]))
-        triangle_marker.points.append(PointMsg(*polygon_points[t[2]]))
-        triangle_marker.points.append(PointMsg(*polygon_points[t[1]]))
+    for t in triangles:
+        points = [polygon_points[t[0]], polygon_points[t[1]], polygon_points[t[2]]]
+        points = sort_clockwise(points)
+
+        triangle_marker.points.append(PointMsg(*points[2]))
+        triangle_marker.points.append(PointMsg(*points[1]))
+        triangle_marker.points.append(PointMsg(*points[0]))
 
     markers.append(triangle_marker)
     return markers
 
 
-def build_marker_array(map_obj):
-    # type: (MapDocument) -> MarkerArray
+def build_zones_marker_array(map_obj):
+    # type: (MapDoc) -> MarkerArray
 
-    assert isinstance(map_obj, MapDocument)
+    assert isinstance(map_obj, MapDoc)
 
     marker_array = MarkerArray()
 
-    marker_array.markers.append(Marker(type=Marker.DELETEALL))
+    pose = PoseMsg(orientation=QuaternionMsg(x=0, y=0, z=0, w=1))
+    marker_array.markers.append(
+        Marker(
+            type=Marker.DELETEALL,
+            pose=pose,
+            scale=Vector3Msg(1, 1, 1),
+            color=ColorRGBA(0, 0, 0, 1.0)
+        )
+    )
 
     for zone in map_obj.zones:
-        marker_array.markers += build_zone_markers(zone=zone)
+        for region in zone.regions:
+            marker_array.markers += build_region_markers(region=region)
+            # break
 
-    nodes = {}
-    for node in map_obj.nodes:
-        nodes[node.id] = node
-        marker_array.markers.append(
-            Marker(
-                type=Marker.SPHERE,
-                pose=PoseMsg(
-                    position=PointMsg(x=node.point.x, y=node.point.y, z=0),
-                    orientation=QuaternionMsg(w=1)
-                ),
-                frame_locked=True,
-                scale=Vector3Msg(0.06, 0.06, 0.06),
-                color=ColorRGBA(0.0, 0.0, 1.0, 1.0)
-            )
+    now = rospy.Time(0)
+    for i, marker in enumerate(marker_array.markers):
+        assert isinstance(marker, Marker)
+        marker.id = i
+        marker.header.frame_id = 'map'
+        marker.header.stamp = now
+
+    return marker_array
+
+
+def build_areas_marker_array(map_obj):
+    # type: (MapDoc) -> MarkerArray
+
+    # return MarkerArray()
+
+    assert isinstance(map_obj, MapDoc)
+
+    marker_array = MarkerArray()
+    pose = PoseMsg(orientation=QuaternionMsg(x=0, y=0, z=0, w=1))
+    marker_array.markers.append(
+        Marker(
+            type=Marker.DELETEALL,
+            pose=pose,
+            scale=Vector3Msg(1, 1, 1),
+            color=ColorRGBA(0, 0, 0, 1.0)
         )
+    )
 
-    for path in map_obj.paths:
-        for i in range(len(path.nodes) - 1):
-            start_node = nodes[path.nodes[i]]
-            end_node = nodes[path.nodes[i + 1]]
-            marker_array.markers.append(
-                build_cylinder_marker(
-                    start_point=Vector3(start_node.point.x, start_node.point.y, 0),
-                    end_point=Vector3(end_node.point.x, end_node.point.y, 0),
-                    color=ColorRGBA(0.0, 0.0, 1.0, 1.0),
-                    radius=0.02
+    if map_obj.area_tree is not None and map_obj.area_tree != '':
+        am = AreaManager.from_jsons(map_obj.area_tree)
+
+        # We are constructing the AreaManager from JSON, so the regions will need to be converted into RegionDocuments
+        for area in am.get_areas(level=1):
+            for region in area.regions:
+                region_doc = RegionDoc(
+                    polygon=PolygonDoc(points=[PointDoc(x=p[0], y=p[1], z=0.0) for p in region.points]),
+                    color=ColorDoc(r=region.color.r, g=region.color.g, b=region.color.b, a=region.color.a)
                 )
-            )
+                marker_array.markers += build_region_markers(region=region_doc)
 
-    print(marker_array)
+    now = rospy.Time(0)
+    for i, marker in enumerate(marker_array.markers):
+        assert isinstance(marker, Marker)
+        marker.id = i
+        marker.header.frame_id = 'map'
+        marker.header.stamp = now
 
-    for marker in map_obj.markers:
-        marker_array.markers += build_pose_markers(
-            pose=marker.pose.get_msg(),
-            size=0.2
+    return marker_array
+
+
+def build_graph_marker_array(map_obj: typing.Union[MapDoc, NodeGraphManager, nx.Graph],
+                             node_params: typing.Optional[typing.Dict] = None,
+                             edge_params: typing.Optional[typing.Dict] = None) -> MarkerArray:
+    node_params_ = {'color': ColorRGBA(0, 0, 1.0, 0.7), 'radius': 0.3, 'height': 0.1, 'lifetime': rospy.Duration(6)}
+    edge_params_ = {'color': ColorRGBA(0, 1.0, 0, 0.3), 'diameter': 0.05, 'lifetime': rospy.Duration(6)}
+
+    if node_params is not None:
+        node_params_.update(node_params)
+    if edge_params is not None:
+        edge_params_.update(edge_params)
+
+    marker_array = MarkerArray()
+    pose = PoseMsg(orientation=QuaternionMsg(x=0, y=0, z=0, w=1))
+    marker_array.markers.append(
+        Marker(
+            type=Marker.DELETEALL,
+            pose=pose,
+            scale=Vector3Msg(1, 1, 1),
+            color=ColorRGBA(0, 0, 0, 1.0),
+            lifetime=rospy.Duration(2)
         )
+    )
+
+    if isinstance(map_obj, MapDoc):
+        if map_obj.node_graph is not None and map_obj.area_tree != '':
+            gm = NodeGraphManager.from_jsons(map_obj.node_graph)
+            nodes = gm.get_nodes().keys()
+            edges = gm.graph.edges
+        else:
+            nodes = []
+            edges = []
+    elif isinstance(map_obj, NodeGraphManager):
+        gm = map_obj
+        nodes = gm.get_nodes().keys()
+        edges = gm.graph.edges
+    elif isinstance(map_obj, nx.Graph):
+        nodes = map_obj.nodes().keys()
+        edges = map_obj.edges
+
+    for node in nodes:
+        marker_array.markers += build_node_markers(node, **node_params_)
+
+    for start, end in edges:
+        marker_array.markers.append(build_edge_marker(start, end, **edge_params_))
 
     now = rospy.Time(0)
     for i, marker in enumerate(marker_array.markers):

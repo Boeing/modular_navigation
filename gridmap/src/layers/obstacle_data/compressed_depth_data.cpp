@@ -97,7 +97,7 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
 
     {
         // cppcheck-suppress unreadVariable
-        auto _lock = map_data_->getLock();
+        auto _lock = map_data_->getWriteLock();
         std::lock_guard<std::mutex> lock(camera_info_mutex_);
 
         std::unordered_map<uint64_t, float> height_voxels;

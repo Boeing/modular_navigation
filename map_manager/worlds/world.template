@@ -25,7 +25,7 @@
                     <geometry>
                         <plane>
                             <normal>0 0 1</normal>
-                            <size>100 100</size>
+                            <size>1000 1000</size>
                         </plane>
                     </geometry>
                     <surface>
@@ -50,7 +50,7 @@
                     <geometry>
                         <plane>
                             <normal>0 0 1</normal>
-                            <size>100 100</size>
+                            <size>1000 1000</size>
                         </plane>
                     </geometry>
                     <material>
@@ -59,6 +59,7 @@
                             <name>Gazebo/Grey</name>
                         </script>
                     </material>
+                    <transparency>0.5</transparency>
                 </visual>
                 <self_collide>0</self_collide>
                 <kinematic>0</kinematic>
@@ -87,46 +88,89 @@
             <heading_deg>0</heading_deg>
         </spherical_coordinates>
 
-        <model name='room'>
+        {% for obstacle in obstacles %}
+        <model name='{{ obstacle.id }}'>
+            <static>1</static>
             <pose frame=''>0 0 0 0 0 0</pose>
 
-            {% for wall in walls %}
-            <link name='{{ wall.name }}' layer='{{ wall.layer }}'>
-                <visual name="{{ wall.name }}_visual">
+            {% for link in obstacle.links %}
+            <link name='{{ obstacle.id }}_{{ loop.index0 }}'>
+                <visual name="{{ obstacle.id }}_{{ loop.index0 }}_visual">
                     <geometry>
                         <polyline>
-                            {% for point in wall.points %}
+                            {% for point in link.points %}
                             <point>{{ point }}</point>
                             {% endfor %}
-                            <height>{{ wall.height }}</height>
+                            <height>{{ obstacle.height }}</height>
                         </polyline>
                     </geometry>
                     <material>
+                        {% if link.material != '' %}
                         <script>
-                            <uri>file://media/materials/scripts/gazebo.material</uri>
-                            <name>{{ wall.material_name }}</name>
+                            <uri>file://media/materials/scripts</uri>
+                            <uri>file://media/materials/textures</uri>
+                            <name>{{ link.material }}</name>
                         </script>
+                        {% else %}
+                        <ambient>{{ link.color.r }} {{ link.color.g }} {{ link.color.b }} 1.0</ambient>
+                        <diffuse>{{ link.color.r }} {{ link.color.g }} {{ link.color.b }} 1.0</diffuse>
+                        {% endif %}
                     </material>
+                    <transparency>{{ 1.0 - link.color.a }}</transparency>
                 </visual>
-                {% if wall.collision %}
-                <collision name="{{ wall.name }}_collision">
+                {% if obstacle.collision %}
+                <collision name="{{ obstacle.id }}_{{ loop.index0 }}_collision">
                     <geometry>
                         <polyline>
-                            {% for point in wall.points %}
+                            {% for point in link.points %}
                             <point>{{ point }}</point>
                             {% endfor %}
-                            <height>{{ wall.height }}</height>
+                            <height>{{ obstacle.height }}</height>
                         </polyline>
                     </geometry>
                 </collision>
                 {% endif %}
             </link>
             {% endfor %}
+        </model>
+        {% endfor %}
+
+        {% for zone in zones %}
+        <model name='{{ zone.id }}'>
+            <static>1</static>
+            <pose frame=''>0 0 0 0 0 0</pose>
+
+            {% for region in zone.regions %}
+            <link name='{{ zone.id }}_{{ loop.index0 }}'>
+                <visual name='{{ zone.id }}_{{ loop.index0 }}_visual'>
+                    <geometry>
+                        <polyline>
+                            {% for point in region.points %}
+                            <point>{{ point[0] }} {{ point[1] }}</point>
+                            {% endfor %}
+                            <height>0.0</height>
+                        </polyline>
+                    </geometry>
+                    <material>
+                        <ambient>{{ region.color.r }} {{ region.color.g }} {{ region.color.b }} 1.0</ambient>
+                        <diffuse>{{ region.color.r }} {{ region.color.g }} {{ region.color.b }} 1.0</diffuse>
+                    </material>
+                    <transparency>{{ 1.0 - region.color.a }}</transparency>
+                </visual>
+            </link>
+
+            {% endfor %}
+        </model>
+        {% endfor %}
+
+        <model name='bollards'>
+            <static>1</static>
+            <pose frame=''>0 0 0 0 0 0</pose>
 
             {% for bollard in bollards %}
-            <link name='{{ bollard.name }}'>
+            <link name='bollard_{{ loop.index0 }}'>
                 <pose frame=''>{{ bollard.center }} 0 0 0 0</pose>
-                <visual name='{{ bollard.name }}_visual'>
+                <visual name='bollard_{{ loop.index0 }}_visual'>
                     <pose frame=''>0 0 0.3 0 0 0</pose>
                     <geometry>
                         <cylinder>
@@ -139,10 +183,9 @@
                             <uri>file://media/materials/scripts/gazebo.material</uri>
                             <name>Gazebo/Yellow</name>
                         </script>
-                        <ambient>1 1 1 1</ambient>
                     </material>
                 </visual>
-                <collision name='{{ bollard.name }}_collision'>
+                <collision name='bollard_{{ loop.index0 }}_collision'>
                     <pose frame=''>0 0 0.3 0 0 0</pose>
                     <geometry>
                         <cylinder>
@@ -154,33 +197,23 @@
                 </collision>
             </link>
             {% endfor %}
-
-            {% for node in nodes %}
-            <node id='{{ node.id }}'>
-                <position>{{ node.x }} {{ node.y }}</position>
-            </node>
-            {% endfor %}
-
-            {% for path in paths %}
-            <path name='{{ path.name }}'>
-                {% for node in path.nodes %}
-                <node>{{ node }}</node>
-                {% endfor %}
-            </path>
-            {% endfor %}
-
-            {% for marker in markers %}
-            <link name='{{ marker.name }}' layer='marker'>
-                <pose frame=''>{{ marker.center }} 0 0 0 {{ marker.rotation }}</pose>
-            </link>
-            {% endfor %}
-
-            <static>1</static>
         </model>
 
         <state world_name='default'>
 
-            <model name='room'>
+            {% for obstacle in obstacles %}
+            <model name='{{ obstacle.id }}'>
+                <pose frame=''>0 0 0 0 0 0</pose>
+            </model>
+            {% endfor %}
+
+            {% for zone in zones %}
+            <model name='{{ zone.id }}'>
+                <pose frame=''>0 0 0 0 0 0</pose>
+            </model>
+            {% endfor %}
+
+            <model name='bollards'>
                 <pose frame=''>0 0 0 0 0 0</pose>
             </model>
 

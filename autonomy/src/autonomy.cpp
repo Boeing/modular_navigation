@@ -4,11 +4,14 @@
 #include <boost/thread.hpp>
 #include <boost/tokenizer.hpp>
 #include <geometry_msgs/Twist.h>
-#include <map_manager/GetMap.h>
+#include <map_manager/GetMapInfo.h>
 #include <map_manager/GetOccupancyGrid.h>
+#include <map_manager/GetZones.h>
 #include <map_msgs/OccupancyGridUpdate.h>
 #include <nav_msgs/Path.h>
 #include <navigation_interface/params.h>
+#include <std_msgs/Float64.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
@@ -120,9 +123,12 @@ Autonomy::Autonomy()
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
 
+      tfListener_(tfBuffer_),
+
       running_(false), execution_thread_running_(false), controller_done_(false),
 
       current_path_(nullptr), current_trajectory_(nullptr)
+
 {
     ROS_INFO("Starting");
 
@@ -131,6 +137,7 @@ Autonomy::Autonomy()
     YAML::Node root_config;
     try
     {
+        ROS_INFO_STREAM("Reading navigation config from: " << navigation_config);
         root_config = YAML::LoadFile(navigation_config);
     }
     catch (const std::exception& e)
@@ -139,7 +146,7 @@ Autonomy::Autonomy()
         throw;
     }
 
-    map_publish_frequency_ = root_config["map_publish_frequency"].as<double>(1.0);
+    max_planning_distance_ = root_config["max_planning_distance"].as<double>(0.0);
     clear_radius_ = root_config["clear_radius"].as<double>(2.0);
     path_planner_frequency_ = root_config["path_planner_frequency"].as<double>(0.5);
     trajectory_planner_frequency_ = root_config["trajectory_planner_frequency"].as<double>(8.0);
@@ -149,6 +156,13 @@ Autonomy::Autonomy()
     const std::vector<Eigen::Vector2d> robot_footprint = navigation_interface::get_point_list(
         root_config, "footprint",
         {{+0.490, +0.000}, {+0.408, -0.408}, {-0.408, -0.408}, {-0.490, +0.000}, {-0.408, +0.408}, {+0.408, +0.408}});
+
+    ROS_INFO_STREAM("max_planning_distance: " << max_planning_distance_);
+    ROS_INFO_STREAM("clear_radius: " << clear_radius_);
+    ROS_INFO_STREAM("path_planner_frequency: " << path_planner_frequency_);
+    ROS_INFO_STREAM("trajectory_planner_frequency: " << trajectory_planner_frequency_);
+    ROS_INFO_STREAM("controller_frequency: " << controller_frequency_);
+    ROS_INFO_STREAM("path_swap_fraction: " << path_swap_fraction_);
 
     robot_tracker_.reset(new gridmap::RobotTracker());
     urdf::Model urdf;
@@ -170,13 +184,18 @@ Autonomy::Autonomy()
     path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
     trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
 
+    planner_map_update_pub_ = nh_.advertise<std_msgs::Float64>("planner_map_update_time", 0, true);
+    trajectory_map_update_pub_ = nh_.advertise<std_msgs::Float64>("trajectory_map_update_time", 0, true);
+    control_map_update_pub_ = nh_.advertise<std_msgs::Float64>("control_map_update_time", 0, true);
+
     // Create the planners
     path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr);
     trajectory_planner_ =
         load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr);
     controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr);
 
-    active_map_sub_ = nh_.subscribe<hd_map::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
+    active_map_sub_ =
+        nh_.subscribe<map_manager::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
     mapper_status_sub_ =
         nh_.subscribe<cartographer_ros_msgs::SystemState>("/mapper/state", 1, &Autonomy::mapperCallback, this);
 
@@ -204,7 +223,7 @@ Autonomy::~Autonomy()
     }
 }
 
-void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
+void Autonomy::activeMapCallback(const map_manager::MapInfo::ConstPtr& map)
 {
     // preempt execution
     if (running_)
@@ -213,17 +232,24 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
     }
 
     // wait for goal completion
-    std::unique_lock<std::mutex> lock(goal_mutex_);
+    std::unique_lock<std::mutex> goal_lock(goal_mutex_);
+    while (goal_)
+    {
+        goal_lock.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        goal_lock.lock();
+    }
+    goal_lock.unlock();
     ROS_ASSERT(goal_ == nullptr);
 
     if (!map->name.empty())
     {
         ROS_INFO_STREAM("Received map (" << map->name << ")");
 
-        auto map_client = nh_.serviceClient<map_manager::GetMap>("/map_manager/get_map");
-        map_manager::GetMapRequest map_req;
+        auto map_client = nh_.serviceClient<map_manager::GetMapInfo>("/map_manager/get_map_info");
+        map_manager::GetMapInfoRequest map_req;
         map_req.map_name = map->name;
-        map_manager::GetMapResponse map_res;
+        map_manager::GetMapInfoResponse map_res;
         ROS_ASSERT(map_client.call(map_req, map_res));
         ROS_ASSERT(map_res.success);
 
@@ -234,31 +260,52 @@ void Autonomy::activeMapCallback(const hd_map::MapInfo::ConstPtr& map)
         ROS_ASSERT(og_client.call(og_req, og_res));
         ROS_ASSERT(og_res.success);
 
-        layered_map_->setMap(map_res.map, og_res.grid);
+        auto zones_client = nh_.serviceClient<map_manager::GetZones>("/map_manager/get_zones");
+        map_manager::GetZonesRequest zones_req;
+        zones_req.map_name = map->name;
+        map_manager::GetZonesResponse zones_res;
+        ROS_ASSERT(zones_client.call(zones_req, zones_res));
+        ROS_ASSERT(zones_res.success);
+
+        layered_map_->setMap(map_res.map_info, og_res.grid, zones_res.zones);
     }
     else
     {
         ROS_INFO_STREAM("Generating an empty map");
 
         // generate an empty map
-        hd_map::Map hd_map;
-        hd_map.info.name = "";
-        hd_map.info.meta_data.width = 2000;
-        hd_map.info.meta_data.height = 2000;
-        hd_map.info.meta_data.resolution = 0.02f;
-        hd_map.info.meta_data.origin.position.x =
-            -static_cast<double>(hd_map.info.meta_data.width) * hd_map.info.meta_data.resolution / 2.0;
-        hd_map.info.meta_data.origin.position.y =
-            -static_cast<double>(hd_map.info.meta_data.height) * hd_map.info.meta_data.resolution / 2.0;
+        map_manager::MapInfo map_info;
+        map_info.name = "";
+        map_info.meta_data.width = 2000;
+        map_info.meta_data.height = 2000;
+        map_info.meta_data.resolution = 0.02f;
+        map_info.meta_data.origin.position.x =
+            -static_cast<double>(map_info.meta_data.width) * map_info.meta_data.resolution / 2.0;
+        map_info.meta_data.origin.position.y =
+            -static_cast<double>(map_info.meta_data.height) * map_info.meta_data.resolution / 2.0;
         nav_msgs::OccupancyGrid map_data;
-        map_data.info = hd_map.info.meta_data;
-        map_data.data = std::vector<int8_t>(hd_map.info.meta_data.width * hd_map.info.meta_data.height, 0);
-        layered_map_->setMap(hd_map, map_data);
+        map_data.info = map_info.meta_data;
+        map_data.data = std::vector<int8_t>(map_info.meta_data.width * map_info.meta_data.height, 0);
+        const std::vector<graph_map::Zone> zones;
+        layered_map_->setMap(map_info, map_data, zones);
     }
 
-    path_planner_->setMapData(layered_map_->map());
-    trajectory_planner_->setMapData(layered_map_->map());
-    controller_->setMapData(layered_map_->map());
+    // Create a separate instance of MapData (which contains the occupancy grid) for each planner
+    // This way, updating the map in one planner thread will not slow down the others
+    path_planner_map_data_ = std::make_shared<gridmap::MapData>(
+        layered_map_->map()->map_info, layered_map_->map()->grid.dimensions(), layered_map_->map()->zones);
+    path_planner_->setMapData(path_planner_map_data_);
+    layered_map_->update(path_planner_map_data_->grid);
+
+    trajectory_planner_map_data_ = std::make_shared<gridmap::MapData>(
+        layered_map_->map()->map_info, layered_map_->map()->grid.dimensions(), layered_map_->map()->zones);
+    trajectory_planner_->setMapData(trajectory_planner_map_data_);
+    layered_map_->update(trajectory_planner_map_data_->grid);
+
+    controller_map_data_ = std::make_shared<gridmap::MapData>(
+        layered_map_->map()->map_info, layered_map_->map()->grid.dimensions(), layered_map_->map()->zones);
+    controller_->setMapData(controller_map_data_);
+    layered_map_->update(controller_map_data_->grid);
 
     {
         nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
@@ -275,11 +322,13 @@ void Autonomy::executionThread()
     ros::Rate rate(1);
     while (execution_thread_running_)
     {
-        std::unique_lock<std::mutex> lock(goal_mutex_);
-        if (goal_ || execution_condition_.wait_for(lock, std::chrono::milliseconds(100)) == std::cv_status::no_timeout)
         {
-            executeGoal(*goal_);
-            goal_ = nullptr;
+            std::unique_lock<std::mutex> goal_lock(goal_mutex_);
+            if (goal_)
+            {
+                goal_lock.unlock();
+                executeGoal();
+            }
         }
 
         if (layered_map_->map())
@@ -307,43 +356,46 @@ void Autonomy::executionThread()
     }
 }
 
-void Autonomy::executeGoal(GoalHandle& goal)
+void Autonomy::executeGoal()
 {
-    ROS_INFO_STREAM("Executing goal: " << goal.getGoalID().id);
-
-    current_goal_pub_.publish(goal.getGoal()->target_pose);
+    {
+        std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+        ROS_INFO_STREAM("Executing goal: " << goal_->getGoalID().id);
+        current_goal_pub_.publish(transformed_goal_pose_);
+    }
 
     // make sure no threads are running
     ROS_ASSERT(!running_);
     ROS_ASSERT(!path_planner_thread_);
     ROS_ASSERT(!trajectory_planner_thread_);
     ROS_ASSERT(!controller_thread_);
-    ROS_ASSERT(layered_map_->map());
+    ROS_ASSERT(path_planner_map_data_);
+    ROS_ASSERT(trajectory_planner_map_data_);
+    ROS_ASSERT(controller_map_data_);
 
     controller_done_ = false;
     running_ = true;
 
-    const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings = {
-        goal.getGoal()->std_x, goal.getGoal()->std_y, goal.getGoal()->std_w, goal.getGoal()->max_samples};
-
     // start the threads
-    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this,
-                                               convert(goal.getGoal()->target_pose.pose), goal_sample_settings));
+    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this));
     trajectory_planner_thread_.reset(new std::thread(&Autonomy::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&Autonomy::controllerThread, this));
 
     // wait till all threads are done
     while (running_)
     {
-        if (goal.getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
         {
-            break;
-        }
+            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+            if (goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
+            {
+                break;
+            }
 
-        if (controller_done_)
-        {
-            goal.setSucceeded(autonomy::DriveResult(), "Goal reached");
-            break;
+            if (controller_done_)
+            {
+                goal_->setSucceeded(autonomy::DriveResult(), "Goal reached");
+                break;
+            }
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -370,7 +422,11 @@ void Autonomy::executeGoal(GoalHandle& goal)
     trajectory_planner_thread_.reset();
     controller_thread_.reset();
 
-    ROS_INFO_STREAM("Goal " << goal_->getGoalID().id << " execution complete");
+    {
+        std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+        ROS_INFO_STREAM("Goal " << goal_->getGoalID().id << " execution complete");
+        goal_ = nullptr;
+    }
 }
 
 void Autonomy::goalCallback(GoalHandle goal)
@@ -380,35 +436,91 @@ void Autonomy::goalCallback(GoalHandle goal)
     ROS_INFO_STREAM("Goal standard deviations: X: " << goal.getGoal()->std_x << ", Y: " << goal.getGoal()->std_y
                                                     << ", W: " << goal.getGoal()->std_w
                                                     << ", Max Samples: " << goal.getGoal()->max_samples);
+
+    const gridmap::RobotState robot_state = robot_tracker_->robotState();
+
+    if (!robot_state.localised)
     {
-        if (goal.getGoal()->std_x < 0.0 || goal.getGoal()->std_y < 0.0 || goal.getGoal()->std_w < 0.0)
+        ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Robot not localised");
+        goal.setRejected();
+        return;
+    }
+
+    if (max_planning_distance_ > 0.0)
+    {
+        const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
+        const Eigen::Vector2d goal_position(goal.getGoal()->target_pose.pose.position.x,
+                                            goal.getGoal()->target_pose.pose.position.y);
+        const double dist_to_goal = (robot_pose.translation() - goal_position).squaredNorm();
+        if (dist_to_goal > (max_planning_distance_ * max_planning_distance_))
         {
-            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Bad sample settings");
+            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Goal beyond max planning distance of "
+                                                  << max_planning_distance_ << "m");
+            goal.setRejected();
+            return;
+        }
+    }
+
+    if (goal.getGoal()->std_x < 0.0 || goal.getGoal()->std_y < 0.0 || goal.getGoal()->std_w < 0.0)
+    {
+        ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Bad sample settings");
+        goal.setRejected();
+        return;
+    }
+
+    if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
+    {
+        ROS_INFO_STREAM("Goal is in frame: " << goal.getGoal()->target_pose.header.frame_id
+                                             << ", not: " << global_frame_ << ", transforming...");
+
+        // Transform into global_frame_
+        geometry_msgs::TransformStamped transform;
+        try
+        {
+            transform =
+                tfBuffer_.lookupTransform(global_frame_, goal.getGoal()->target_pose.header.frame_id, ros::Time(0));
+        }
+        catch (tf2::TransformException& ex)
+        {
+            ROS_WARN("%s", ex.what());
             goal.setRejected();
             return;
         }
 
-        if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
-        {
-            goal.setRejected();
-            ROS_WARN_STREAM("Goal is not in global frame: " << global_frame_);
-            return;
-        }
+        // Can't modify pose in-place because it's a const
+        tf2::doTransform(goal.getGoal()->target_pose, transformed_goal_pose_, transform);
+    }
+    else
+    {
+        transformed_goal_pose_ = goal.getGoal()->target_pose;
+    }
 
-        std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
-        if (!lock.owns_lock())
+    // A Goal is already running... preempt old goal and set new as active
+    // Note, this does not actually stop the execution thread. It only updates the goal_, so the
+    // planners should seamlessly pickup the new goal
+    {
+        std::unique_lock<std::mutex> goal_lock(goal_mutex_);
+
+        if (goal_)
         {
-            // A Goal is already running... preempt
-            if (goal_ && goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::ACTIVE)
+            // Goal is currently finishing up. Wait for it to gracefully finish.
+            if (goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED ||
+                goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::SUCCEEDED)
             {
-                ROS_INFO("Goal already executing. Cancelling...");
-                goal_->setCanceled();
+                while (goal_)
+                {
+                    goal_lock.unlock();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    goal_lock.lock();
+                }
             }
-            ROS_INFO("Waiting for previous goal to finish");
-            lock.lock();
+            else
+            {
+                ROS_INFO_STREAM("Updating goal: " << goal_->getGoalID().id << " with: " << goal.getGoalID().id);
+                goal_->setCanceled();  // Old goal
+            }
         }
-
-        if (layered_map_->map())
+        if (layered_map_->map() && path_planner_map_data_ && trajectory_planner_map_data_ && controller_map_data_)
         {
             ROS_INFO_STREAM("Accepted new goal: " << goal.getGoalID().id);
             goal.setAccepted();
@@ -421,30 +533,41 @@ void Autonomy::goalCallback(GoalHandle goal)
             return;
         }
     }
-    execution_condition_.notify_all();
 }
 
-void Autonomy::cancelCallback(GoalHandle goal)
+void Autonomy::cancelCallback(GoalHandle)
 {
-    std::unique_lock<std::mutex> lock(goal_mutex_, std::try_to_lock);
-    if (!lock.owns_lock())
+    std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+
+    if (goal_)
     {
-        if (goal_ && goal.getGoalID().id == goal_->getGoalID().id)
-        {
-            autonomy::DriveFeedback feedback;
-            feedback.state = autonomy::DriveFeedback::NO_PLAN;
-            goal_->publishFeedback(feedback);
-            goal.setCanceled();
-        }
+        ROS_INFO_STREAM("Cancelling goal: " << goal_->getGoalID().id);
+        autonomy::DriveFeedback feedback;
+        feedback.state = autonomy::DriveFeedback::NO_PLAN;
+        goal_->publishFeedback(feedback);
+        goal_->setCanceled();  // Setting as cancelled will let the executeGoal finish gracefully
     }
 }
 
-void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
-                                 const navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings)
+void Autonomy::pathPlannerThread()
 {
     ros::WallRate rate(path_planner_frequency_);
     autonomy::DriveFeedback feedback;
     feedback.state = autonomy::DriveFeedback::NO_PLAN;
+
+    std::string last_goal_id;  // Keeps track of the previous goal ID to see if has been updated
+
+    ROS_ASSERT(layered_map_);
+    ROS_ASSERT(path_planner_map_data_);
+    // Path planning window. Add a 2m border.
+    const int size_x = max_planning_distance_ > 0.0
+                           ? static_cast<int>(((2 * max_planning_distance_) + 4.0) /
+                                              layered_map_->map()->grid.dimensions().resolution())
+                           : layered_map_->map()->grid.dimensions().size().x() * 2.0;
+    const int size_y = max_planning_distance_ > 0.0
+                           ? static_cast<int>(((2 * max_planning_distance_) + 4.0) /
+                                              layered_map_->map()->grid.dimensions().resolution())
+                           : layered_map_->map()->grid.dimensions().size().y() * 2.0;
 
     while (running_)
     {
@@ -452,7 +575,6 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
 
         if (!robot_state.localised)
         {
-            std::lock_guard<std::mutex> lock(path_mutex_);
             current_path_.reset();
 
             // publish
@@ -461,8 +583,12 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             path_pub_.publish(gui_path);
 
             feedback.state = autonomy::DriveFeedback::NO_PLAN;
-            ROS_ASSERT(goal_);
-            goal_->publishFeedback(feedback);
+
+            {
+                std::lock_guard<std::mutex> lock(path_mutex_);
+                ROS_ASSERT(goal_);
+                goal_->publishFeedback(feedback);
+            }
 
             ROS_INFO_STREAM("Robot not localised. Unable to plan!");
 
@@ -471,15 +597,40 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             continue;
         }
 
+        // update costmap around robot
         const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
+        const Eigen::Array2i robot_map = layered_map_->map()->grid.dimensions().getCellIndex(robot_pose.translation());
 
+        const int top_left_x = std::max(0, robot_map.x() - size_x / 2);
+        const int top_left_y = std::max(0, robot_map.y() - size_y / 2);
+
+        const int actual_size_x =
+            std::min(layered_map_->map()->grid.dimensions().size().x() - 1, top_left_x + size_x) - top_left_x;
+        const int actual_size_y =
+            std::min(layered_map_->map()->grid.dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
+
+        ROS_ASSERT((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
+        ROS_ASSERT((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
+
+        const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
         {
+            bool success = false;
             const auto t0 = std::chrono::steady_clock::now();
-            const bool success = layered_map_->update();
+            if (max_planning_distance_ > 0.0)
+            {
+                success = layered_map_->update(path_planner_map_data_->grid, roi);
+            }
+            else
+            {
+                success = layered_map_->update(path_planner_map_data_->grid);
+            }
 
             const double map_update_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
+            std_msgs::Float64 map_update_duration_msg;
+            map_update_duration_msg.data = map_update_duration;
+            planner_map_update_pub_.publish(map_update_duration_msg);
             if (map_update_duration > rate.expectedCycleTime().toSec())
                 ROS_WARN_STREAM("Path Planning map update took too long: " << map_update_duration << "s");
 
@@ -487,8 +638,10 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             {
                 ROS_ERROR("Path Planning map update failed");
 
-                std::lock_guard<std::mutex> lock(path_mutex_);
-                current_path_.reset();
+                {
+                    std::lock_guard<std::mutex> lock(path_mutex_);
+                    current_path_.reset();
+                }
 
                 // publish
                 nav_msgs::Path gui_path;
@@ -496,8 +649,11 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 path_pub_.publish(gui_path);
 
                 feedback.state = autonomy::DriveFeedback::NO_PLAN;
-                ROS_ASSERT(goal_);
-                goal_->publishFeedback(feedback);
+                {
+                    std::lock_guard<std::mutex> lock(goal_mutex_);
+                    ROS_ASSERT(goal_);
+                    goal_->publishFeedback(feedback);
+                }
 
                 rate.sleep();
 
@@ -505,36 +661,71 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
             }
 
             {
-                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                nav_msgs::OccupancyGrid grid = path_planner_map_data_->grid.toMsg();
                 grid.header.frame_id = "map";
                 grid.header.stamp = ros::Time::now();
                 costmap_publisher_.publish(grid);
             }
         }
+        bool goal_updated = false;
+        Eigen::Isometry2d goal_pose;
+        navigation_interface::PathPlanner::GoalSampleSettings goal_sample_settings;
+        double avoid_distance;
+        double backwards_mult;
+        double strafe_mult;
+        double rotation_mult;
+        {
+            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+            ROS_ASSERT(goal_);
+            goal_pose = convert(transformed_goal_pose_.pose);
+            goal_sample_settings.std_x = goal_->getGoal()->std_x;
+            goal_sample_settings.std_y = goal_->getGoal()->std_y;
+            goal_sample_settings.std_w = goal_->getGoal()->std_w;
+            goal_sample_settings.max_samples = goal_->getGoal()->max_samples;
 
+            avoid_distance = goal_->getGoal()->avoid_distance;
+
+            backwards_mult = goal_->getGoal()->backwards_mult;
+            strafe_mult = goal_->getGoal()->strafe_mult;
+            rotation_mult = goal_->getGoal()->rotation_mult;
+
+            if (goal_->getGoalID().id != last_goal_id)
+            {
+                goal_updated = true;
+                ROS_INFO_STREAM("Goal updated from: " << last_goal_id << " to:" << goal_->getGoalID().id);
+            }
+            last_goal_id = goal_->getGoalID().id;
+        }
+
+        // Plan
         navigation_interface::PathPlanner::Result result;
         const auto now = ros::SteadyTime::now();
         {
+
             const auto t0 = std::chrono::steady_clock::now();
-            result = path_planner_->plan(robot_pose, goal, goal_sample_settings);
+            result = path_planner_->plan(roi, robot_pose, goal_pose, goal_sample_settings, avoid_distance,
+                                         backwards_mult, strafe_mult, rotation_mult);
 
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
             if (plan_duration > rate.expectedCycleTime().toSec())
                 ROS_WARN_STREAM("Path Planning took too long: " << plan_duration << "s");
+
+            ROS_DEBUG_STREAM("Path Planning took: " << plan_duration << " s.");
         }
 
         if (!running_)
             break;
 
+        // Use some heuristics to decide if the new plan should be used or we stick to the old one
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
             bool update = false;
             ROS_ASSERT(!result.path.nodes.empty());
 
             std::lock_guard<std::mutex> lock(path_mutex_);
-            if (current_path_)
+            if (current_path_ && !goal_updated)
             {
                 // trim the current path to the robot pose
                 navigation_interface::Path path = current_path_->path;
@@ -549,7 +740,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 }
 
                 // get the current path cost
-                const double cost = path_planner_->cost(path);
+                const double cost = path_planner_->cost(path, avoid_distance);
                 if (cost < std::numeric_limits<double>::max())
                 {
                     current_path_->last_successful_time = now;
@@ -583,16 +774,20 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                                          << " dist_to_old: " << distance_to_old_path << "m (" << robot_near_old_path
                                          << ")");
             }
-            else
+            else if (!current_path_)
             {
                 ROS_INFO_STREAM("First path found");
+                update = true;
+            }
+            else
+            {
                 update = true;
             }
 
             if (update)
             {
                 result.path.id = uuid();
-                current_path_.reset(new TrackingPath{goal, now, result.cost, now, result.cost, result.path});
+                current_path_.reset(new TrackingPath{goal_pose, now, result.cost, now, result.cost, result.path});
 
                 // publish
                 nav_msgs::Path gui_path;
@@ -639,7 +834,7 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
                 current_trajectory_.reset();
 
                 ROS_INFO_STREAM("Clearing radius of " << clear_radius_ << "m around robot");
-                layered_map_->clearRadius(robot_pose.translation(), clear_radius_);
+                layered_map_->clearRadius(path_planner_map_data_->grid, robot_pose.translation(), clear_radius_);
 
                 ROS_INFO("Waiting for sensors to stabilise...");
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
@@ -647,8 +842,11 @@ void Autonomy::pathPlannerThread(const Eigen::Isometry2d& goal,
         }
 
         // Update feedback to correspond to our current position
-        ROS_ASSERT(goal_);
-        goal_->publishFeedback(feedback);
+        {
+            std::lock_guard<std::mutex> lock(path_mutex_);
+            ROS_ASSERT(goal_);
+            goal_->publishFeedback(feedback);
+        }
 
         rate.sleep();
     }
@@ -664,6 +862,7 @@ void Autonomy::trajectoryPlannerThread()
     ros::WallRate rate(trajectory_planner_frequency_);
 
     ROS_ASSERT(layered_map_);
+    ROS_ASSERT(trajectory_planner_map_data_);
     const int size_x = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
     const int size_y = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
 
@@ -734,13 +933,18 @@ void Autonomy::trajectoryPlannerThread()
 
         {
             const auto t0 = std::chrono::steady_clock::now();
-            const bool success = layered_map_->update(roi);
+            const bool success = layered_map_->update(trajectory_planner_map_data_->grid, roi);
 
             const double map_update_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
+
+            std_msgs::Float64 map_update_duration_msg;
+            map_update_duration_msg.data = map_update_duration;
+            trajectory_map_update_pub_.publish(map_update_duration_msg);
+
             if (map_update_duration > rate.expectedCycleTime().toSec())
-                ROS_WARN_STREAM("Trajectory Planning map update took too long: " << map_update_duration << "s");
+                ROS_WARN_STREAM("Trajectory Planning map update took too long: " << map_update_duration << " s.");
 
             if (!success)
             {
@@ -758,13 +962,14 @@ void Autonomy::trajectoryPlannerThread()
 
                 continue;
             }
+        }
 
-            {
-                nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg(roi);
-                grid.header.frame_id = "map";
-                grid.header.stamp = ros::Time::now();
-                costmap_publisher_.publish(grid);
-            }
+        double avoid_distance;
+        {
+            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+            ROS_ASSERT(goal_);
+
+            avoid_distance = goal_->getGoal()->avoid_distance;
         }
 
         navigation_interface::TrajectoryPlanner::Result result;
@@ -773,13 +978,13 @@ void Autonomy::trajectoryPlannerThread()
 
             // optimise path
             const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
-            result = trajectory_planner_->plan(roi, ks, robot_state.map_to_odom);
+            result = trajectory_planner_->plan(roi, ks, robot_state.map_to_odom, avoid_distance);
 
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
             if (plan_duration > rate.expectedCycleTime().toSec())
-                ROS_WARN_STREAM("Trajectory Planning took too long: " << plan_duration << "s");
+                ROS_WARN_STREAM("Trajectory Planning took too long: " << plan_duration << " s.");
         }
 
         // update trajectory for the controller
@@ -840,6 +1045,7 @@ void Autonomy::controllerThread()
     ros::Time last_odom_time(0);
 
     ROS_ASSERT(layered_map_);
+    ROS_ASSERT(controller_map_data_);
     const int size_x = static_cast<int>(5.0 / layered_map_->map()->grid.dimensions().resolution());
     const int size_y = static_cast<int>(5.0 / layered_map_->map()->grid.dimensions().resolution());
 
@@ -860,19 +1066,21 @@ void Autonomy::controllerThread()
         last_odom_time = robot_state.odom.time;
 
         // check if a new trajectory is available
-        std::lock_guard<std::mutex> lock(trajectory_mutex_);
-        if (current_trajectory_ && robot_state.localised)
         {
-            const auto p = controller_->trajectoryId();
-            if (!p || current_trajectory_->trajectory.id != p.get())
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
+            if (current_trajectory_ && robot_state.localised)
             {
-                controller_->setTrajectory(current_trajectory_->trajectory);
+                const auto p = controller_->trajectoryId();
+                if (!p || current_trajectory_->trajectory.id != p.get())
+                {
+                    controller_->setTrajectory(current_trajectory_->trajectory);
+                }
             }
-        }
-        else
-        {
-            vel_pub_.publish(geometry_msgs::Twist());
-            continue;
+            else
+            {
+                vel_pub_.publish(geometry_msgs::Twist());
+                continue;
+            }
         }
 
         // update costmap around robot
@@ -895,7 +1103,7 @@ void Autonomy::controllerThread()
         {
             const auto t0 = std::chrono::steady_clock::now();
 
-            const bool success = layered_map_->update(roi);
+            const bool success = layered_map_->update(controller_map_data_->grid, roi);
 
             if (!success)
             {
@@ -907,12 +1115,32 @@ void Autonomy::controllerThread()
             const double map_update_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
+
+            std_msgs::Float64 map_update_duration_msg;
+            map_update_duration_msg.data = map_update_duration;
+            control_map_update_pub_.publish(map_update_duration_msg);
+
             if (1e3 * map_update_duration > period_ms)
             {
                 ROS_ERROR_STREAM("Control Planning map update took too long: " << map_update_duration << "s");
                 vel_pub_.publish(geometry_msgs::Twist());
                 continue;
             }
+        }
+
+        Eigen::Vector3d max_velocity;
+        double xy_goal_tolerance;
+        double yaw_goal_tolerance;
+        {
+            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+            ROS_ASSERT(goal_);
+
+            max_velocity[0] = goal_->getGoal()->max_velocity_x;
+            max_velocity[1] = goal_->getGoal()->max_velocity_y;
+            max_velocity[2] = goal_->getGoal()->max_velocity_w;
+
+            xy_goal_tolerance = goal_->getGoal()->xy_goal_tolerance;
+            yaw_goal_tolerance = goal_->getGoal()->yaw_goal_tolerance;
         }
 
         navigation_interface::Controller::Result result;
@@ -922,7 +1150,8 @@ void Autonomy::controllerThread()
             // control
             const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
             const auto t = ros::SteadyTime::now();
-            result = controller_->control(t, roi, ks, robot_state.map_to_odom);
+            result = controller_->control(t, roi, ks, robot_state.map_to_odom, max_velocity, xy_goal_tolerance,
+                                          yaw_goal_tolerance);
 
             const double control_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
@@ -949,6 +1178,7 @@ void Autonomy::controllerThread()
         // finish if end of path
         if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE)
         {
+            std::lock_guard<std::mutex> lock(trajectory_mutex_);
             if (current_trajectory_->goal_trajectory)
             {
                 ROS_INFO("Final trajectory complete");

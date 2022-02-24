@@ -1,16 +1,20 @@
 #ifndef GRIDMAP_LAYER_H
 #define GRIDMAP_LAYER_H
 
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
+#include <graph_map/Zone.h>
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/grids/occupancy_grid.h>
 #include <gridmap/robot_tracker.h>
 #include <gridmap/urdf_tree.h>
-#include <hd_map/Map.h>
+#include <map_manager/MapInfo.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <tf2_ros/buffer.h>
 #include <yaml-cpp/yaml.h>
 
 #include <memory>
+#include <thread>
 
 namespace gridmap
 {
@@ -33,15 +37,17 @@ class Layer
     virtual bool clear() = 0;
     virtual bool clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) = 0;
 
-    void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data)
+    void setMap(const map_manager::MapInfo& map_info, const nav_msgs::OccupancyGrid& map_data,
+                const std::vector<graph_map::Zone>& zones)
     {
         ROS_INFO_STREAM("Updating map: " << name());
-        std::lock_guard<std::timed_mutex> lock(map_mutex_);
-        hd_map_ = std::make_shared<hd_map::Map>(hd_map);
-        map_dimensions_.reset(
-            new MapDimensions(hd_map.info.meta_data.resolution,
-                              {hd_map.info.meta_data.origin.position.x, hd_map.info.meta_data.origin.position.y},
-                              {hd_map.info.meta_data.width, hd_map.info.meta_data.height}));
+        // cppcheck-suppress unreadVariable
+        const auto lock = getWriteLock();
+        map_info_ = std::make_shared<map_manager::MapInfo>(map_info);
+        zones_ = std::make_shared<std::vector<graph_map::Zone>>(zones);
+        map_dimensions_.reset(new MapDimensions(
+            map_info.meta_data.resolution, {map_info.meta_data.origin.position.x, map_info.meta_data.origin.position.y},
+            {map_info.meta_data.width, map_info.meta_data.height}));
         onMapChanged(map_data);
         ROS_INFO_STREAM("Updating map: " << name() << " DONE");
     }
@@ -57,9 +63,14 @@ class Layer
         onInitialize(parameters);
     }
 
-    const hd_map::Map& hdMap() const
+    const map_manager::MapInfo& mapInfo() const
     {
-        return *hd_map_;
+        return *map_info_;
+    }
+
+    const std::vector<graph_map::Zone>& zones() const
+    {
+        return *zones_;
     }
 
     const MapDimensions& dimensions() const
@@ -77,15 +88,37 @@ class Layer
         return global_frame_;
     }
 
+    boost::shared_lock<boost::shared_mutex> getReadLock() const
+    {
+        return boost::shared_lock<boost::shared_mutex>(layer_mutex_);
+    }
+
+    // By default, the unique_lock (write lock) has priority over shared_lock. This means while the writer is trying
+    // to get a lock, new readers cannot grab the lock. This effectively means one reader can block another reader
+    // if a writer is trying to get the lock.
+    // To get around this, we use a non-blocking try_to_lock every 5ms and during the sleeps, new readers can lock.
+    // This means readers have priority and writers have to wait for windows where there are no reader.
+    boost::unique_lock<boost::shared_mutex> getWriteLock() const
+    {
+        boost::unique_lock<boost::shared_mutex> lock(layer_mutex_, boost::try_to_lock_t());
+        while (!lock.owns_lock())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            lock.try_lock();
+        }
+        return lock;
+    }
+
   protected:
-    mutable std::timed_mutex map_mutex_;
+    mutable boost::shared_timed_mutex layer_mutex_;
 
     std::shared_ptr<RobotTracker> robot_tracker_;
     std::shared_ptr<URDFTree> urdf_tree_;
     std::vector<Eigen::Vector2d> robot_footprint_;
 
   private:
-    std::shared_ptr<hd_map::Map> hd_map_;
+    std::shared_ptr<map_manager::MapInfo> map_info_;
+    std::shared_ptr<std::vector<graph_map::Zone>> zones_;
     std::shared_ptr<MapDimensions> map_dimensions_;
     std::string name_;
 

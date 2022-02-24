@@ -1,8 +1,11 @@
-hd_map/Map map
+map_manager/MapInfo map_info
+
+string node_graph
+string area_tree
+graph_map/Zone[] zones
 
 sensor_msgs/CompressedImage occupancy_grid
-
-uint8[] map_data
+uint8[] pbstream
 
 ---
 bool success

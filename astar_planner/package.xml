@@ -13,7 +13,6 @@
     <depend>eigen</depend>
     <depend>geometry_msgs</depend>
     <depend>gridmap</depend>
-    <depend>hd_map</depend>
     <depend>libopencv-dev</depend>
     <depend>nav_msgs</depend>
     <depend>navigation_interface</depend>

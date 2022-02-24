@@ -51,8 +51,7 @@ def triangulate(polygon):
         print("error: {}".format(what))
 
     def cb_combine(c, v, weight):
-        print("combine:" + c + v + weight + "(this will probably cause problems)")
-        return c[0], c[1], c[2]
+        return v[0]
 
     tess = OpenGL.GLU.gluNewTess()
 
