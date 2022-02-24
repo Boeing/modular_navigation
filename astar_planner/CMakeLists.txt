@@ -9,7 +9,6 @@ find_package(
         cv_bridge
         geometry_msgs
         gridmap
-        hd_map
         nav_msgs
         navigation_interface
         pluginlib
@@ -32,7 +31,6 @@ catkin_package(
     cv_bridge
     geometry_msgs
     gridmap
-    hd_map
     nav_msgs
     navigation_interface
     pluginlib

@@ -4,7 +4,7 @@
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/layers/layer.h>
 #include <gridmap/map_data.h>
-#include <hd_map/Map.h>
+#include <map_manager/MapInfo.h>
 
 #include <memory>
 #include <vector>
@@ -18,14 +18,18 @@ class LayeredMap
     LayeredMap(const std::shared_ptr<BaseMapLayer>& base_map_layer, const std::vector<std::shared_ptr<Layer>>& layers);
 
     bool update();
+    bool update(OccupancyGrid& grid);
 
     bool update(const AABB& bb);
+    bool update(OccupancyGrid& grid, const AABB& bb);
 
     void clear();
 
     void clearRadius(const Eigen::Vector2d& pose, const double radius);
+    void clearRadius(OccupancyGrid& grid, const Eigen::Vector2d& pose, const double radius);
 
-    void setMap(const hd_map::Map& hd_map, const nav_msgs::OccupancyGrid& map_data);
+    void setMap(const map_manager::MapInfo& map_info, const nav_msgs::OccupancyGrid& map_data,
+                const std::vector<graph_map::Zone>& zones);
 
     std::shared_ptr<const MapData> map() const
     {

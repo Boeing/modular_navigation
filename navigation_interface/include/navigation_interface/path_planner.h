@@ -29,20 +29,21 @@ class PathPlanner
 
     struct GoalSampleSettings
     {
-        const double std_x;
-        const double std_y;
-        const double std_w;
-        const std::size_t max_samples;
+        double std_x;
+        double std_y;
+        double std_w;
+        std::size_t max_samples;
     };
 
     PathPlanner() = default;
     virtual ~PathPlanner() = default;
 
-    virtual Result plan(const Eigen::Isometry2d& start, const Eigen::Isometry2d& goal,
-                        const GoalSampleSettings& sample) = 0;
+    virtual Result plan(const gridmap::AABB& local_region, const Eigen::Isometry2d& start,
+                        const Eigen::Isometry2d& goal, const GoalSampleSettings& sample, const double avoid_distance,
+                        const double backwards_mult, const double strafe_mult, const double rotation_mult) = 0;
 
-    virtual bool valid(const Path& path) const = 0;
-    virtual double cost(const Path& path) const = 0;
+    virtual bool valid(const Path& path, const double avoid_distance) const = 0;
+    virtual double cost(const Path& path, const double avoid_distance) const = 0;
 
     virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;

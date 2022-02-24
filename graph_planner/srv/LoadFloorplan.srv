@@ -1,0 +1,7 @@
+string floorplan_name
+
+---
+string floorplan_json
+
+bool success
+string message

@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>graph_planner</name>
+    <description>graph_planner</description>
+    <version>0.1.0</version>
+    <maintainer email="william.ko@boeing.com">William Ko</maintainer>
+    <author>William Ko</author>
+    <author>Leng Vongchahn</author>
+    <license>Boeing Proprietary</license>
+
+    <buildtool_depend>catkin</buildtool_depend>
+
+    <depend>nav_msgs</depend>
+    <depend>geometry_msgs</depend>
+    <depend>message_generation</depend>
+    <depend>std_msgs</depend>
+    <depend>map_manager</depend>
+    <depend>graph_map</depend>
+
+    <exec_depend>message_runtime</exec_depend>
+    <exec_depend>python3-networkx</exec_depend>
+
+    <test_depend>rostest</test_depend>
+</package>

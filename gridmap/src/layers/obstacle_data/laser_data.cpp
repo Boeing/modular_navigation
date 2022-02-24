@@ -61,7 +61,7 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
         static_cast<unsigned int>(raytrace_range_ / map_data_->dimensions().resolution());
 
     {
-        auto _lock = map_data_->getLock();
+        auto _lock = map_data_->getWriteLock();
         AddLogCost marker(map_data_->cells().data(), miss_probability_log_, map_data_->clampingThresMinLog(),
                           map_data_->clampingThresMaxLog());
         for (size_t i = 0; i < msg->ranges.size(); i++)

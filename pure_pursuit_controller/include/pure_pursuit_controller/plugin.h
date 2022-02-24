@@ -25,7 +25,8 @@ class PurePursuitController : public navigation_interface::Controller
 
     virtual Result control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
                            const navigation_interface::KinodynamicState& robot_state,
-                           const Eigen::Isometry2d& map_to_odom) override;
+                           const Eigen::Isometry2d& map_to_odom, const Eigen::Vector3d max_velocity,
+                           const double xy_goal_tolerance, const double yaw_goal_tolerance) override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;

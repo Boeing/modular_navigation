@@ -1,9 +1,10 @@
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
 #include <astar_planner/visualisation.h>
+#include <graph_map/Zone.h>
 #include <gridmap/map_data.h>
 #include <gtest/gtest.h>
-#include <hd_map/Map.h>
+#include <map_manager/MapInfo.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
@@ -19,9 +20,10 @@ class PlanningTest : public testing::Test
     {
         const Eigen::Vector2d origin = {-(size_x / 2.) * resolution, -(size_y / 2.) * resolution};
 
-        const hd_map::Map hd_map;
+        const map_manager::MapInfo map_info;
+        const std::vector<graph_map::Zone> zones;
         const gridmap::MapDimensions dimensions(resolution, origin, {size_x, size_y});
-        map_data = std::make_shared<gridmap::MapData>(hd_map, dimensions);
+        map_data = std::make_shared<gridmap::MapData>(map_info, dimensions, zones);
 
         cv_im = cv::Mat(map_data->grid.dimensions().size().y(), map_data->grid.dimensions().size().x(), CV_8U,
                         reinterpret_cast<void*>(map_data->grid.cells().data()));

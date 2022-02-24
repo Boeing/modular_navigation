@@ -14,13 +14,14 @@ TEST(test_plugin, test_plugin)
     const int size_x = 20 / resolution;
     const int size_y = 20 / resolution;
 
-    hd_map::Map hd_map;
-    hd_map.info.meta_data.width = size_x;
-    hd_map.info.meta_data.height = size_y;
+    map_manager::MapInfo map_info;
+    map_info.meta_data.width = size_x;
+    map_info.meta_data.height = size_y;
     const gridmap::MapDimensions map_dims(resolution, {-(size_x / 2) * resolution, -(size_y / 2) * resolution},
                                           {size_x, size_y});
 
-    std::shared_ptr<gridmap::MapData> map_data = std::make_shared<gridmap::MapData>(hd_map, map_dims);
+    const std::vector<graph_map::Zone> zones;
+    std::shared_ptr<gridmap::MapData> map_data = std::make_shared<gridmap::MapData>(map_info, map_dims, zones);
 
     cv::Mat cv_im = cv::Mat(map_data->grid.dimensions().size().y(), map_data->grid.dimensions().size().x(), CV_8U,
                             reinterpret_cast<void*>(const_cast<uint8_t*>(map_data->grid.cells().data())));

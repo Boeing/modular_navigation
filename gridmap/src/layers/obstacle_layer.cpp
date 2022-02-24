@@ -1,3 +1,5 @@
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
 #include <geometry_msgs/PolygonStamped.h>
 #include <gridmap/layers/obstacle_layer.h>
 #include <opencv2/imgproc.hpp>
@@ -79,7 +81,8 @@ ObstacleLayer::~ObstacleLayer()
 
 bool ObstacleLayer::draw(OccupancyGrid& grid) const
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
 
     if (!probability_grid_)
         return false;
@@ -88,7 +91,9 @@ bool ObstacleLayer::draw(OccupancyGrid& grid) const
         return false;
 
     // cppcheck-suppress unreadVariable
-    const auto lock = probability_grid_->getLock();
+    const auto src_lock = probability_grid_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
     const int size = dimensions().cells();
     for (int index = 0; index < size; ++index)
     {
@@ -99,9 +104,8 @@ bool ObstacleLayer::draw(OccupancyGrid& grid) const
 
 bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb) const
 {
-    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
-
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
 
     if (!probability_grid_)
         return false;
@@ -110,7 +114,12 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb) const
         return false;
 
     // cppcheck-suppress unreadVariable
-    const auto lock = probability_grid_->getLock();
+    const auto src_lock = probability_grid_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
+
+    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
     {
@@ -126,7 +135,8 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb) const
 
 bool ObstacleLayer::update(OccupancyGrid& grid) const
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
 
     if (!probability_grid_)
         return false;
@@ -135,7 +145,9 @@ bool ObstacleLayer::update(OccupancyGrid& grid) const
         return false;
 
     // cppcheck-suppress unreadVariable
-    const auto lock = probability_grid_->getLock();
+    const auto src_lock = probability_grid_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
     const int size = dimensions().cells();
     for (int index = 0; index < size; ++index)
     {
@@ -149,9 +161,8 @@ bool ObstacleLayer::update(OccupancyGrid& grid) const
 
 bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb) const
 {
-    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
-
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
 
     if (!probability_grid_)
         return false;
@@ -160,8 +171,12 @@ bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb) const
         return false;
 
     // cppcheck-suppress unreadVariable
-    // TODO timeout on lock getting?
-    const auto lock = probability_grid_->getLock();
+    const auto src_lock = probability_grid_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
+
+    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
     {
@@ -205,6 +220,8 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     probability_grid_ =
         std::make_shared<ProbabilityGrid>(dimensions(), clamping_thres_min_, clamping_thres_max_, occ_prob_thres_);
 
+    // cppcheck-suppress unreadVariable
+    const auto grid_lock = probability_grid_->getWriteLock();
     for (auto plugin : data_sources_)
     {
         plugin.second->setMapData(probability_grid_);
@@ -249,13 +266,14 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
 
 bool ObstacleLayer::clear()
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
 
     if (!probability_grid_)
         return false;
 
     // cppcheck-suppress unreadVariable
-    auto lock = probability_grid_->getLock();
+    const auto grid_lock = probability_grid_->getWriteLock();
     std::fill(probability_grid_->cells().begin(), probability_grid_->cells().end(), 0.0);
 
     return true;
@@ -263,13 +281,15 @@ bool ObstacleLayer::clear()
 
 bool ObstacleLayer::clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius)
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
 
     if (!probability_grid_)
         return false;
 
     // cppcheck-suppress unreadVariable
-    auto lock = probability_grid_->getLock();
+    const auto grid_lock = probability_grid_->getWriteLock();
+    // Write directly to probability_grid_ by reinterpreting the grid as a cv::Mat
     cv::Mat cv_im = cv::Mat(probability_grid_->dimensions().size().y(), probability_grid_->dimensions().size().x(),
                             CV_64F, reinterpret_cast<void*>(probability_grid_->cells().data()));
     cv::circle(cv_im, cv::Point(cell_index.x(), cell_index.y()), cell_radius,
@@ -295,12 +315,12 @@ void ObstacleLayer::debugVizThread(const double frequency)
 {
     nav_msgs::OccupancyGrid grid;
     ros::Rate rate(frequency);
-    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
+    const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
 
     while (debug_viz_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
+            boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
             if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
                 robot_state.localised)
@@ -338,7 +358,8 @@ void ObstacleLayer::debugVizThread(const double frequency)
                 grid.header.stamp = ros::Time::now();
 
                 {
-                    auto lock = probability_grid_->getLock();
+                    // cppcheck-suppress unreadVariable
+                    const auto lock = probability_grid_->getReadLock();
 
                     ROS_ASSERT((top_left_x + actual_size_x) <= probability_grid_->dimensions().size().x());
                     ROS_ASSERT((top_left_y + actual_size_y) <= probability_grid_->dimensions().size().y());
@@ -376,12 +397,12 @@ void ObstacleLayer::debugVizThread(const double frequency)
 void ObstacleLayer::clearFootprintThread(const double frequency)
 {
     ros::Rate rate(frequency);
-    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
+    const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
 
     while (clear_footprint_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
+            boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
             if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
@@ -389,7 +410,8 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
                 const auto footprint =
                     buildFootprintSet(probability_grid_->dimensions(), robot_pose, robot_footprint_, 0.95);
 
-                auto pg_lock = probability_grid_->getLock();
+                // cppcheck-suppress unreadVariable
+                const auto pg_lock = probability_grid_->getWriteLock();
                 for (const auto& elem : footprint)
                 {
                     const Eigen::Array2i index = KeyToIndex(elem);
@@ -406,14 +428,13 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
 void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
     ros::Rate rate(frequency);
-    const std::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec()));
+    const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
 
     // divide the grid into a set of blocks which we can mark as dirty
     // only update dirty blocks
     // clear the blocks when the robot moves away from them
     const int block_size = 256;
     const Eigen::Array2i block_dims = probability_grid_->dimensions().size() / block_size;
-    std::vector<bool> dirty_blocks(static_cast<std::size_t>(block_dims.x() * block_dims.y()), true);
 
     auto get_block_id = [block_size](const Eigen::Array2i& xy) { return xy.y() * block_size + xy.x(); };
     auto get_block_xy = [block_size](const int index) {
@@ -427,7 +448,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
         const int top_left_y = block_size * block_xy.y();
         const int size_x = std::min(pg->dimensions().size().x() - 1, top_left_x + block_size) - top_left_x;
         const int size_y = std::min(pg->dimensions().size().y() - 1, top_left_y + block_size) - top_left_y;
-        auto pg_lock = pg->getLock();
+        const auto pg_lock = pg->getWriteLock();
         const int y_size = top_left_y + size_y;
         for (int y = top_left_y; y < y_size; y++)
         {
@@ -446,7 +467,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
         const int top_left_y = block_size * block_xy.y();
         const int size_x = std::min(pg->dimensions().size().x() - 1, top_left_x + block_size) - top_left_x;
         const int size_y = std::min(pg->dimensions().size().y() - 1, top_left_y + block_size) - top_left_y;
-        auto pg_lock = pg->getLock();
+        const auto pg_lock = pg->getWriteLock();
         const int y_size = top_left_y + size_y;
         for (int y = top_left_y; y < y_size; y++)
         {
@@ -464,7 +485,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     while (time_decay_running_ && ros::ok())
     {
         {
-            std::unique_lock<std::timed_mutex> _lock(map_mutex_, period);
+            boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
             if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {

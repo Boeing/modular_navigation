@@ -1,0 +1,6 @@
+# an empty map_name will use the currently loaded map
+string map_name
+---
+string area_tree
+bool success
+string message

@@ -1,9 +1,0 @@
-# an empty map will use the currently loaded map
-string map_name
-
-hd_map/Marker[] markers
-hd_map/Zone[] zones
-
----
-bool success
-string message

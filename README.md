@@ -81,7 +81,6 @@ Meta-package for navigation stack. Contains:
 - `sim_band_planner` - Sim band (trajectory optimiser)
 - `pure_pursuit_controller` - Pure Pursuit (controller)
 - `gridmap` - Layered probability grid
-- `hd_map` - interface package
 - `map_manager` - map database interface
 
 #### Overview

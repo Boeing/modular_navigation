@@ -66,7 +66,7 @@ struct Costmap
             cv::dilate(obstacle_map, dilated, ellipse);
         }
 
-        // flip
+        // flip because distanceTransform finds the distance to the nearest ZERO pixel
         cv::bitwise_not(dilated, dilated);
 
         // allocate
@@ -74,6 +74,35 @@ struct Costmap
 
         // find obstacle distances
         cv::distanceTransform(dilated, distance_to_collision, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
+    }
+
+    void processObstacleMap(const gridmap::AABB& local_region)
+    {
+        cv::Rect roi(local_region.roi_start.x(), local_region.roi_start.y(), local_region.roi_size.x(),
+                     local_region.roi_size.y());
+
+        cv::Mat obstacle_map_roi = obstacle_map(roi);
+
+        cv::Mat dilated(obstacle_map.size(), CV_8U, 255);
+        cv::Mat dilated_roi = dilated(roi);
+        {
+            // dilate robot radius
+            const int cell_inflation_radius = static_cast<int>(2.0 * inflation_radius / resolution);
+            auto ellipse =
+                cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(cell_inflation_radius, cell_inflation_radius));
+
+            cv::dilate(obstacle_map_roi, dilated_roi, ellipse);
+        }
+
+        // flip because distanceTransform finds the distance to the nearest ZERO pixel
+        cv::bitwise_not(dilated_roi, dilated_roi);
+
+        // allocate. Set distance to 0.0 by default.
+        distance_to_collision = cv::Mat(dilated.size(), CV_32F, 0.0f);
+        cv::Mat distance_to_collision_roi = distance_to_collision(roi);
+
+        // find obstacle distances
+        cv::distanceTransform(dilated_roi, distance_to_collision_roi, cv::DIST_L2, cv::DIST_MASK_PRECISE, CV_32F);
     }
 
     inline Eigen::Array2i getCellIndex(const Eigen::Vector2d& point) const

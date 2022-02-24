@@ -8,7 +8,7 @@ import rospy.impl.rosout
 from nav_msgs.srv import GetMap, GetMapRequest, GetMapResponse
 from sensor_msgs.msg import CompressedImage
 
-from hd_map.msg import Map, MapInfo
+from map_manager.msg import MapInfo
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from sm_core.state import COMPLETED, FAILED
 
@@ -32,11 +32,9 @@ def task(map_name):
     # Save the map
     save_map_response = save_map.call(
         AddMapRequest(
-            map=Map(
-                info=MapInfo(
+            map_info=MapInfo(
                     name=map_name,
                     meta_data=get_map_response.map.info
-                )
             ),
             occupancy_grid=CompressedImage(
                 format='raw',

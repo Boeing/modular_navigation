@@ -45,10 +45,10 @@ class TrajectoryPlanner
     virtual boost::optional<Path> path() const = 0;
 
     virtual Result plan(const gridmap::AABB& local_region, const KinodynamicState& robot_state,
-                        const Eigen::Isometry2d& map_to_odom) = 0;
+                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance) = 0;
 
-    virtual bool valid(const Trajectory& trajectory) const = 0;
-    virtual double cost(const Trajectory& trajectory) const = 0;
+    virtual bool valid(const Trajectory& trajectory, const double avoid_distance) const = 0;
+    virtual double cost(const Trajectory& trajectory, const double avoid_distance) const = 0;
 
     virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;

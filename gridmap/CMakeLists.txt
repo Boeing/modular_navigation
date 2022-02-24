@@ -12,9 +12,9 @@ find_package(
         cmake_modules
         cv_bridge
         geometry_msgs
-        hd_map
         image_geometry
         laser_geometry
+        map_manager
         map_msgs
         message_filters
         nav_msgs
@@ -50,9 +50,9 @@ catkin_package(
     cartographer_ros_msgs
     cv_bridge
     geometry_msgs
-    hd_map
     image_geometry
     laser_geometry
+    map_manager
     map_msgs
     message_filters
     nav_msgs

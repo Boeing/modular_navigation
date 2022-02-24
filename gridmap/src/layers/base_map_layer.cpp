@@ -1,3 +1,6 @@
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
+#include <graph_map/Zone.h>
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/operations/rasterize.h>
 #include <pluginlib/class_list_macros.h>
@@ -9,44 +12,56 @@ namespace gridmap
 
 bool BaseMapLayer::draw(OccupancyGrid& grid) const
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
-    const auto lock = map_->getLock();
+    const auto src_lock = map_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
     map_->copyTo(grid);
     return true;
 }
 
 bool BaseMapLayer::draw(OccupancyGrid& grid, const AABB& bb) const
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
-    const auto lock = map_->getLock();
+    const auto src_lock = map_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
     map_->copyTo(grid, bb);
     return true;
 }
 
 bool BaseMapLayer::update(OccupancyGrid& grid) const
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
-    const auto lock = map_->getLock();
+    const auto src_lock = map_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
     grid.merge(*map_);
     return true;
 }
 
 bool BaseMapLayer::update(OccupancyGrid& grid, const AABB& bb) const
 {
-    std::lock_guard<std::timed_mutex> g(map_mutex_);
+    // cppcheck-suppress unreadVariable
+    const auto layer_lock = getReadLock();
     if (!map_)
         return false;
     // cppcheck-suppress unreadVariable
-    const auto lock = map_->getLock();
+    const auto src_lock = map_->getReadLock();
+    // cppcheck-suppress unreadVariable
+    const auto dst_lock = grid.getWriteLock();
     grid.merge(*map_, bb);
     return true;
 }
@@ -60,9 +75,7 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
 {
     map_ = std::make_shared<OccupancyGrid>(dimensions());
 
-    uint8_t default_value = OccupancyGrid::FREE;
-    if (hdMap().default_zone == hd_map::Zone::EXCLUSION_ZONE)
-        default_value = OccupancyGrid::OCCUPIED;
+    uint8_t default_value = OccupancyGrid::UNKNOWN;
 
     //
     // Copy the occupancy grid into the costmap
@@ -70,6 +83,7 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
     const std::size_t size = dimensions().cells();
     for (std::size_t index = 0; index < size; ++index)
     {
+        // OG mapping: 0 for free, 100 for obstacle and -1 for unknown
         map_->cells()[index] =
             ((int)new_map.data[index]) >= ((int)lethal_threshold_) ? OccupancyGrid::OCCUPIED : default_value;
     }
@@ -77,54 +91,55 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
     //
     // Raster zones
     //
-    for (const hd_map::Zone& zone : hdMap().zones)
+    for (const graph_map::Zone& zone : zones())
     {
-        int min_x = std::numeric_limits<int>::max();
-        int max_x = 0;
-
-        int min_y = std::numeric_limits<int>::max();
-        int max_y = 0;
-
-        std::vector<Eigen::Array2i> map_polygon;
-        for (const geometry_msgs::Point32& p : zone.polygon.points)
+        for (const graph_map::Region& region : zone.regions)
         {
-            const Eigen::Array2i map_point = map_->dimensions().getCellIndex({p.x, p.y});
-            min_x = std::min(map_point.x(), min_x);
-            max_x = std::max(map_point.x(), max_x);
-            min_y = std::min(map_point.y(), min_y);
-            max_y = std::max(map_point.y(), max_y);
-            map_polygon.push_back(map_point);
-        }
-        if (!map_polygon.empty())
-            map_polygon.push_back(map_polygon.front());
+            const geometry_msgs::Polygon polygon = region.polygon;
+            int min_x = std::numeric_limits<int>::max();
+            int max_x = 0;
 
-        const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
+            int min_y = std::numeric_limits<int>::max();
+            int max_y = 0;
 
-        std::vector<Eigen::Array2i> raster;
-        auto append_raster = [&raster](const int x, const int y) { raster.push_back({x, y}); };
-
-        rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
-
-        for (const Eigen::Array2i& p : raster)
-        {
-            if (map_->dimensions().contains(p))
+            std::vector<Eigen::Array2i> map_polygon;
+            for (const geometry_msgs::Point32& p : polygon.points)
             {
-                const int index = map_->index(p);
-                const bool wall = ((int)new_map.data[index]) >= ((int)lethal_threshold_);
+                const Eigen::Array2i map_point = map_->dimensions().getCellIndex({p.x, p.y});
+                min_x = std::min(map_point.x(), min_x);
+                max_x = std::max(map_point.x(), max_x);
+                min_y = std::min(map_point.y(), min_y);
+                max_y = std::max(map_point.y(), max_y);
+                map_polygon.push_back(map_point);
+            }
+            if (!map_polygon.empty())
+                map_polygon.push_back(map_polygon.front());
 
-                if (!wall)
+            const std::vector<Eigen::Array2i> connected = connectPolygon(map_polygon);
+
+            std::vector<Eigen::Array2i> raster;
+            auto append_raster = [&raster](const int x, const int y) { raster.push_back({x, y}); };
+
+            rasterPolygonFill(append_raster, connected, min_x, max_x, min_y, max_y);
+
+            const auto grid_lock = map_->getWriteLock();
+            for (const Eigen::Array2i& p : raster)
+            {
+                if (map_->dimensions().contains(p))
                 {
-                    if (zone.zone_type == hd_map::Zone::EXCLUSION_ZONE)
+                    const int index = map_->index(p);
+                    const bool obstacle = ((int)new_map.data[index]) >= ((int)lethal_threshold_);
+
+                    if (!obstacle)
                     {
-                        map_->setOccupied(p);
-                    }
-                    else if (zone.zone_type == hd_map::Zone::DRIVABLE_ZONE)
-                    {
-                        map_->setFree(p);
-                    }
-                    else
-                    {
-                        // do nothing...
+                        if (zone.drivable)
+                        {
+                            map_->setFree(p);
+                        }
+                        else
+                        {
+                            map_->setOccupied(p);
+                        }
                     }
                 }
             }

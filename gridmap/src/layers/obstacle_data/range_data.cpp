@@ -136,7 +136,7 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
     };
 
     {
-        auto _lock = map_data_->getLock();
+        auto _lock = map_data_->getWriteLock();
         drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
                 {right_pt_map.x(), right_pt_map.y()});
         map_data_->setMinThres(sensor_pt_map);

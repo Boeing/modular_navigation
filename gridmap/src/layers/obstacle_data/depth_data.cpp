@@ -92,7 +92,7 @@ bool DepthData::processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen
 
     {
         // cppcheck-suppress unreadVariable
-        auto _lock = map_data_->getLock();
+        auto _lock = map_data_->getWriteLock();
         std::lock_guard<std::mutex> lock(camera_info_mutex_);
 
         std::unordered_map<uint64_t, float> height_voxels;

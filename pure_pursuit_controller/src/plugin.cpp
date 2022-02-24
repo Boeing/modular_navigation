@@ -391,7 +391,8 @@ navigation_interface::Controller::Result
     // cppcheck-suppress unusedFunction
     PurePursuitController::control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
                                    const navigation_interface::KinodynamicState& robot_state,
-                                   const Eigen::Isometry2d& map_to_odom)
+                                   const Eigen::Isometry2d& map_to_odom, const Eigen::Vector3d max_velocity,
+                                   const double xy_goal_tolerance, const double yaw_goal_tolerance)
 {
     navigation_interface::Controller::Result result;
     result.command = Eigen::Vector3d::Zero();
@@ -414,7 +415,12 @@ navigation_interface::Controller::Result
     //
     // Goal condition
     //
-    if (angle_to_goal < yaw_goal_tolerance_ && dist_to_goal < xy_goal_tolerance_)
+
+    // Use values from the goal unless not specified (zero)
+    const double xy_goal_tolerance_applied = (xy_goal_tolerance > 0.0) ? xy_goal_tolerance : xy_goal_tolerance_;
+    const double yaw_goal_tolerance_applied = (yaw_goal_tolerance > 0.0) ? yaw_goal_tolerance : yaw_goal_tolerance_;
+
+    if (angle_to_goal < yaw_goal_tolerance_applied && dist_to_goal < xy_goal_tolerance_applied)
     {
         ROS_INFO_STREAM("Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
@@ -447,10 +453,9 @@ navigation_interface::Controller::Result
     //
     double min_distance_to_collision;
     {
-        // TODO need a more intelligent way to lock read access without waiting for path planning
-        // auto lock = map_data_->grid.getLock();
+        auto lock = map_data_->grid.getReadLock();
         gridmap::OccupancyGrid local_grid(map_data_->grid, local_region);
-        // lock.unlock();
+        lock.unlock();
 
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
         const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
@@ -546,13 +551,24 @@ navigation_interface::Controller::Result
     // Max velocity check
     //
 
+    // max_velocity is velocity limits specified in the goal action
+    const Eigen::Vector3d sanitised_goal_max_velocity = {std::min(std::max(0.0, max_velocity[0]), max_velocity_[0]),
+                                                         std::min(std::max(0.0, max_velocity[1]), max_velocity_[1]),
+                                                         std::min(std::max(0.0, max_velocity[2]), max_velocity_[2])};
+
+    // Make sure that at least one is positive
+    const bool valid_goal_max_velocity = (sanitised_goal_max_velocity[0] > 0.0 ||
+                                          sanitised_goal_max_velocity[1] > 0.0 || sanitised_goal_max_velocity[2] > 0.0);
+    const Eigen::Vector3d max_velocity_applied = valid_goal_max_velocity ? sanitised_goal_max_velocity : max_velocity_;
+
     // Limit max velocity based on distance to nearest obstacle
     const double d = std::max(min_avoid_distance_, std::min(max_avoid_distance_, min_distance_to_collision));
     const double velocity_scale = d / max_avoid_distance_;
 
-    Eigen::Vector3d augmented_max_vel = {std::min(max_velocity_[0], max_velocity_[0] * velocity_scale),
-                                         std::min(max_velocity_[1], max_velocity_[1] * velocity_scale),
-                                         std::min(max_velocity_[2], max_velocity_[2] * velocity_scale)};
+    const Eigen::Vector3d augmented_max_vel = {
+        std::min(max_velocity_applied[0], max_velocity_applied[0] * velocity_scale),
+        std::min(max_velocity_applied[1], max_velocity_applied[1] * velocity_scale),
+        std::min(max_velocity_applied[2], max_velocity_applied[2] * velocity_scale)};
 
     {
         double vel_factor = 1.0;
@@ -583,11 +599,21 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     max_velocity_[1] = parameters["max_velocity_y"].as<double>(max_velocity_[1]);
     max_velocity_[2] = parameters["max_velocity_w"].as<double>(max_velocity_[2]);
 
+    ROS_ASSERT(!(max_velocity_[0] < 0.0));
+    ROS_ASSERT(!(max_velocity_[1] < 0.0));
+    ROS_ASSERT(!(max_velocity_[2] < 0.0));
+
     max_translation_accel_ = parameters["max_translation_accel"].as<double>(max_translation_accel_);
     max_rotation_accel_ = parameters["max_rotation_accel"].as<double>(max_rotation_accel_);
 
+    ROS_ASSERT(max_translation_accel_ > 0.0);
+    ROS_ASSERT(max_rotation_accel_ > 0.0);
+
     xy_goal_tolerance_ = parameters["xy_goal_tolerance"].as<double>(xy_goal_tolerance_);
     yaw_goal_tolerance_ = parameters["yaw_goal_tolerance"].as<double>(yaw_goal_tolerance_);
+
+    ROS_ASSERT(xy_goal_tolerance_ > 0.0);
+    ROS_ASSERT(yaw_goal_tolerance_ > 0.0);
 
     p_gain_[0] = parameters["p_gain_x"].as<double>(p_gain_[0]);
     p_gain_[1] = parameters["p_gain_y"].as<double>(p_gain_[1]);
@@ -607,6 +633,9 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
 
     max_avoid_distance_ = parameters["max_avoid_distance"].as<double>(max_avoid_distance_);
     min_avoid_distance_ = parameters["min_avoid_distance"].as<double>(min_avoid_distance_);
+
+    ROS_ASSERT(max_avoid_distance_ > 0.0);
+    ROS_ASSERT(min_avoid_distance_ > 0.0);
 
     robot_footprint_ = navigation_interface::get_point_list(
         parameters, "footprint",
