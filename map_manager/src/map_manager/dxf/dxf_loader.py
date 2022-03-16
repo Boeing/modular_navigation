@@ -367,7 +367,9 @@ class DxfLoader:
             template_env = jinja2.Environment(loader=template_loader)
             template = template_env.get_template(os.path.basename(template_file))
         else:
-            template = jinja2.Environment(loader=loader).from_string(DEFAULT_SDF_TEMPLATE)  # type: ignore
+            template = jinja2.Environment(
+                loader=Optional[jinja2.BaseLoader]  # type: ignore
+            ).from_string(DEFAULT_SDF_TEMPLATE)
 
         zones_dicts = [zone.to_simple_dict() for zone in self.zones.values()]
         zones_dicts += [area.to_simple_dict() for area in self.areas.values()]
