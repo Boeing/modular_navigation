@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import rospy
 from cartographer_ros_msgs.msg import StatusCode, StatusResponse
