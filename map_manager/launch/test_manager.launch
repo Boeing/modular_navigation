@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<launch>
+    <let name="mongo_hostname" value="$(optenv MONGO_HOST localhost)" />
+    <let name="mongo_port" value="$(optenv MONGO_PORT 27017)" />
+
+    <node pkg="map_manager" exec="map_manager_node.py" name="map_manager" required="true" output="screen">
+        <param name="test" value="true"/>
+        <param name="mongo_hostname" value="$(arg mongo_hostname)"/>
+        <param name="mongo_port" value="$(arg mongo_port)"/>
+        <remap from="/map_manager/pbstream" to="/mapper/map_data"/>
+    </node>
+    <!--<test test-name="test_manager" pkg="map_manager" type="test_manager.py" time-limit="30"/>-->
+</launch>

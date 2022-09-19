@@ -13,7 +13,19 @@ find_package(graph_map REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
-#ament_python_install_package()
+ament_python_install_package(${PROJECT_NAME})
+
+install(PROGRAMS
+  ${PROJECT_NAME}/map_manager_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
+install(
+  PROGRAMS
+  launch/test_manager.py
+  DESTINATION share/${PROJECT_NAME}
+)
 
 #if (BUILD_TESTING)
 #    find_package(ament_cmake_gtest REQUIRED)

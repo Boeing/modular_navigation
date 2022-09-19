@@ -9,7 +9,7 @@ from requests.status_codes import codes
 
 from map_manager.msg import MapInfo as MapMsg
 from map_manager.documents import Map
-from map_manager.http.cross_domain import cross_domain
+from map_manager.http_utils.cross_domain import cross_domain
 
 map_api = Blueprint('map_api', __name__, template_folder='templates')
 

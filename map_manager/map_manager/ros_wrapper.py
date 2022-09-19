@@ -3,7 +3,9 @@ import traceback
 from functools import wraps
 
 import geometry_msgs.msg
-import rospy
+#import rospy
+import rclpy
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy
 import std_msgs.msg
 import typing
 from mongoengine import DoesNotExist, ValidationError
@@ -53,14 +55,18 @@ def exception_wrapper(return_cls):
 
 
 class RosWrapper(object):
-    def __init__(self):
+    def __init__(self, node=None):
 
         #
         # State
         #
         self.__map_name = None
 
-        self.__add_map = rospy.Service('~add_map', AddMap, handler=self.__add_map_cb)
+        if node is None:
+            logger.info('No node passed to RosWrapper.')
+            return
+
+        """self.__add_map = rospy.Service('~add_map', AddMap, handler=self.__add_map_cb)
 
         self.__delete_map = rospy.Service('~delete_map', DeleteMap, handler=self.__delete_map_cb)
 
@@ -74,9 +80,21 @@ class RosWrapper(object):
 
         self.__set_active_map = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
         self.__get_active_map = rospy.Service('~get_active_map', GetActiveMap, handler=self.__get_active_map_cb)
+        """
+        self.__get_map_info = node.create_subscription(GetMapInfo, '~get_map_info', self.__get_map_info_cb)
+        self.__get_og = node.create_subscription(GetOccupancyGrid, '~get_occupancy_grid', self.__get_occupancy_grid_cb)
+        self.__get_node_graph = node.create_subscription(GetNodeGraph, '~get_node_graph', self.__get_node_graph_cb)
+        self.__get_area_tree = node.create_subscription(GetAreaTree, '~get_area_tree', self.__get_area_tree_cb)
+        self.__get_zones = node.create_subscription(GetZones, '~get_zones', self.__get_zones_cb)
+
+        self.__list_maps = node.create_subscription(ListMaps, '~list_maps', self.__list_maps_cb)
+
+        self.__set_active_map = node.create_subscription(SetActiveMap, '~set_active_map' , self.__set_active_map_cb)
+        self.__get_active_map = node.create_subscription(GetActiveMap, '~get_active_map', self.__get_active_map_cb)
+
 
         # Initialise a unit world->map transform
-        self.__static_tf_pub = rospy.Publisher("/tf_static", TFMessage, queue_size=100, latch=True)
+        self.__static_tf_pub = node.create_publisher(TFMessage, "/tf_static", queue_size=100, latch=True)
         self.__static_tf_pub.publish(
             TFMessage(
                 transforms=[
@@ -103,6 +121,12 @@ class RosWrapper(object):
         self.__graph_pub = None  # type: typing.Optional[rospy.Publisher]
         self.__init_publishers()
 
+        # QoS profile, substitutes latch and queue_size args in create_publisher
+        # See: https://docs.ros.org/en/rolling/Concepts/About-Quality-of-Service-Settings.html
+        qos_profile = QoSProfile(depth=100, 
+            durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
+            history=QoSHistoryPolicy.KEEP_LAST)
+
         # Load the most recently modified Map by default
         map_query = Map.objects.order_by('-modified')
         if map_query.count():
@@ -116,41 +140,35 @@ class RosWrapper(object):
     def __init_publishers(self):
         logger.info('Initialising publishers')
 
-        self.__active_map_pub = rospy.Publisher(
-            name='~active_map',
-            data_class=MapInfoMsg,
-            latch=True,
-            queue_size=100
+        self.__active_map_pub = node.create_publisher(
+            MapInfoMsg,
+            '~active_map',
+            qos_profile=qos_profile
         )
-        self.__og_pub = rospy.Publisher(
-            name='~occupancy_grid',
-            data_class=OccupancyGridMsg,
-            latch=True,
-            queue_size=100
+        self.__og_pub = node.create_publisher(
+            OccupancyGridMsg,
+            '~occupancy_grid',
+            qos_profile=qos_profile
         )
-        self.__pbstream_pub = rospy.Publisher(
-            name='~pbstream',
-            data_class=UInt8MultiArray,
-            latch=True,
-            queue_size=100
+        self.__pbstream_pub = node.create_publisher(
+            UInt8MultiArray,
+            '~pbstream',
+            qos_profile=qos_profile
         )
-        self.__zones_pub = rospy.Publisher(
-            name='~zones',
-            data_class=MarkerArrayMsg,
-            latch=True,
-            queue_size=100
+        self.__zones_pub = node.create_publisher(
+            MarkerArrayMsg,
+            '~zones', 
+            qos_profile=qos_profile
         )
-        self.__areas_pub = rospy.Publisher(
-            name='~areas',
-            data_class=MarkerArrayMsg,
-            latch=True,
-            queue_size=100
+        self.__areas_pub = node.create_publisher(
+            MarkerArrayMsg,
+            '~areas',
+            qos_profile=qos_profile
         )
-        self.__graph_pub = rospy.Publisher(
-            name='~graph',
-            data_class=MarkerArrayMsg,
-            latch=True,
-            queue_size=100
+        self.__graph_pub = node.create_publisher(
+            MarkerArrayMsg,
+            '~graph',
+            qos_profile=qos_profile
         )
 
     #
@@ -356,8 +374,8 @@ class RosWrapper(object):
             self.__zones_pub.publish(build_zones_marker_array(map_obj))
             self.__areas_pub.publish(build_areas_marker_array(map_obj))
             self.__graph_pub.publish(build_graph_marker_array(map_obj,
-                                                              node_params={'lifetime': rospy.Duration(0)},
-                                                              edge_params={'lifetime': rospy.Duration(0)}))
+                                                              node_params={'lifetime': rclpy.duration.Duration(0)},
+                                                              edge_params={'lifetime': rclpy.duration.Duration(0)}))
 
         except Exception as e:
             logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))

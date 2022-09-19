@@ -5,11 +5,17 @@ import logging
 import flask
 import mongoengine
 import pymongo
-import rospy.impl.rosout
+#import rospy.impl.rosout
+import rclpy
 
 from map_manager.config import DATABASE_NAME, RESOURCE_PORT
 from map_manager.ros_wrapper import RosWrapper
-from map_manager.http.routes import map_api
+
+print("IMPORTS")
+
+from map_manager.http_utils.routes import map_api
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +24,9 @@ name = 'map_manager'
 if __name__ == '__main__':
 
     rospy.init_node(name, disable_signals=True)
+
+    rclpy.init()
+    node = rclpy.create_node(name)
 
     handlers = logging.getLogger('rosout').handlers
     for handler in handlers:
@@ -30,8 +39,12 @@ if __name__ == '__main__':
                 _logger.addHandler(handler)
                 _logger.setLevel(logging.DEBUG)
 
-    mongo_hostname = rospy.get_param('~mongo_hostname', 'localhost')
-    mongo_port = rospy.get_param('~mongo_port', 27017)
+    #mongo_hostname = rospy.get_param('~mongo_hostname', 'localhost')
+    #mongo_port = rospy.get_param('~mongo_port', 27017)
+
+    # Parameters are now handled at each node, no more param server
+    mongo_hostname = node.declare_parameter('~mongo_hostname', 'localhost').value
+    mongo_port = node.declare_parameter('~mongo_port', '27017').value
 
     logger.info('Starting Map Manager...')
 
@@ -58,8 +71,8 @@ if __name__ == '__main__':
         logger.error("Mongodb is offline", exc_info=e)
         raise e
 
-    obj = RosWrapper()
-    app = flask.Flask(__name__, template_folder='src/map_manager/http')
+    obj = RosWrapper(node)
+    app = flask.Flask(__name__, template_folder='/map_manager/map_manager/http_utils')
 
     app.logger.setLevel(logging.INFO)
     for handler in handlers:
