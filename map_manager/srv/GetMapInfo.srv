@@ -1,6 +1,7 @@
 # an empty map_name will use the currently loaded map
 string map_name
 ---
+
 map_manager/MapInfo map_info
 bool success
 string message

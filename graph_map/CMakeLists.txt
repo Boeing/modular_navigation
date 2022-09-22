@@ -6,6 +6,8 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+ament_python_install_package(${PROJECT_NAME})
+
 # Package deps
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -13,9 +15,9 @@ find_package(std_msgs REQUIRED)
 
 # Msg packages
 rosidl_generate_interfaces(${PROJECT_NAME}
-  msg/Region.msg
-  msg/Zone.msg
-  DEPENDENCIES std_msgs
+  "msg/Region.msg"
+  "msg/Zone.msg"
+  DEPENDENCIES std_msgs geometry_msgs
 )
 
 ament_package()

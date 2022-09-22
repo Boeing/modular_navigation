@@ -6,7 +6,8 @@ from io import BytesIO, TextIOWrapper
 import math6d
 import mongoengine
 import numpy
-import rospy
+#import rospy
+import rclpy
 import typing
 from PIL import Image
 from PIL.ImageOps import invert
@@ -268,11 +269,17 @@ class Map(Document, DocumentMixin):
         im = Image.open(fp=self.thumbnail)
         im.save(buff, format='PNG', compress_level=1)
 
-    def get_occupancy_grid_msg(self):
+    def get_occupancy_grid_msg(self, node):
+        if node is None:
+            logger.info('No node passed to documents.Map.')
+            return
         # type: () -> OccupancyGridMsg
         self.image.seek(0)
         return OccupancyGridMsg(
-            header=Header(seq=0, stamp=rospy.Time.now(), frame_id='map'),
+            #header=Header(seq=0, stamp=rospy.Time.now(), frame_id='map'),
+            header=Header(#seq=0,
+                          stamp=node.get_clock().now().to_msg(),
+                          frame_id='map'),
             info=self.get_map_meta_data_msg(),
             data=numpy.array(Image.open(fp=self.image), dtype=numpy.int8).ravel()
         )
@@ -280,7 +287,8 @@ class Map(Document, DocumentMixin):
     def get_map_meta_data_msg(self):
         # type: () -> MapMetaDataMsg
         return MapMetaDataMsg(
-            map_load_time=rospy.Time(0),
+            #map_load_time=rospy.Time(0),
+            #map_load_time=rclpy.time.Time(0).to_msg(),
             resolution=self.resolution,
             width=self.width,
             height=self.height,
@@ -292,8 +300,10 @@ class Map(Document, DocumentMixin):
         return MapInfoMsg(
             name=str(self.name),
             description=str(self.description),
-            created=rospy.Time(calendar.timegm(self.created.timetuple())),
-            modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
+            #created=rospy.Time(calendar.timegm(self.created.timetuple())),
+            #modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
+            #created=rclpy.time.Time(0).to_msg(),
+            #modified=rclpy.time.Time(1).to_msg(),
             meta_data=self.get_map_meta_data_msg()
         )
 

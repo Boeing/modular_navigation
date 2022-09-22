@@ -34,7 +34,8 @@ from map_manager.map_info import MapInfo as MapInfoCls
 from graph_map.area import Zone
 from graph_map.node_graph_manager import NodeGraphManager
 from graph_map.area_manager import AreaManager
-from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
+from map_manager.srv import AddMap, AddMapRequest
+#from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from sensor_msgs.msg import CompressedImage
 
 from map_manager.config import DATABASE_NAME

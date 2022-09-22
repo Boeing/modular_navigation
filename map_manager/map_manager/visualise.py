@@ -3,7 +3,8 @@ import math
 import typing
 
 import networkx as nx
-import rospy
+#import rospy
+import rclpy
 from geometry_msgs.msg import Point as PointMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
@@ -63,9 +64,9 @@ def build_cylinder_marker(start_point, end_point, color, radius):
         ),
         frame_locked=True,
         scale=Vector3Msg(
-            radius,
-            radius,
-            vec.length()
+            x=float(radius),
+            y=float(radius),
+            z=float(vec.length())
         ),
         color=color
     )
@@ -84,34 +85,34 @@ def build_pose_markers(pose, size=0.05):
         Marker(
             type=Marker.ARROW,
             points=[pose.position, PointMsg(
-                pose.position.x + mat[:, 0][0] * size,
-                pose.position.y + mat[:, 0][1] * size,
-                pose.position.z + mat[:, 0][2] * size
+                x=pose.position.x + mat[:, 0][0] * size,
+                y=pose.position.y + mat[:, 0][1] * size,
+                z=pose.position.z + mat[:, 0][2] * size
             )],
             frame_locked=True,
-            scale=Vector3Msg(size / 6, size / 3, 0),
+            scale=Vector3Msg(x=size / 6, y=size / 3, z=0),
             color=ColorRGBA(1.0, 0, 0, 1.0)
         ),
         Marker(
             type=Marker.ARROW,
             points=[pose.position, PointMsg(
-                pose.position.x + mat[:, 1][0] * size,
-                pose.position.y + mat[:, 1][1] * size,
-                pose.position.z + mat[:, 1][2] * size
+                x=pose.position.x + mat[:, 1][0] * size,
+                y=pose.position.y + mat[:, 1][1] * size,
+                z=pose.position.z + mat[:, 1][2] * size
             )],
             frame_locked=True,
-            scale=Vector3Msg(size / 6, size / 3, 0),
+            scale=Vector3Msg(x=size / 6, y=size / 3, z=0),
             color=ColorRGBA(0.0, 1.0, 0, 1.0)
         ),
         Marker(
             type=Marker.ARROW,
             points=[pose.position, PointMsg(
-                pose.position.x + mat[:, 2][0] * size,
-                pose.position.y + mat[:, 2][1] * size,
-                pose.position.z + mat[:, 2][2] * size
+                x=pose.position.x + mat[:, 2][0] * size,
+                y=pose.position.y + mat[:, 2][1] * size,
+                z=pose.position.z + mat[:, 2][2] * size
             )],
             frame_locked=True,
-            scale=Vector3Msg(size / 6, size / 3, 0),
+            scale=Vector3Msg(x=size / 6, y=size / 3, z=0),
             color=ColorRGBA(0.0, 0.0, 1.0, 1.0)
         )
     ]
@@ -129,14 +130,14 @@ def build_node_markers(node: Node, color, radius, height, lifetime):
             pose=PoseMsg(
                 position=PointMsg(x=node.x, y=node.y, z=0.0),
                 orientation=QuaternionMsg(
-                    qt.x, qt.y, qt.z, qt.w
+                    x=qt.x, y=qt.y, z=qt.z, w=qt.w
                 )
             ),
             frame_locked=True,
             scale=Vector3Msg(
-                radius,
-                radius,
-                height
+                x=float(radius),
+                y=float(radius),
+                z=float(height)
             ),
             color=color,
             lifetime=lifetime
@@ -146,28 +147,28 @@ def build_node_markers(node: Node, color, radius, height, lifetime):
     return markers
 
 
-def build_edge_marker(start: Node, end: Node, color: ColorRGBA, diameter: float, lifetime: rospy.Duration):
+def build_edge_marker(start: Node, end: Node, color: ColorRGBA, diameter: float, lifetime): # Lifetime is of type builtin_interfaces.Duration
     return Marker(
         type=Marker.ARROW,
         points=[
             PointMsg(
-                start.x,
-                start.y,
-                0
+                x=start.x,
+                y=start.y,
+                z=0.
             ),
             PointMsg(
-                end.x,
-                end.y,
-                0
+                x=end.x,
+                y=end.y,
+                z=0.
             ),
         ],
         pose=PoseMsg(
-            orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
+            orientation=QuaternionMsg(x=0., y=0., z=0., w=1.)
         ),
         scale=Vector3Msg(
-            diameter,
-            diameter * 6,
-            0.5
+            x=float(diameter),
+            y=float(diameter * 6),
+            z=0.5
         ),
         frame_locked=True,
         color=color,
@@ -187,13 +188,13 @@ def build_region_markers(region):
     triangles = triangulate(polygon_points)
 
     pose = PoseMsg(
-        orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
+        orientation=QuaternionMsg(x=0., y=0., z=0., w=1.)
     )
     triangle_marker = Marker(
         type=Marker.TRIANGLE_LIST,
         frame_locked=True,
         pose=pose,
-        scale=Vector3Msg(1.0, 1.0, 1.0),
+        scale=Vector3Msg(x=1.0, y=1.0, z=1.0),
         color=region.color.get_msg()
     )
 
@@ -201,28 +202,32 @@ def build_region_markers(region):
         points = [polygon_points[t[0]], polygon_points[t[1]], polygon_points[t[2]]]
         points = sort_clockwise(points)
 
-        triangle_marker.points.append(PointMsg(*points[2]))
-        triangle_marker.points.append(PointMsg(*points[1]))
-        triangle_marker.points.append(PointMsg(*points[0]))
+        #triangle_marker.points.append(PointMsg(*points[2]))
+        #triangle_marker.points.append(PointMsg(*points[1]))
+        #triangle_marker.points.append(PointMsg(*points[0]))
+
+        triangle_marker.points.append(PointMsg(x=points[2][0], y=points[2][1], z=points[2][2]))
+        triangle_marker.points.append(PointMsg(x=points[1][0], y=points[1][1], z=points[1][2]))
+        triangle_marker.points.append(PointMsg(x=points[0][0], y=points[0][1], z=points[0][2]))
 
     markers.append(triangle_marker)
     return markers
 
 
-def build_zones_marker_array(map_obj):
+def build_zones_marker_array(node, map_obj):
     # type: (MapDoc) -> MarkerArray
 
     assert isinstance(map_obj, MapDoc)
 
     marker_array = MarkerArray()
 
-    pose = PoseMsg(orientation=QuaternionMsg(x=0, y=0, z=0, w=1))
+    pose = PoseMsg(orientation=QuaternionMsg(x=0., y=0., z=0., w=1.))
     marker_array.markers.append(
         Marker(
             type=Marker.DELETEALL,
             pose=pose,
-            scale=Vector3Msg(1, 1, 1),
-            color=ColorRGBA(0, 0, 0, 1.0)
+            scale=Vector3Msg(x=1.0, y=1.0, z=1.0),
+            color=ColorRGBA(r=0., g=0., b=0., a=1.0)
         )
     )
 
@@ -231,7 +236,7 @@ def build_zones_marker_array(map_obj):
             marker_array.markers += build_region_markers(region=region)
             # break
 
-    now = rospy.Time(0)
+    now = node.get_clock().now().to_msg()
     for i, marker in enumerate(marker_array.markers):
         assert isinstance(marker, Marker)
         marker.id = i
@@ -241,7 +246,7 @@ def build_zones_marker_array(map_obj):
     return marker_array
 
 
-def build_areas_marker_array(map_obj):
+def build_areas_marker_array(node, map_obj):
     # type: (MapDoc) -> MarkerArray
 
     # return MarkerArray()
@@ -249,13 +254,13 @@ def build_areas_marker_array(map_obj):
     assert isinstance(map_obj, MapDoc)
 
     marker_array = MarkerArray()
-    pose = PoseMsg(orientation=QuaternionMsg(x=0, y=0, z=0, w=1))
+    pose = PoseMsg(orientation=QuaternionMsg(x=0., y=0., z=0., w=1.))
     marker_array.markers.append(
         Marker(
             type=Marker.DELETEALL,
             pose=pose,
-            scale=Vector3Msg(1, 1, 1),
-            color=ColorRGBA(0, 0, 0, 1.0)
+            scale=Vector3Msg(x=1., y=1., z=1.),
+            color=ColorRGBA(r=0., g=0., b=0., a=1.0)
         )
     )
 
@@ -271,7 +276,7 @@ def build_areas_marker_array(map_obj):
                 )
                 marker_array.markers += build_region_markers(region=region_doc)
 
-    now = rospy.Time(0)
+    now = node.get_clock().now().to_msg()
     for i, marker in enumerate(marker_array.markers):
         assert isinstance(marker, Marker)
         marker.id = i
@@ -281,11 +286,12 @@ def build_areas_marker_array(map_obj):
     return marker_array
 
 
-def build_graph_marker_array(map_obj: typing.Union[MapDoc, NodeGraphManager, nx.Graph],
+def build_graph_marker_array(ros_node,
+                             map_obj: typing.Union[MapDoc, NodeGraphManager, nx.Graph],
                              node_params: typing.Optional[typing.Dict] = None,
                              edge_params: typing.Optional[typing.Dict] = None) -> MarkerArray:
-    node_params_ = {'color': ColorRGBA(0, 0, 1.0, 0.7), 'radius': 0.3, 'height': 0.1, 'lifetime': rospy.Duration(6)}
-    edge_params_ = {'color': ColorRGBA(0, 1.0, 0, 0.3), 'diameter': 0.05, 'lifetime': rospy.Duration(6)}
+    node_params_ = {'color': ColorRGBA(r=0., g=0., b=1.0, a=0.7), 'radius': 0.3, 'height': 0.1, 'lifetime': rclpy.duration.Duration(seconds=6).to_msg()}
+    edge_params_ = {'color': ColorRGBA(r=0., g=1.0, b=0., a=0.3), 'diameter': 0.05, 'lifetime': rclpy.duration.Duration(seconds=6).to_msg()}
 
     if node_params is not None:
         node_params_.update(node_params)
@@ -293,14 +299,14 @@ def build_graph_marker_array(map_obj: typing.Union[MapDoc, NodeGraphManager, nx.
         edge_params_.update(edge_params)
 
     marker_array = MarkerArray()
-    pose = PoseMsg(orientation=QuaternionMsg(x=0, y=0, z=0, w=1))
+    pose = PoseMsg(orientation=QuaternionMsg(x=0., y=0., z=0., w=1.))
     marker_array.markers.append(
         Marker(
             type=Marker.DELETEALL,
             pose=pose,
-            scale=Vector3Msg(1, 1, 1),
-            color=ColorRGBA(0, 0, 0, 1.0),
-            lifetime=rospy.Duration(2)
+            scale=Vector3Msg(x=1., y=1., z=1.),
+            color=ColorRGBA(r=0., g=0., b=0., a=1.0),
+            lifetime=rclpy.duration.Duration(seconds=2).to_msg()
         )
     )
 
@@ -326,7 +332,7 @@ def build_graph_marker_array(map_obj: typing.Union[MapDoc, NodeGraphManager, nx.
     for start, end in edges:
         marker_array.markers.append(build_edge_marker(start, end, **edge_params_))
 
-    now = rospy.Time(0)
+    now = ros_node.get_clock().now().to_msg()
     for i, marker in enumerate(marker_array.markers):
         assert isinstance(marker, Marker)
         marker.id = i

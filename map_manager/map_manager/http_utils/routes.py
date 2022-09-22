@@ -37,14 +37,14 @@ def home():
 @map_api.route('/maps/<map_name>/occupancy_grid.msg', methods=['GET'])
 @cross_domain('*')
 @exception_wrapper
-def get_occupancy_grid_msg(map_name):
+def get_occupancy_grid_msg(map_name, node):
     try:
         map_doc = Map.objects.get(name=map_name)  # type: Map
 
     except (DoesNotExist, ValidationError):
         raise abort(404)
 
-    map_msg = map_doc.get_occupancy_grid_msg()  # type: MapMsg
+    map_msg = map_doc.get_occupancy_grid_msg(node)  # type: MapMsg
 
     fp = io.StringIO()
     map_msg.serialize(fp)

@@ -12,6 +12,7 @@ public
 .autosave
 logs/
 *.user
+mapas/
 
 *.docker
 *.codelite

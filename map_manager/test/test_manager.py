@@ -12,7 +12,7 @@ from nav_msgs.msg import MapMetaData
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import UInt8MultiArray
 
-from map_manager.msg import MapInfo
+from map_manager_msgs.msgs import MapInfo
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
 
