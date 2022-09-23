@@ -288,7 +288,7 @@ class Map(Document, DocumentMixin):
         # type: () -> MapMetaDataMsg
         return MapMetaDataMsg(
             #map_load_time=rospy.Time(0),
-            #map_load_time=rclpy.time.Time(0).to_msg(),
+            map_load_time=rclpy.time.Time(seconds=0).to_msg(),
             resolution=self.resolution,
             width=self.width,
             height=self.height,
@@ -302,8 +302,8 @@ class Map(Document, DocumentMixin):
             description=str(self.description),
             #created=rospy.Time(calendar.timegm(self.created.timetuple())),
             #modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
-            #created=rclpy.time.Time(0).to_msg(),
-            #modified=rclpy.time.Time(1).to_msg(),
+            created=rclpy.time.Time(seconds=calendar.timegm(self.created.timetuple())).to_msg(),
+            modified=rclpy.time.Time(seconds=calendar.timegm(self.modified.timetuple())).to_msg(),
             meta_data=self.get_map_meta_data_msg()
         )
 

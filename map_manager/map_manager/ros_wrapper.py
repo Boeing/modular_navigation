@@ -2,9 +2,13 @@ import logging
 import traceback
 from functools import wraps
 
+import mongoengine
+import pymongo
+
 import geometry_msgs.msg
 #import rospy
 import rclpy
+from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy
 import std_msgs.msg
 import typing
@@ -12,6 +16,8 @@ from mongoengine import DoesNotExist, ValidationError
 from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
 from std_msgs.msg import UInt8MultiArray
 from tf2_msgs.msg import TFMessage
+
+from map_manager.config import DATABASE_NAME, RESOURCE_PORT
 
 from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
@@ -54,19 +60,47 @@ def exception_wrapper(return_cls):
     return wrapper
 
 
-class RosWrapper(object):
+class RosWrapper(Node):
     def __init__(self, node=None):
 
         #
         # State
         #
+        super().__init__('map_manager')
+        
         self.__map_name = None
 
-        if node is None:
+        # Parameters are now handled by the node, no more param server
+        self.mongo_hostname = self.declare_parameter('~mongo_hostname', 'localhost').value
+        self.mongo_port = self.declare_parameter('~mongo_port', 27017).value
+
+
+        #
+        # Connect to the db
+        #
+        logger.info('Connecting to {}:{}'.format(self.mongo_hostname, self.mongo_port))
+        try:
+            database = mongoengine.connect(
+                db=DATABASE_NAME,
+                host=self.mongo_hostname,
+                port=self.mongo_port,
+                serverSelectionTimeoutMS=30)
+        except mongoengine.ConnectionFailure as e:
+            logger.error("Failed to connect to Mongodb", exc_info=e)
+            raise e
+
+        #
+        # Force check to make sure Mongo is alive
+        #
+        try:
+            server = database.server_info()
+        except pymongo.errors.ServerSelectionTimeoutError as e:
+            logger.error("Mongodb is offline", exc_info=e)
+            raise e
+        """if node is None:
             logger.info('No node passed to RosWrapper.')
             return
-
-        self.node = node
+        """
 
         """self.__add_map = rospy.Service('~add_map', AddMap, handler=self.__add_map_cb)
 
@@ -83,19 +117,19 @@ class RosWrapper(object):
         self.__set_active_map = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
         self.__get_active_map = rospy.Service('~get_active_map', GetActiveMap, handler=self.__get_active_map_cb)
         """
-        self.__add_map = self.node.create_service(AddMap, 'add_map', self.__add_map_cb)
-        self.__delete_map = self.node.create_service(DeleteMap, 'delete_map', self.__delete_map_cb)
+        self.__add_map = self.create_service(AddMap, 'add_map', self.__add_map_cb)
+        self.__delete_map = self.create_service(DeleteMap, 'delete_map', self.__delete_map_cb)
 
-        self.__get_map_info = self.node.create_service(GetMapInfo, 'get_map_info', self.__get_map_info_cb)
-        self.__get_og = self.node.create_service(GetOccupancyGrid, 'get_occupancy_grid', self.__get_occupancy_grid_cb)
-        self.__get_node_graph = self.node.create_service(GetNodeGraph, 'get_node_graph', self.__get_node_graph_cb)
-        self.__get_area_tree = self.node.create_service(GetAreaTree, 'get_area_tree', self.__get_area_tree_cb)
-        self.__get_zones = self.node.create_service(GetZones, 'get_zones', self.__get_zones_cb)
+        self.__get_map_info = self.create_service(GetMapInfo, 'get_map_info', self.__get_map_info_cb)
+        self.__get_og = self.create_service(GetOccupancyGrid, 'get_occupancy_grid', self.__get_occupancy_grid_cb)
+        self.__get_node_graph = self.create_service(GetNodeGraph, 'get_node_graph', self.__get_node_graph_cb)
+        self.__get_area_tree = self.create_service(GetAreaTree, 'get_area_tree', self.__get_area_tree_cb)
+        self.__get_zones = self.create_service(GetZones, 'get_zones', self.__get_zones_cb)
 
-        self.__list_maps = self.node.create_service(ListMaps, 'list_maps', self.__list_maps_cb)
+        self.__list_maps = self.create_service(ListMaps, 'list_maps', self.__list_maps_cb)
 
-        self.__set_active_map = self.node.create_service(SetActiveMap, 'set_active_map' , self.__set_active_map_cb)
-        self.__get_active_map = self.node.create_service(GetActiveMap, 'get_active_map', self.__get_active_map_cb)
+        self.__set_active_map = self.create_service(SetActiveMap, 'set_active_map' , self.__set_active_map_cb)
+        self.__get_active_map = self.create_service(GetActiveMap, 'get_active_map', self.__get_active_map_cb)
 
 
         # QoS profile, substitutes latch and queue_size args in create_publisher
@@ -106,12 +140,12 @@ class RosWrapper(object):
 
 
         # Initialise a unit world->map transform
-        self.__static_tf_pub = self.node.create_publisher(TFMessage, "/tf_static", self.qos_profile)
+        self.__static_tf_pub = self.create_publisher(TFMessage, "/tf_static", self.qos_profile)
         self.__static_tf_pub.publish(
             TFMessage(
                 transforms=[
                     geometry_msgs.msg.TransformStamped(
-                        header=std_msgs.msg.Header(frame_id='world', stamp=self.node.get_clock().now().to_msg()),
+                        header=std_msgs.msg.Header(frame_id='world', stamp=self.get_clock().now().to_msg()),
                         child_frame_id='map',
                         transform=geometry_msgs.msg.Transform(
                             translation=geometry_msgs.msg.Vector3(x=0., y=0., z=0.),
@@ -146,32 +180,32 @@ class RosWrapper(object):
     def __init_publishers(self):
         logger.info('Initialising publishers')
 
-        self.__active_map_pub = self.node.create_publisher(
+        self.__active_map_pub = self.create_publisher(
             MapInfoMsg,
             'active_map',
             qos_profile=self.qos_profile
         )
-        self.__og_pub = self.node.create_publisher(
+        self.__og_pub = self.create_publisher(
             OccupancyGridMsg,
             'occupancy_grid',
             qos_profile=self.qos_profile
         )
-        self.__pbstream_pub = self.node.create_publisher(
+        self.__pbstream_pub = self.create_publisher(
             UInt8MultiArray,
             'pbstream',
             qos_profile=self.qos_profile
         )
-        self.__zones_pub = self.node.create_publisher(
+        self.__zones_pub = self.create_publisher(
             MarkerArrayMsg,
             'zones', 
             qos_profile=self.qos_profile
         )
-        self.__areas_pub = self.node.create_publisher(
+        self.__areas_pub = self.create_publisher(
             MarkerArrayMsg,
             'areas',
             qos_profile=self.qos_profile
         )
-        self.__graph_pub = self.node.create_publisher(
+        self.__graph_pub = self.create_publisher(
             MarkerArrayMsg,
             'graph',
             qos_profile=self.qos_profile
@@ -248,7 +282,7 @@ class RosWrapper(object):
         map_obj = Map.objects(name=req.map_name).get()
 
         return GetOccupancyGridResponse(
-            grid=map_obj.get_occupancy_grid_msg(self.node),
+            grid=map_obj.get_occupancy_grid_msg(self),
             success=True
         )
 
@@ -369,7 +403,7 @@ class RosWrapper(object):
 
             self.__active_map_pub.publish(map_obj.get_map_info_msg())
 
-            grid = map_obj.get_occupancy_grid_msg(self.node)
+            grid = map_obj.get_occupancy_grid_msg(self)
             self.__og_pub.publish(grid)
 
             if map_obj.pbstream:
@@ -377,9 +411,9 @@ class RosWrapper(object):
             else:
                 self.__pbstream_pub.publish(UInt8MultiArray())
 
-            self.__zones_pub.publish(build_zones_marker_array(self.node, map_obj))
-            self.__areas_pub.publish(build_areas_marker_array(self.node, map_obj))
-            self.__graph_pub.publish(build_graph_marker_array(self.node, map_obj,
+            self.__zones_pub.publish(build_zones_marker_array(self, map_obj))
+            self.__areas_pub.publish(build_areas_marker_array(self, map_obj))
+            self.__graph_pub.publish(build_graph_marker_array(self, map_obj,
                                                               node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() },
                                                               edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() }))
 
