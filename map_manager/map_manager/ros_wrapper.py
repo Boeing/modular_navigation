@@ -67,7 +67,7 @@ class RosWrapper(Node):
         # State
         #
         super().__init__('map_manager')
-        
+                
         self.__map_name = None
 
         # Parameters are now handled by the node, no more param server
@@ -75,10 +75,12 @@ class RosWrapper(Node):
         self.mongo_port = self.declare_parameter('~mongo_port', 27017).value
 
 
+        self.logger = self.get_logger()
+
         #
         # Connect to the db
         #
-        logger.info('Connecting to {}:{}'.format(self.mongo_hostname, self.mongo_port))
+        self.logger.info('Connecting to {}:{}'.format(self.mongo_hostname, self.mongo_port))
         try:
             database = mongoengine.connect(
                 db=DATABASE_NAME,
@@ -86,7 +88,7 @@ class RosWrapper(Node):
                 port=self.mongo_port,
                 serverSelectionTimeoutMS=30)
         except mongoengine.ConnectionFailure as e:
-            logger.error("Failed to connect to Mongodb", exc_info=e)
+            self.logger.error("Failed to connect to Mongodb", exc_info=e)
             raise e
 
         #
@@ -95,7 +97,7 @@ class RosWrapper(Node):
         try:
             server = database.server_info()
         except pymongo.errors.ServerSelectionTimeoutError as e:
-            logger.error("Mongodb is offline", exc_info=e)
+            self.logger.error("Mongodb is offline", exc_info=e)
             raise e
         """if node is None:
             logger.info('No node passed to RosWrapper.')
@@ -171,14 +173,18 @@ class RosWrapper(Node):
         map_query = Map.objects.order_by('-modified')
         if map_query.count():
             map_obj = map_query.first()
-            self.__load_map(map_name=str(map_obj.name))
+            self.__load_map(map_name=str(map_obj.name)) # __load_map loads map even without rcl.spin()
         else:
             self.__active_map_pub.publish(MapInfoMsg())
 
-        logger.info('Successfully started')
+        self.logger.info('Successfully started')
 
+        #Publish every topic with a timer callback
+        timer_period = 0.5  # seconds
+        self.timer = self.create_timer(timer_period, self.timer_callback)
+        
     def __init_publishers(self):
-        logger.info('Initialising publishers')
+        self.logger.info('Initialising publishers')
 
         self.__active_map_pub = self.create_publisher(
             MapInfoMsg,
@@ -211,6 +217,29 @@ class RosWrapper(Node):
             qos_profile=self.qos_profile
         )
 
+    def timer_callback(self):
+        """Callback to publish map_manager topics given a timer
+        """
+        
+        map_obj = Map.objects(name=self.__map_name).get()  # type: Map
+
+        self.__active_map_pub.publish(map_obj.get_map_info_msg())
+
+        grid = map_obj.get_occupancy_grid_msg(self)
+        self.__og_pub.publish(grid)
+
+        if map_obj.pbstream:
+            self.__pbstream_pub.publish(UInt8MultiArray(data=map_obj.pbstream.read()))
+        else:
+            self.__pbstream_pub.publish(UInt8MultiArray())
+
+        self.__zones_pub.publish(build_zones_marker_array(self, map_obj))
+        self.__areas_pub.publish(build_areas_marker_array(self, map_obj))
+        self.__graph_pub.publish(build_graph_marker_array(self, map_obj,
+                                                            node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() },
+                                                            edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() }))
+
+
     #
     # ADD callbacks
     #
@@ -218,7 +247,7 @@ class RosWrapper(Node):
     @exception_wrapper(AddMap.Response)
     def __add_map_cb(self, req):
         # type: (AddMapRequest) -> AddMapResponse
-        logger.info('Request to add a new Map: {}'.format(req.map_info.name))
+        self.logger.info('Request to add a new Map: {}'.format(req.map_info.name))
 
         if len(req.occupancy_grid.data) <= 0:
             return AddMap.Response(
@@ -229,7 +258,7 @@ class RosWrapper(Node):
         map_query = Map.objects(name=req.map_info.name)
         if map_query.count():
             map_obj = map_query.first()
-            logger.info('Map {} already exists in the database. Overwriting.'.format(req.map_info.name))
+            self.logger.info('Map {} already exists in the database. Overwriting.'.format(req.map_info.name))
             map_obj.delete()
         else:
             map_obj = Map()
@@ -253,7 +282,7 @@ class RosWrapper(Node):
     @exception_wrapper(DeleteMap.Response)
     def __delete_map_cb(self, req):
         # type: (DeleteMapRequest) -> DeleteMapResponse
-        logger.info('Request to delete Map: {}'.format(req.map_name))
+        self.logger.info('Request to delete Map: {}'.format(req.map_name))
 
         obj = Map.objects(name=req.map_name).get()
         obj.delete()
@@ -370,7 +399,7 @@ class RosWrapper(Node):
     @exception_wrapper(SetActiveMap.Response)
     def __set_active_map_cb(self, req):
         # type: (SetActiveMapRequest) -> SetActiveMapResponse
-        logger.info('Request to set active Map: {}'.format(req.map_name))
+        self.logger.info('Request to set active Map: {}'.format(req.map_name))
 
         Map.objects(name=req.map_name).get()
         self.__load_map(map_name=req.map_name)
@@ -393,7 +422,7 @@ class RosWrapper(Node):
 
     def __load_map(self, map_name):
 
-        logger.info('Loading Map: {}'.format(map_name))
+        self.logger.info('Loading Map: {}'.format(map_name))
 
         # Set as the current map
         self.__map_name = str(map_name)
@@ -416,6 +445,8 @@ class RosWrapper(Node):
             self.__graph_pub.publish(build_graph_marker_array(self, map_obj,
                                                               node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() },
                                                               edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() }))
-
+            self.logger.info('Map: {} is Loaded'.format(map_name))
         except Exception as e:
-            logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))
+            self.logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))
+
+        

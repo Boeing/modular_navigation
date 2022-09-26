@@ -8,6 +8,7 @@ def generate_launch_description():
             executable='map_manager_node.py',
             name='map_manager',
             namespace='map_manager',
+            output='screen',
             remappings=[
                 ('/map_manager/pbstream', '/mapper/map_data'),
             ]
