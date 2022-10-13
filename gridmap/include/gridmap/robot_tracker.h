@@ -4,9 +4,12 @@
 #include <Eigen/Geometry>
 
 #include <boost/circular_buffer.hpp>
-#include <cartographer_ros_msgs/SystemState.h>
-#include <nav_msgs/Odometry.h>
-#include <ros/time.h>
+#include <cartographer_ros_msgs/msg/system_state.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+
+// Include rclcpp just for time?
+#include "rclcpp/rclcpp.hpp"
+//#include <ros/time.h>
 
 #include <condition_variable>
 #include <memory>
@@ -17,7 +20,7 @@ namespace gridmap
 
 struct TimedOdom
 {
-    ros::Time time;
+    rclcpp::Time time;
     Eigen::Isometry2d pose;
     Eigen::Vector3d velocity;
 };
@@ -45,10 +48,10 @@ class RobotTracker
     RobotState waitForRobotState(const double timeout) const;
 
     RobotState robotState() const;
-    RobotState robotState(const ros::Time& time) const;
+    RobotState robotState(const rclcpp::Time& time) const;
 
-    void addOdometryData(const nav_msgs::Odometry& odometry_data);
-    void addLocalisationData(const cartographer_ros_msgs::SystemState& localisation);
+    void addOdometryData(const nav_msgs::msg::Odometry& odometry_data);
+    void addLocalisationData(const cartographer_ros_msgs::msg::SystemState& localisation);
 
   private:
     struct LocalisationState

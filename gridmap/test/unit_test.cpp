@@ -6,6 +6,9 @@
 
 #include <chrono>
 
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
+
 TEST(test_plugin, test_plugin)
 {
     gridmap::MapDimensions map_dims(1, {0, 0}, {1000, 1000});
@@ -22,8 +25,8 @@ TEST(test_plugin, test_plugin)
 
     gridmap::Grid2D<uint8_t> roi_grid(map_dims);  // {1, {0, 0}, roi_size});
 
-    ROS_INFO_STREAM("roi_start: " << roi.roi_start.transpose());
-    ROS_INFO_STREAM("roi_size: " << roi.roi_size.transpose());
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "roi_start: " << roi.roi_start.transpose());
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "roi_size: " << roi.roi_size.transpose());
 
     grid.copyTo(roi_grid, roi);
 

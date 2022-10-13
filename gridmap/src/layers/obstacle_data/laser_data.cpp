@@ -2,6 +2,9 @@
 #include <gridmap/operations/clip_line.h>
 #include <pluginlib/class_list_macros.h>
 
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
+
 #include <chrono>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::LaserData, gridmap::DataSource)
@@ -10,7 +13,7 @@ namespace gridmap
 {
 
 LaserData::LaserData()
-    : TopicDataSource<sensor_msgs::LaserScan>("scan"), hit_probability_log_(0), miss_probability_log_(0),
+    : TopicDataSource<sensor_msgs::msg::LaserScan>("scan"), hit_probability_log_(0), miss_probability_log_(0),
       min_obstacle_height_(0), max_obstacle_height_(0), obstacle_range_(0), raytrace_range_(0)
 {
 }
@@ -29,7 +32,7 @@ void LaserData::onMapDataChanged()
 {
 }
 
-bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+bool LaserData::processData(const sensor_msgs::msg::LaserScan::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                             const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();
@@ -40,7 +43,7 @@ bool LaserData::processData(const sensor_msgs::LaserScan::ConstPtr& msg, const E
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        ROS_WARN("Laser sensor is not on gridmap");
+        RCLCPP_WARN(rclcpp::get_logger(""), "Laser sensor is not on gridmap");
         return false;
     }
 

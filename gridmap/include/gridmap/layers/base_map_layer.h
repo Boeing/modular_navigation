@@ -5,8 +5,8 @@
 #include <boost/thread/shared_mutex.hpp>
 #include <gridmap/grids/occupancy_grid.h>
 #include <gridmap/layers/layer.h>
-#include <nav_msgs/OccupancyGrid.h>
-#include <ros/ros.h>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+#include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
 {
@@ -24,7 +24,7 @@ class BaseMapLayer : public Layer
     virtual bool update(OccupancyGrid& grid, const AABB& bb) const override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
-    virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
+    virtual void onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data) override;
 
     virtual bool clear() override
     {

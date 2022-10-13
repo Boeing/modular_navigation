@@ -8,6 +8,7 @@
 #include <cmath>
 #include <mutex>
 #include <vector>
+#include "rcpputils/asserts.hpp"
 
 namespace gridmap
 {
@@ -29,14 +30,14 @@ class ProbabilityGrid : public Grid2D<double>
                              const double clamping_thres_max = 0.971, const double occ_prob_thres = 0.8)
         : Grid2D<double>(map_dims)
     {
-        ROS_ASSERT(clamping_thres_min > 0.);
-        ROS_ASSERT(clamping_thres_min < 1.);
+        rcpputils::assert_true(clamping_thres_min > 0.);
+        rcpputils::assert_true(clamping_thres_min < 1.);
 
-        ROS_ASSERT(clamping_thres_max > 0.);
-        ROS_ASSERT(clamping_thres_max < 1.);
+        rcpputils::assert_true(clamping_thres_max > 0.);
+        rcpputils::assert_true(clamping_thres_max < 1.);
 
-        ROS_ASSERT(occ_prob_thres > 0.);
-        ROS_ASSERT(occ_prob_thres < 1.);
+        rcpputils::assert_true(occ_prob_thres > 0.);
+        rcpputils::assert_true(occ_prob_thres < 1.);
 
         clamping_thres_min_log_ = logodds(clamping_thres_min);
         clamping_thres_max_log_ = logodds(clamping_thres_max);

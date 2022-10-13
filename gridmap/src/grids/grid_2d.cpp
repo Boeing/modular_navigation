@@ -1,4 +1,5 @@
 #include <gridmap/grids/grid_2d.h>
+#include "rcpputils/asserts.hpp"
 
 namespace gridmap
 {
@@ -15,7 +16,7 @@ Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB& bb)
                        grid.dimensions().origin().y() + bb.roi_start.y() * grid.dimensions().resolution()},
                       bb.roi_size)
 {
-    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+    rcpputils::assert_true(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
     cells_.resize(bb.roi_size.x() * bb.roi_size.y());
 
@@ -37,13 +38,13 @@ Grid2D<CellType>::Grid2D(const Grid2D& grid, const AABB& bb)
 // cppcheck-suppress constParameter
 template <class CellType> void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid) const
 {
-    ROS_ASSERT((grid.dimensions().size() == map_dimensions_.size()).all());
+    rcpputils::assert_true((grid.dimensions().size() == map_dimensions_.size()).all());
     std::copy(cells_.begin(), cells_.end(), grid.cells().begin());
 }
 
 template <class CellType> void Grid2D<CellType>::copyTo(Grid2D<CellType>& grid, const AABB& bb) const
 {
-    ROS_ASSERT((grid.dimensions().size() == map_dimensions_.size()).all());
+    rcpputils::assert_true((grid.dimensions().size() == map_dimensions_.size()).all());
 
     const int index = grid.dimensions().size().x() * bb.roi_start.y() + bb.roi_start.x();
     const int index_step = grid.dimensions().size().x();

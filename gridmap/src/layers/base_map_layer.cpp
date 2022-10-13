@@ -1,6 +1,7 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include <graph_map/Zone.h>
+#include <graph_map/msg/zone.hpp>
+#include <graph_map/msg/region.hpp>  //CHANGE, TEST
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/operations/rasterize.h>
 #include <pluginlib/class_list_macros.h>
@@ -71,7 +72,7 @@ void BaseMapLayer::onInitialize(const YAML::Node& parameters)
     lethal_threshold_ = parameters["lethal_threshold"].as<int>(50);
 }
 
-void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
+void BaseMapLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid& new_map)
 {
     map_ = std::make_shared<OccupancyGrid>(dimensions());
 
@@ -91,11 +92,11 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
     //
     // Raster zones
     //
-    for (const graph_map::Zone& zone : zones())
+    for (const graph_map::msg::Zone& zone : zones())
     {
-        for (const graph_map::Region& region : zone.regions)
+        for (const graph_map::msg::Region& region : zone.regions)
         {
-            const geometry_msgs::Polygon polygon = region.polygon;
+            const geometry_msgs::msg::Polygon polygon = region.polygon;
             int min_x = std::numeric_limits<int>::max();
             int max_x = 0;
 
@@ -103,7 +104,7 @@ void BaseMapLayer::onMapChanged(const nav_msgs::OccupancyGrid& new_map)
             int max_y = 0;
 
             std::vector<Eigen::Array2i> map_polygon;
-            for (const geometry_msgs::Point32& p : polygon.points)
+            for (const geometry_msgs::msg::Point32& p : polygon.points)
             {
                 const Eigen::Array2i map_point = map_->dimensions().getCellIndex({p.x, p.y});
                 min_x = std::min(map_point.x(), min_x);

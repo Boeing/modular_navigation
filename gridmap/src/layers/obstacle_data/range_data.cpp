@@ -10,13 +10,17 @@
 #include <fstream>
 #include <iostream>
 
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
+#include "rcpputils/asserts.hpp"
+
 PLUGINLIB_EXPORT_CLASS(gridmap::RangeData, gridmap::DataSource)
 
 namespace gridmap
 {
 
 RangeData::RangeData()
-    : TopicDataSource<sensor_msgs::Range>("scan"), hit_probability_(0), miss_probability_(0), std_deviation_(0),
+    : TopicDataSource<sensor_msgs::msg::Range>("scan"), hit_probability_(0), miss_probability_(0), std_deviation_(0),
       max_range_(0), obstacle_range_(0), raytrace_range_(0)
 {
 }
@@ -37,8 +41,8 @@ void RangeData::onInitialize(const YAML::Node& parameters)
     obstacle_range_ = parameters["obstacle_range"].as<double>(1.2);
     raytrace_range_ = parameters["raytrace_range"].as<double>(1.2);
 
-    ROS_ASSERT(obstacle_range_ <= max_range_);
-    ROS_ASSERT(raytrace_range_ <= max_range_);
+    rcpputils::assert_true(obstacle_range_ <= max_range_);
+    rcpputils::assert_true(raytrace_range_ <= max_range_);
 }
 
 void RangeData::onMapDataChanged()
@@ -77,10 +81,10 @@ void RangeData::onMapDataChanged()
     }
 }
 
-bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen::Isometry2d&,
+bool RangeData::processData(const sensor_msgs::msg::Range::ConstPtr& msg, const Eigen::Isometry2d&,
                             const Eigen::Isometry3d& sensor_transform)
 {
-    ROS_ASSERT(std::abs(msg->max_range - max_range_) < std::numeric_limits<double>::epsilon());
+    rcpputils::assert_true(std::abs(msg->max_range - max_range_) < std::numeric_limits<double>::epsilon());
 
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();
     const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
@@ -90,7 +94,7 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        ROS_WARN("Range sensor is not on gridmap");
+        RCLCPP_WARN(rclcpp::get_logger(""), "Range sensor is not on gridmap");
         return false;
     }
 
@@ -130,7 +134,7 @@ bool RangeData::processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen
         if (_w1 > 0.85)
             return;
 
-        ROS_ASSERT(dist < log_cost_lookup_[cell_range].size());
+        rcpputils::assert_true(dist < log_cost_lookup_[cell_range].size());
 
         map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
     };

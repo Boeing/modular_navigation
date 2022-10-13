@@ -3,15 +3,18 @@
 
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include <graph_map/Zone.h>
+#include <graph_map/msg/zone.hpp>
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/grids/occupancy_grid.h>
 #include <gridmap/robot_tracker.h>
 #include <gridmap/urdf_tree.h>
-#include <map_manager/MapInfo.h>
-#include <nav_msgs/OccupancyGrid.h>
+#include <map_manager/msg/map_info.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 #include <tf2_ros/buffer.h>
 #include <yaml-cpp/yaml.h>
+
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
 
 #include <memory>
 #include <thread>
@@ -32,24 +35,24 @@ class Layer
     virtual bool update(OccupancyGrid& grid, const AABB& bb) const = 0;
 
     virtual void onInitialize(const YAML::Node& parameters) = 0;
-    virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) = 0;
+    virtual void onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data) = 0;
 
     virtual bool clear() = 0;
     virtual bool clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) = 0;
 
-    void setMap(const map_manager::MapInfo& map_info, const nav_msgs::OccupancyGrid& map_data,
-                const std::vector<graph_map::Zone>& zones)
+    void setMap(const map_manager::msg::MapInfo& map_info, const nav_msgs::msg::OccupancyGrid& map_data,
+                const std::vector<graph_map::msg::Zone>& zones)
     {
-        ROS_INFO_STREAM("Updating map: " << name());
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Updating map: " << name());
         // cppcheck-suppress unreadVariable
         const auto lock = getWriteLock();
-        map_info_ = std::make_shared<map_manager::MapInfo>(map_info);
-        zones_ = std::make_shared<std::vector<graph_map::Zone>>(zones);
+        map_info_ = std::make_shared<map_manager::msg::MapInfo>(map_info);
+        zones_ = std::make_shared<std::vector<graph_map::msg::Zone>>(zones);
         map_dimensions_.reset(new MapDimensions(
             map_info.meta_data.resolution, {map_info.meta_data.origin.position.x, map_info.meta_data.origin.position.y},
             {map_info.meta_data.width, map_info.meta_data.height}));
         onMapChanged(map_data);
-        ROS_INFO_STREAM("Updating map: " << name() << " DONE");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Updating map: " << name() << " DONE");
     }
 
     void initialize(const std::string& name, const YAML::Node& parameters,
@@ -63,12 +66,12 @@ class Layer
         onInitialize(parameters);
     }
 
-    const map_manager::MapInfo& mapInfo() const
+    const map_manager::msg::MapInfo& mapInfo() const
     {
         return *map_info_;
     }
 
-    const std::vector<graph_map::Zone>& zones() const
+    const std::vector<graph_map::msg::Zone>& zones() const
     {
         return *zones_;
     }
@@ -117,8 +120,8 @@ class Layer
     std::vector<Eigen::Vector2d> robot_footprint_;
 
   private:
-    std::shared_ptr<map_manager::MapInfo> map_info_;
-    std::shared_ptr<std::vector<graph_map::Zone>> zones_;
+    std::shared_ptr<map_manager::msg::MapInfo> map_info_;
+    std::shared_ptr<std::vector<graph_map::msg::Zone>> zones_;
     std::shared_ptr<MapDimensions> map_dimensions_;
     std::string name_;
 

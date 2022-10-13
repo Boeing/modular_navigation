@@ -38,9 +38,9 @@ void OccupancyGrid::merge(const OccupancyGrid& map, const AABB& bb)
 }
 
 // cppcheck-suppress unusedFunction
-nav_msgs::OccupancyGrid OccupancyGrid::toMsg() const
+nav_msgs::msg::OccupancyGrid OccupancyGrid::toMsg() const
 {
-    nav_msgs::OccupancyGrid grid;
+    nav_msgs::msg::OccupancyGrid grid;
     grid.info.resolution = map_dimensions_.resolution();
     grid.info.width = map_dimensions_.size().x();
     grid.info.height = map_dimensions_.size().y();
@@ -54,9 +54,9 @@ nav_msgs::OccupancyGrid OccupancyGrid::toMsg() const
     return grid;
 }
 
-nav_msgs::OccupancyGrid OccupancyGrid::toMsg(const AABB& bb) const
+nav_msgs::msg::OccupancyGrid OccupancyGrid::toMsg(const AABB& bb) const
 {
-    nav_msgs::OccupancyGrid grid;
+    nav_msgs::msg::OccupancyGrid grid;
     grid.info.resolution = map_dimensions_.resolution();
     grid.info.width = bb.roi_size.x();
     grid.info.height = bb.roi_size.y();

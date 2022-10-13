@@ -4,7 +4,7 @@
 #include <Eigen/Geometry>
 
 #include <gridmap/grids/grid_2d.h>
-#include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 
 #include <cmath>
 #include <mutex>
@@ -83,9 +83,9 @@ class OccupancyGrid : public Grid2D<uint8_t>
 
     void merge(const OccupancyGrid& map, const AABB& bb);
 
-    nav_msgs::OccupancyGrid toMsg() const;
+    nav_msgs::msg::OccupancyGrid toMsg() const;
 
-    nav_msgs::OccupancyGrid toMsg(const AABB& bb) const;
+    nav_msgs::msg::OccupancyGrid toMsg(const AABB& bb) const;
 };
 }  // namespace gridmap
 

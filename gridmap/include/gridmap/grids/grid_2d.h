@@ -7,7 +7,7 @@
 
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include <ros/assert.h>
+#include "rcpputils/asserts.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,9 +26,9 @@ class MapDimensions
     MapDimensions(const double resolution, const Eigen::Vector2d& origin, const Eigen::Array2i size)
         : resolution_(resolution), origin_(origin), size_(size)
     {
-        ROS_ASSERT(resolution_ > 0.0);
-        ROS_ASSERT(size.x() > 0);
-        ROS_ASSERT(size.y() > 0);
+        rcpputils::assert_true(resolution_ > 0.0);
+        rcpputils::assert_true(size.x() > 0);
+        rcpputils::assert_true(size.y() > 0);
     }
 
     double resolution() const

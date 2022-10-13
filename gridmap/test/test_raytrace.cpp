@@ -7,6 +7,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
+
 /*
 TEST(test_raytrace, test_raytrace)
 {
@@ -23,7 +26,7 @@ TEST(test_raytrace, test_raytrace)
 
         const std::vector<Eigen::Array2i> line = gridmap::drawLine(map_dims.size().x(), map_dims.size().y(), 0, 0);
 
-        ROS_INFO_STREAM(
+        RCLCPP_INFO_STREAM(
                         "efla took "
                         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() -
 t0).count());
@@ -61,7 +64,7 @@ TEST(test_polyfill, test_polyfill)
 
         gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 600);
 
-        ROS_INFO_STREAM("rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
                                                          std::chrono::steady_clock::now() - t0)
                                                          .count());
     }

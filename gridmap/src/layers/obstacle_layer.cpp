@@ -1,10 +1,14 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include <geometry_msgs/PolygonStamped.h>
+#include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <gridmap/layers/obstacle_layer.h>
 #include <opencv2/imgproc.hpp>
 #include <pluginlib/class_list_macros.h>
-#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/msg/marker.hpp>
+
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
+#include "rcpputils/asserts.hpp"
 
 #include <chrono>
 
@@ -33,14 +37,14 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
 
         for (YAML::const_iterator it = value.begin(); it != value.end(); ++it)
         {
-            ROS_ASSERT(it->IsMap());
+            rcpputils::assert_true(it->IsMap());
 
             std::string pname = (*it)["name"].as<std::string>();
             std::string type = (*it)["type"].as<std::string>();
 
             try
             {
-                ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Loading plugin: " << pname << " type: " << type);
                 const YAML::Node params = parameters[pname];
                 std::shared_ptr<gridmap::DataSource> plugin_ptr =
                     std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
@@ -118,7 +122,7 @@ bool ObstacleLayer::draw(OccupancyGrid& grid, const AABB& bb) const
     // cppcheck-suppress unreadVariable
     const auto dst_lock = grid.getWriteLock();
 
-    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+    rcpputils::assert_true(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -175,7 +179,7 @@ bool ObstacleLayer::update(OccupancyGrid& grid, const AABB& bb) const
     // cppcheck-suppress unreadVariable
     const auto dst_lock = grid.getWriteLock();
 
-    ROS_ASSERT(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
+    rcpputils::assert_true(((bb.roi_start + bb.roi_size) <= grid.dimensions().size()).all());
 
     const int y_size = bb.roi_start.y() + bb.roi_size.y();
     for (int y = bb.roi_start.y(); y < y_size; y++)
@@ -204,18 +208,18 @@ void ObstacleLayer::onInitialize(const YAML::Node& parameters)
     {
         time_decay_frequency_ = parameters["time_decay_frequency"].as<double>(time_decay_frequency_);
         alpha_decay_ = parameters["alpha_decay"].as<double>(alpha_decay_);
-        ROS_ASSERT(time_decay_frequency_ > 0);
+        rcpputils::assert_true(time_decay_frequency_ > 0);
     }
 
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
         debug_viz_frequency_ = parameters["debug_viz_frequency"].as<double>(debug_viz_frequency_);
-        ROS_ASSERT(debug_viz_frequency_ > 0);
+        rcpputils::assert_true(debug_viz_frequency_ > 0);
     }
 }
 
-void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
+void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
 {
     probability_grid_ =
         std::make_shared<ProbabilityGrid>(dimensions(), clamping_thres_min_, clamping_thres_max_, occ_prob_thres_);
@@ -230,7 +234,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
     if (debug_viz_)
     {
         ros::NodeHandle nh(name());
-        debug_viz_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
+        debug_viz_pub_ = nh.advertise<nav_msgs::msg::OccupancyGrid>("costmap", 1);
         if (debug_viz_running_)
         {
             debug_viz_running_ = false;
@@ -252,7 +256,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::OccupancyGrid&)
 
     if (time_decay_)
     {
-        ROS_INFO_STREAM(name() << ": enabling time decay freq: " << time_decay_frequency_
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),name() << ": enabling time decay freq: " << time_decay_frequency_
                                << " alpha: " << alpha_decay_);
         if (time_decay_running_)
         {
@@ -305,7 +309,7 @@ bool ObstacleLayer::isDataOk() const
     {
         const bool ds_ok = ds.second->isDataOk();
         if (!ds_ok)
-            ROS_WARN_STREAM("'" << ds.first << "' has stale data");
+            RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "'" << ds.first << "' has stale data");
         ok &= ds_ok;
     }
     return ok;
@@ -313,11 +317,12 @@ bool ObstacleLayer::isDataOk() const
 
 void ObstacleLayer::debugVizThread(const double frequency)
 {
-    nav_msgs::OccupancyGrid grid;
-    ros::Rate rate(frequency);
+    nav_msgs::msg::OccupancyGrid grid;
+    //ros::Rate rate(frequency);
+    rclcpp::Rate rate(frequency);
     const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
 
-    while (debug_viz_running_ && ros::ok())
+    while (debug_viz_running_ && rclcpp::ok())
     {
         {
             boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
@@ -355,14 +360,14 @@ void ObstacleLayer::debugVizThread(const double frequency)
                 grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
                                               top_left_y * probability_grid_->dimensions().resolution();
 
-                grid.header.stamp = ros::Time::now();
+                grid.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
 
                 {
                     // cppcheck-suppress unreadVariable
                     const auto lock = probability_grid_->getReadLock();
 
-                    ROS_ASSERT((top_left_x + actual_size_x) <= probability_grid_->dimensions().size().x());
-                    ROS_ASSERT((top_left_y + actual_size_y) <= probability_grid_->dimensions().size().y());
+                    rcpputils::assert_true((top_left_x + actual_size_x) <= probability_grid_->dimensions().size().x());
+                    rcpputils::assert_true((top_left_y + actual_size_y) <= probability_grid_->dimensions().size().y());
 
                     int roi_index = 0;
                     const int y_size = top_left_y + actual_size_y;
@@ -372,7 +377,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                         const int index_end = index_start + actual_size_x;
                         for (int index = index_start; index < index_end; ++index)
                         {
-                            ROS_ASSERT(index < static_cast<int>(probability_grid_->cells().size()));
+                            rcpputils::assert_true(index < static_cast<int>(probability_grid_->cells().size()));
                             grid.data[roi_index] =
                                 static_cast<int8_t>(probability(probability_grid_->cells()[index]) * 100.0);
                             ++roi_index;
@@ -396,10 +401,11 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
 void ObstacleLayer::clearFootprintThread(const double frequency)
 {
-    ros::Rate rate(frequency);
+    //ros::Rate rate(frequency);
+    rclcpp::Rate rate(frequency);
     const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
 
-    while (clear_footprint_running_ && ros::ok())
+    while (clear_footprint_running_ && rclcpp::ok())
     {
         {
             boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
@@ -427,7 +433,8 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
 
 void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
-    ros::Rate rate(frequency);
+    //ros::Rate rate(frequency);
+    rclcpp::Rate rate(frequency);
     const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
 
     // divide the grid into a set of blocks which we can mark as dirty
@@ -482,7 +489,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
                                                     {1, 0},   {-1, 1}, {0, 1},  {1, 1}};
 
     std::set<int> last_update;
-    while (time_decay_running_ && ros::ok())
+    while (time_decay_running_ && rclcpp::ok())
     {
         {
             boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);

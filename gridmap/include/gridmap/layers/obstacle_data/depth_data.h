@@ -6,15 +6,15 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <ros/ros.h>
-#include <sensor_msgs/Image.h>
+#include "rclcpp/rclcpp.hpp"
+#include <sensor_msgs/msg/image.hpp>
 
 #include <unordered_map>
 
 namespace gridmap
 {
 
-class DepthData : public TopicDataSource<sensor_msgs::Image>
+class DepthData : public TopicDataSource<sensor_msgs::msg::Image>
 {
   public:
     DepthData();
@@ -25,14 +25,14 @@ class DepthData : public TopicDataSource<sensor_msgs::Image>
     virtual bool isDataOk() const override;
 
   protected:
-    virtual bool processData(const sensor_msgs::Image::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::msg::Image::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:
-    void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);
+    void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg);
 
     std::string camera_info_topic_;
-    ros::Subscriber camera_info_sub_;
+    rclcpp::Subscription camera_info_sub_; //previous ros::Subscriber camera_info_sub_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
     std::mutex camera_info_mutex_;
     std::atomic_bool got_camera_info_;
 

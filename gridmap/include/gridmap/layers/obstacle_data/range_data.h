@@ -4,13 +4,13 @@
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
 #include <message_filters/subscriber.h>
-#include <sensor_msgs/Range.h>
+#include <sensor_msgs/msg/range.hpp>
 #include <tf2_ros/message_filter.h>
 
 namespace gridmap
 {
 
-class RangeData : public TopicDataSource<sensor_msgs::Range>
+class RangeData : public TopicDataSource<sensor_msgs::msg::Range>
 {
   public:
     RangeData();
@@ -18,7 +18,7 @@ class RangeData : public TopicDataSource<sensor_msgs::Range>
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::Range::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::msg::Range::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

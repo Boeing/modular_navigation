@@ -7,13 +7,15 @@
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
 
-    <buildtool_depend>catkin</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
+    <!--<buildtool_depend>rosidl_default_generators</buildtool_depend>-->
 
-    <build_depend>cmake_modules</build_depend>
+    <!--<build_depend>cmake_modules</build_depend>-->
 
     <depend>cartographer_ros_msgs</depend>
     <depend>cv_bridge</depend>
     <depend>geometry_msgs</depend>
+    <depend>graph_map</depend>
     <depend>image_geometry</depend>
     <depend>laser_geometry</depend>
     <depend>map_manager</depend>
@@ -21,8 +23,6 @@
     <depend>message_filters</depend>
     <depend>nav_msgs</depend>
     <depend>pluginlib</depend>
-    <depend>roscpp</depend>
-    <depend>rospack</depend>
     <depend>sensor_msgs</depend>
     <depend>std_msgs</depend>
     <depend>tf2_geometry_msgs</depend>
@@ -35,12 +35,17 @@
     <exec_depend>message_runtime</exec_depend>
     <exec_depend>rosconsole</exec_depend>
 
-    <test_depend>map_server</test_depend>
-    <test_depend>rosbag</test_depend>
-    <test_depend>rostest</test_depend>
-    <test_depend>rosunit</test_depend>
+    <!--<test_depend>map_server</test_depend>-->
+    <!--<test_depend>rosbag</test_depend>-->
+    <!--<test_depend>rostest</test_depend>-->
+    <!--<test_depend>rosunit</test_depend>-->
 
-    <export>
+    <!-- Plugin export in ROS2 is done through the CMakeLists
+      <export>
       <gridmap plugin="${prefix}/plugins.xml"/>
+    </export>-->
+    <export>
+        <build_type>ament_cmake</build_type>
     </export>
+
 </package>

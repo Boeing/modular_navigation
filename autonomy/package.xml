@@ -7,7 +7,10 @@
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
 
-    <buildtool_depend>catkin</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake_python</buildtool_depend>
+    <!--<buildtool_depend>rosidl_default_generators</buildtool_depend>-->
+
 
     <depend>actionlib</depend>
     <depend>cmake_modules</depend>

@@ -5,13 +5,16 @@
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <image_transport/subscriber.h>
 #include <pluginlib/class_list_macros.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/msg/camerainfo.hpp>
+#include <sensor_msgs/msg/image_encodings.hpp>
 
 #include <chrono>
 #include <cstdint>
 #include <string>
 #include <unordered_set>
+
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
 
 PLUGINLIB_EXPORT_CLASS(gridmap::CompressedDepthData, gridmap::DataSource)
 
@@ -19,7 +22,7 @@ namespace gridmap
 {
 
 CompressedDepthData::CompressedDepthData()
-    : TopicDataSource<sensor_msgs::CompressedImage>("depth/compressedDepth"), got_camera_info_(false),
+    : TopicDataSource<sensor_msgs::msg::CompressedImage>("depth/compressedDepth"), got_camera_info_(false),
       hit_probability_log_(0), miss_probability_log_(0), obstacle_height_(0), min_range_(0), max_range_(0)
 {
 }
@@ -35,13 +38,13 @@ void CompressedDepthData::onInitialize(const YAML::Node& parameters)
 
     if (!image_mask_.empty())
     {
-        ROS_INFO_STREAM("Loading image mask: " << image_mask_);
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Loading image mask: " << image_mask_);
         const std::string resolved_path = getPackageUriPath(image_mask_);
         cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(resolved_path, cv::IMREAD_GRAYSCALE));
     }
 
     ros::NodeHandle g_nh;
-    camera_info_sub_ = g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000,
+    camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
                                                                &CompressedDepthData::cameraInfoCallback, this);
 }
 
@@ -55,17 +58,17 @@ CompressedDepthData::~CompressedDepthData()
 
 bool CompressedDepthData::isDataOk() const
 {
-    return got_camera_info_ && TopicDataSource<sensor_msgs::CompressedImage>::isDataOk();
+    return got_camera_info_ && TopicDataSource<sensor_msgs::msg::CompressedImage>::isDataOk();
 }
 
-void CompressedDepthData::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
+void CompressedDepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg)
 {
     std::lock_guard<std::mutex> lock(camera_info_mutex_);
     got_camera_info_ = true;
     camera_model_.fromCameraInfo(*msg);
 }
 
-bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstPtr& msg,
+bool CompressedDepthData::processData(const sensor_msgs::msg::CompressedImage::ConstPtr& msg,
                                       const Eigen::Isometry2d& robot_pose, const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
@@ -76,7 +79,7 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
 
     if (!got_camera_info_)
     {
-        ROS_ERROR_STREAM("No camera info for: " << name());
+        RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "No camera info for: " << name());
         return false;
     }
 
@@ -84,11 +87,11 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        ROS_WARN_STREAM("Sensor is not on gridmap for: " << name());
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Sensor is not on gridmap for: " << name());
         return false;
     }
 
-    const sensor_msgs::Image::Ptr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
+    const sensor_msgs::msg::Image::Ptr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
 
     const cv_bridge::CvImageConstPtr cv_image = getImage(image, cv_image_mask_);
 
@@ -102,10 +105,10 @@ bool CompressedDepthData::processData(const sensor_msgs::CompressedImage::ConstP
 
         std::unordered_map<uint64_t, float> height_voxels;
 
-        if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
+        if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_16UC1)
             projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
                                    cv_image->image, camera_model_, map_data_->dimensions());
-        else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
+        else if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_32FC1)
             projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
                                 cv_image->image, camera_model_, map_data_->dimensions());
         else

@@ -27,7 +27,7 @@ class ObstacleLayer : public Layer
     virtual bool update(OccupancyGrid& grid, const AABB& bb) const override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
-    virtual void onMapChanged(const nav_msgs::OccupancyGrid& map_data) override;
+    virtual void onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data) override;
 
     virtual bool clear() override;
     virtual bool clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) override;
@@ -44,7 +44,8 @@ class ObstacleLayer : public Layer
     double clamping_thres_max_ = 0.971;
     double occ_prob_thres_ = 0.8;
 
-    ros::Publisher debug_viz_pub_;
+    //ros::Publisher debug_viz_pub_;
+    rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr debug_viz_pub_; //
 
     bool debug_viz_ = true;
     std::atomic<bool> debug_viz_running_;

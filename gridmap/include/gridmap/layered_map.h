@@ -4,7 +4,7 @@
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/layers/layer.h>
 #include <gridmap/map_data.h>
-#include <map_manager/MapInfo.h>
+#include <map_manager/msg/map_info.hpp>
 
 #include <memory>
 #include <vector>
@@ -28,8 +28,8 @@ class LayeredMap
     void clearRadius(const Eigen::Vector2d& pose, const double radius);
     void clearRadius(OccupancyGrid& grid, const Eigen::Vector2d& pose, const double radius);
 
-    void setMap(const map_manager::MapInfo& map_info, const nav_msgs::OccupancyGrid& map_data,
-                const std::vector<graph_map::Zone>& zones);
+    void setMap(const map_manager::msg::MapInfo& map_info, const nav_msgs::msg::OccupancyGrid& map_data,
+                const std::vector<graph_map::msg::Zone>& zones);
 
     std::shared_ptr<const MapData> map() const
     {

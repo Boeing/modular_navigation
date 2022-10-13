@@ -38,9 +38,10 @@
 
 #include <opencv2/core/core.hpp>
 
-#include "sensor_msgs/CompressedImage.h"
-#include "sensor_msgs/Image.h"
-#include "sensor_msgs/image_encodings.h"
+#include "sensor_msgs/msg/compressed_image.hpp"
+#include "sensor_msgs/msg/image.hpp"
+#include <sensor_msgs/image_encodings.hpp>
+//#include "sensor_msgs/msg/image_encodings.hpp"
 
 namespace gridmap
 {
@@ -50,10 +51,10 @@ namespace compressed_depth_image_transport
 {
 
 // Returns a null pointer on bad input.
-sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::CompressedImage& compressed_image);
+sensor_msgs::msg::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& compressed_image);// changed
 
 // Compress a depth image. Returns a null pointer on bad input.
-sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::Image& message,
+sensor_msgs::msg::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::msg::Image& message, // changed
                                                              const std::string& compression_format, double depth_max,
                                                              double depth_quantization, int png_level);
 

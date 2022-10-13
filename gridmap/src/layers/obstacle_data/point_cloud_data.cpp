@@ -1,10 +1,13 @@
 #include <gridmap/layers/obstacle_data/point_cloud_data.h>
 #include <pluginlib/class_list_macros.h>
-#include <sensor_msgs/point_cloud2_iterator.h>
+#include <sensor_msgs/msg/point_cloud2_iterator.hpp>
 
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
+
+// For logging reasons
+#include "rclcpp/rclcpp.hpp"
 
 PLUGINLIB_EXPORT_CLASS(gridmap::PointCloudData, gridmap::DataSource)
 
@@ -12,7 +15,7 @@ namespace gridmap
 {
 
 PointCloudData::PointCloudData()
-    : TopicDataSource<sensor_msgs::PointCloud2>("points"), hit_probability_log_(0), miss_probability_log_(0),
+    : TopicDataSource<sensor_msgs::msg::PointCloud2>("points"), hit_probability_log_(0), miss_probability_log_(0),
       obstacle_height_(0), max_range_(0)
 {
 }
@@ -43,7 +46,7 @@ PointCloudData::~PointCloudData()
 {
 }
 
-bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+bool PointCloudData::processData(const sensor_msgs::msg::PointCloud2::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
                                  const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
@@ -56,7 +59,7 @@ bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg, 
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data_->dimensions().size().y())
     {
-        ROS_WARN("Sensor is not on gridmap");
+        RCLCPP_WARN(rclcpp::get_logger(""), "Sensor is not on gridmap");
         return false;
     }
 
@@ -66,7 +69,7 @@ bool PointCloudData::processData(const sensor_msgs::PointCloud2::ConstPtr& msg, 
     {
         auto _lock = map_data_->getWriteLock();
 
-        sensor_msgs::PointCloud2ConstIterator<float> iter_x(*msg, "x");
+        sensor_msgs::msg::PointCloud2ConstIterator<float> iter_x(*msg, "x");
 
         std::unordered_map<uint64_t, float> height_voxels;
 

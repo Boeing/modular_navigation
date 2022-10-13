@@ -5,8 +5,9 @@
 #include <gridmap/operations/raytrace.h>
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv2/core/core.hpp>
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 #include <rospack/rospack.h>
+#include "rcpputils/asserts.hpp"
 
 #include <unordered_map>
 
@@ -124,15 +125,15 @@ template <typename T> void maskImage(cv::Mat& image, const cv::Mat& mask)
     }
 }
 
-inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::Image::ConstPtr& image,
+inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::msg::Image::ConstPtr& image,
                                                  const std::unique_ptr<cv::Mat>& cv_image_mask)
 {
     if (cv_image_mask)
     {
         const cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(image);
-        if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
+        if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_16UC1)
             maskImage<uint16_t>(cv_image->image, *cv_image_mask);
-        else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
+        else if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_32FC1)
             maskImage<float>(cv_image->image, *cv_image_mask);
         return cv_image;
     }
@@ -145,7 +146,7 @@ inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::Image::Const
 
 inline std::string getPackageUriPath(const std::string& package_uri)
 {
-    ROS_ASSERT(!package_uri.empty());
+    rcpputils::assert_true(!package_uri.empty());
 
     const std::string prefix = "package://";
     ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");

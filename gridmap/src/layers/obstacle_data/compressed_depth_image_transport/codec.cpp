@@ -41,7 +41,7 @@
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/compression_common.h>
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/rvl_codec.h>
 #include <opencv2/highgui/highgui.hpp>
-#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
 #include <limits>
 #include <string>
@@ -57,7 +57,7 @@
 #endif
 #endif
 
-namespace enc = sensor_msgs::image_encodings;
+namespace enc = sensor_msgs::image_encodings; // changed from sensor_msgs::msg::Image::encodings
 using namespace cv;
 
 namespace gridmap
@@ -67,7 +67,7 @@ namespace gridmap
 namespace compressed_depth_image_transport
 {
 
-sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::CompressedImage& message)
+sensor_msgs::msg::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& message)// changed
 {
     cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
 
@@ -96,8 +96,8 @@ sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::Compressed
         }
         else
         {
-            ROS_ERROR("Unsupported image format: %s", message.format.c_str());
-            return sensor_msgs::Image::Ptr();
+            RCLCPP_ERROR(rclcpp::get_logger(""), "Unsupported image format: %s", message.format.c_str());
+            return sensor_msgs::msg::Image::Ptr();
         }
     }
 
@@ -133,8 +133,8 @@ sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::Compressed
                 }
                 catch (cv::Exception& e)
                 {
-                    ROS_ERROR("%s", e.what());
-                    return sensor_msgs::Image::Ptr();
+                    RCLCPP_ERROR(rclcpp::get_logger(""), "%s", e.what());
+                    return sensor_msgs::msg::Image::Ptr();
                 }
             }
             else if (compression_format == "rvl")
@@ -149,7 +149,7 @@ sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::Compressed
             }
             else
             {
-                return sensor_msgs::Image::Ptr();
+                return sensor_msgs::msg::Image::Ptr();
             }
 
             size_t rows = decompressed.rows;
@@ -194,8 +194,8 @@ sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::Compressed
                 }
                 catch (cv::Exception& e)
                 {
-                    ROS_ERROR("%s", e.what());
-                    return sensor_msgs::Image::Ptr();
+                    RCLCPP_ERROR(rclcpp::get_logger(""), "%s", e.what());
+                    return sensor_msgs::msg::Image::Ptr();
                 }
             }
             else if (compression_format == "rvl")
@@ -210,7 +210,7 @@ sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::Compressed
             }
             else
             {
-                return sensor_msgs::Image::Ptr();
+                return sensor_msgs::msg::Image::Ptr();
             }
 
             size_t rows = cv_ptr->image.rows;
@@ -223,17 +223,17 @@ sensor_msgs::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::Compressed
             }
         }
     }
-    return sensor_msgs::Image::Ptr();
+    return sensor_msgs::msg::Image::Ptr();
 }
 
 // cppcheck-suppress unusedFunction
-sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::Image& message,
+sensor_msgs::msg::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::msg::Image& message,
                                                              const std::string& compression_format, double depth_max,
                                                              double depth_quantization, int png_level)
 {
 
     // Compressed image message
-    sensor_msgs::CompressedImage::Ptr compressed(new sensor_msgs::CompressedImage());
+    sensor_msgs::msg::CompressedImage::Ptr compressed(new sensor_msgs::msg::CompressedImage());
     compressed->header = message.header;
     compressed->format = message.encoding;
 
@@ -272,8 +272,8 @@ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::
         }
         catch (cv_bridge::Exception& e)
         {
-            ROS_ERROR("%s", e.what());
-            return sensor_msgs::CompressedImage::Ptr();
+            RCLCPP_ERROR(rclcpp::get_logger(""), "%s", e.what());
+            return sensor_msgs::msg::CompressedImage::Ptr();
         }
 
         const Mat& depthImg = cv_ptr->image;
@@ -322,19 +322,19 @@ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::
                     {
                         float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize()) /
                                        (float)compressedImage.size();
-                        ROS_DEBUG("Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
+                        RCLCPP_DEBUG(rclcpp::get_logger(""), "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
                                   compressedImage.size());
                     }
                     else
                     {
-                        ROS_ERROR("cv::imencode (png) failed on input image");
-                        return sensor_msgs::CompressedImage::Ptr();
+                        RCLCPP_ERROR(rclcpp::get_logger(""), "cv::imencode (png) failed on input image");
+                        return sensor_msgs::msg::CompressedImage::Ptr();
                     }
                 }
                 catch (cv::Exception& e)
                 {
-                    ROS_ERROR("%s", e.msg.c_str());
-                    return sensor_msgs::CompressedImage::Ptr();
+                    RCLCPP_ERROR(rclcpp::get_logger(""), "%s", e.msg.c_str());
+                    return sensor_msgs::msg::CompressedImage::Ptr();
                 }
             }
             else if (compression_format == "rvl")
@@ -364,8 +364,8 @@ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::
         }
         catch (Exception& e)
         {
-            ROS_ERROR("%s", e.msg.c_str());
-            return sensor_msgs::CompressedImage::Ptr();
+            RCLCPP_ERROR(rclcpp::get_logger(""), "%s", e.msg.c_str());
+            return sensor_msgs::msg::CompressedImage::Ptr();
         }
 
         const Mat& depthImg = cv_ptr->image;
@@ -394,13 +394,13 @@ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::
                 {
                     float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize()) /
                                    (float)compressedImage.size();
-                    ROS_DEBUG("Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
+                    RCLCPP_DEBUG(rclcpp::get_logger(""), "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
                               compressedImage.size());
                 }
                 else
                 {
-                    ROS_ERROR("cv::imencode (png) failed on input image");
-                    return sensor_msgs::CompressedImage::Ptr();
+                    RCLCPP_ERROR(rclcpp::get_logger(""), "cv::imencode (png) failed on input image");
+                    return sensor_msgs::msg::CompressedImage::Ptr();
                 }
             }
             else if (compression_format == "rvl")
@@ -422,10 +422,10 @@ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::
     }
     else
     {
-        ROS_ERROR("Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or "
+        RCLCPP_ERROR(rclcpp::get_logger(""), "Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or "
                   "16bit raw depth images (input format is: %s).",
                   message.encoding.c_str());
-        return sensor_msgs::CompressedImage::Ptr();
+        return sensor_msgs::msg::CompressedImage::Ptr();
     }
 
     if (compressedImage.size() > 0)
@@ -440,7 +440,7 @@ sensor_msgs::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::
         return compressed;
     }
 
-    return sensor_msgs::CompressedImage::Ptr();
+    return sensor_msgs::msg::CompressedImage::Ptr();
 }
 
 }  // namespace compressed_depth_image_transport
