@@ -5,6 +5,7 @@
 #include <navigation_interface/controller.h>
 //#include <ros/ros.h>
 #include "rclcpp/rclcpp.hpp"
+#include "rcpputils/asserts.hpp"
 
 #include <memory>
 #include <vector>
@@ -72,6 +73,8 @@ class PurePursuitController : public navigation_interface::Controller
     // Making a node attrb instead of usig publishers
     // Although it is only used if debug_viz_ is set inside a yaml
     auto node = rclcpp::Node::make_shared("~");
+    target_state_pub_ = NULL;
+    footprint_pub_ = NULL;
 
     // Now it is assumed that onInitialize is always called first
     //ros::Publisher target_state_pub_;

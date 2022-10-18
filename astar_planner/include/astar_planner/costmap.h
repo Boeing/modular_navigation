@@ -124,10 +124,10 @@ class CollisionChecker
                      const double conservative_radius)
         : costmap_(costmap), offsets_(offsets), conservative_radius_(conservative_radius)
     {
-        ROS_ASSERT(conservative_radius >= costmap.inflation_radius);
+        rcpputils::assert_true(conservative_radius >= costmap.inflation_radius);
         // check that the conservative radius is larger than the width of the robot
         for (const auto& offset : offsets_)
-            ROS_ASSERT_MSG(conservative_radius >= std::abs(offset.y()) + costmap.inflation_radius,
+            rcpputils::assert_true(conservative_radius >= std::abs(offset.y()) + costmap.inflation_radius,
                            "conservative_radius: %f offset.y(): %f inflation_radius: %f", conservative_radius,
                            offset.y(), costmap.inflation_radius);
 

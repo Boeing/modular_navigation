@@ -95,7 +95,7 @@ navigation_interface::PathPlanner::Result
 
     costmap_->processObstacleMap(local_region);
 
-    ROS_ASSERT(traversal_cost_);
+    rcpputils::assert_true(traversal_cost_);
     costmap_->traversal_cost = traversal_cost_;
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, inflated_conservative_robot_radius);
 
@@ -113,20 +113,22 @@ navigation_interface::PathPlanner::Result
         start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, sample,
         backwards_mult_applied, strafe_mult_applied, rotation_mult_applied);
 
-    ROS_INFO_STREAM(
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
         "Hybrid A Star took "
         << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
         << " iterations: " << astar_result.iterations << " nodes: " << astar_result.explore_3d.size());
 
     if (debug_viz_)
     {
-        if (explore_pub_.getNumSubscribers() > 0)
+        //if (explore_pub_.getNumSubscribers() > 0)
+        if (explore_pub_.get_subscription_count() > 0) // 
         {
             cv::Mat disp = astar_planner::visualise(*costmap_, astar_result);
             cv::cvtColor(disp, disp, cv::COLOR_BGR2GRAY);
 
             nav_msgs::OccupancyGrid og;
-            og.header.stamp = ros::Time::now();
+            //og.header.stamp = ros::Time::now();
+            og.header.stamp = node->get_clock()->now();//.nanoseconds()
             og.info.resolution = costmap_->resolution;
             og.info.width = costmap_->width;
             og.info.height = costmap_->height;
@@ -159,9 +161,9 @@ navigation_interface::PathPlanner::Result
     else
     {
         if (astar_result.start_in_collision)
-            ROS_WARN("Start in collision!");
+            RCLCPP_WARN(rclcpp::get_logger(""),"Start in collision!");
         if (astar_result.goal_in_collision)
-            ROS_WARN("Goal in collision!");
+            RCLCPP_WARN(rclcpp::get_logger(""),"Goal in collision!");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
     }
     return result;
@@ -172,7 +174,7 @@ bool AStarPlanner::valid(const navigation_interface::Path& path, const double av
     const double inflated_conservative_robot_radius = conservative_robot_radius_ + std::max(0.0, avoid_distance);
 
     // assume this is called immediately after plan to re-use the data structures
-    ROS_ASSERT(costmap_);
+    rcpputils::assert_true(costmap_);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, inflated_conservative_robot_radius);
     return pathCost(path, collision_checker, backwards_mult_, strafe_mult_, rotation_mult_) <
@@ -184,7 +186,7 @@ double AStarPlanner::cost(const navigation_interface::Path& path, const double a
     const double inflated_conservative_robot_radius = conservative_robot_radius_ + std::max(0.0, avoid_distance);
 
     // assume this is called immediately after plan to re-use the data structures
-    ROS_ASSERT(costmap_);
+    rcpputils::assert_true(costmap_);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, inflated_conservative_robot_radius);
     return pathCost(path, collision_checker, backwards_mult_, strafe_mult_, rotation_mult_);
@@ -215,15 +217,17 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        ros::NodeHandle nh("~");
-        explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("expansion", 100);
+        //ros::NodeHandle nh("~");
+        //explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("expansion", 100);
+        // TODO What is the scope on this? consider moving it to plugin.h
+        auto explore_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", 100);
     }
 }
 
 // cppcheck-suppress unusedFunction
 void AStarPlanner::onMapDataChanged()
 {
-    ROS_INFO("Adding cost-modifying zones to traversal costmap");
+    RCLCPP_INFO(rclcpp::get_logger(""), "Adding cost-modifying zones to traversal costmap");
 
     // need to generate a data structure for zones
     traversal_cost_ = std::make_shared<cv::Mat>(map_data_->grid.dimensions().size().y(),

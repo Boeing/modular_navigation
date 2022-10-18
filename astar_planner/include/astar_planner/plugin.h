@@ -5,7 +5,8 @@
 #include <gridmap/map_data.h>
 #include <navigation_interface/path_planner.h>
 #include <opencv2/core.hpp>
-#include <ros/ros.h>
+//#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
 namespace astar_planner
 {
@@ -39,7 +40,9 @@ class AStarPlanner : public navigation_interface::PathPlanner
 
     std::vector<Eigen::Vector2d> offsets_;
 
-    ros::Publisher explore_pub_;
+    //ros::Publisher explore_pub_; // this is created on initialized_pub
+    auto node = rclcpp::Node::make_shared("~");
+    explore_pub_ = NULL; // 
 
     std::shared_ptr<Costmap> costmap_;
     std::shared_ptr<cv::Mat> traversal_cost_;

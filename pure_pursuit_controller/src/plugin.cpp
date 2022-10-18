@@ -8,6 +8,7 @@
 #include <pluginlib/class_list_macros.h>
 #include <pure_pursuit_controller/plugin.h>
 #include <visualization_msgs/MarkerArray.h>
+//#include <visualization_msgs/msg/marker_array.h>
 
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
@@ -33,7 +34,7 @@ struct CollisionCheck
 {
     bool in_collision;
     double min_distance_to_collision;
-    visualization_msgs::Marker marker;
+    visualization_msgs::msg::Marker marker;
 };
 
 CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen::Isometry2d& robot_pose,
@@ -134,10 +135,10 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
         min_distance_to_collision *= grid.dimensions().resolution();
     }
 
-    visualization_msgs::Marker marker;
+    visualization_msgs::msg::Marker marker;
     marker.ns = "points";
     marker.id = 0;
-    marker.type = visualization_msgs::Marker::POINTS;
+    marker.type = visualization_msgs::msg::Marker::POINTS;
     //marker.header.stamp = ros::Time::now();
     marker.header.stamp = node->get_clock()->now()//.nanoseconds()
     marker.header.frame_id = "map";
@@ -181,13 +182,13 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     return {in_collision, min_distance_to_collision, marker};
 }
 
-visualization_msgs::Marker buildMarker(const navigation_interface::KinodynamicState& robot_state,
+visualization_msgs::msg::Marker buildMarker(const navigation_interface::KinodynamicState& robot_state,
                                        const navigation_interface::KinodynamicState& target_state)
 {
-    visualization_msgs::Marker marker;
+    visualization_msgs::msg::Marker marker;
     marker.ns = "target";
     marker.id = 0;
-    marker.type = visualization_msgs::Marker::ARROW;
+    marker.type = visualization_msgs::msg::Marker::ARROW;
     //marker.header.stamp = ros::Time::now();
     marker.header.stamp = node->get_clock()->now()//.nanoseconds()
     marker.header.frame_id = "odom";
@@ -521,7 +522,7 @@ navigation_interface::Controller::Result
         target_velocity = p_gain_.cwiseProduct(control_error) + d_gain_.cwiseProduct(control_dot_);
     }
 
-    rcpputils::assert_true(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
+    rcpputils::assert_true(target_velocity.allFinite(), ("%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]));
 
     //
     // Max acceleration check
@@ -652,8 +653,8 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
         //ros::NodeHandle nh("~");
         //target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
         //footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
-        auto target_state_pub_ = node->create_publisher<visualization_msgs::Marker>("target_state", 100);
-        auto footprint_pub_ = node->create_publisher<visualization_msgs::Marker>("footprint", 100);
+        auto target_state_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
+        auto footprint_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
     }
 }
 

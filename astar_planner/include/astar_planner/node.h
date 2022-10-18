@@ -2,7 +2,8 @@
 #define ASTAR_PLANNER_NODE_H
 
 #include <boost/heap/binomial_heap.hpp>
-#include <ros/assert.h>
+//#include <ros/assert.h>
+#include "rcpputils/asserts.hpp"
 
 #include <array>
 #include <cmath>

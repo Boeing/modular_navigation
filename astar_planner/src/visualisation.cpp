@@ -255,7 +255,7 @@ void drawDot(const Costmap& costmap, const PathResult& astar_result, const Eigen
 // cppcheck-suppress unusedFunction
 bool drawPathSVG(const PathResult& astar_result, const std::string& svg_path)
 {
-    ROS_ASSERT(astar_result.success);
+    rcpputils::assert_true(astar_result.success);
 
     const auto layout = std::make_shared<svg::Layout>(svg::Dimensions(0, 0), svg::Layout::Origin::TopLeft);
     const auto viewbox = std::make_shared<svg::ViewBox>(-10000, -10000, 20000, 20000);

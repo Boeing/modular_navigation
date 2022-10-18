@@ -57,24 +57,24 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
 {
     const Costmap& costmap = collision_checker.costmap();
 
-    ROS_ASSERT(start.x >= 0);
-    ROS_ASSERT(start.x < costmap.width);
+    rcpputils::assert_true(start.x >= 0);
+    rcpputils::assert_true(start.x < costmap.width);
 
-    ROS_ASSERT(start.y >= 0);
-    ROS_ASSERT(start.y < costmap.height);
+    rcpputils::assert_true(start.y >= 0);
+    rcpputils::assert_true(start.y < costmap.height);
 
-    ROS_ASSERT(goal.x >= 0);
-    ROS_ASSERT(goal.x < costmap.width);
+    rcpputils::assert_true(goal.x >= 0);
+    rcpputils::assert_true(goal.x < costmap.width);
 
-    ROS_ASSERT(goal.y >= 0);
-    ROS_ASSERT(goal.y < costmap.height);
+    rcpputils::assert_true(goal.y >= 0);
+    rcpputils::assert_true(goal.y < costmap.height);
 
-    ROS_ASSERT(costmap.traversal_cost);
+    rcpputils::assert_true(costmap.traversal_cost);
 
     const float closest_distance_px =
         static_cast<float>((collision_checker.conservativeRadius() - costmap.inflation_radius) / costmap.resolution);
 
-    ROS_ASSERT(closest_distance_px >= 0);
+    rcpputils::assert_true(closest_distance_px >= 0);
 
     if (costmap.distance_to_collision.at<float>(start.y, start.x) <= closest_distance_px)
     {
@@ -143,7 +143,7 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
 
         const std::size_t current_index = costmap.to2DGridIndex(current_node->state);
 
-        ROS_ASSERT(!current_node->visited);
+        rcpputils::assert_true(!current_node->visited);
         current_node->visited = true;
 
         if (current_index == start_index)
@@ -228,7 +228,7 @@ double updateH(const State2D& state, const State2D& goal, Explore2DCache& explor
     if (ret.success)
     {
         const double shortest_2d = ret.node->cost_so_far;
-        ROS_ASSERT(std::isfinite(shortest_2d));
+        rcpputils::assert_true(std::isfinite(shortest_2d));
         // Why do we multiply by 1.1?
         // Might be because of taking into account rotation in Djikstra
         return shortest_2d * costmap.resolution * 1.1;
@@ -253,7 +253,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
     result.start_in_collision = false;
     result.goal_in_collision = false;
 
-    ROS_ASSERT(costmap.traversal_cost);
+    rcpputils::assert_true(costmap.traversal_cost);
 
     const State3D start_state{start.translation().x(), start.translation().y(),
                               Eigen::Rotation2Dd(start.linear()).smallestAngle()};
@@ -267,9 +267,9 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
     }
 
     // sample to find valid goal
-    ROS_ASSERT_MSG(goal_sample_settings.std_x >= 0.0, "Goal Sample Standard Deviation X is negative");
-    ROS_ASSERT_MSG(goal_sample_settings.std_y >= 0.0, "Goal Sample Standard Deviation Y is negative");
-    ROS_ASSERT_MSG(goal_sample_settings.std_w >= 0.0, "Goal Sample Standard Deviation W is negative");
+    rcpputils::assert_true(goal_sample_settings.std_x >= 0.0, "Goal Sample Standard Deviation X is negative");
+    rcpputils::assert_true(goal_sample_settings.std_y >= 0.0, "Goal Sample Standard Deviation Y is negative");
+    rcpputils::assert_true(goal_sample_settings.std_w >= 0.0, "Goal Sample Standard Deviation W is negative");
 
     State3D goal_state = nominal_goal_state;
     result.goal_in_collision = !collision_checker.isValid(goal_state);
@@ -355,7 +355,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         auto current_node = open_set.top();
         open_set.pop();
 
-        ROS_ASSERT(!current_node->visited);
+        rcpputils::assert_true(!current_node->visited);
         current_node->visited = true;
 
         const auto current_index = StateToIndex(current_node->state, linear_resolution, angular_resolution);
@@ -405,7 +405,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
         // I think this needs to be sqrt(2) = 1.4, use 1.5 to help rounding up
         const double step_mult = 1.5 * res_mult * std::min(s1, s2) / costmap.resolution;
 
-        ROS_ASSERT(step_mult >= 1.0);
+        rcpputils::assert_true(step_mult >= 1.0);
 
         const double distance_to_start_x = std::abs(current_node->state.x - start_state.x);
         const double distance_to_start_y = std::abs(current_node->state.y - start_state.y);
@@ -513,12 +513,12 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
                     new_node->second->cost_to_go = cost_to_go;
                     new_node->second->parent = current_node;
 
-                    ROS_ASSERT(std::isfinite(new_node->second->cost_to_go));
+                    rcpputils::assert_true(std::isfinite(new_node->second->cost_to_go));
 
                     auto it = handles.find(new_key);
                     if (it != handles.end())
                     {
-                        ROS_ASSERT(it->second.node_->value == new_node->second);
+                        rcpputils::assert_true(it->second.node_->value == new_node->second);
                         open_set.decrease(it->second);
                     }
                     else
@@ -528,7 +528,7 @@ PathResult hybridAStar(const Eigen::Isometry2d& start, const Eigen::Isometry2d& 
                 }
             }
 
-            ROS_ASSERT(new_node->second->parent != new_node->second);
+            rcpputils::assert_true(new_node->second->parent != new_node->second);
         }
     }
 

@@ -4,7 +4,8 @@
 #include <astar_planner/costmap.h>
 #include <astar_planner/node.h>
 #include <navigation_interface/path_planner.h>
-#include <ros/console.h>
+//#include <ros/console.h>
+#include "rcpputils/asserts.hpp"
 
 #include <algorithm>
 #include <functional>
