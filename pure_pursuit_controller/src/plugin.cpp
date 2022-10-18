@@ -89,7 +89,7 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     {
         std::vector<Polygon> temp;
         boost::geometry::union_(union_output, polygons[i], temp);
-        ROS_ASSERT_MSG(temp.size() == 1, "Footprint union failed. More than 1 resulting polygons");
+        rcpputils::assert_true(temp.size() == 1, "Footprint union failed. More than 1 resulting polygons");
         union_output = temp[0];
     }
 
@@ -138,7 +138,8 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.ns = "points";
     marker.id = 0;
     marker.type = visualization_msgs::Marker::POINTS;
-    marker.header.stamp = ros::Time::now();
+    //marker.header.stamp = ros::Time::now();
+    marker.header.stamp = node->get_clock()->now()//.nanoseconds()
     marker.header.frame_id = "map";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -187,7 +188,8 @@ visualization_msgs::Marker buildMarker(const navigation_interface::KinodynamicSt
     marker.ns = "target";
     marker.id = 0;
     marker.type = visualization_msgs::Marker::ARROW;
-    marker.header.stamp = ros::Time::now();
+    //marker.header.stamp = ros::Time::now();
+    marker.header.stamp = node->get_clock()->now()//.nanoseconds()
     marker.header.frame_id = "odom";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -355,7 +357,10 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     trajectory_.reset(new navigation_interface::Trajectory(trajectory));
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
-    last_update_ = ros::SteadyTime::now();
+
+    //last_update_ = ros::SteadyTime::now();
+    // See https://answers.ros.org/question/287946/ros-2-time-handling/
+    last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
 
     return true;
 }
@@ -367,7 +372,7 @@ void PurePursuitController::clearTrajectory()
     path_index_ = 0;
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
-    last_update_ = ros::SteadyTime::now();
+    last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
 }
 
 // cppcheck-suppress unusedFunction
@@ -389,7 +394,7 @@ boost::optional<navigation_interface::Trajectory> PurePursuitController::traject
 
 navigation_interface::Controller::Result
     // cppcheck-suppress unusedFunction
-    PurePursuitController::control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
+    PurePursuitController::control(const rclcpp::Clock& time, const gridmap::AABB& local_region,
                                    const navigation_interface::KinodynamicState& robot_state,
                                    const Eigen::Isometry2d& map_to_odom, const Eigen::Vector3d max_velocity,
                                    const double xy_goal_tolerance, const double yaw_goal_tolerance)
@@ -404,7 +409,7 @@ navigation_interface::Controller::Result
     }
 
     double dt = time.toSec() - last_update_.toSec();
-    ROS_ASSERT_MSG(dt > 0.0, "Pure Pursuit - Negative time step!");
+    rcpputils::assert_true(dt > 0.0, "Pure Pursuit - Negative time step!");
     last_update_ = time;
 
     const double dist_to_goal = (trajectory_->states.back().pose.translation() - robot_state.pose.translation()).norm();
@@ -422,9 +427,9 @@ navigation_interface::Controller::Result
 
     if (angle_to_goal < yaw_goal_tolerance_applied && dist_to_goal < xy_goal_tolerance_applied)
     {
-        ROS_INFO_STREAM("Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
-        last_update_ = ros::SteadyTime::now();
+        last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
         return result;
     }
 
@@ -439,9 +444,9 @@ navigation_interface::Controller::Result
     const double dist_to_closest = dist(robot_state.pose, trajectory_->states[path_index_].pose, 0.1);
     if (dist_to_closest > tracking_error_)
     {
-        ROS_WARN_STREAM("Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
         result.outcome = navigation_interface::Controller::Outcome::FAILED;
-        last_update_ = ros::SteadyTime::now();
+        last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
         return result;
     }
 
@@ -467,9 +472,9 @@ navigation_interface::Controller::Result
 
         if (cc.in_collision)
         {
-            ROS_WARN_STREAM("Robot is in collision!");
+            RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Robot is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
-            last_update_ = ros::SteadyTime::now();
+            last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
             return result;
         }
     }
@@ -477,8 +482,8 @@ navigation_interface::Controller::Result
     if (debug_viz_)
         target_state_pub_.publish(buildMarker(robot_state, target_state));
 
-    ROS_ASSERT(robot_state.pose.linear().allFinite());
-    ROS_ASSERT(robot_state.pose.translation().allFinite());
+    rcpputils::assert_true(robot_state.pose.linear().allFinite());
+    rcpputils::assert_true(robot_state.pose.translation().allFinite());
 
     //
     // PD control (PID when close to goal)
@@ -488,13 +493,13 @@ navigation_interface::Controller::Result
     const Eigen::Vector3d control_error = {
         target_vec_wrt_robot[0], target_vec_wrt_robot[1],
         Eigen::Rotation2Dd(robot_state.pose.linear().inverse() * target_state.pose.linear()).smallestAngle()};
-    ROS_ASSERT(control_error.allFinite());
+    rcpputils::assert_true(control_error.allFinite());
 
     Eigen::Vector3d target_velocity;
 
     const Eigen::Vector3d control_dot_ = (control_error - control_error_) / dt;
     control_error_ = control_error;
-    ROS_ASSERT(control_error_.allFinite());
+    rcpputils::assert_true(control_error_.allFinite());
 
     const bool final_pid_control = path_index_ == trajectory_->states.size() - 1;
     if (final_pid_control)
@@ -516,7 +521,7 @@ navigation_interface::Controller::Result
         target_velocity = p_gain_.cwiseProduct(control_error) + d_gain_.cwiseProduct(control_dot_);
     }
 
-    ROS_ASSERT_MSG(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
+    rcpputils::assert_true(target_velocity.allFinite(), "%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]);
 
     //
     // Max acceleration check
@@ -543,7 +548,7 @@ navigation_interface::Controller::Result
         vel_command[2] = prev_cmd_vel[2] + rotation_dv * (max_rotation_accel_ / rotation_accel);
     }
 
-    ROS_ASSERT(vel_command.allFinite());
+    rcpputils::assert_true(vel_command.allFinite());
 
     prev_cmd_vel = vel_command;
 
@@ -581,7 +586,7 @@ navigation_interface::Controller::Result
         }
 
         vel_command /= vel_factor;
-        ROS_ASSERT(vel_command.allFinite());
+        rcpputils::assert_true(vel_command.allFinite());
     }
 
     result.command = vel_command;
@@ -599,21 +604,21 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     max_velocity_[1] = parameters["max_velocity_y"].as<double>(max_velocity_[1]);
     max_velocity_[2] = parameters["max_velocity_w"].as<double>(max_velocity_[2]);
 
-    ROS_ASSERT(!(max_velocity_[0] < 0.0));
-    ROS_ASSERT(!(max_velocity_[1] < 0.0));
-    ROS_ASSERT(!(max_velocity_[2] < 0.0));
+    rcpputils::assert_true(!(max_velocity_[0] < 0.0));
+    rcpputils::assert_true(!(max_velocity_[1] < 0.0));
+    rcpputils::assert_true(!(max_velocity_[2] < 0.0));
 
     max_translation_accel_ = parameters["max_translation_accel"].as<double>(max_translation_accel_);
     max_rotation_accel_ = parameters["max_rotation_accel"].as<double>(max_rotation_accel_);
 
-    ROS_ASSERT(max_translation_accel_ > 0.0);
-    ROS_ASSERT(max_rotation_accel_ > 0.0);
+    rcpputils::assert_true(max_translation_accel_ > 0.0);
+    rcpputils::assert_true(max_rotation_accel_ > 0.0);
 
     xy_goal_tolerance_ = parameters["xy_goal_tolerance"].as<double>(xy_goal_tolerance_);
     yaw_goal_tolerance_ = parameters["yaw_goal_tolerance"].as<double>(yaw_goal_tolerance_);
 
-    ROS_ASSERT(xy_goal_tolerance_ > 0.0);
-    ROS_ASSERT(yaw_goal_tolerance_ > 0.0);
+    rcpputils::assert_true(xy_goal_tolerance_ > 0.0);
+    rcpputils::assert_true(yaw_goal_tolerance_ > 0.0);
 
     p_gain_[0] = parameters["p_gain_x"].as<double>(p_gain_[0]);
     p_gain_[1] = parameters["p_gain_y"].as<double>(p_gain_[1]);
@@ -634,8 +639,8 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     max_avoid_distance_ = parameters["max_avoid_distance"].as<double>(max_avoid_distance_);
     min_avoid_distance_ = parameters["min_avoid_distance"].as<double>(min_avoid_distance_);
 
-    ROS_ASSERT(max_avoid_distance_ > 0.0);
-    ROS_ASSERT(min_avoid_distance_ > 0.0);
+    rcpputils::assert_true(max_avoid_distance_ > 0.0);
+    rcpputils::assert_true(min_avoid_distance_ > 0.0);
 
     robot_footprint_ = navigation_interface::get_point_list(
         parameters, "footprint",
@@ -644,9 +649,11 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        ros::NodeHandle nh("~");
-        target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
-        footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
+        //ros::NodeHandle nh("~");
+        //target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
+        //footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
+        auto target_state_pub_ = node->create_publisher<visualization_msgs::Marker>("target_state", 100);
+        auto footprint_pub_ = node->create_publisher<visualization_msgs::Marker>("footprint", 100);
     }
 }
 

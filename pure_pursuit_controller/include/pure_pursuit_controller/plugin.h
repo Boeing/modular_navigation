@@ -3,7 +3,8 @@
 
 #include <gridmap/map_data.h>
 #include <navigation_interface/controller.h>
-#include <ros/ros.h>
+//#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 
 #include <memory>
 #include <vector>
@@ -67,9 +68,15 @@ class PurePursuitController : public navigation_interface::Controller
     double min_avoid_distance_ = 0.12;
 
     bool debug_viz_ = true;
-    ros::Publisher target_state_pub_;
-    ros::Publisher footprint_pub_;
 
+    // Making a node attrb instead of usig publishers
+    // Although it is only used if debug_viz_ is set inside a yaml
+    auto node = rclcpp::Node::make_shared("~");
+
+    // Now it is assumed that onInitialize is always called first
+    //ros::Publisher target_state_pub_;
+    //ros::Publisher footprint_pub_;
+    
     std::vector<Eigen::Vector2d> robot_footprint_;
 };
 }  // namespace pure_pursuit_controller
