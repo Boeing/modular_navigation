@@ -1,4 +1,5 @@
-#include <ros/assert.h>
+//#include <ros/assert.h>
+#include "rcpputils/asserts.hpp"
 #include <sim_band_planner/simulate.h>
 
 #include <sstream>
@@ -32,7 +33,7 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
 
             forces[i] = (internal_force + rotation_force + external_force + nominal_force);
 
-            ROS_ASSERT(forces[i].allFinite());
+            rcpputils::assert_true(forces[i].allFinite());
         }
 
         // a = f / m
@@ -41,7 +42,7 @@ double simulate(Band& path, const DistanceField& distance_field, const int num_i
         // v = v + a * dt;
         for (std::size_t i = 1; i < path.nodes.size() - 1; ++i)
         {
-            ROS_ASSERT(acc[i].allFinite());
+            rcpputils::assert_true(acc[i].allFinite());
             path.nodes[i].velocity += alpha * acc[i] * dt;
             path.nodes[i].velocity *= velocity_decay;
         }
@@ -110,8 +111,8 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
     const double d_1_norm = d_1.norm();
     const double d_2_norm = d_2.norm();
 
-    ROS_ASSERT(std::isfinite(d_1_norm));
-    ROS_ASSERT(std::isfinite(d_2_norm));
+    rcpputils::assert_true(std::isfinite(d_1_norm));
+    rcpputils::assert_true(std::isfinite(d_2_norm));
 
     const Eigen::Vector2d d_1_normalized = d_1_norm > 0 ? d_1 / d_1_norm : Eigen::Vector2d{0.0, 0.0};
     const Eigen::Vector2d d_2_normalized = d_2_norm > 0 ? d_2 / d_2_norm : Eigen::Vector2d{0.0, 0.0};
@@ -136,7 +137,7 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         _force.topRows(2) += 2 * gain * d_2;
     }
 
-    ROS_ASSERT_MSG(_force.allFinite(), "internal force: %f %f %f", _force[0], _force[1], _force[2]);
+    rcpputils::assert_true(_force.allFinite(), "internal force: %f %f %f", _force[0], _force[1], _force[2]);
     return _force;
 }
 
@@ -187,7 +188,7 @@ Eigen::Vector3d rotationForce(const Node& prev, const Node& curr, const Node& ne
         _force[2] += rotation_gain * cp_torque;
     }
 
-    ROS_ASSERT_MSG(_force.allFinite(), "internal force: %f %f %f", _force[0], _force[1], _force[2]);
+    rcpputils::assert_true(_force.allFinite(), "internal force: %f %f %f", _force[0], _force[1], _force[2]);
     return _force;
 }
 
@@ -204,7 +205,7 @@ Eigen::Vector3d externalForce(const Node& curr, const double gain, const double 
     _force[1] = -gain * static_cast<double>(curr_min.gradient.y()) * decay;
     _force[2] = 0.0;
 
-    ROS_ASSERT(_force.allFinite());
+    rcpputils::assert_true(_force.allFinite());
     return _force;
 }
 
@@ -214,14 +215,14 @@ Eigen::Vector3d nominalForce(const Node& curr, const double gain)
     const Eigen::Rotation2Dd rot = Eigen::Rotation2Dd(curr.nominal.linear().inverse() * curr.pose.linear());
 
     const double distance = dir.norm();
-    ROS_ASSERT(std::isfinite(distance));
+    rcpputils::assert_true(std::isfinite(distance));
 
     Eigen::Vector3d _force;
     _force[0] = gain * std::exp(distance) * dir.x();
     _force[1] = gain * std::exp(distance) * dir.y();
     _force[2] = -0.1 * gain * rot.smallestAngle();
 
-    ROS_ASSERT(_force.allFinite());
+    rcpputils::assert_true(_force.allFinite());
     return _force;
 }
 

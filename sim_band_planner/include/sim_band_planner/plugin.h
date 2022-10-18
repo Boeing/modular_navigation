@@ -3,7 +3,8 @@
 
 #include <gridmap/map_data.h>
 #include <navigation_interface/trajectory_planner.h>
-#include <ros/ros.h>
+//#include <ros/ros.h>
+#include "rclcpp/rclcpp.hpp"
 #include <sim_band_planner/moving_window.h>
 #include <sim_band_planner/simulate.h>
 
@@ -42,7 +43,10 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     }
 
   private:
-    ros::Publisher marker_pub_;
+  
+    //ros::Publisher marker_pub_;
+    auto node = rclcpp::Node::make_shared("~");
+    marker_pub_ = NULL;
 
     // Runtime data
     std::unique_ptr<MovingWindow> moving_window_;

@@ -13,7 +13,7 @@ namespace sim_band_planner
 
 navigation_interface::Path filterDuplicates(const navigation_interface::Path& path)
 {
-    ROS_ASSERT(!path.nodes.empty());
+    rcpputils::assert_true(!path.nodes.empty());
 
     navigation_interface::Path filtered;
     filtered.id = path.id;
@@ -35,7 +35,7 @@ navigation_interface::Path filterDuplicates(const navigation_interface::Path& pa
 
 navigation_interface::Path interpolate(const navigation_interface::Path& path)
 {
-    ROS_ASSERT(!path.nodes.empty());
+    rcpputils::assert_true(!path.nodes.empty());
 
     if (path.nodes.size() == 1)
         return path;
@@ -72,7 +72,7 @@ navigation_interface::Path interpolate(const navigation_interface::Path& path)
     if (path.nodes.size() > 1)
         interpolated.nodes.push_back(path.nodes.back());
 
-    ROS_ASSERT(!interpolated.nodes.empty());
+    rcpputils::assert_true(!interpolated.nodes.empty());
 
     return interpolated;
 }
@@ -89,7 +89,7 @@ struct MovingWindow
     MovingWindow(const navigation_interface::Path& _path, const std::vector<Eigen::Vector2d>& _radius_offsets)
         : nominal_path(interpolate(filterDuplicates(_path))), end_i(0), window(_radius_offsets)
     {
-        ROS_ASSERT(!nominal_path.nodes.empty());
+        rcpputils::assert_true(!nominal_path.nodes.empty());
     }
 
     bool atEnd() const
@@ -110,7 +110,7 @@ struct MovingWindow
             // start appending at the closest robot pose
             const std::size_t closest = findClosest(nominal_path.nodes, pose);
             end_i = closest;
-            ROS_ASSERT(closest < nominal_path.nodes.size());
+            rcpputils::assert_true(closest < nominal_path.nodes.size());
         }
 
         double distance = window.length();

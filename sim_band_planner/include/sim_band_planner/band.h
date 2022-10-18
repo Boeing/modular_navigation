@@ -3,8 +3,10 @@
 
 #include <Eigen/Geometry>
 
-#include <ros/assert.h>
-#include <ros/console.h>
+//#include <ros/assert.h>
+#include "rcpputils/asserts.hpp"
+
+//#include <ros/console.h>
 #include <sim_band_planner/spline/Spline.h>
 #include <sim_band_planner/spline/SplineFitting.h>
 #include <sim_band_planner/spline/SplineFwd.h>
@@ -93,7 +95,7 @@ struct Node
     Node(const Eigen::Isometry2d& pose, const std::vector<Eigen::Vector2d>& _radius_offsets)
         : nominal(pose), pose(pose), closest_point(0)
     {
-        ROS_ASSERT(!_radius_offsets.empty());
+        rcpputils::assert_true(!_radius_offsets.empty());
         std::transform(_radius_offsets.begin(), _radius_offsets.end(), std::back_inserter(control_points),
                        [](const Eigen::Vector2d& offset) { return ControlPoint(offset); });
     }
@@ -126,13 +128,13 @@ struct Band
     Band() = delete;
     explicit Band(const std::vector<Eigen::Vector2d>& _radius_offsets) : radius_offsets(_radius_offsets)
     {
-        ROS_ASSERT(!_radius_offsets.empty());
+        rcpputils::assert_true(!_radius_offsets.empty());
     }
     Band(std::vector<Node>::const_iterator start, std::vector<Node>::const_iterator end,
          const std::vector<Eigen::Vector2d>& _radius_offsets)
         : nodes(start, end), radius_offsets(_radius_offsets)
     {
-        ROS_ASSERT(!_radius_offsets.empty());
+        rcpputils::assert_true(!_radius_offsets.empty());
     }
 
     double length() const
@@ -152,7 +154,7 @@ struct Band
 
     Eigen::Spline<double, 3> spline() const
     {
-        ROS_ASSERT(nodes.size() > 2);
+        rcpputils::assert_true(nodes.size() > 2);
 
         Eigen::MatrixXd points(3, nodes.size());
         for (std::size_t i = 0; i < nodes.size(); ++i)

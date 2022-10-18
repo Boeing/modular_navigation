@@ -120,7 +120,7 @@ navigation_interface::TrajectoryPlanner::Result
         sim_band.nodes.push_back(Node(robot_pose, sim_band.radius_offsets));
 
         // The first moving window node is the previous segment (exclude from optimization)
-        ROS_ASSERT(moving_window_->window.nodes.size() >= 1);
+        rcpputils::assert_true(moving_window_->window.nodes.size() >= 1);
         if (moving_window_->window.nodes.size() > 1)
             sim_band.nodes.insert(sim_band.nodes.end(), moving_window_->window.nodes.begin(),
                                   moving_window_->window.nodes.end());
@@ -131,7 +131,7 @@ navigation_interface::TrajectoryPlanner::Result
                  internal_force_gain_, external_force_gain_, rotation_gain_, velocity_decay_, 1.0, alpha_decay_);
 
         // debug viz
-        if (debug_viz_ && marker_pub_.getNumSubscribers() > 0)
+        if (debug_viz_ && marker_pub_.get_subscription_count() > 0) //getNumSubscribers() in ROS
         {
             visualization_msgs::MarkerArray ma;
 
@@ -139,7 +139,8 @@ navigation_interface::TrajectoryPlanner::Result
             delete_all.action = visualization_msgs::Marker::DELETEALL;
             ma.markers.push_back(delete_all);
 
-            const auto now = ros::Time::now();
+            //const auto now = ros::Time::now();
+            const auto now = node->get_clock()->now();//.nanoseconds()
 
             auto make_cylider = [&ma, &now](const std_msgs::ColorRGBA& color, const double radius, const double height,
                                             const Eigen::Isometry3d& pose) {
@@ -283,7 +284,7 @@ navigation_interface::TrajectoryPlanner::Result
         }
 
         // copy the nodes back to the moving window
-        ROS_ASSERT(!sim_band.nodes.empty());
+        rcpputils::assert_true(!sim_band.nodes.empty());
         moving_window_->window.nodes.clear();
         // don't copy the first node (its just the current robot pose)
         moving_window_->window.nodes.insert(moving_window_->window.nodes.end(), sim_band.nodes.begin() + 1,
@@ -298,7 +299,7 @@ navigation_interface::TrajectoryPlanner::Result
         {
             if (sim_band.nodes[end_i].control_points[sim_band.nodes[end_i].closest_point].distance < 0)
             {
-                ROS_WARN_STREAM("Point: " << end_i << " of trajectory is in collision");
+                RCLCPP_WARN_STREAM("Point: " << end_i << " of trajectory is in collision");
                 //                end_i = end_i > 1 ? end_i - 1 : 0;
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
                 result.path_end_i = moving_window_->end_i - (sim_band.nodes.size() - 1 - end_i);
@@ -326,7 +327,7 @@ navigation_interface::TrajectoryPlanner::Result
     }
     catch (const std::exception& e)
     {
-        ROS_ERROR_STREAM("Optimization failed: " << e.what());
+        RCLCPP_ERROR_STREAM("Optimization failed: " << e.what());
         result.outcome = navigation_interface::TrajectoryPlanner::Outcome::FAILED;
         return result;
     }
@@ -395,8 +396,9 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        ros::NodeHandle nh("~");
-        marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
+        //ros::NodeHandle nh("~");
+        //marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
+        auto marker_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("sim_band", 100);
     }
 }
 
