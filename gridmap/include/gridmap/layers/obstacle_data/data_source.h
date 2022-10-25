@@ -7,6 +7,7 @@
 #include <gridmap/urdf_tree.h>
 //#include <ros/callback_queue.h>
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/subscription_options.hpp"
 //#include <ros/subscription_queue.h> //This is handled by a QoS profile now
 #include <yaml-cpp/yaml.h>
 
@@ -155,15 +156,33 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
         const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
 
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Subscribing to: " << _topic);
+        auto g_node = rclcpp::Node::make_shared(name_);
 
         //sub_opts_ = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
         //                                                   boost::bind(&TopicDataSource::callback, this, _1),
         //                                                   ros::VoidPtr(), &data_queue_);
 
-        rclcpp::SubscriptionOptions sub_opts_;      
+        // create a mutually exclusive callback group and add it to a sub_options object
+        auto cbg = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
+        rclcpp::SubscriptionOptions sub_opts_;
+        sub_opts_.callback_group = cbg;
 
-        //        opts.transport_hints = ros::TransportHints();
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Subscribing to: " << _topic);
+        // Create a callback group for the node
+        //sub_opts_.callback_group = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+        //auto subscriber_ = g_node->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(), boost::bind(&TopicDataSource::callback, g_node, _1), sub_opts_);
+
+        auto cb_func = [this](const typename MsgType::ConstPtr& msg){this->callback(msg);};
+        auto subscriber_ = g_node->create_subscription<MsgType>(_topic,
+                                                                100,//callback_queue_size_,
+                                                                cb_func,
+                                                                sub_opts_);
+
+        // Add the node to the executor
+        //rclcpp::executors::SingleThreadedExecutor executor;
+        executor.add_node(g_node);
+
+        //opts.transport_hints = ros::TransportHints();
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
     }
 
@@ -214,24 +233,39 @@ template <typename MsgType> class TopicDataSource : public DataSource
     std::thread data_thread_;
     //SizedCallbackQueue data_queue_;
 
-    rclcpp::SubscriptionOptions sub_opts_; // ros::SubscriptionOptions sub_opts_;
     //callback_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     std::unordered_map<std::string, Eigen::Isometry3d> transform_cache_;
 
     // Node creation and initialization is not done inside thread call now
-    auto g_node = rclcpp::Node::make_shared(name());
+    //g_node = nullptr;//auto = rclcpp::Node::make_shared(name()); //V 0.1
     //previous ros::Subscriber subscriber_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr subscriber_;
+    //rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
+    
+    // See https://get-help.robotigniteacademy.com/t/how-to-link-callback-function-to-a-subscription/11043/3
+    // For reference of the current implementation
+    // Create a Reentrant Callback Group
+    //auto cbg = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
+    //sub_opts_ = nullptr;//auto = rclcpp::SubscriptionOptions();//V 0.1
+    // Add your callback to the CallbackGroup
+    //sub_opts_.callback_group = cbg;//V 0.1
 
     // Create a callback group for the node
-    sub_opts_.callback_group = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);;
+    //sub_opts_.callback_group = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+
+    //subscriber_ = nullptr;//auto = g_node->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
+    //                                            boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
+
+    g_node = nullptr;
+    sub_opts_ = nullptr;
+    subscriber_ = nullptr;
 
     // Add the node to the executor
     rclcpp::executors::SingleThreadedExecutor executor;
-    executor.add_node(g_node);
+    //executor.add_node(g_node);
 
   private:
+
     Eigen::Isometry3d getSensorTransform(const std::string& frame_name)
     {
         auto it = transform_cache_.find(frame_name);
@@ -322,7 +356,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     if (connected)
                     {
                         RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Disconnecting data for: " << name_);
-                        subscriber_.shutdown();
+                        subscriber_->shutdown();
                         //data_queue_.flushMessages();
                         //data_queue_.clear();
                         connected = false;
@@ -333,17 +367,16 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
                 if (!connected)
                 {
-                    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);
-                    //subscriber_ = g_node->create_subscriber(sub_opts_);
-                    subscriber_ = g_node->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
-                                                    boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
+                    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);                    
+                    //subscriber_ = g_node->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
+                    //                                boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
                     connected = true;
                 }
 
                 const auto t0 = std::chrono::steady_clock::now();
                 //const auto result = data_queue_.callOne(rclcpp::WallTimer(maximum_sensor_delay_)); //(ros::WallDuration(maximum_sensor_delay_));
-                const auto result = executor.spin_until_future_complete(std::shared_future<ResponseT> future_ , //TODO, CHECK THIS FUTURE in CB fun
-                                                                        rclcpp::WallTimer(maximum_sensor_delay_))
+                const auto result = executor.spin_until_future_complete(std::shared_future<MsgType> future_ , //TODO, CHECK THIS FUTURE in CB func
+                                                                        rclcpp::WallTimer(maximum_sensor_delay_));
                 const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
 
                 std::lock_guard<std::mutex> lock(mutex_);

@@ -33,7 +33,9 @@ class CompressedDepthData : public TopicDataSource<sensor_msgs::msg::CompressedI
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg);
 
     std::string camera_info_topic_;
-    rclcpp::Subscriber camera_info_sub_;
+    //rclcpp::Subscriber camera_info_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
+    //camera_info_sub_ = nullptr;
     std::mutex camera_info_mutex_;
     std::atomic_bool got_camera_info_;
 

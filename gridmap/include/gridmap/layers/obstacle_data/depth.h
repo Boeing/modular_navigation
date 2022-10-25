@@ -6,7 +6,8 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv2/core/core.hpp>
 #include "rclcpp/rclcpp.hpp"
-#include <rospack/rospack.h>
+//#include <rospack/rospack.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include "rcpputils/asserts.hpp"
 
 #include <unordered_map>
@@ -73,7 +74,12 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
 
             const Eigen::Vector3f reading((u - center_x) * d * constant_x, (v - center_y) * d * constant_y, depth);
 
-            ROS_ASSERT_MSG(reading.allFinite(), "%f %f %f", reading.x(), reading.y(), reading.z());
+            //ROS_ASSERT_MSG(reading.allFinite(), "%f %f %f", reading.x(), reading.y(), reading.z());
+            std::string text = "";
+            text += std::to_string(reading.x()); // TODO use streams cmon
+            text += std::to_string(reading.y());
+            text += std::to_string(reading.z());
+            rcpputils::assert_true(reading.allFinite(), text);
 
             const Eigen::Vector3f pt = sensor_transform * reading;
             const Eigen::Array2i pt_map = map_dimensions.getCellIndex(pt.head<2>().cast<double>());
@@ -114,7 +120,8 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
 
 template <typename T> void maskImage(cv::Mat& image, const cv::Mat& mask)
 {
-    ROS_ASSERT_MSG(image.size == mask.size, "Image and mask are not the same size.");
+    //ROS_ASSERT_MSG(image.size == mask.size, "Image and mask are not the same size.");
+    rcpputils::assert_true(image.size == mask.size, "Image and mask are not the same size.");
 
     for (unsigned int i = 0; i < image.total(); ++i)
     {
@@ -131,9 +138,9 @@ inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::msg::Image::
     if (cv_image_mask)
     {
         const cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(image);
-        if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_16UC1)
+        if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
             maskImage<uint16_t>(cv_image->image, *cv_image_mask);
-        else if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_32FC1)
+        else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
             maskImage<float>(cv_image->image, *cv_image_mask);
         return cv_image;
     }
@@ -146,23 +153,38 @@ inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::msg::Image::
 
 inline std::string getPackageUriPath(const std::string& package_uri)
 {
+    //TODO, CHECK THESE PATHS ARE WHAT THEY SHOULD 
+    // https://docs.ros2.org/latest/api/ament_index_cpp/index.html
     rcpputils::assert_true(!package_uri.empty());
 
     const std::string prefix = "package://";
-    ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
+
     std::string path = package_uri;
     path.erase(0, prefix.length());
     const std::string package_name = path.substr(0, path.find("/"));
     path.erase(0, package_name.length());
 
-    std::string package_dir;
-    rospack::Rospack rospack;
-    std::vector<std::string> search_path;
-    if (!rospack.getSearchPathFromEnv(search_path))
-        return std::string();
-    rospack.crawl(search_path, true);
-    if (!rospack.find(package_name, package_dir))
-        throw std::runtime_error("Unable to find package: " + package_name);
+    std::string package_share_dir = ament_index_cpp::get_package_share_directory(package_name);
+    
+    std::string share_dir = "/share";
+
+    std::string::size_type i = package_share_dir.find(share_dir);
+
+    if (i != std::string::npos)
+        package_share_dir.erase(i, share_dir.length());
+
+    std::string package_dir = package_share_dir;
+    
+    //rospack::Rospack rospack;
+    //std::vector<std::string> search_path;
+    //if (!rospack.getSearchPathFromEnv(search_path))
+    //    return std::string();
+    //rospack.crawl(search_path, true);
+    //if (!rospack.find(package_name, package_dir))
+    //    throw std::runtime_error("Unable to find package: " + package_name);
+    
+    //ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
+    rcpputils::assert_true(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
 
     return (package_dir + path);
 }

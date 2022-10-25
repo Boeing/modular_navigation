@@ -1,6 +1,6 @@
 #include <gridmap/layers/obstacle_data/point_cloud_data.h>
 #include <pluginlib/class_list_macros.h>
-#include <sensor_msgs/msg/point_cloud2_iterator.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
 
 #include <chrono>
 #include <unordered_map>
@@ -69,7 +69,7 @@ bool PointCloudData::processData(const sensor_msgs::msg::PointCloud2::ConstPtr& 
     {
         auto _lock = map_data_->getWriteLock();
 
-        sensor_msgs::msg::PointCloud2ConstIterator<float> iter_x(*msg, "x");
+        sensor_msgs::PointCloud2ConstIterator<float> iter_x(*msg, "x");
 
         std::unordered_map<uint64_t, float> height_voxels;
 

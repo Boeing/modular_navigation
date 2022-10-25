@@ -233,8 +233,12 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
 
     if (debug_viz_)
     {
-        ros::NodeHandle nh(name());
-        debug_viz_pub_ = nh.advertise<nav_msgs::msg::OccupancyGrid>("costmap", 1);
+        //ros::NodeHandle nh(name());
+        auto node = rclcpp::Node::make_shared(name());
+
+        //debug_viz_pub_ = nh.advertise<nav_msgs::msg::OccupancyGrid>("costmap", 1);
+        debug_viz_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
+
         if (debug_viz_running_)
         {
             debug_viz_running_ = false;
@@ -320,14 +324,18 @@ void ObstacleLayer::debugVizThread(const double frequency)
     nav_msgs::msg::OccupancyGrid grid;
     //ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    //Changes in expectedCycleTime explained:
+    //https://answers.ros.org/question/350222/expcectedcycletime-in-ros2/
+    //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    const boost::chrono::milliseconds period(static_cast<long>(rate.period<double>() * (1.0/1e6)));
 
     while (debug_viz_running_ && rclcpp::ok())
     {
         {
             boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
-            if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
+            //if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
+            if (_lock.owns_lock() && debug_viz_pub_->get_subscription_count() != 0 && probability_grid_ &&
                 robot_state.localised)
             {
                 grid.header.frame_id = "map";
@@ -392,7 +400,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                         grid.data[i] = 101;
                 }
 
-                debug_viz_pub_.publish(grid);
+                debug_viz_pub_->publish(grid);
             }
         }
         rate.sleep();
@@ -403,7 +411,8 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
 {
     //ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    const boost::chrono::milliseconds period(static_cast<long>(rate.period() * (1.0/1e6)));
 
     while (clear_footprint_running_ && rclcpp::ok())
     {
@@ -435,7 +444,8 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
 {
     //ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    const boost::chrono::milliseconds period(static_cast<long>(rate.period() * (1.0/1e6)));
 
     // divide the grid into a set of blocks which we can mark as dirty
     // only update dirty blocks

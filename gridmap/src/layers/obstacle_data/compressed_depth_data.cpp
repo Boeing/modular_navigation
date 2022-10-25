@@ -5,8 +5,8 @@
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <image_transport/subscriber.h>
 #include <pluginlib/class_list_macros.h>
-#include <sensor_msgs/msg/camerainfo.hpp>
-#include <sensor_msgs/msg/image_encodings.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -43,9 +43,24 @@ void CompressedDepthData::onInitialize(const YAML::Node& parameters)
         cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(resolved_path, cv::IMREAD_GRAYSCALE));
     }
 
-    ros::NodeHandle g_nh;
-    camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
-                                                               &CompressedDepthData::cameraInfoCallback, this);
+    //ros::NodeHandle g_nh;
+    auto g_node = rclcpp::Node::make_shared(name()); //No name?
+    //camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
+    //                                                           &CompressedDepthData::cameraInfoCallback, this);
+
+    rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
+
+    //currently ignoring "this" in the ros1 implementation... (look for transport_hints in ros2 QoS)
+    auto qos = rclcpp::QoS(
+        rclcpp::QoSInitialization(
+        qos_profile.history,
+        1000
+        ),
+        qos_profile);
+
+    auto camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, qos, 
+        &CompressedDepthData::cameraInfoCallback);
+                                                           
 }
 
 void CompressedDepthData::onMapDataChanged()
@@ -105,14 +120,15 @@ bool CompressedDepthData::processData(const sensor_msgs::msg::CompressedImage::C
 
         std::unordered_map<uint64_t, float> height_voxels;
 
-        if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_16UC1)
+        if (image->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
             projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
                                    cv_image->image, camera_model_, map_data_->dimensions());
-        else if (image->encoding == sensor_msgs::msg::image_encodings::TYPE_32FC1)
+        else if (image->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
             projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
                                 cv_image->image, camera_model_, map_data_->dimensions());
         else
-            ROS_ASSERT_MSG(false, "Unsupported depth image format");
+            //ROS_ASSERT_MSG(false, "Unsupported depth image format");
+            rcpputils::assert_true(false, "Unsupported depth image format");
 
         for (auto elem : height_voxels)
         {
