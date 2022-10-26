@@ -381,8 +381,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
 
                 std::lock_guard<std::mutex> lock(mutex_);
-                if (result == rclcpp::executor::FutureReturnCode::SUCCESS)//ros::CallbackQueue::CallOneResult::Called)
-                //rclcpp::executor::FutureReturnCode::SUCCESS
+                if (result == rclcpp::FutureReturnCode::SUCCESS)//ros::CallbackQueue::CallOneResult::Called)
+                //rclcpp::FutureReturnCode::SUCCESS
                 {
                     if (duration > maximum_sensor_delay_)// this is redundant if rclcpp::executor::FutureReturnCode::TIMEOUT is used?
                     {
