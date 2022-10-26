@@ -396,7 +396,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     //    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' callback queue is full!");
                     //}
                 }
-                else if (result == rclcpp::executor::FutureReturnCode::TIMEOUT)//ros::CallbackQueue::CallOneResult::Empty)
+                else if (result == rclcpp::FutureReturnCode::TIMEOUT)//ros::CallbackQueue::CallOneResult::Empty)
                 {
                     std::lock_guard<std::mutex> l(last_updated_mutex_);
                     const double delay = (rclcpp::Clock(RCL_ROS_TIME).now() - last_updated_).seconds();
