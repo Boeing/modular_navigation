@@ -256,9 +256,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
     //subscriber_ = nullptr;//auto = g_node->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
     //                                            boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
 
-    g_node = nullptr;
-    sub_opts_ = nullptr;
-    subscriber_ = nullptr;
+    rclcpp::Node g_node;
+    rclcpp::SubscriptionOptions sub_opts_;
+    typename rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
 
     // Add the node to the executor
     rclcpp::executors::SingleThreadedExecutor executor;
