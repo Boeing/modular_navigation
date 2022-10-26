@@ -8,6 +8,7 @@
 //#include <ros/callback_queue.h>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/subscription_options.hpp"
+#include "rclcpp/future_return_code.hpp"
 //#include <ros/subscription_queue.h> //This is handled by a QoS profile now
 #include <yaml-cpp/yaml.h>
 
