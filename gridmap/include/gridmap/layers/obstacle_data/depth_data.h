@@ -32,9 +32,9 @@ class DepthData : public TopicDataSource<sensor_msgs::msg::Image>
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg);
 
     std::string camera_info_topic_;
-    //previous ros::Subscriber camera_info_sub_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
+    //ros::Subscriber camera_info_sub_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
-    //camera_info_sub_ = nullptr;
+
     std::mutex camera_info_mutex_;
     std::atomic_bool got_camera_info_;
 

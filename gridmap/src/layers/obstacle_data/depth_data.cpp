@@ -55,8 +55,11 @@ void DepthData::onInitialize(const YAML::Node& parameters)
         ),
         qos_profile);
 
-    auto camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, qos, 
-        &DepthData::cameraInfoCallback);    
+    //camera_info_sub_ =
+    //        g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000, &DepthData::cameraInfoCallback, this);
+
+    camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000, 
+        &DepthData::cameraInfoCallback);
 }
 
 void DepthData::onMapDataChanged()

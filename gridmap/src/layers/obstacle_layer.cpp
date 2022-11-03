@@ -327,8 +327,8 @@ void ObstacleLayer::debugVizThread(const double frequency)
     //Changes in expectedCycleTime explained:
     //https://answers.ros.org/question/350222/expcectedcycletime-in-ros2/
     //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    const boost::chrono::milliseconds period(static_cast<long>(rate.period<double>() * (1.0/1e6)));
-
+    boost::chrono::milliseconds period = boost::chrono::duration_cast<boost::chrono::milliseconds> (boost::chrono::duration<double>{1.0/frequency});
+    
     while (debug_viz_running_ && rclcpp::ok())
     {
         {
@@ -412,7 +412,7 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
     //ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
     //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    const boost::chrono::milliseconds period(static_cast<long>(rate.period() * (1.0/1e6)));
+    boost::chrono::milliseconds period = boost::chrono::duration_cast<boost::chrono::milliseconds> (boost::chrono::duration<double>{1.0/frequency});
 
     while (clear_footprint_running_ && rclcpp::ok())
     {
@@ -445,7 +445,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     //ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
     //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    const boost::chrono::milliseconds period(static_cast<long>(rate.period() * (1.0/1e6)));
+    boost::chrono::milliseconds period = boost::chrono::duration_cast<boost::chrono::milliseconds> (boost::chrono::duration<double>{1.0/frequency});
 
     // divide the grid into a set of blocks which we can mark as dirty
     // only update dirty blocks

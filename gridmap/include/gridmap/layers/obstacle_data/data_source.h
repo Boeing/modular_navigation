@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <future>
 
 namespace gridmap
 {
@@ -128,7 +129,7 @@ class SizedCallbackQueue : public ros::CallbackQueue
 template <typename MsgType> class TopicDataSource : public DataSource
 {
   public:
-    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic), last_updated_(rclcpp::Time(0))
+    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic), last_updated_(rclcpp::Clock(RCL_ROS_TIME).now())//(rclcpp::Time(0))
     {
     }
     virtual ~TopicDataSource()
@@ -157,31 +158,31 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
         const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
 
-        auto g_node = rclcpp::Node::make_shared(name_);
+        auto g_node_ = rclcpp::Node::make_shared(name_);
 
         //sub_opts_ = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
         //                                                   boost::bind(&TopicDataSource::callback, this, _1),
         //                                                   ros::VoidPtr(), &data_queue_);
 
         // create a mutually exclusive callback group and add it to a sub_options object
-        auto cbg = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
+        auto cbg = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
         rclcpp::SubscriptionOptions sub_opts_;
         sub_opts_.callback_group = cbg;
 
         RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Subscribing to: " << _topic);
         // Create a callback group for the node
-        //sub_opts_.callback_group = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-        //auto subscriber_ = g_node->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(), boost::bind(&TopicDataSource::callback, g_node, _1), sub_opts_);
+        //sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+        //auto subscriber_ = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(), boost::bind(&TopicDataSource::callback, g_node_, _1), sub_opts_);
 
         auto cb_func = [this](const typename MsgType::ConstPtr& msg){this->callback(msg);};
-        auto subscriber_ = g_node->create_subscription<MsgType>(_topic,
+        auto subscriber_ = g_node_->create_subscription<MsgType>(_topic,
                                                                 100,//callback_queue_size_,
                                                                 cb_func,
                                                                 sub_opts_);
 
-        // Add the node to the executor
-        //rclcpp::executors::SingleThreadedExecutor executor;
-        executor.add_node(g_node);
+        // Add the node to the executor_
+        //rclcpp::executors::SingleThreadedExecutor executor_;
+        executor_.add_node(g_node_);
 
         //opts.transport_hints = ros::TransportHints();
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
@@ -239,31 +240,35 @@ template <typename MsgType> class TopicDataSource : public DataSource
     std::unordered_map<std::string, Eigen::Isometry3d> transform_cache_;
 
     // Node creation and initialization is not done inside thread call now
-    //g_node = nullptr;//auto = rclcpp::Node::make_shared(name()); //V 0.1
+    //g_node_ = nullptr;//auto = rclcpp::Node::make_shared(name()); //V 0.1
     //previous ros::Subscriber subscriber_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
     //rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
     
     // See https://get-help.robotigniteacademy.com/t/how-to-link-callback-function-to-a-subscription/11043/3
     // For reference of the current implementation
     // Create a Reentrant Callback Group
-    //auto cbg = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
+    //auto cbg = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
     //sub_opts_ = nullptr;//auto = rclcpp::SubscriptionOptions();//V 0.1
     // Add your callback to the CallbackGroup
     //sub_opts_.callback_group = cbg;//V 0.1
 
     // Create a callback group for the node
-    //sub_opts_.callback_group = g_node->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    //sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-    //subscriber_ = nullptr;//auto = g_node->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
+    //subscriber_ = nullptr;//auto = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
     //                                            boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
 
-    rclcpp::Node g_node;
+    rclcpp::Node g_node_;
     rclcpp::SubscriptionOptions sub_opts_;
     typename rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
 
     // Add the node to the executor
-    rclcpp::executors::SingleThreadedExecutor executor;
-    //executor.add_node(g_node);
+    rclcpp::executors::SingleThreadedExecutor executor_;
+    //executor_.add_node(g_node_);
+
+    // Future Declaration as seen in https://en.cppreference.com/w/cpp/thread/shared_future
+    std::promise<void> promise_rdy_;
+    std::shared_future<void> future_ = promise_rdy_.get_future();
 
   private:
 
@@ -315,6 +320,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
             const Eigen::Isometry3d tr = embed3d(robot_pose) * sensor_tr;
 
             const bool success = processData(msg, robot_pose, tr);
+            
+            // Once data is processed set promise so spin_until_future_complete unlocks 
+            promise_rdy_.set_value();
+
             if (!success)
             {
                 RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Failed to process data for '" << name_ << "'");
@@ -369,22 +378,21 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 if (!connected)
                 {
                     RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);                    
-                    //subscriber_ = g_node->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
+                    //subscriber_ = g_node_->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
                     //                                boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
                     connected = true;
                 }
 
                 const auto t0 = std::chrono::steady_clock::now();
                 //const auto result = data_queue_.callOne(rclcpp::WallTimer(maximum_sensor_delay_)); //(ros::WallDuration(maximum_sensor_delay_));
-                const auto result = executor.spin_until_future_complete(std::shared_future<MsgType> future_ , //TODO, CHECK THIS FUTURE in CB func
-                                                                        rclcpp::WallTimer(maximum_sensor_delay_));
+                const auto result = executor_.spin_until_future_complete(future_, rclcpp::WallTimer(maximum_sensor_delay_));
                 const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
 
                 std::lock_guard<std::mutex> lock(mutex_);
                 if (result == rclcpp::FutureReturnCode::SUCCESS)//ros::CallbackQueue::CallOneResult::Called)
                 //rclcpp::FutureReturnCode::SUCCESS
                 {
-                    if (duration > maximum_sensor_delay_)// this is redundant if rclcpp::executor::FutureReturnCode::TIMEOUT is used?
+                    if (duration > maximum_sensor_delay_)// this is redundant if rclcpp::executor_::FutureReturnCode::TIMEOUT is used?
                     {
                         RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' update took: " << duration
                                                        << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
