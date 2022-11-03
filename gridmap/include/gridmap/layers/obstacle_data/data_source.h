@@ -158,7 +158,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
         const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
 
-        auto g_node_ = rclcpp::Node::make_shared(name_);
+        g_node_ = rclcpp::Node::make_shared(name_);
+        executor_.add_node(g_node_);
 
         //sub_opts_ = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
         //                                                   boost::bind(&TopicDataSource::callback, this, _1),
@@ -243,7 +244,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
     //g_node_ = nullptr;//auto = rclcpp::Node::make_shared(name()); //V 0.1
     //previous ros::Subscriber subscriber_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
     //rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
-    
+
     // See https://get-help.robotigniteacademy.com/t/how-to-link-callback-function-to-a-subscription/11043/3
     // For reference of the current implementation
     // Create a Reentrant Callback Group
@@ -258,17 +259,14 @@ template <typename MsgType> class TopicDataSource : public DataSource
     //subscriber_ = nullptr;//auto = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
     //                                            boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
 
-    rclcpp::Node g_node_;
+    rclcpp::Node::SharedPtr g_node_ = nullptr;
     rclcpp::SubscriptionOptions sub_opts_;
     typename rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
 
+    std::promise<rclcpp::FutureReturnCode> promise_;
+
     // Add the node to the executor
     rclcpp::executors::SingleThreadedExecutor executor_;
-    //executor_.add_node(g_node_);
-
-    // Future Declaration as seen in https://en.cppreference.com/w/cpp/thread/shared_future
-    std::promise<void> promise_rdy_;
-    std::shared_future<void> future_ = promise_rdy_.get_future();
 
   private:
 
@@ -291,7 +289,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     void callback(const typename MsgType::ConstPtr& msg)
     /*
-    TODO: 
+    TODO:
         - Instead of using raw clock info, use futures.wait_for(seconds)
         - status == std::future_status::ready can be used to trigger warnings
 
@@ -320,9 +318,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
             const Eigen::Isometry3d tr = embed3d(robot_pose) * sensor_tr;
 
             const bool success = processData(msg, robot_pose, tr);
-            
-            // Once data is processed set promise so spin_until_future_complete unlocks 
-            promise_rdy_.set_value();
+
+            // Once data is processed set promise so spin_until_future_complete unlocks
+            promise_.set_value(rclcpp::FutureReturnCode::SUCCESS);
 
             if (!success)
             {
@@ -352,7 +350,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
     */
 
         //ros::NodeHandle g_nh;
-        
+
         // Node creation exposed to the whole class
 
         bool connected = false;
@@ -366,7 +364,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     if (connected)
                     {
                         RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Disconnecting data for: " << name_);
-                        subscriber_->shutdown();
+                        subscriber_.reset();
                         //data_queue_.flushMessages();
                         //data_queue_.clear();
                         connected = false;
@@ -377,17 +375,21 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
                 if (!connected)
                 {
-                    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);                    
-                    //subscriber_ = g_node_->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
+                    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);
+                    //subscriber_ = g_node->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
                     //                                boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
                     connected = true;
                 }
 
                 const auto t0 = std::chrono::steady_clock::now();
-                //const auto result = data_queue_.callOne(rclcpp::WallTimer(maximum_sensor_delay_)); //(ros::WallDuration(maximum_sensor_delay_));
-                const auto result = executor_.spin_until_future_complete(future_, rclcpp::WallTimer(maximum_sensor_delay_));
+                promise_ = std::promise <rclcpp::FutureReturnCode>();
+                std::shared_future<rclcpp::FutureReturnCode> ready_future(promise_.get_future());
+                // const auto result = data_queue_.callOne(rclcpp::WallTimer(maximum_sensor_delay_));
+                // //(ros::WallDuration(maximum_sensor_delay_));
+                const auto result = executor_.spin_until_future_complete(
+                    ready_future,  // TODO, CHECK THIS FUTURE in CB func
+                    std::chrono::milliseconds((int) (1000.0*maximum_sensor_delay_)));
                 const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
-
                 std::lock_guard<std::mutex> lock(mutex_);
                 if (result == rclcpp::FutureReturnCode::SUCCESS)//ros::CallbackQueue::CallOneResult::Called)
                 //rclcpp::FutureReturnCode::SUCCESS

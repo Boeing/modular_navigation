@@ -42,7 +42,7 @@ void DepthData::onInitialize(const YAML::Node& parameters)
 
     //ros::NodeHandle g_nh;
     //camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
-    //  
+    //
     auto g_node = rclcpp::Node::make_shared(name()); //No name?
 
     rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
@@ -58,8 +58,8 @@ void DepthData::onInitialize(const YAML::Node& parameters)
     //camera_info_sub_ =
     //        g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000, &DepthData::cameraInfoCallback, this);
 
-    camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000, 
-        &DepthData::cameraInfoCallback);
+    camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
+        std::bind(&DepthData::cameraInfoCallback, this, std::placeholders::_1));
 }
 
 void DepthData::onMapDataChanged()
@@ -75,7 +75,7 @@ bool DepthData::isDataOk() const
     return got_camera_info_ && TopicDataSource<sensor_msgs::msg::Image>::isDataOk();
 }
 
-void DepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg)
+void DepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(camera_info_mutex_);
     got_camera_info_ = true;

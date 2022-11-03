@@ -29,7 +29,7 @@ class DepthData : public TopicDataSource<sensor_msgs::msg::Image>
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:
-    void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg);
+    void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
     std::string camera_info_topic_;
     //ros::Subscriber camera_info_sub_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1

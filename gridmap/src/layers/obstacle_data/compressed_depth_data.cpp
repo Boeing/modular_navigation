@@ -4,7 +4,7 @@
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/compression_common.h>
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <image_transport/subscriber.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 
@@ -58,9 +58,9 @@ void CompressedDepthData::onInitialize(const YAML::Node& parameters)
         ),
         qos_profile);
 
-    auto camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000, 
-        &CompressedDepthData::cameraInfoCallback);
-                                                           
+    auto camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, qos,
+        std::bind(&CompressedDepthData::cameraInfoCallback, this, std::placeholders::_1));
+
 }
 
 void CompressedDepthData::onMapDataChanged()
