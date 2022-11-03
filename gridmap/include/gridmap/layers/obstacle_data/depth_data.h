@@ -25,7 +25,7 @@ class DepthData : public TopicDataSource<sensor_msgs::msg::Image>
     virtual bool isDataOk() const override;
 
   protected:
-    virtual bool processData(const sensor_msgs::msg::Image::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::msg::Image::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

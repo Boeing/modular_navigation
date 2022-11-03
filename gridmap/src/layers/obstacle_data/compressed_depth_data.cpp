@@ -76,14 +76,14 @@ bool CompressedDepthData::isDataOk() const
     return got_camera_info_ && TopicDataSource<sensor_msgs::msg::CompressedImage>::isDataOk();
 }
 
-void CompressedDepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg)
+void CompressedDepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lock(camera_info_mutex_);
     got_camera_info_ = true;
     camera_model_.fromCameraInfo(*msg);
 }
 
-bool CompressedDepthData::processData(const sensor_msgs::msg::CompressedImage::ConstPtr& msg,
+bool CompressedDepthData::processData(const sensor_msgs::msg::CompressedImage::SharedPtr msg,
                                       const Eigen::Isometry2d& robot_pose, const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();

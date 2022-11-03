@@ -5,7 +5,7 @@
 #include <navigation_interface/params.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <pure_pursuit_controller/plugin.h>
 #include <visualization_msgs/MarkerArray.h>
 //#include <visualization_msgs/msg/marker_array.h>
@@ -139,9 +139,10 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.ns = "points";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::POINTS;
-    //marker.header.stamp = ros::Time::now();
-    marker.header.stamp = node->get_clock()->now()//.nanoseconds()
-    marker.header.frame_id = "map";
+    // marker.header.stamp = ros::Time::now();
+    marker.header.stamp = node->get_clock()
+                              ->now()  //.nanoseconds()
+                          marker.header.frame_id = "map";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
     marker.scale.y = 0.02;
@@ -150,7 +151,8 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.pose.orientation.w = 1.0;
 
     bool in_collision = false;
-    auto append_raster = [&grid, &marker, &in_collision, alpha](const int x, const int y) {
+    auto append_raster = [&grid, &marker, &in_collision, alpha](const int x, const int y)
+    {
         const Eigen::Array2i p{x, y};
 
         const Eigen::Vector2d w = grid.dimensions().getCellCenter(p);
@@ -183,15 +185,16 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
 }
 
 visualization_msgs::msg::Marker buildMarker(const navigation_interface::KinodynamicState& robot_state,
-                                       const navigation_interface::KinodynamicState& target_state)
+                                            const navigation_interface::KinodynamicState& target_state)
 {
     visualization_msgs::msg::Marker marker;
     marker.ns = "target";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::ARROW;
-    //marker.header.stamp = ros::Time::now();
-    marker.header.stamp = node->get_clock()->now()//.nanoseconds()
-    marker.header.frame_id = "odom";
+    // marker.header.stamp = ros::Time::now();
+    marker.header.stamp = node->get_clock()
+                              ->now()  //.nanoseconds()
+                          marker.header.frame_id = "odom";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
     marker.scale.y = 0.04;
@@ -237,9 +240,9 @@ std::size_t findClosest(const std::vector<navigation_interface::KinodynamicState
         return nodes.size() - 1;
 
     std::vector<double> distances;
-    std::transform(
-        nodes.begin(), nodes.end(), std::back_inserter(distances),
-        [&pose](const navigation_interface::KinodynamicState& state) { return dist(state.pose, pose, 0.1); });
+    std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
+                   [&pose](const navigation_interface::KinodynamicState& state)
+                   { return dist(state.pose, pose, 0.1); });
     const auto closest_it = std::min_element(distances.begin(), distances.end());
     const std::size_t closest_i = std::distance(distances.begin(), closest_it);
 
@@ -359,8 +362,8 @@ bool PurePursuitController::setTrajectory(const navigation_interface::Trajectory
     control_integral_ = Eigen::Vector3d::Zero();
     control_error_ = Eigen::Vector3d::Zero();
 
-    //last_update_ = ros::SteadyTime::now();
-    // See https://answers.ros.org/question/287946/ros-2-time-handling/
+    // last_update_ = ros::SteadyTime::now();
+    //  See https://answers.ros.org/question/287946/ros-2-time-handling/
     last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
 
     return true;
@@ -428,7 +431,8 @@ navigation_interface::Controller::Result
 
     if (angle_to_goal < yaw_goal_tolerance_applied && dist_to_goal < xy_goal_tolerance_applied)
     {
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                           "Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
         last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
         return result;
@@ -445,7 +449,8 @@ navigation_interface::Controller::Result
     const double dist_to_closest = dist(robot_state.pose, trajectory_->states[path_index_].pose, 0.1);
     if (dist_to_closest > tracking_error_)
     {
-        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                           "Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
         result.outcome = navigation_interface::Controller::Outcome::FAILED;
         last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
         return result;
@@ -522,7 +527,8 @@ navigation_interface::Controller::Result
         target_velocity = p_gain_.cwiseProduct(control_error) + d_gain_.cwiseProduct(control_dot_);
     }
 
-    rcpputils::assert_true(target_velocity.allFinite(), ("%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]));
+    rcpputils::assert_true(target_velocity.allFinite(),
+                           ("%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]));
 
     //
     // Max acceleration check
@@ -650,9 +656,9 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        //ros::NodeHandle nh("~");
-        //target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
-        //footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
+        // ros::NodeHandle nh("~");
+        // target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
+        // footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
         auto target_state_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
         auto footprint_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
     }

@@ -1,6 +1,6 @@
 #include <gridmap/layers/obstacle_data/laser_data.h>
 #include <gridmap/operations/clip_line.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 
 // For logging reasons
 #include "rclcpp/rclcpp.hpp"
@@ -32,7 +32,7 @@ void LaserData::onMapDataChanged()
 {
 }
 
-bool LaserData::processData(const sensor_msgs::msg::LaserScan::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+bool LaserData::processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                             const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();

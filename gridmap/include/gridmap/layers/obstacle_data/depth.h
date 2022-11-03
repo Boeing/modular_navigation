@@ -132,7 +132,7 @@ template <typename T> void maskImage(cv::Mat& image, const cv::Mat& mask)
     }
 }
 
-inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::msg::Image::ConstPtr& image,
+inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::msg::Image::SharedPtr image,
                                                  const std::unique_ptr<cv::Mat>& cv_image_mask)
 {
     if (cv_image_mask)
@@ -153,7 +153,7 @@ inline const cv_bridge::CvImageConstPtr getImage(const sensor_msgs::msg::Image::
 
 inline std::string getPackageUriPath(const std::string& package_uri)
 {
-    //TODO, CHECK THESE PATHS ARE WHAT THEY SHOULD 
+    //TODO, CHECK THESE PATHS ARE WHAT THEY SHOULD
     // https://docs.ros2.org/latest/api/ament_index_cpp/index.html
     rcpputils::assert_true(!package_uri.empty());
 
@@ -165,7 +165,7 @@ inline std::string getPackageUriPath(const std::string& package_uri)
     path.erase(0, package_name.length());
 
     std::string package_share_dir = ament_index_cpp::get_package_share_directory(package_name);
-    
+
     std::string share_dir = "/share";
 
     std::string::size_type i = package_share_dir.find(share_dir);
@@ -174,7 +174,7 @@ inline std::string getPackageUriPath(const std::string& package_uri)
         package_share_dir.erase(i, share_dir.length());
 
     std::string package_dir = package_share_dir;
-    
+
     //rospack::Rospack rospack;
     //std::vector<std::string> search_path;
     //if (!rospack.getSearchPathFromEnv(search_path))
@@ -182,7 +182,7 @@ inline std::string getPackageUriPath(const std::string& package_uri)
     //rospack.crawl(search_path, true);
     //if (!rospack.find(package_name, package_dir))
     //    throw std::runtime_error("Unable to find package: " + package_name);
-    
+
     //ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
     rcpputils::assert_true(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
 

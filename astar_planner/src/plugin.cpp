@@ -11,7 +11,7 @@
 #include <navigation_interface/params.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <visualization_msgs/MarkerArray.h>
 
 #include <chrono>
@@ -121,7 +121,7 @@ navigation_interface::PathPlanner::Result
     if (debug_viz_)
     {
         //if (explore_pub_.getNumSubscribers() > 0)
-        if (explore_pub_.get_subscription_count() > 0) // 
+        if (explore_pub_.get_subscription_count() > 0) //
         {
             cv::Mat disp = astar_planner::visualise(*costmap_, astar_result);
             cv::cvtColor(disp, disp, cv::COLOR_BGR2GRAY);

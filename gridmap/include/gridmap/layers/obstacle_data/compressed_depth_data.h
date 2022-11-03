@@ -26,11 +26,11 @@ class CompressedDepthData : public TopicDataSource<sensor_msgs::msg::CompressedI
     virtual bool isDataOk() const override;
 
   protected:
-    virtual bool processData(const sensor_msgs::msg::CompressedImage::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::msg::CompressedImage::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:
-    void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::ConstPtr& msg);
+    void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
     std::string camera_info_topic_;
     //rclcpp::Subscriber camera_info_sub_;

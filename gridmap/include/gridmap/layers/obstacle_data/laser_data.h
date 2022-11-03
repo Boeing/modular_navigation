@@ -20,7 +20,7 @@ class LaserData : public TopicDataSource<sensor_msgs::msg::LaserScan>
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::msg::LaserScan::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

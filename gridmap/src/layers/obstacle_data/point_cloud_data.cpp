@@ -1,5 +1,5 @@
 #include <gridmap/layers/obstacle_data/point_cloud_data.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 #include <chrono>
@@ -46,8 +46,8 @@ PointCloudData::~PointCloudData()
 {
 }
 
-bool PointCloudData::processData(const sensor_msgs::msg::PointCloud2::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
-                                 const Eigen::Isometry3d& sensor_transform)
+bool PointCloudData::processData(const sensor_msgs::msg::PointCloud2::SharedPtr msg,
+                                 const Eigen::Isometry2d& robot_pose, const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
 

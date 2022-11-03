@@ -1,10 +1,10 @@
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include <graph_map/msg/zone.hpp>
 #include <graph_map/msg/region.hpp>  //CHANGE, TEST
+#include <graph_map/msg/zone.hpp>
 #include <gridmap/layers/base_map_layer.h>
 #include <gridmap/operations/rasterize.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::BaseMapLayer, gridmap::Layer)
 

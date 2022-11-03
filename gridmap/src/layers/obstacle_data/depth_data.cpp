@@ -1,9 +1,9 @@
 #include <cv_bridge/cv_bridge.h>
 #include <gridmap/layers/obstacle_data/depth.h>
 #include <gridmap/layers/obstacle_data/depth_data.h>
-#include <pluginlib/class_list_macros.h>
-#include <sensor_msgs/msg/camera_info.hpp>
+#include <pluginlib/class_list_macros.hpp>
 #include <sensor_msgs/image_encodings.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -40,26 +40,21 @@ void DepthData::onInitialize(const YAML::Node& parameters)
         cv_image_mask_ = std::make_unique<cv::Mat>(cv::imread(resolved_path, cv::IMREAD_GRAYSCALE));
     }
 
-    //ros::NodeHandle g_nh;
-    //camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
+    // ros::NodeHandle g_nh;
+    // camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
     //
-    auto g_node = rclcpp::Node::make_shared(name()); //No name?
+    auto g_node = rclcpp::Node::make_shared(name());  // No name?
 
     rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 
-    //currently ignoring "this" in the ros1 implementation... (look for transport_hints in ros2 QoS)
-    auto qos = rclcpp::QoS(
-        rclcpp::QoSInitialization(
-        qos_profile.history,
-        1000
-        ),
-        qos_profile);
+    // currently ignoring "this" in the ros1 implementation... (look for transport_hints in ros2 QoS)
+    auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1000), qos_profile);
 
-    //camera_info_sub_ =
-    //        g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000, &DepthData::cameraInfoCallback, this);
+    // camera_info_sub_ =
+    //         g_nh.subscribe<sensor_msgs::CameraInfo>(camera_info_topic_, 1000, &DepthData::cameraInfoCallback, this);
 
-    camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
-        std::bind(&DepthData::cameraInfoCallback, this, std::placeholders::_1));
+    camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(
+        camera_info_topic_, 1000, std::bind(&DepthData::cameraInfoCallback, this, std::placeholders::_1));
 }
 
 void DepthData::onMapDataChanged()
@@ -82,7 +77,7 @@ void DepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr
     camera_model_.fromCameraInfo(*msg);
 }
 
-bool DepthData::processData(const sensor_msgs::msg::Image::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+bool DepthData::processData(const sensor_msgs::msg::Image::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                             const Eigen::Isometry3d& sensor_transform)
 {
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
@@ -124,7 +119,7 @@ bool DepthData::processData(const sensor_msgs::msg::Image::ConstPtr& msg, const 
             projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
                                 cv_image->image, camera_model_, map_data_->dimensions());
         else
-            //ROS_ASSERT_MSG(false, "Unsupported depth image format");
+            // ROS_ASSERT_MSG(false, "Unsupported depth image format");
             rcpputils::assert_true(false, "Unsupported depth image format");
 
         for (auto elem : height_voxels)

@@ -11,7 +11,7 @@
 #include <navigation_interface/controller.h>
 #include <navigation_interface/path_planner.h>
 #include <navigation_interface/trajectory_planner.h>
-#include <pluginlib/class_loader.h>
+#include <pluginlib/class_loader.hpp>
 #include <ros/ros.h>
 #include <tf2_ros/transform_listener.h>
 

@@ -175,7 +175,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
         //sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
         //auto subscriber_ = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(), boost::bind(&TopicDataSource::callback, g_node_, _1), sub_opts_);
 
-        auto cb_func = [this](const typename MsgType::ConstPtr& msg){this->callback(msg);};
+        auto cb_func = [this](const typename MsgType::SharedPtr msg) { this->callback(msg); };
         auto subscriber_ = g_node_->create_subscription<MsgType>(_topic,
                                                                 100,//callback_queue_size_,
                                                                 cb_func,
@@ -211,7 +211,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
   protected:
     virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;
-    virtual bool processData(const typename MsgType::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const typename MsgType::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) = 0;
 
     mutable std::mutex mutex_;
@@ -287,7 +287,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
         return output;
     }
 
-    void callback(const typename MsgType::ConstPtr& msg)
+    void callback(const typename MsgType::SharedPtr msg)
     /*
     TODO:
         - Instead of using raw clock info, use futures.wait_for(seconds)

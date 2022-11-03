@@ -17,7 +17,7 @@ class PointCloudData : public TopicDataSource<sensor_msgs::msg::PointCloud2>
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
-    virtual bool processData(const sensor_msgs::msg::PointCloud2::ConstPtr& msg, const Eigen::Isometry2d& robot_pose,
+    virtual bool processData(const sensor_msgs::msg::PointCloud2::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                              const Eigen::Isometry3d& sensor_transform) override;
 
   private:

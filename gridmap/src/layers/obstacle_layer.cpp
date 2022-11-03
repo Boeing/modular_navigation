@@ -3,7 +3,7 @@
 #include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <gridmap/layers/obstacle_layer.h>
 #include <opencv2/imgproc.hpp>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 
 // For logging reasons
@@ -233,10 +233,10 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
 
     if (debug_viz_)
     {
-        //ros::NodeHandle nh(name());
+        // ros::NodeHandle nh(name());
         auto node = rclcpp::Node::make_shared(name());
 
-        //debug_viz_pub_ = nh.advertise<nav_msgs::msg::OccupancyGrid>("costmap", 1);
+        // debug_viz_pub_ = nh.advertise<nav_msgs::msg::OccupancyGrid>("costmap", 1);
         debug_viz_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
 
         if (debug_viz_running_)
@@ -260,7 +260,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
 
     if (time_decay_)
     {
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),name() << ": enabling time decay freq: " << time_decay_frequency_
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), name() << ": enabling time decay freq: " << time_decay_frequency_
                                << " alpha: " << alpha_decay_);
         if (time_decay_running_)
         {
@@ -322,19 +322,20 @@ bool ObstacleLayer::isDataOk() const
 void ObstacleLayer::debugVizThread(const double frequency)
 {
     nav_msgs::msg::OccupancyGrid grid;
-    //ros::Rate rate(frequency);
+    // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    //Changes in expectedCycleTime explained:
-    //https://answers.ros.org/question/350222/expcectedcycletime-in-ros2/
-    //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    boost::chrono::milliseconds period = boost::chrono::duration_cast<boost::chrono::milliseconds> (boost::chrono::duration<double>{1.0/frequency});
-    
+    // Changes in expectedCycleTime explained:
+    // https://answers.ros.org/question/350222/expcectedcycletime-in-ros2/
+    // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    boost::chrono::milliseconds period =
+        boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::duration<double>{1.0 / frequency});
+
     while (debug_viz_running_ && rclcpp::ok())
     {
         {
             boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
-            //if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
+            // if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
             if (_lock.owns_lock() && debug_viz_pub_->get_subscription_count() != 0 && probability_grid_ &&
                 robot_state.localised)
             {
@@ -409,10 +410,11 @@ void ObstacleLayer::debugVizThread(const double frequency)
 
 void ObstacleLayer::clearFootprintThread(const double frequency)
 {
-    //ros::Rate rate(frequency);
+    // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    boost::chrono::milliseconds period = boost::chrono::duration_cast<boost::chrono::milliseconds> (boost::chrono::duration<double>{1.0/frequency});
+    // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    boost::chrono::milliseconds period =
+        boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::duration<double>{1.0 / frequency});
 
     while (clear_footprint_running_ && rclcpp::ok())
     {
@@ -442,10 +444,11 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
 
 void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_decay)
 {
-    //ros::Rate rate(frequency);
+    // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    //const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    boost::chrono::milliseconds period = boost::chrono::duration_cast<boost::chrono::milliseconds> (boost::chrono::duration<double>{1.0/frequency});
+    // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    boost::chrono::milliseconds period =
+        boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::duration<double>{1.0 / frequency});
 
     // divide the grid into a set of blocks which we can mark as dirty
     // only update dirty blocks
@@ -454,13 +457,13 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     const Eigen::Array2i block_dims = probability_grid_->dimensions().size() / block_size;
 
     auto get_block_id = [block_size](const Eigen::Array2i& xy) { return xy.y() * block_size + xy.x(); };
-    auto get_block_xy = [block_size](const int index) {
-        return Eigen::Array2i(index % block_size, index / block_size);
-    };
+    auto get_block_xy = [block_size](const int index)
+    { return Eigen::Array2i(index % block_size, index / block_size); };
 
     auto& pg = probability_grid_;
 
-    auto update_block = [&pg, alpha_decay](const Eigen::Array2i& block_xy) {
+    auto update_block = [&pg, alpha_decay](const Eigen::Array2i& block_xy)
+    {
         const int top_left_x = block_size * block_xy.x();
         const int top_left_y = block_size * block_xy.y();
         const int size_x = std::min(pg->dimensions().size().x() - 1, top_left_x + block_size) - top_left_x;
@@ -479,7 +482,8 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
         }
     };
 
-    auto clear_block = [&pg](const Eigen::Array2i& block_xy) {
+    auto clear_block = [&pg](const Eigen::Array2i& block_xy)
+    {
         const int top_left_x = block_size * block_xy.x();
         const int top_left_y = block_size * block_xy.y();
         const int size_x = std::min(pg->dimensions().size().x() - 1, top_left_x + block_size) - top_left_x;

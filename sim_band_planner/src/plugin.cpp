@@ -1,5 +1,5 @@
 #include <navigation_interface/params.h>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 #include <sim_band_planner/plugin.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -131,7 +131,7 @@ navigation_interface::TrajectoryPlanner::Result
                  internal_force_gain_, external_force_gain_, rotation_gain_, velocity_decay_, 1.0, alpha_decay_);
 
         // debug viz
-        if (debug_viz_ && marker_pub_.get_subscription_count() > 0) //getNumSubscribers() in ROS
+        if (debug_viz_ && marker_pub_.get_subscription_count() > 0)  // getNumSubscribers() in ROS
         {
             visualization_msgs::MarkerArray ma;
 
@@ -139,11 +139,12 @@ navigation_interface::TrajectoryPlanner::Result
             delete_all.action = visualization_msgs::Marker::DELETEALL;
             ma.markers.push_back(delete_all);
 
-            //const auto now = ros::Time::now();
-            const auto now = node->get_clock()->now();//.nanoseconds()
+            // const auto now = ros::Time::now();
+            const auto now = node->get_clock()->now();  //.nanoseconds()
 
             auto make_cylider = [&ma, &now](const std_msgs::ColorRGBA& color, const double radius, const double height,
-                                            const Eigen::Isometry3d& pose) {
+                                            const Eigen::Isometry3d& pose)
+            {
                 visualization_msgs::Marker marker;
                 marker.ns = "cylinder";
                 marker.id = static_cast<int>(ma.markers.size());
@@ -396,8 +397,8 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        //ros::NodeHandle nh("~");
-        //marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
+        // ros::NodeHandle nh("~");
+        // marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
         auto marker_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("sim_band", 100);
     }
 }

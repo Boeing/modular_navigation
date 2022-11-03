@@ -4,7 +4,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include <pluginlib/class_list_macros.h>
+#include <pluginlib/class_list_macros.hpp>
 
 #include <chrono>
 #include <fstream>
@@ -81,7 +81,7 @@ void RangeData::onMapDataChanged()
     }
 }
 
-bool RangeData::processData(const sensor_msgs::msg::Range::ConstPtr& msg, const Eigen::Isometry2d&,
+bool RangeData::processData(const sensor_msgs::msg::Range::SharedPtr msg, const Eigen::Isometry2d&,
                             const Eigen::Isometry3d& sensor_transform)
 {
     rcpputils::assert_true(std::abs(msg->max_range - max_range_) < std::numeric_limits<double>::epsilon());
@@ -120,8 +120,8 @@ bool RangeData::processData(const sensor_msgs::msg::Range::ConstPtr& msg, const 
 
     const std::size_t cell_range = static_cast<std::size_t>(range / map_data_->dimensions().resolution());
 
-    auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1,
-                                                    const int w2) {
+    auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1, const int w2)
+    {
         const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
         const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
         const double _w2 = static_cast<double>(w2) / static_cast<double>(w0 + w1 + w2);
