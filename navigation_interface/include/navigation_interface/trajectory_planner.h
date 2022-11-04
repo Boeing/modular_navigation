@@ -62,11 +62,11 @@ class TrajectoryPlanner
 
     void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
     {
-        ROS_INFO("Updating map: TrajectoryPlanner");
+        RCLCPP_INFO("Updating map: TrajectoryPlanner");
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
         onMapDataChanged();
-        ROS_INFO("Updating map: TrajectoryPlanner DONE");
+        RCLCPP_INFO("Updating map: TrajectoryPlanner DONE");
     }
 
   protected:

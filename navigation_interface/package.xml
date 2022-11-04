@@ -7,9 +7,13 @@
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
 
-    <buildtool_depend>catkin</buildtool_depend>
+     <buildtool_depend>ament_cmake</buildtool_depend>
 
     <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
     <depend>tf2_ros</depend>
+
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
 </package>

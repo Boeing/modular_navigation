@@ -56,11 +56,11 @@ class Controller
 
     void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
     {
-        ROS_INFO("Updating map: Controller");
+        RCLCPP_INFO("Updating map: Controller");
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
         onMapDataChanged();
-        ROS_INFO("Updating map: Controller DONE");
+        RCLCPP_INFO("Updating map: Controller DONE");
     }
 
   protected:

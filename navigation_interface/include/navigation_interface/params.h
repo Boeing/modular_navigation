@@ -3,7 +3,9 @@
 
 #include <Eigen/Geometry>
 
-#include <ros/ros.h>
+//#include <ros/ros.h>
+#include <rclcpp/rclcpp.h>
+#include "rcpputils/asserts.hpp"
 #include <yaml-cpp/yaml.h>
 
 #include <string>
@@ -11,31 +13,38 @@
 namespace navigation_interface
 {
 
-template <typename T> T get_param_with_default(const std::string& param_name, const T& default_val)
+void get_param_with_default(const std::string& param_name, const T& default_val)
 {
-    if (ros::param::has(param_name))
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Using old ros1 version of get_param_with_default, pass a node as first argument");
+}
+
+template <typename T> T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
+{
+    if (node.has_parameter(param_name))
     {
         T param_val;
-        if (ros::param::get(param_name, param_val))
+        if (node.get_parameter(param_name, param_val))
         {
             return param_val;
         }
     }
+
     return default_val;
 }
 
 template <typename T>
-T get_param_with_default_warn(ros::NodeHandle nh, const std::string& param_name, const T& default_val)
+//T get_param_with_default_warn(ros::NodeHandle nh, const std::string& param_name, const T& default_val)
+T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, const T& default_val)
 {
-    if (nh.hasParam(param_name))
+    if (node.has_parameter(param_name))
     {
         T param_val;
-        if (nh.getParam(param_name, param_val))
+        if (node.get_parameter(param_name, param_val))
         {
             return param_val;
         }
     }
-    ROS_WARN_STREAM("Using default value for '" << nh.getNamespace() << "/" << param_name << "': '" << default_val
+    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for '" << node.get_namespace() << "/" << param_name << "': '" << default_val
                                                 << "'");
     return default_val;
 }
@@ -57,7 +66,7 @@ T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string
     }
     else
     {
-        ROS_WARN_STREAM("Using default value for " << param_name << ": " << default_val);
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for " << param_name << ": " << default_val);
         return default_val;
     }
 }
@@ -111,7 +120,7 @@ inline std::vector<Eigen::Vector2d> get_point_list(const YAML::Node& parameters,
         }
         for (YAML::const_iterator it = value.begin(); it != value.end(); ++it)
         {
-            ROS_ASSERT(it->IsSequence());
+            rcpputils::assert_true(it->IsSequence());
             if (it->Type() != YAML::NodeType::Sequence)
             {
                 throw std::runtime_error(param_name + " element has incorrect type, expects a Sequence");
