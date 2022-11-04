@@ -39,7 +39,7 @@ class Controller
     virtual boost::optional<std::string> trajectoryId() const = 0;
     virtual boost::optional<Trajectory> trajectory() const = 0;
 
-    virtual Result control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
+    virtual Result control(const std::chrono::steady_clock& time, const gridmap::AABB& local_region,
                            const KinodynamicState& robot_state, const Eigen::Isometry2d& map_to_odom,
                            const Eigen::Vector3d max_velocity, const double xy_goal_tolerance,
                            const double yaw_goal_tolerance) = 0;

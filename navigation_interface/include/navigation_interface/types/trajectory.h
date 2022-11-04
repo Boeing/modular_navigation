@@ -3,7 +3,7 @@
 
 #include <Eigen/Geometry>
 
-#include <std_msgs/Header.h>
+#include <std_msgs/msg/header.h>
 
 #include <vector>
 
@@ -21,7 +21,7 @@ struct Trajectory
 {
     double cost;
     std::string id;
-    std_msgs::Header header;
+    std_msgs::msg::Header header;
     std::vector<KinodynamicState> states;
 };
 };  // namespace navigation_interface
