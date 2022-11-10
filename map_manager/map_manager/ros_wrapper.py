@@ -6,7 +6,7 @@ import mongoengine
 import pymongo
 
 import geometry_msgs.msg
-#import rospy
+# import rospy
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy
@@ -17,7 +17,7 @@ from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
 from std_msgs.msg import UInt8MultiArray
 from tf2_msgs.msg import TFMessage
 
-from map_manager.config import DATABASE_NAME, RESOURCE_PORT
+from map_manager.config import DATABASE_NAME
 
 from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
@@ -94,7 +94,7 @@ class RosWrapper(Node):
         # Force check to make sure Mongo is alive
         #
         try:
-            server = database.server_info()
+            database.server_info()
         except pymongo.errors.ServerSelectionTimeoutError as e:
             self.logger.error("Mongodb is offline", exc_info=e)
             raise e
@@ -158,12 +158,12 @@ class RosWrapper(Node):
         #
         # Publishers
         #
-        self.__active_map_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__og_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__pbstream_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__zones_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__areas_pub = None  # type: typing.Optional[rospy.Publisher]
-        self.__graph_pub = None  # type: typing.Optional[rospy.Publisher]
+        self.__active_map_pub = None
+        self.__og_pub: typing.Optional[rclpy.Publisher] = None
+        self.__pbstream_pub = None
+        self.__zones_pub = None
+        self.__areas_pub = None
+        self.__graph_pub = None
         self.__init_publishers()
 
         # Load the most recently modified Map by default
@@ -242,8 +242,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(AddMap.Response)
-    def __add_map_cb(self, req):
-        # type: (AddMapRequest) -> AddMapResponse
+    def __add_map_cb(self, req: AddMap.Request) -> AddMap.Response:
         self.logger.info('Request to add a new Map: {}'.format(req.map_info.name))
 
         if len(req.occupancy_grid.data) <= 0:
@@ -268,7 +267,7 @@ class RosWrapper(Node):
 
         self.__load_map(map_name=req.map_info.name)
 
-        return AddMapResponse(
+        return AddMap.Response(
             success=True
         )
 
@@ -277,8 +276,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(DeleteMap.Response)
-    def __delete_map_cb(self, req):
-        # type: (DeleteMapRequest) -> DeleteMapResponse
+    def __delete_map_cb(self, req: DeleteMap.Request) -> DeleteMap.Response:
         self.logger.info('Request to delete Map: {}'.format(req.map_name))
 
         obj = Map.objects(name=req.map_name).get()
@@ -297,9 +295,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(GetOccupancyGrid.Response)
-    def __get_occupancy_grid_cb(self, req):
-        # type: (GetOccupancyGridRequest) -> GetOccupancyGridResponse
-
+    def __get_occupancy_grid_cb(self, req: GetOccupancyGrid.Request) -> GetOccupancyGrid.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -307,15 +303,13 @@ class RosWrapper(Node):
 
         map_obj = Map.objects(name=req.map_name).get()
 
-        return GetOccupancyGridResponse(
+        return GetOccupancyGrid.Response(
             grid=map_obj.get_occupancy_grid_msg(self),
             success=True
         )
 
     @exception_wrapper(GetMapInfo.Response)
-    def __get_map_info_cb(self, req):
-        # type: (GetMapInfoRequest) -> GetMapInfoResponse
-
+    def __get_map_info_cb(self, req: GetMapInfo.Request) -> GetMapInfo.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -329,9 +323,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetZones.Response)
-    def __get_zones_cb(self, req):
-        # type: (GetZonesRequest) -> GetZonesResponse
-
+    def __get_zones_cb(self, req: GetZones.Request) -> GetZones.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -345,9 +337,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetNodeGraph.Response)
-    def __get_node_graph_cb(self, req):
-        # type: (GetNodeGraphRequest) -> GetNodeGraphResponse
-
+    def __get_node_graph_cb(self, req: GetNodeGraph.Request) -> GetNodeGraph.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -361,9 +351,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetAreaTree.Response)
-    def __get_area_tree_cb(self, req):
-        # type: (GetAreaTreeRequest) -> GetAreaTreeResponse
-
+    def __get_area_tree_cb(self, req: GetAreaTree.Request) -> GetAreaTree.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -381,8 +369,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(ListMaps.Response)
-    def __list_maps_cb(self, _):
-        # type: (ListMapsRequest) -> ListMapsResponse
+    def __list_maps_cb(self, _: ListMaps.Request) -> ListMaps.Response:
         return ListMaps.Response(
             active_map=self.__map_name if self.__map_name else '',
             map_infos=[obj.get_map_info_msg() for obj in Map.objects],
@@ -394,8 +381,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(SetActiveMap.Response)
-    def __set_active_map_cb(self, req):
-        # type: (SetActiveMapRequest) -> SetActiveMapResponse
+    def __set_active_map_cb(self, req: SetActiveMap.Request) -> SetActiveMap.Response:
         self.logger.info('Request to set active Map: {}'.format(req.map_name))
 
         Map.objects(name=req.map_name).get()
@@ -406,8 +392,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetActiveMap.Response)
-    def __get_active_map_cb(self, req):
-        # type: (GetActiveMapRequest) -> GetActiveMapResponse
+    def __get_active_map_cb(self, req: GetActiveMap.Request) -> GetActiveMap.Response:
         return GetActiveMap.Response(
             active_map=self.__map_name,
             success=True

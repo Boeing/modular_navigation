@@ -3,7 +3,6 @@ import math
 import typing
 
 import networkx as nx
-#import rospy
 import rclpy
 from geometry_msgs.msg import Point as PointMsg
 from geometry_msgs.msg import Pose as PoseMsg
@@ -215,8 +214,7 @@ def build_region_markers(region):
     return markers
 
 
-def build_zones_marker_array(node, map_obj):
-    # type: (MapDoc) -> MarkerArray
+def build_zones_marker_array(node, map_obj: MapDoc) -> MarkerArray:
 
     assert isinstance(map_obj, MapDoc)
 

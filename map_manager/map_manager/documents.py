@@ -6,7 +6,6 @@ from io import BytesIO, TextIOWrapper
 import math6d
 import mongoengine
 import numpy
-#import rospy
 import rclpy
 import typing
 from PIL import Image
@@ -276,7 +275,7 @@ class Map(Document, DocumentMixin):
         # type: () -> OccupancyGridMsg
         self.image.seek(0)
         return OccupancyGridMsg(
-            #header=Header(seq=0, stamp=rospy.Time.now(), frame_id='map'),
+            # header=Header(seq=0, stamp=rospy.Time.now(), frame_id='map'),
             header=Header(  # seq=0,
                 stamp=node.get_clock().now().to_msg(),
                 frame_id='map'),

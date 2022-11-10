@@ -34,8 +34,7 @@ from map_manager.map_info import MapInfo as MapInfoCls
 from graph_map.area import Zone
 from graph_map.node_graph_manager import NodeGraphManager
 from graph_map.area_manager import AreaManager
-from map_manager.srv import AddMap, AddMapRequest
-#from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
+from map_manager.srv import AddMap
 from sensor_msgs.msg import CompressedImage
 
 from map_manager.config import DATABASE_NAME
@@ -169,7 +168,7 @@ def run(dir,
 
         add_map_srv.wait_for_service(timeout=10)
         add_response = add_map_srv.call(
-            AddMapRequest(
+            AddMap.Request(
                 map_info=map_info.to_msg(),
                 node_graph=gm_str,
                 area_tree=am_str,
@@ -180,7 +179,7 @@ def run(dir,
                 ),
                 pbstream=pb_bytes
             )
-        )  # type: AddMapResponse
+        )  # type: AddMap.Response
         if not add_response.success:
             raise Exception('Failed to save map: {}'.format(add_response.message))
 
