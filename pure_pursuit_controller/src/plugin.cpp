@@ -7,8 +7,7 @@
 #include <opencv2/imgproc.hpp>
 #include <pluginlib/class_list_macros.hpp>
 #include <pure_pursuit_controller/plugin.h>
-#include <visualization_msgs/MarkerArray.h>
-//#include <visualization_msgs/msg/marker_array.h>
+
 
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
@@ -140,9 +139,9 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::POINTS;
     // marker.header.stamp = ros::Time::now();
-    marker.header.stamp = node->get_clock()
-                              ->now()  //.nanoseconds()
-                          marker.header.frame_id = "map";
+    const auto now = rclcpp::Clock(RCL_ROS_TIME).now(); //node_->get_clock()->now();
+    marker.header.stamp = now;  //.nanoseconds()
+    marker.header.frame_id = "map";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
     marker.scale.y = 0.02;
@@ -156,12 +155,12 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
         const Eigen::Array2i p{x, y};
 
         const Eigen::Vector2d w = grid.dimensions().getCellCenter(p);
-        geometry_msgs::Point mp;
+        geometry_msgs::msg::Point mp;
         mp.x = w.x();
         mp.y = w.y();
         mp.z = 0.0;
         marker.points.push_back(mp);
-        std_msgs::ColorRGBA c;
+        std_msgs::msg::ColorRGBA c;
         c.a = alpha;
         if (grid.dimensions().contains(p) && grid.occupied(p))
         {
@@ -192,9 +191,9 @@ visualization_msgs::msg::Marker buildMarker(const navigation_interface::Kinodyna
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::ARROW;
     // marker.header.stamp = ros::Time::now();
-    marker.header.stamp = node->get_clock()
-                              ->now()  //.nanoseconds()
-                          marker.header.frame_id = "odom";
+    const auto now = rclcpp::Clock(RCL_ROS_TIME).now(); //node_->get_clock()->now();
+    marker.header.stamp = now;  //.nanoseconds()
+    marker.header.frame_id = "odom";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
     marker.scale.y = 0.04;
@@ -203,7 +202,7 @@ visualization_msgs::msg::Marker buildMarker(const navigation_interface::Kinodyna
     marker.pose.orientation.w = 1.0;
 
     {
-        geometry_msgs::Point mp;
+        geometry_msgs::msg::Point mp;
         mp.x = robot_state.pose.translation().x();
         mp.y = robot_state.pose.translation().y();
         mp.z = 0.0;
@@ -211,7 +210,7 @@ visualization_msgs::msg::Marker buildMarker(const navigation_interface::Kinodyna
     }
 
     {
-        geometry_msgs::Point mp;
+        geometry_msgs::msg::Point mp;
         mp.x = target_state.pose.translation().x();
         mp.y = target_state.pose.translation().y();
         mp.z = 0.0;
@@ -398,7 +397,7 @@ boost::optional<navigation_interface::Trajectory> PurePursuitController::traject
 
 navigation_interface::Controller::Result
     // cppcheck-suppress unusedFunction
-    PurePursuitController::control(const rclcpp::Clock& time, const gridmap::AABB& local_region,
+    PurePursuitController::control(const rclcpp::Time& time, const gridmap::AABB& local_region,
                                    const navigation_interface::KinodynamicState& robot_state,
                                    const Eigen::Isometry2d& map_to_odom, const Eigen::Vector3d max_velocity,
                                    const double xy_goal_tolerance, const double yaw_goal_tolerance)
@@ -412,7 +411,8 @@ navigation_interface::Controller::Result
         return result;
     }
 
-    double dt = time.toSec() - last_update_.toSec();
+    //double dt = time.toSec() - last_update_.toSec();
+    double dt = time.seconds() - last_update_.seconds();
     rcpputils::assert_true(dt > 0.0, "Pure Pursuit - Negative time step!");
     last_update_ = time;
 
@@ -474,7 +474,7 @@ navigation_interface::Controller::Result
         const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, map_goal_pose, robot_footprint_, 1.f);
         min_distance_to_collision = cc.min_distance_to_collision;
         if (debug_viz_)
-            footprint_pub_.publish(cc.marker);
+            footprint_pub_->publish(cc.marker);
 
         if (cc.in_collision)
         {
@@ -486,7 +486,7 @@ navigation_interface::Controller::Result
     }
 
     if (debug_viz_)
-        target_state_pub_.publish(buildMarker(robot_state, target_state));
+        target_state_pub_->publish(buildMarker(robot_state, target_state));
 
     rcpputils::assert_true(robot_state.pose.linear().allFinite());
     rcpputils::assert_true(robot_state.pose.translation().allFinite());
@@ -528,7 +528,7 @@ navigation_interface::Controller::Result
     }
 
     rcpputils::assert_true(target_velocity.allFinite(),
-                           ("%f %f %f", target_velocity[0], target_velocity[1], target_velocity[2]));
+                           std::to_string(target_velocity[0])+" "+std::to_string(target_velocity[1])+" "+std::to_string(target_velocity[2]));
 
     //
     // Max acceleration check
@@ -656,11 +656,12 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
+        node_ = rclcpp::Node::make_shared("~");
         // ros::NodeHandle nh("~");
         // target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
         // footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
-        auto target_state_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
-        auto footprint_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
+        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
+        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
     }
 }
 

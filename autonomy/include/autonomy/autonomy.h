@@ -69,7 +69,7 @@ class Autonomy
     virtual ~Autonomy();
 
   private:
-    void activeMapCallback(const map_manager::MapInfo::ConstPtr& map);
+    void activeMapCallback(const map_manager::MapInfo::SharedPtr map);
 
     void executionThread();
     void executeGoal();
@@ -153,10 +153,10 @@ class Autonomy
     std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
 
     ros::Subscriber odom_sub_;
-    void odomCallback(const nav_msgs::Odometry::ConstPtr& msg);
+    void odomCallback(const nav_msgs::Odometry::SharedPtr msg);
 
     ros::Subscriber mapper_status_sub_;
-    void mapperCallback(const cartographer_ros_msgs::SystemState::ConstPtr& msg);
+    void mapperCallback(const cartographer_ros_msgs::SystemState::SharedPtr msg);
 };
 
 }  // namespace autonomy

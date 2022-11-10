@@ -7,6 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include <sim_band_planner/moving_window.h>
 #include <sim_band_planner/simulate.h>
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <memory>
 
@@ -26,7 +27,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     virtual boost::optional<navigation_interface::Path> path() const override;
 
     virtual Result plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
-                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance) override;
+                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance);// override;
 
     virtual bool valid(const navigation_interface::Trajectory& trajectory, const double) const override;
     virtual double cost(const navigation_interface::Trajectory& trajectory, const double) const override;
@@ -45,8 +46,8 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
   private:
   
     //ros::Publisher marker_pub_;
-    auto node = rclcpp::Node::make_shared("~");
-    marker_pub_ = NULL;
+    rclcpp::Node::SharedPtr node_ = nullptr;
+    typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
 
     // Runtime data
     std::unique_ptr<MovingWindow> moving_window_;

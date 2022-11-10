@@ -15,6 +15,7 @@ find_package(gridmap REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(Eigen3 REQUIRED)
+#find_package(xmlrpcpp REQUIRED)
 
 #add_library(
 #    ${PROJECT_NAME}

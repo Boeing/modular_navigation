@@ -1,7 +1,7 @@
 #include <navigation_interface/params.h>
 #include <pluginlib/class_list_macros.hpp>
 #include <sim_band_planner/plugin.h>
-#include <visualization_msgs/MarkerArray.h>
+
 
 PLUGINLIB_EXPORT_CLASS(sim_band_planner::SimBandPlanner, navigation_interface::TrajectoryPlanner)
 
@@ -11,9 +11,9 @@ namespace sim_band_planner
 namespace
 {
 
-std_msgs::ColorRGBA distanceToColor(const double distance)
+std_msgs::msg::ColorRGBA distanceToColor(const double distance)
 {
-    std_msgs::ColorRGBA color;
+    std_msgs::msg::ColorRGBA color;
     color.a = 0.25f;
 
     if (distance <= 0)
@@ -131,25 +131,25 @@ navigation_interface::TrajectoryPlanner::Result
                  internal_force_gain_, external_force_gain_, rotation_gain_, velocity_decay_, 1.0, alpha_decay_);
 
         // debug viz
-        if (debug_viz_ && marker_pub_.get_subscription_count() > 0)  // getNumSubscribers() in ROS
+        if (debug_viz_ && marker_pub_->get_subscription_count() > 0)  // getNumSubscribers() in ROS
         {
-            visualization_msgs::MarkerArray ma;
+            visualization_msgs::msg::MarkerArray ma;
 
-            visualization_msgs::Marker delete_all;
-            delete_all.action = visualization_msgs::Marker::DELETEALL;
+            visualization_msgs::msg::Marker delete_all;
+            delete_all.action = visualization_msgs::msg::Marker::DELETEALL;
             ma.markers.push_back(delete_all);
 
             // const auto now = ros::Time::now();
-            const auto now = node->get_clock()->now();  //.nanoseconds()
+            const auto now = node_->get_clock()->now();  //.nanoseconds()
 
-            auto make_cylider = [&ma, &now](const std_msgs::ColorRGBA& color, const double radius, const double height,
+            auto make_cylider = [&ma, &now](const std_msgs::msg::ColorRGBA& color, const double radius, const double height,
                                             const Eigen::Isometry3d& pose)
             {
-                visualization_msgs::Marker marker;
+                visualization_msgs::msg::Marker marker;
                 marker.ns = "cylinder";
                 marker.id = static_cast<int>(ma.markers.size());
-                marker.type = visualization_msgs::Marker::CYLINDER;
-                marker.action = visualization_msgs::Marker::ADD;
+                marker.type = visualization_msgs::msg::Marker::CYLINDER;
+                marker.action = visualization_msgs::msg::Marker::ADD;
                 marker.header.stamp = now;
                 marker.header.frame_id = "map";
                 marker.frame_locked = true;
@@ -168,15 +168,15 @@ navigation_interface::TrajectoryPlanner::Result
                 return marker;
             };
 
-            std_msgs::ColorRGBA red;
+            std_msgs::msg::ColorRGBA red;
             red.r = 1.0;
             red.a = 1.0;
 
-            std_msgs::ColorRGBA green;
+            std_msgs::msg::ColorRGBA green;
             green.g = 1.0;
             green.a = 1.0;
 
-            std_msgs::ColorRGBA blue;
+            std_msgs::msg::ColorRGBA blue;
             blue.b = 1.0;
             blue.a = 1.0;
 
@@ -210,19 +210,19 @@ navigation_interface::TrajectoryPlanner::Result
                     const Eigen::Vector2d obj_pose =
                         cp_pose + (cp.distance + inflated_robot_radius) * cp.gradient.cast<double>();
 
-                    geometry_msgs::Point start;
+                    geometry_msgs::msg::Point start;
                     start.x = node.pose.translation().x();
                     start.y = node.pose.translation().y();
 
-                    geometry_msgs::Point end;
+                    geometry_msgs::msg::Point end;
                     end.x = obj_pose.x();
                     end.y = obj_pose.y();
 
-                    visualization_msgs::Marker marker;
+                    visualization_msgs::msg::Marker marker;
                     marker.ns = "arrow";
                     marker.id = static_cast<int>(ma.markers.size());
-                    marker.type = visualization_msgs::Marker::ARROW;
-                    marker.action = visualization_msgs::Marker::ADD;
+                    marker.type = visualization_msgs::msg::Marker::ARROW;
+                    marker.action = visualization_msgs::msg::Marker::ADD;
                     marker.header.stamp = now;
                     marker.header.frame_id = "map";
                     marker.frame_locked = true;
@@ -246,7 +246,7 @@ navigation_interface::TrajectoryPlanner::Result
                 const Eigen::Isometry3d pose =
                     Eigen::Translation3d(position.x(), position.y(), 0.0) * Eigen::Quaterniond::Identity();
 
-                const std_msgs::ColorRGBA color = distanceToColor(cp.distance);
+                const std_msgs::msg::ColorRGBA color = distanceToColor(cp.distance);
 
                 ma.markers.push_back(make_cylider(color, inflated_robot_radius * 2.0, 0.1, pose));
 
@@ -254,19 +254,19 @@ navigation_interface::TrajectoryPlanner::Result
                     const Eigen::Vector2d obj_pose =
                         position + (cp.distance + inflated_robot_radius) * cp.gradient.cast<double>();
 
-                    geometry_msgs::Point start;
+                    geometry_msgs::msg::Point start;
                     start.x = position.x();
                     start.y = position.y();
 
-                    geometry_msgs::Point end;
+                    geometry_msgs::msg::Point end;
                     end.x = obj_pose.x();
                     end.y = obj_pose.y();
 
-                    visualization_msgs::Marker marker;
+                    visualization_msgs::msg::Marker marker;
                     marker.ns = "arrow";
                     marker.id = static_cast<int>(ma.markers.size());
-                    marker.type = visualization_msgs::Marker::ARROW;
-                    marker.action = visualization_msgs::Marker::ADD;
+                    marker.type = visualization_msgs::msg::Marker::ARROW;
+                    marker.action = visualization_msgs::msg::Marker::ADD;
                     marker.header.stamp = now;
                     marker.header.frame_id = "map";
                     marker.frame_locked = true;
@@ -281,7 +281,8 @@ navigation_interface::TrajectoryPlanner::Result
                 }
             }
 
-            marker_pub_.publish(ma);
+            //marker_pub_->publish(ma)
+            marker_pub_->publish(ma.markers);            
         }
 
         // copy the nodes back to the moving window
@@ -300,7 +301,7 @@ navigation_interface::TrajectoryPlanner::Result
         {
             if (sim_band.nodes[end_i].control_points[sim_band.nodes[end_i].closest_point].distance < 0)
             {
-                RCLCPP_WARN_STREAM("Point: " << end_i << " of trajectory is in collision");
+                RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Point: " << end_i << " of trajectory is in collision");
                 //                end_i = end_i > 1 ? end_i - 1 : 0;
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
                 result.path_end_i = moving_window_->end_i - (sim_band.nodes.size() - 1 - end_i);
@@ -328,7 +329,7 @@ navigation_interface::TrajectoryPlanner::Result
     }
     catch (const std::exception& e)
     {
-        RCLCPP_ERROR_STREAM("Optimization failed: " << e.what());
+        RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Optimization failed: " << e.what());
         result.outcome = navigation_interface::TrajectoryPlanner::Outcome::FAILED;
         return result;
     }
@@ -398,8 +399,9 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
     if (debug_viz_)
     {
         // ros::NodeHandle nh("~");
+        node_ = rclcpp::Node::make_shared("~");
         // marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
-        auto marker_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("sim_band", 100);
+        marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("sim_band", 100);
     }
 }
 

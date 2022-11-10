@@ -3,7 +3,7 @@
 
 #include <Eigen/Geometry>
 
-#include <std_msgs/msg/header.h>
+#include <std_msgs/msg/header.hpp>
 
 #include <algorithm>
 #include <vector>

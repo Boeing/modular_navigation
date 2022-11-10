@@ -7,15 +7,25 @@
     <author>Boeing</author>
     <license>Boeing Proprietary</license>
 
-    <buildtool_depend>catkin</buildtool_depend>
+    <buildtool_depend>ament_cmake</buildtool_depend>
 
     <depend>gridmap</depend>
     <depend>navigation_interface</depend>
     <depend>pluginlib</depend>
-    <depend>roscpp</depend>
+    <depend>geometry_msgs</depend>
+    <depend>map_manager</depend>
+    <depend>nav_msgs</depend>
+    <depend>cartographer_ros_msgs</depend>
+    <depend>sensor_msgs</depend>
+    <depend>graph_map</depend>
 
+    <!-- Plugin export in ROS2 is done through the CMakeLists
     <export>
         <navigation_interface plugin="${prefix}/plugin.xml"/>
+    </export>-->
+
+    <export>
+        <build_type>ament_cmake</build_type>
     </export>
 
 </package>

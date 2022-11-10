@@ -223,7 +223,7 @@ Autonomy::~Autonomy()
     }
 }
 
-void Autonomy::activeMapCallback(const map_manager::MapInfo::ConstPtr& map)
+void Autonomy::activeMapCallback(const map_manager::MapInfo::SharedPtr map)
 {
     // preempt execution
     if (running_)
@@ -1193,12 +1193,12 @@ void Autonomy::controllerThread()
     controller_done_ = true;
 }
 
-void Autonomy::odomCallback(const nav_msgs::Odometry::ConstPtr& msg)
+void Autonomy::odomCallback(const nav_msgs::Odometry::SharedPtr msg)
 {
     robot_tracker_->addOdometryData(*msg);
 }
 
-void Autonomy::mapperCallback(const cartographer_ros_msgs::SystemState::ConstPtr& msg)
+void Autonomy::mapperCallback(const cartographer_ros_msgs::SystemState::SharedPtr msg)
 {
     const bool was_localised = robot_tracker_->localised();
     robot_tracker_->addLocalisationData(*msg);

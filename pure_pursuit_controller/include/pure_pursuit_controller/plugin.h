@@ -6,6 +6,7 @@
 //#include <ros/ros.h>
 #include "rclcpp/rclcpp.hpp"
 #include "rcpputils/asserts.hpp"
+#include <visualization_msgs/msg/marker_array.hpp>
 
 #include <memory>
 #include <vector>
@@ -25,10 +26,11 @@ class PurePursuitController : public navigation_interface::Controller
     virtual boost::optional<std::string> trajectoryId() const override;
     virtual boost::optional<navigation_interface::Trajectory> trajectory() const override;
 
-    virtual Result control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
+    //virtual Result control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
+    virtual Result control(const rclcpp::Time& time, const gridmap::AABB& local_region,
                            const navigation_interface::KinodynamicState& robot_state,
                            const Eigen::Isometry2d& map_to_odom, const Eigen::Vector3d max_velocity,
-                           const double xy_goal_tolerance, const double yaw_goal_tolerance) override;
+                           const double xy_goal_tolerance, const double yaw_goal_tolerance);// override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;
@@ -37,7 +39,8 @@ class PurePursuitController : public navigation_interface::Controller
     // Runtime values
     std::size_t path_index_ = 0;
     std::unique_ptr<const navigation_interface::Trajectory> trajectory_;
-    ros::SteadyTime last_update_;
+    //ros::SteadyTime last_update_;
+    rclcpp::Time last_update_;
 
     // Parameters
     double look_ahead_time_ = 1.5;
@@ -72,9 +75,10 @@ class PurePursuitController : public navigation_interface::Controller
 
     // Making a node attrb instead of usig publishers
     // Although it is only used if debug_viz_ is set inside a yaml
-    auto node = rclcpp::Node::make_shared("~");
-    target_state_pub_ = NULL;
-    footprint_pub_ = NULL;
+    //auto node = rclcpp::Node::make_shared("~");
+    rclcpp::Node::SharedPtr node_ = nullptr;
+    typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr target_state_pub_;    
+    typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr footprint_pub_;
 
     // Now it is assumed that onInitialize is always called first
     //ros::Publisher target_state_pub_;

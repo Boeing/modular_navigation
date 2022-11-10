@@ -7,6 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rcpputils/asserts.hpp"
 #include <yaml-cpp/yaml.h>
+//#include <XmlRpcValue.h>
 
 #include <string>
 
@@ -18,7 +19,8 @@ void get_param_with_default(const std::string& param_name, const T& default_val)
     RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Using old ros1 version of get_param_with_default, pass a node as first argument");
 }
 
-template <typename T> T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
+template <typename T>
+ T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
 {
     if (node.has_parameter(param_name))
     {

@@ -26,3 +26,10 @@ mapas/
 .mypy_cache/
 
 Dockerfile
+map_manager/map_dump/map_manager/fs.chunks.bson
+map_manager/map_dump/map_manager/fs.chunks.metadata.json
+map_manager/map_dump/map_manager/fs.files.bson
+map_manager/map_dump/map_manager/fs.files.metadata.json
+map_manager/map_dump/map_manager/map.bson
+map_manager/map_dump/map_manager/map.metadata.json
+log/
