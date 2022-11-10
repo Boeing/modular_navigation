@@ -11,23 +11,16 @@ used in the map pipeline.
 
 ## Definitions
 
-| Definition              | Description                                                                                                                                                                                                                                                                       |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Cartographer            | The SLAM system originally devloped by Google and then modified in-house. Includes [cartographer](https://git.web.boeing.com/brta-robotics/cartographer) and [cartographer_ros](https://git.web.boeing.com/brta-robotics/ros/modular_cartographer)                                |
-| cartographer_ros        | The ROS wrapper for cartographer. Also modified from upstream                                                                                                                                                                                                                     |
-| Floor plan              | Site or cell plan in human-editable CAD format (currently DXF)                                                                                                                                                                                                                    |
-| Cost map/Occupancy Grid | Final occupancy grid that the planners plan on                                                                                                                                                                                                                                    |
-| Node                    | A node in a graph-based planner                                                                                                                                                                                                                                                   |
-| Edge                    | An edge in a graph-based planner                                                                                                                                                                                                                                                  |
-| Behaviour               | A profile of settings/strategy used by the navigation stack in its execution                                                                                                                                                                                                      |
-| Trajectory              | The path of the robot takes in a mapping or localisation run                                                                                                                                                                                                                      |
-| Submap                  | One of the many maps that Cartographer creates along its trajectory                                                                                                                                                                                                               |
-| Zone                    | A region of the map that may influence behaviour                                                                                                                                                                                                                                  |
-| `Ln#`                   | Node abstraction level of number `#`                                                                                                                                                                                                                                              |
-| `La#`                   | Area abstraction level of number `#`                                                                                                                                                                                                                                              |
-| Traversal node          | Required graph node for the traversal planner, holds pose information. Equivalent to `Ln0`                                                                                                                                                                                        |
-| Area                    | A locale where an agent may freely navigate within. Abstraction of the physical representation of a set of locations in a floor plan. The physical representation `La0` may be a set of polygons, or list of pixels. `La(x)` where `x>1` is the union of some subset of `La(x-1)` |
-| Node                    | In general, node will be used as the shorthand for traversal node.                                                                                                                                                                                                                |
+| Definition   | Description                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| Pose         | A 3D state of the robot (X, Y and orientation)                                            |
+| Goal         | The final desired pose of the robot. Usually w.r.t. the map origin                        |
+| Cost         | A measure of how undesireable it is for the robot to be at or move through a particular region |
+| Costmap      | A map showing the costs at each point on the map                                          |
+| Node         | A single point on a trajectory                                                            |
+| Trajectory   | An ordered set of nodes that links the start to the goal.                                 |
+| Path Planning| The process of finding a continuous path from start to goal                               |
+| Trajectory optimisation| The process of refining a trajectory to smooth it and avoid obstacles           |
 
 Disambiguations:
 
