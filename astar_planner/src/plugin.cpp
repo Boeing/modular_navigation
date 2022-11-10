@@ -113,22 +113,23 @@ navigation_interface::PathPlanner::Result
         start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, sample,
         backwards_mult_applied, strafe_mult_applied, rotation_mult_applied);
 
-    RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+    RCLCPP_INFO_STREAM(
+        rclcpp::get_logger(""),
         "Hybrid A Star took "
-        << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-        << " iterations: " << astar_result.iterations << " nodes: " << astar_result.explore_3d.size());
+            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
+            << " iterations: " << astar_result.iterations << " nodes: " << astar_result.explore_3d.size());
 
     if (debug_viz_)
     {
-        //if (explore_pub_.getNumSubscribers() > 0)
-        if (explore_pub_.get_subscription_count() > 0) //
+        // if (explore_pub_.getNumSubscribers() > 0)
+        if (explore_pub_.get_subscription_count() > 0)  //
         {
             cv::Mat disp = astar_planner::visualise(*costmap_, astar_result);
             cv::cvtColor(disp, disp, cv::COLOR_BGR2GRAY);
 
             nav_msgs::OccupancyGrid og;
-            //og.header.stamp = ros::Time::now();
-            og.header.stamp = node->get_clock()->now();//.nanoseconds()
+            // og.header.stamp = ros::Time::now();
+            og.header.stamp = node->get_clock()->now();  //.nanoseconds()
             og.info.resolution = costmap_->resolution;
             og.info.width = costmap_->width;
             og.info.height = costmap_->height;
@@ -161,9 +162,9 @@ navigation_interface::PathPlanner::Result
     else
     {
         if (astar_result.start_in_collision)
-            RCLCPP_WARN(rclcpp::get_logger(""),"Start in collision!");
+            RCLCPP_WARN(rclcpp::get_logger(""), "Start in collision!");
         if (astar_result.goal_in_collision)
-            RCLCPP_WARN(rclcpp::get_logger(""),"Goal in collision!");
+            RCLCPP_WARN(rclcpp::get_logger(""), "Goal in collision!");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
     }
     return result;
@@ -217,9 +218,9 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        //ros::NodeHandle nh("~");
-        //explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("expansion", 100);
-        // TODO What is the scope on this? consider moving it to plugin.h
+        // ros::NodeHandle nh("~");
+        // explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("expansion", 100);
+        //  TODO What is the scope on this? consider moving it to plugin.h
         auto explore_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", 100);
     }
 }
@@ -264,7 +265,8 @@ void AStarPlanner::onMapDataChanged()
 
                 cv::Mat& traversal_cost = *(traversal_cost_.get());
                 const float cost = static_cast<float>(zone.cost);
-                auto append_raster = [&traversal_cost, cost](const int x, const int y) {
+                auto append_raster = [&traversal_cost, cost](const int x, const int y)
+                {
                     if (x >= 0 && x < traversal_cost.cols && y >= 0 && y < traversal_cost.rows)
                     {
                         traversal_cost.at<float>(y, x) = cost;

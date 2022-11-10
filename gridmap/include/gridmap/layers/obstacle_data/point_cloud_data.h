@@ -3,8 +3,9 @@
 
 #include <gridmap/layers/obstacle_data/data_source.h>
 #include <gridmap/operations/raytrace.h>
-#include "rclcpp/rclcpp.hpp"
 #include <sensor_msgs/msg/point_cloud2.hpp>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
 {

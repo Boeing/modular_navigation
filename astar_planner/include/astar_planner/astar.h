@@ -5,8 +5,6 @@
 #include <astar_planner/node.h>
 #include <navigation_interface/path_planner.h>
 //#include <ros/console.h>
-#include "rcpputils/asserts.hpp"
-
 #include <algorithm>
 #include <functional>
 #include <map>
@@ -14,6 +12,8 @@
 #include <set>
 #include <unordered_map>
 #include <vector>
+
+#include "rcpputils/asserts.hpp"
 
 namespace astar_planner
 {

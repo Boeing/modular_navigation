@@ -3,10 +3,10 @@
 
 #include <boost/heap/binomial_heap.hpp>
 //#include <ros/assert.h>
-#include "rcpputils/asserts.hpp"
-
 #include <array>
 #include <cmath>
+
+#include "rcpputils/asserts.hpp"
 
 namespace astar_planner
 {

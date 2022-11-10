@@ -24,6 +24,6 @@
     <test_depend>rosunit</test_depend>
 
     <export>
-        <navigation_interface plugin="${prefix}/plugin.xml"/>
+        <navigation_interface plugin="${prefix}/plugin.xml" />
     </export>
 </package>

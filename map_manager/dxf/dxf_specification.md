@@ -9,23 +9,23 @@ used in the map pipeline.
 
 
 ## Definitions
-| Definition                          | Description |
-| ----------------------------------- | --------------------------- |
-| Cartographer                        | The SLAM system originally devloped by Google and then modified in-house. Includes [cartographer](https://git.web.boeing.com/brta-robotics/cartographer) and [cartographer_ros](https://git.web.boeing.com/brta-robotics/ros/modular_cartographer) |
-| cartographer_ros                    | The ROS wrapper for cartographer. Also modified from upstream |
-| Floor plan                          | Site or cell plan in human-editable CAD format (currently DXF) |
-| Cost map/Occupancy Grid             | Final occupancy grid that the planners plan on |
-| Node                                | A node in a graph-based planner |
-| Edge                                | An edge in a graph-based planner |
-| Behaviour                           | A profile of settings/strategy used by the navigation stack in its execution |
-| Trajectory                          | The path of the robot takes in a mapping or localisation run |
-| Submap                              | One of the many maps that Cartographer creates along its trajectory |
-| Zone                                | A region of the map that may influence behaviour |
-| `Ln#`                               | Node abstraction level of number `#` |
-| `La#`                               | Area abstraction level of number `#` |
-| Traversal node                      | Required graph node for the traversal planner, holds pose information. Equivalent to `Ln0` |
-| Area                                | A locale where an agent may freely navigate within. Abstraction of the physical representation of a set of locations in a floor plan. The physical representation `La0` may be a set of polygons, or list of pixels. `La(x)` where `x>1` is the union of some subset of `La(x-1)` |
-| Node                                | In general, node will be used as the shorthand for traversal node. |
+| Definition              | Description                                                                                                                                                                                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cartographer            | The SLAM system originally devloped by Google and then modified in-house. Includes [cartographer](https://git.web.boeing.com/brta-robotics/cartographer) and [cartographer_ros](https://git.web.boeing.com/brta-robotics/ros/modular_cartographer)                                |
+| cartographer_ros        | The ROS wrapper for cartographer. Also modified from upstream                                                                                                                                                                                                                     |
+| Floor plan              | Site or cell plan in human-editable CAD format (currently DXF)                                                                                                                                                                                                                    |
+| Cost map/Occupancy Grid | Final occupancy grid that the planners plan on                                                                                                                                                                                                                                    |
+| Node                    | A node in a graph-based planner                                                                                                                                                                                                                                                   |
+| Edge                    | An edge in a graph-based planner                                                                                                                                                                                                                                                  |
+| Behaviour               | A profile of settings/strategy used by the navigation stack in its execution                                                                                                                                                                                                      |
+| Trajectory              | The path of the robot takes in a mapping or localisation run                                                                                                                                                                                                                      |
+| Submap                  | One of the many maps that Cartographer creates along its trajectory                                                                                                                                                                                                               |
+| Zone                    | A region of the map that may influence behaviour                                                                                                                                                                                                                                  |
+| `Ln#`                   | Node abstraction level of number `#`                                                                                                                                                                                                                                              |
+| `La#`                   | Area abstraction level of number `#`                                                                                                                                                                                                                                              |
+| Traversal node          | Required graph node for the traversal planner, holds pose information. Equivalent to `Ln0`                                                                                                                                                                                        |
+| Area                    | A locale where an agent may freely navigate within. Abstraction of the physical representation of a set of locations in a floor plan. The physical representation `La0` may be a set of polygons, or list of pixels. `La(x)` where `x>1` is the union of some subset of `La(x-1)` |
+| Node                    | In general, node will be used as the shorthand for traversal node.                                                                                                                                                                                                                |
 
 
 Disambiguations:
@@ -74,7 +74,7 @@ There is no way to associate attributes with individual elements. It must be in 
 The DXF format has undergone many revisions. During export, ProgeCAD (and likely other CAD programs) allow you to
 select which version. This specification has been tested to work with DXF versions AutoCAD 2000 up to AutoCAD 2017.
 
-AutoCAD 2017 file sizes are smaller, so it is recommended. Even though both binary or ASCII DXFs work, ASCII is 
+AutoCAD 2017 file sizes are smaller, so it is recommended. Even though both binary or ASCII DXFs work, ASCII is
 recommended so it can be inspected and version controlled more easily.
 
 Things that fail with older versions:
@@ -96,7 +96,7 @@ of the layer name string and enclosed in square brackets. Eg.
 ```
 [TAG1][TAG2]layer_name
 ```
-Spaces are not allowed in tags. Spaces in the name are allowed but spaces between the last tag and the layer name are 
+Spaces are not allowed in tags. Spaces in the name are allowed but spaces between the last tag and the layer name are
 ignored but spaces in the name are allowed. The following are valid formats.
 * Example 1: `[TAG1]layer_name`
 * Example 2: `[TAG1][TAG2]layer_name`
@@ -127,7 +127,7 @@ Some examples of attributes:
 
 ### Obstacles (Walls, doors etc.)
 Obstacles of a given class should be drawn as polylines on a layer, with the `[OBSTACLE]` tag in the layer name.
-Closed polylines will become polygons extruded along the Z axis by the `HEIGHT` attribute in metres while unclosed 
+Closed polylines will become polygons extruded along the Z axis by the `HEIGHT` attribute in metres while unclosed
 polylines will have a thickness built around the line. Thickness is determined by the `THICKNESS` attribute also
 in metres.
 
@@ -142,8 +142,8 @@ Bollards are treated specially and should be drawn as circles on a layer nammed 
 
 ### Nodes (traversal nodes)
 Nodes shall be inserted as block references of the `Node` block. The `Node` block is defined in a separate file and
-can be inserted by selecting the `Node.dxf` file when inserting a block reference. 
-The first time this is done, the block definition will be copied and embedded into the map file, allowing it to be 
+can be inserted by selecting the `Node.dxf` file when inserting a block reference.
+The first time this is done, the block definition will be copied and embedded into the map file, allowing it to be
 reused without having to re-import it. If the `Node` definition is updated,
 the embedded definition can be updated by inserting a new `Node` reference and choosing the file again.
 
@@ -152,18 +152,18 @@ The `Node` block contains the following attributes to be filled out when inserti
     * NAME (string) - Display name for the node (optional)
 
 ### Undirected edges (traversal layer)
-Undirected edges shall be inserted as block references of the `Edge` block. 
+Undirected edges shall be inserted as block references of the `Edge` block.
 The `Edge` block is defined in a separate file and
-can be inserted by selecting the `Edge.dxf` file when inserting a block reference. 
+can be inserted by selecting the `Edge.dxf` file when inserting a block reference.
 
 The `Edge` block definition contains a single unit-length polyline. When inserting the block reference,
-the scale/rotation of the **entire** block reference should be used to manipulate this line. This can be done 
-in ProgeCAD by first selecting the "start" node, then selecting the "to" node **twice** 
+the scale/rotation of the **entire** block reference should be used to manipulate this line. This can be done
+in ProgeCAD by first selecting the "start" node, then selecting the "to" node **twice**
 (first time specifies scale, second time specifies rotation).
 
 The connection to nodes is determined by the distance from the endpoint of the edge to the centre of the node's circle.
 The circles nominally have a radius of 100mm (although they can be scaled when inserted),
-which is the same as the threshold used to determine if an edge 
+which is the same as the threshold used to determine if an edge
 connects to a node. This means if in the CAD, the edge is within the circle, it will be detected as a connection.
 A useful tip is to use snapping when drawing the edges to make it snap perfectly to the circle centres.
 
@@ -220,4 +220,3 @@ available.
 ```
 As with areas, there can be multiple hatches in a zone layer, but the same attributes will be applied to all the
 hatches.
-

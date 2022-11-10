@@ -17,7 +17,7 @@
     <exec_depend>sim_band_planner</exec_depend>
 
     <export>
-        <metapackage/>
+        <metapackage />
     </export>
 
 </package>

@@ -3,9 +3,9 @@
 #include <pluginlib/class_list_macros.hpp>
 
 // For logging reasons
-#include "rclcpp/rclcpp.hpp"
-
 #include <chrono>
+
+#include "rclcpp/rclcpp.hpp"
 
 PLUGINLIB_EXPORT_CLASS(gridmap::LaserData, gridmap::DataSource)
 

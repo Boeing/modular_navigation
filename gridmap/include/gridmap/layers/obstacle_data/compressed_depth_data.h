@@ -6,11 +6,12 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include "rclcpp/rclcpp.hpp"
 #include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 #include <unordered_map>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
 {
@@ -26,16 +27,16 @@ class CompressedDepthData : public TopicDataSource<sensor_msgs::msg::CompressedI
     virtual bool isDataOk() const override;
 
   protected:
-    virtual bool processData(const sensor_msgs::msg::CompressedImage::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
-                             const Eigen::Isometry3d& sensor_transform) override;
+    virtual bool processData(const sensor_msgs::msg::CompressedImage::SharedPtr msg,
+                             const Eigen::Isometry2d& robot_pose, const Eigen::Isometry3d& sensor_transform) override;
 
   private:
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
     std::string camera_info_topic_;
-    //rclcpp::Subscriber camera_info_sub_;
+    // rclcpp::Subscriber camera_info_sub_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
-    //camera_info_sub_ = nullptr;
+    // camera_info_sub_ = nullptr;
     std::mutex camera_info_mutex_;
     std::atomic_bool got_camera_info_;
 

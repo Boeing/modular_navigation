@@ -7,7 +7,6 @@
 
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
-#include "rcpputils/asserts.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -16,6 +15,8 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "rcpputils/asserts.hpp"
 
 namespace gridmap
 {

@@ -3,10 +3,10 @@
 
 #include <Eigen/Geometry>
 
-#include "rclcpp/rclcpp.hpp"
-
 #include <algorithm>
 #include <cmath>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
 {

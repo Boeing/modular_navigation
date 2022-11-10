@@ -6,10 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ament_cmake REQUIRED)
-#find_package(rosidl_default_generators REQUIRED)
+# find_package(rosidl_default_generators REQUIRED)
 
 find_package(cartographer_ros_msgs)
-#find_package(cmake_modules REQUIRED)
+# find_package(cmake_modules REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(image_geometry REQUIRED)
@@ -20,8 +20,7 @@ find_package(message_filters REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(graph_map REQUIRED)
-#find_package(roscpp REQUIRED)
-#find_package(rospack REQUIRED)
+# find_package(roscpp REQUIRED) find_package(rospack REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -41,35 +40,9 @@ include_directories(SYSTEM ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${Boost
 
 include_directories(include ${YAML_CPP_INCLUDE_DIR})
 
-
-#catkin_package(
-#    INCLUDE_DIRS
-#    include
-#    LIBRARIES
-#    ${PROJECT_NAME}
-#    CATKIN_DEPENDS
-#    cartographer_ros_msgs
-#    cv_bridge
-#    geometry_msgs
-#    image_geometry
-#    laser_geometry
-#    map_manager
-#    map_msgs
-#    message_filters
-#    nav_msgs
-#    pluginlib
-#    roscpp
-#    sensor_msgs
-#    std_msgs
-#    tf2_geometry_msgs
-#    tf2_ros
-#    tf2_sensor_msgs
-#    urdf
-#    visualization_msgs
-#    DEPENDS
-#    Boost
-#    EIGEN3
-#)
+# catkin_package( INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME} CATKIN_DEPENDS cartographer_ros_msgs cv_bridge
+# geometry_msgs image_geometry laser_geometry map_manager map_msgs message_filters nav_msgs pluginlib roscpp sensor_msgs
+# std_msgs tf2_geometry_msgs tf2_ros tf2_sensor_msgs urdf visualization_msgs DEPENDS Boost EIGEN3 )
 
 add_library(
     ${PROJECT_NAME}
@@ -91,31 +64,37 @@ add_library(
     src/robot_tracker.cpp
 )
 
-ament_target_dependencies(${PROJECT_NAME} Eigen3 cv_bridge Boost graph_map sensor_msgs rcutils 
-    cartographer_ros_msgs nav_msgs geometry_msgs map_manager)
+ament_target_dependencies(
+    ${PROJECT_NAME}
+    Eigen3
+    cv_bridge
+    Boost
+    graph_map
+    sensor_msgs
+    rcutils
+    cartographer_ros_msgs
+    nav_msgs
+    geometry_msgs
+    map_manager
+)
 
-# allow to find headers, see https://docs.ros.org/en/foxy/How-To-Guides/Ament-CMake-Documentation.html#adding-files-and-headers
-target_include_directories(${PROJECT_NAME}
-    PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>)
+# allow to find headers, see
+# https://docs.ros.org/en/foxy/How-To-Guides/Ament-CMake-Documentation.html#adding-files-and-headers
+target_include_directories(
+    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+)
 
+# Link packages against new deps add_dependencies(${PROJECT_NAME}
+# ${${PROJECT_NAME}_EXPORTED_TARGETS})#${catkin_EXPORTED_TARGETS}) target_link_libraries(${PROJECT_NAME}
+# ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
 
-# Link packages against new deps
-#add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})#${catkin_EXPORTED_TARGETS})
-#target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
-
-
-#if(CATKIN_ENABLE_TESTING)
-#    find_package(rosunit REQUIRED)
+# if(CATKIN_ENABLE_TESTING) find_package(rosunit REQUIRED)
 #
-#    catkin_add_gtest(unit_test test/unit_test.cpp)
-#    target_link_libraries(unit_test ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
+# catkin_add_gtest(unit_test test/unit_test.cpp) target_link_libraries(unit_test ${PROJECT_NAME} ${catkin_LIBRARIES}
+# ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
 #
-#    catkin_add_gtest(test_raytrace test/test_raytrace.cpp)
-#    target_link_libraries(test_raytrace ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES})
-#endif()
-
+# catkin_add_gtest(test_raytrace test/test_raytrace.cpp) target_link_libraries(test_raytrace ${PROJECT_NAME}
+# ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${YAML_CPP_LIBRARIES}) endif()
 
 # Plugging Declaration
 pluginlib_export_plugin_description_file(${PROJECT_NAME} plugins.xml)
@@ -128,7 +107,7 @@ install(
     RUNTIME DESTINATION bin
 )
 
-#install(FILES plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+# install(FILES plugins.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 install(
     DIRECTORY include/
@@ -136,11 +115,7 @@ install(
     PATTERN ".svn" EXCLUDE
 )
 
-ament_export_libraries(
-    ${PROJECT_NAME}
-)
-ament_export_targets(
-  export_${PROJECT_NAME}
-)
+ament_export_libraries(${PROJECT_NAME})
+ament_export_targets(export_${PROJECT_NAME})
 
 ament_package()

@@ -1,11 +1,11 @@
 <launch>
     <arg name="mongo_hostname" value="$(optenv MONGO_HOST localhost)" />
     <arg name="mongo_port" value="$(optenv MONGO_PORT 27017)" />
-    
+
     <node name="map_manager" pkg="map_manager" type="map_manager_node.py" required="true" output="screen">
-        <param name="test" value="true"/>
-        <param name="mongo_hostname" value="$(arg mongo_hostname)"/>
-        <param name="mongo_port" value="$(arg mongo_port)"/>
+        <param name="test" value="true" />
+        <param name="mongo_hostname" value="$(arg mongo_hostname)" />
+        <param name="mongo_port" value="$(arg mongo_port)" />
     </node>
-    <test test-name="test_manager" pkg="map_manager" type="test_manager.py" time-limit="30"/>
+    <test test-name="test_manager" pkg="map_manager" type="test_manager.py" time-limit="30" />
 </launch>

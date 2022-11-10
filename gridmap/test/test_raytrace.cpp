@@ -64,9 +64,10 @@ TEST(test_polyfill, test_polyfill)
 
         gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 600);
 
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                         std::chrono::steady_clock::now() - t0)
-                                                         .count());
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                           "rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                            std::chrono::steady_clock::now() - t0)
+                                                            .count());
     }
 
     cv::imwrite("grid.png", cv_im);

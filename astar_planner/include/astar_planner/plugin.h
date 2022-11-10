@@ -40,9 +40,9 @@ class AStarPlanner : public navigation_interface::PathPlanner
 
     std::vector<Eigen::Vector2d> offsets_;
 
-    //ros::Publisher explore_pub_; // this is created on initialized_pub
+    // ros::Publisher explore_pub_; // this is created on initialized_pub
     auto node = rclcpp::Node::make_shared("~");
-    explore_pub_ = NULL; // 
+    explore_pub_ = NULL;  //
 
     std::shared_ptr<Costmap> costmap_;
     std::shared_ptr<cv::Mat> traversal_cost_;

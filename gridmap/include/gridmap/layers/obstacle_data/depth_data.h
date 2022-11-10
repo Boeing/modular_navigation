@@ -6,10 +6,11 @@
 #include <image_geometry/pinhole_camera_model.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include "rclcpp/rclcpp.hpp"
 #include <sensor_msgs/msg/image.hpp>
 
 #include <unordered_map>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
 {
@@ -32,7 +33,8 @@ class DepthData : public TopicDataSource<sensor_msgs::msg::Image>
     void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
     std::string camera_info_topic_;
-    //ros::Subscriber camera_info_sub_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
+    // ros::Subscriber camera_info_sub_; see
+    // https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
 
     std::mutex camera_info_mutex_;

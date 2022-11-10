@@ -6,6 +6,7 @@
 #include <gridmap/grids/occupancy_grid.h>
 #include <gridmap/layers/layer.h>
 #include <nav_msgs/msg/occupancy_grid.hpp>
+
 #include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
