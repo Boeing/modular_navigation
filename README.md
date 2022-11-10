@@ -37,10 +37,10 @@ An example launch script:
 ## Requirements
 
 1. Find a path from start to goal if physically possible
-2. Path must avoid obstacles
-3. Path must update in real-time to avoid newly detected obstacles
-4. Control robot by sending velocity commands
-5. Robot must be able to drive very close (up to 5cm) to obstacles
+1. Path must avoid obstacles
+1. Path must update in real-time to avoid newly detected obstacles
+1. Control robot by sending velocity commands
+1. Robot must be able to drive very close (up to 5cm) to obstacles
 
 ## Definitions
 
@@ -63,14 +63,12 @@ An example launch script:
 - Robot knows its location relative to the map (robot is localised) using something like Cartographer
 - Odometry is published
 - There are sufficient sensors to detect any potential obstacles and the sensor data is accurate
-- `cmd_vel` will be obeyed reasonably faithfully and that the robot can physically achieve the velocities
-and accelerations
+- `cmd_vel` will be obeyed reasonably faithfully and that the robot can physically achieve the velocities and accelerations
 - Robot drives reasonably slowly (<0.25 m/s)
 
 ### Limitations
 
-- Path planning updates take approximately 1 second for a map of size 150 m^2, so there will
-likely be performance issues when scaling up.
+- Path planning updates take approximately 1 second for a map of size 150 m^2, so there will likely be performance issues when scaling up.
 - Robot cannot drive too fast or the map/trajectory cannot update fast enough.
 
 ### Description
@@ -90,8 +88,8 @@ Autonomy is a multi-layered system for 3D robot navigation (X,Y and rotation).
 Conceptually, navigation can be broken into three layers:
 
 1. Path planning - produce a rough path from A to B
-2. Trajectory optimisation - Smooth out the path and swerve around immediate obstacles
-3. Control - Follow the path and perform last-second collision checking
+1. Trajectory optimisation - Smooth out the path and swerve around immediate obstacles
+1. Control - Follow the path and perform last-second collision checking
 
 Each layer can in theory be swapped out with different algorithms without
 affecting the next. Therefore, the interface for each layer is separately
@@ -208,10 +206,13 @@ The `unit_test` will be in `devel/.private/astar_planner/lib/astar_planner`
 
 ## Requirements Evaluation
 
-| Requirement                                                     | Met? | Comments                                                                              |
-| --------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------- |
-| Find a path from start to goal if physically possible           | Yes  | If goal is in collision, can resample to a nearby pose                                |
-| Path must avoid obstacles                                       | Yes  | Depth sensor noise means it can not see obstacles lower than a configurable threshold |
-| Path must update in real-time to avoid newly detected obstacles | Yes  | Large maps may slow down planning                                                     |
-| Control robot by sending velocity commands                      | Yes  |                                                                                       |
-| Robot must be able to drive very close (up to 5cm) to obstacles | Yes  | Can sometimes drive itself into collision and get stuck                               |
+| Definition   | Description                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| Pose         | A 3D state of the robot (X, Y and orientation)                                            |
+| Goal         | The final desired pose of the robot. Usually w.r.t. the map origin                        |
+| Cost         | A measure of how undesireable it is for the robot to be at or move through a particular region |
+| Costmap      | A map showing the costs at each point on the map                                          |
+| Node         | A single point on a trajectory                                                            |
+| Trajectory   | An ordered set of nodes that links the start to the goal.                                 |
+| Path Planning| The process of finding a continuous path from start to goal                               |
+| Trajectory optimisation| The process of refining a trajectory to smooth it and avoid obstacles           |

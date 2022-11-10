@@ -26,8 +26,7 @@ Disambiguations:
 
 * Paths in map_manger/autonomy are lines with low-cost that the robot will preferentially use
 * Currently, "Nodes" in map_manager refers to the points at the end and intersections of paths
-* Zones refer to polygons with an enumerated type (avoid, exclusion, driveable etc.). This is only
-used to modify the cost in astar planner. In the new system, zones may be an extension of this.
+* Zones refer to polygons with an enumerated type (avoid, exclusion, driveable etc.). This is only used to modify the cost in astar planner. In the new system, zones may be an extension of this.
 
 ## Goal
 
@@ -146,7 +145,7 @@ in metres.
 The colour of the link in Gazebo can be set by setting either:
 
 1. The colour of the individual entity
-2. The colour of the entire layer, and choose "BY LAYER" for the entity's colour
+1. The colour of the entire layer, and choose "BY LAYER" for the entity's colour
 
 The colour will be used to change the appearance of the link in the resulting `.world` file.
 
@@ -220,7 +219,9 @@ Higher level areas can be defined using groups:
 
 * Group Name becomes the new area's ID
 * Entities should be the hatches of the included areas
+
 The following attributes (in the group description) are used
+
 * LEVEL (int >=2, required) - The level of the area
 * NAME (str, optional) - display name of the area
 
