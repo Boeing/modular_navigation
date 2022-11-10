@@ -103,7 +103,7 @@ The import script now no longer does any scaling.
 Layer names can have optional tags that tell the parser how to process that layer. Tags are always at the beginning
 of the layer name string and enclosed in square brackets. Eg.
 
-```
+```yaml
 [TAG1][TAG2]layer_name
 ```
 
@@ -130,7 +130,7 @@ Currently, valid tags include:
 
 Layers can have attributes defined in the description. They must be in the form:
 
-```
+```yaml
 <key1=value1><key2=value1,value2,value3>
 ```
 
@@ -138,7 +138,7 @@ Depending on the type of layer (based on the tags), different attributes are rel
 
 Some examples of attributes:
 
-```
+```yaml
 <HEIGHT=1.2>  # Sets the height of objects in an OBSTACLE layer
 <NAME=Pretty name>  # Sets the pretty name of a ZONE or AREA
 ```
@@ -207,7 +207,7 @@ Only La1 areas should have hatches. LaN (N >= 2) layers are only unions of La0 a
 Areas should be defined as one or more hatches in separate DXF layers, with each DXF layer being an La0 area.
 DXF layers that are areas **must** include the `[AREA]` tag in the layer name followed by the area's ID.
 
-```
+```yaml
 [AREA]your_area_id spaces allowed
 ```
 
@@ -247,7 +247,7 @@ or `EdgePath` in CAD but the import script will tell you if an `EdgePath` is det
 Zones are defined similarly to areas, except a [ZONE] tag should be added and a few extra attributes are
 available.
 
-```
+```yaml
 <COST=int> # Value from 0 to 255 specifying the cost of the zone on the costmap
 <BEHAVIOUR=str> # String referring to the behaviour that should be used on this zone
 ```
