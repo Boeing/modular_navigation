@@ -6,7 +6,6 @@ A mobile robot needs to be able to navigate a complex and dynamic environment an
 to a given goal. This package aims to be a flexible, modular system for real-time navigation and path planning for
 a holonomic robot equipped with a number of sensors (namely laser and depth).
 
-
 ## Usage
 
 The navigation stack contains many packages but runs as a single ROS node with independent threads for each of the
@@ -19,6 +18,7 @@ Most of the configurations is done via a YAML file which is read *once* directly
 parameter server is **NOT** used except to pass the path of the YAML file.
 
 An example launch script:
+
 ```xml
 <node pkg="autonomy" type="autonomy" respawn="true" name="autonomy">
     <param name="navigation_config" value="/path/to/config/file" />
@@ -76,6 +76,7 @@ likely be performance issues when scaling up.
 ### Description
 
 Meta-package for navigation stack. Contains:
+
 - `autonomy` - Main package for navigation
 - `astar_planner` - Hybrid A* path planner
 - `sim_band_planner` - Sim band (trajectory optimiser)
@@ -84,8 +85,10 @@ Meta-package for navigation stack. Contains:
 - `map_manager` - map database interface
 
 #### Overview
+
 Autonomy is a multi-layered system for 3D robot navigation (X,Y and rotation).
 Conceptually, navigation can be broken into three layers:
+
 1. Path planning - produce a rough path from A to B
 2. Trajectory optimisation - Smooth out the path and swerve around immediate obstacles
 3. Control - Follow the path and perform last-second collision checking
@@ -97,6 +100,7 @@ defined in `navigation_interface`.
 For now, there is only one of each layer:
 
 #### Path planning (Hybrid A*)
+
 Hybrid A* divides the map into a grid and "explores" it by computing the
 cost required to get to each cell.
 
@@ -145,12 +149,13 @@ a footprint that is equal to or smaller than the planner so that the planner wil
 not generate a path that causes Sim Band to be in collision.
 
 Summary of differences between E-band and Sim-band
+
 - No "bubbles"
 - Robot footprint is approximated as multiple circles
 - Torque is applied to nodes as well (e-band uses as single circle, so rotation is ignored)
 
-
 #### Pure Pursuit Controller
+
 The controller's job is to track the trajectory while performing last-second, thorough
 collision checking. [Pure pursuit](https://www.ri.cmu.edu/pub_files/pub3/coulter_r_craig_1992_1/coulter_r_craig_1992_1.pdf)
 is one of the simplest control algorithms. The vehicle finds a point on the path that is
@@ -172,22 +177,29 @@ When the robot approaches the final node, the integral term is enabled, allowing
 robot to completely close the gap.
 
 #### How to build
+
 `astar_planner` and `sim_band_planner` need to be built with compiler
 optimisation to work in real time:
+
 ```bash
 catkin build modular_navigation --cmake-args -DCMAKE_CXX_FLAGS="-O2 -Wall -Werror"
 ```
 
 #### Tests and debugging
+
 ##### Testing the entire stack
+
 Run the simulation and use `goal.py`. This script sends goal commands to
 autonomy in a loop.
 
 ##### astar_planner tests
+
 Build astar_planner with the test arg:
+
 ```bash
 catkin build astar_planner --make-args tests
 ```
+
 The `unit_test` will be in `devel/.private/astar_planner/lib/astar_planner`
 
 ## Technologies
