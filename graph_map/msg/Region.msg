@@ -1,2 +1,0 @@
-geometry_msgs/Polygon polygon
-std_msgs/ColorRGBA color

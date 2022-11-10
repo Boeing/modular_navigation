@@ -1,6 +1,9 @@
 - git:
     local-name: math6d
-    uri: https://git.web.boeing.com/robotics/ros/math6d
+    uri: git@gitlab.com:mtdi/pi9419/boeing/math6d.git
 - git:
     local-name: modular_cartographer
-    uri: https://git.web.boeing.com/brta-robotics/ros/modular_cartographer.git
+    uri: git@gitlab.com:mtdi/pi9419/boeing/modular_cartographer.git
+- git:
+    local-name: graph_map
+    uri: git@gitlab.com:mtdi/pi9419/boeing/graph_map.git
