@@ -23,7 +23,7 @@ from map_manager.map_info import MapInfo as MapInfoCls
 
 import rospy
 from graph_map.area import Zone
-from map_manager_msgs.msgs import MapInfo as MapInfoMsg
+from map_manager.msgs import MapInfo as MapInfoMsg
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from sensor_msgs.msg import CompressedImage
 from nav_msgs.msg import MapMetaData as MapMetaDataMsg
