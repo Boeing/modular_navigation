@@ -281,8 +281,7 @@ navigation_interface::TrajectoryPlanner::Result
                 }
             }
 
-            //marker_pub_->publish(ma)
-            marker_pub_->publish(ma.markers);            
+            marker_pub_->publish(ma);            
         }
 
         // copy the nodes back to the moving window
@@ -401,7 +400,7 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
         // ros::NodeHandle nh("~");
         node_ = rclcpp::Node::make_shared("~");
         // marker_pub_ = nh.advertise<visualization_msgs::MarkerArray>("sim_band", 100);
-        marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("sim_band", 100);
+        marker_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("sim_band", 100);
     }
 }
 

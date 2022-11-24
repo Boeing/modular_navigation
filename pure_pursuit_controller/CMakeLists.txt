@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
-project(pure_pursuit_controller)
-
 set(CMAKE_CXX_STANDARD 14)
+project(pure_pursuit_controller)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

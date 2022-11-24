@@ -179,7 +179,7 @@ class RosWrapper(Node):
 
         self.logger.info('Successfully started')
 
-        #Publish every topic with a timer callback
+        #Publish every topic with a timer callback TODO comment this for latching testing...
         timer_period = 0.5  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         
@@ -245,7 +245,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(AddMap.Response)
-    def __add_map_cb(self, req):
+    def __add_map_cb(self, req, res):
         # type: (AddMapRequest) -> AddMapResponse
         self.logger.info('Request to add a new Map: {}'.format(req.map_info.name))
 
@@ -271,7 +271,7 @@ class RosWrapper(Node):
 
         self.__load_map(map_name=req.map_info.name)
 
-        return AddMapResponse(
+        return AddMap.Response(
             success=True
         )
 
@@ -280,7 +280,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(DeleteMap.Response)
-    def __delete_map_cb(self, req):
+    def __delete_map_cb(self, req, res):
         # type: (DeleteMapRequest) -> DeleteMapResponse
         self.logger.info('Request to delete Map: {}'.format(req.map_name))
 
@@ -300,7 +300,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(GetOccupancyGrid.Response)
-    def __get_occupancy_grid_cb(self, req):
+    def __get_occupancy_grid_cb(self, req, res):
         # type: (GetOccupancyGridRequest) -> GetOccupancyGridResponse
 
         # map_name: an empty id will use the currently loaded map
@@ -310,13 +310,13 @@ class RosWrapper(Node):
 
         map_obj = Map.objects(name=req.map_name).get()
 
-        return GetOccupancyGridResponse(
+        return GetOccupancyGrid.Response(
             grid=map_obj.get_occupancy_grid_msg(self),
             success=True
         )
 
     @exception_wrapper(GetMapInfo.Response)
-    def __get_map_info_cb(self, req):
+    def __get_map_info_cb(self, req, res):
         # type: (GetMapInfoRequest) -> GetMapInfoResponse
 
         # map_name: an empty id will use the currently loaded map
@@ -332,7 +332,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetZones.Response)
-    def __get_zones_cb(self, req):
+    def __get_zones_cb(self, req, res):
         # type: (GetZonesRequest) -> GetZonesResponse
 
         # map_name: an empty id will use the currently loaded map
@@ -348,7 +348,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetNodeGraph.Response)
-    def __get_node_graph_cb(self, req):
+    def __get_node_graph_cb(self, req, res):
         # type: (GetNodeGraphRequest) -> GetNodeGraphResponse
 
         # map_name: an empty id will use the currently loaded map
@@ -364,7 +364,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetAreaTree.Response)
-    def __get_area_tree_cb(self, req):
+    def __get_area_tree_cb(self, req, res):
         # type: (GetAreaTreeRequest) -> GetAreaTreeResponse
 
         # map_name: an empty id will use the currently loaded map
@@ -397,7 +397,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(SetActiveMap.Response)
-    def __set_active_map_cb(self, req):
+    def __set_active_map_cb(self, req, res):
         # type: (SetActiveMapRequest) -> SetActiveMapResponse
         self.logger.info('Request to set active Map: {}'.format(req.map_name))
 
@@ -409,7 +409,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetActiveMap.Response)
-    def __get_active_map_cb(self, req):
+    def __get_active_map_cb(self, req, res):
         # type: (GetActiveMapRequest) -> GetActiveMapResponse
         return GetActiveMap.Response(
             active_map=self.__map_name,

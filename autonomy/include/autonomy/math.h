@@ -3,13 +3,13 @@
 
 #include <Eigen/Geometry>
 
-#include <geometry_msgs/Pose.h>
-#include <geometry_msgs/Transform.h>
+#include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/transform.hpp>
 
 namespace autonomy
 {
 
-inline Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
+inline Eigen::Isometry2d convert(const geometry_msgs::msg::Pose& pose)
 {
     const double yaw =
         std::atan2(2.0 * (pose.orientation.z * pose.orientation.w + pose.orientation.x * pose.orientation.y),
@@ -17,7 +17,7 @@ inline Eigen::Isometry2d convert(const geometry_msgs::Pose& pose)
     return Eigen::Translation2d(pose.position.x, pose.position.y) * Eigen::Rotation2Dd(yaw);
 }
 
-inline Eigen::Isometry2d convert(const geometry_msgs::Transform& tr)
+inline Eigen::Isometry2d convert(const geometry_msgs::msg::Transform& tr)
 {
     const double yaw = std::atan2(2.0 * (tr.rotation.z * tr.rotation.w + tr.rotation.x * tr.rotation.y),
                                   -1.0 + 2.0 * (tr.rotation.w * tr.rotation.w + tr.rotation.x * tr.rotation.x));

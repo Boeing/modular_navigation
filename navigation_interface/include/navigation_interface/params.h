@@ -14,7 +14,8 @@
 namespace navigation_interface
 {
 
-void get_param_with_default(const std::string& param_name, const T& default_val)
+template <typename T>
+ T get_param_with_default(const std::string& param_name, const T& default_val)
 {
     RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Using old ros1 version of get_param_with_default, pass a node as first argument");
 }
@@ -50,7 +51,7 @@ T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, 
                                                 << "'");
     return default_val;
 }
-
+/**
 template <typename T>
 T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string& param_name, const T& default_val,
                                const XmlRpc::XmlRpcValue::Type& xml_type)
@@ -72,7 +73,8 @@ T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string
         return default_val;
     }
 }
-
+*/
+/**
 template <typename T, size_t size>
 std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters, const std::string& param_name,
                                                  const std::array<T, size>& default_val,
@@ -108,7 +110,7 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
         return default_val;
     }
 }
-
+*/
 inline std::vector<Eigen::Vector2d> get_point_list(const YAML::Node& parameters, const std::string& param_name,
                                                    const std::vector<Eigen::Vector2d>& default_value)
 {

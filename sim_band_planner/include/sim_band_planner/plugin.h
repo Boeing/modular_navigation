@@ -47,7 +47,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
   
     //ros::Publisher marker_pub_;
     rclcpp::Node::SharedPtr node_ = nullptr;
-    typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
+    typename rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
     // Runtime data
     std::unique_ptr<MovingWindow> moving_window_;
