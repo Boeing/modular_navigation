@@ -53,7 +53,7 @@ template <typename T> T get_param_or_throw(const std::string& param_name)
 }
 */
 
-template <typename T> T get_param_or_throw(Autonomy node, const std::string& param_name)
+template <typename T> T get_param_or_throw(autonomy::Autonomy node, const std::string& param_name)
 {
 
     if (node->has_parameter(param_name)) // TODO does it work?
