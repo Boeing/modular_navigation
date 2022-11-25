@@ -138,7 +138,13 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
 
     RCLCPP_INFO(rclcpp::get_logger(""), "Starting");
 
-    const std::string navigation_config = get_param_or_throw<std::string>(this, "~navigation_config");
+    std::string navigation_config = "";
+    get_parameter<std::string>("~navigation_config", navigation_config);
+
+    if (navigation_config.empty())
+    {
+        throw std::invalid_argument("Could not get ~navigation_config");
+    }
 
     // TODO: maybe check exception rclcpp::ParameterType::PARAMETER_NOT_SET.
     // const std::string navigation_config = nh_->get_parameter<std::string>("~navigation_config");
