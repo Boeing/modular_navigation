@@ -8,7 +8,6 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <pure_pursuit_controller/plugin.h>
 
-
 PLUGINLIB_EXPORT_CLASS(pure_pursuit_controller::PurePursuitController, navigation_interface::Controller)
 
 namespace pure_pursuit_controller
@@ -139,8 +138,8 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::POINTS;
     // marker.header.stamp = ros::Time::now();
-    const auto now = rclcpp::Clock(RCL_ROS_TIME).now(); //node_->get_clock()->now();
-    marker.header.stamp = now;  //.nanoseconds()
+    const auto now = rclcpp::Clock(RCL_ROS_TIME).now();  // node_->get_clock()->now();
+    marker.header.stamp = now;                           //.nanoseconds()
     marker.header.frame_id = "map";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -191,8 +190,8 @@ visualization_msgs::msg::Marker buildMarker(const navigation_interface::Kinodyna
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::ARROW;
     // marker.header.stamp = ros::Time::now();
-    const auto now = rclcpp::Clock(RCL_ROS_TIME).now(); //node_->get_clock()->now();
-    marker.header.stamp = now;  //.nanoseconds()
+    const auto now = rclcpp::Clock(RCL_ROS_TIME).now();  // node_->get_clock()->now();
+    marker.header.stamp = now;                           //.nanoseconds()
     marker.header.frame_id = "odom";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -344,7 +343,7 @@ navigation_interface::KinodynamicState lookAhead(const std::vector<navigation_in
 
 PurePursuitController::PurePursuitController(rclcpp::Node::SharedPtr& node)
 {
-//node_ = node;
+    // node_ = node;
 }
 
 PurePursuitController::~PurePursuitController()
@@ -412,7 +411,7 @@ navigation_interface::Controller::Result
         return result;
     }
 
-    //double dt = time.toSec() - last_update_.toSec();
+    // double dt = time.toSec() - last_update_.toSec();
     double dt = time.seconds() - last_update_.seconds();
     rcpputils::assert_true(dt > 0.0, "Pure Pursuit - Negative time step!");
     last_update_ = time;
@@ -528,8 +527,9 @@ navigation_interface::Controller::Result
         target_velocity = p_gain_.cwiseProduct(control_error) + d_gain_.cwiseProduct(control_dot_);
     }
 
-    rcpputils::assert_true(target_velocity.allFinite(),
-                           std::to_string(target_velocity[0])+" "+std::to_string(target_velocity[1])+" "+std::to_string(target_velocity[2]));
+    rcpputils::assert_true(target_velocity.allFinite(), std::to_string(target_velocity[0]) + " " +
+                                                            std::to_string(target_velocity[1]) + " " +
+                                                            std::to_string(target_velocity[2]));
 
     //
     // Max acceleration check
@@ -657,10 +657,10 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        //node_ = rclcpp::Node::make_shared("~");
-        // ros::NodeHandle nh("~");
-        // target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
-        // footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
+        // node_ = rclcpp::Node::make_shared("~");
+        //  ros::NodeHandle nh("~");
+        //  target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
+        //  footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
         target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
         footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
     }

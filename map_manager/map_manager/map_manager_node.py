@@ -16,6 +16,7 @@ from map_manager.config import DATABASE_NAME, RESOURCE_PORT
 
 logger = logging.getLogger(__name__)
 
+
 def parallel_flask_run(app):
     app.run(host='0.0.0.0', port=RESOURCE_PORT)
     logger.info('Starting Flask run in a thread...')
@@ -57,25 +58,25 @@ if __name__ == '__main__':
     # Connect to the db
     #
     logger.info('Connecting to {}:{}'.format(mongo_hostname, mongo_port))
-    #try:
+    # try:
     #    database = mongoengine.connect(
     #        db=DATABASE_NAME,
     #        host=mongo_hostname,
     #        port=mongo_port,
     #        serverSelectionTimeoutMS=30)
-    #except mongoengine.ConnectionFailure as e:
+    # except mongoengine.ConnectionFailure as e:
     #    logger.error("Failed to connect to Mongodb", exc_info=e)
     #    raise e
 
     #
     # Force check to make sure Mongo is alive
     #
-    #try:
+    # try:
     #    server = database.server_info()
-    #except pymongo.errors.ServerSelectionTimeoutError as e:
+    # except pymongo.errors.ServerSelectionTimeoutError as e:
     #    logger.error("Mongodb is offline", exc_info=e)
     #    raise e
-    
+
     app = flask.Flask(__name__, template_folder='/map_manager/map_manager/http_utils')
 
     app.logger.setLevel(logging.INFO)
@@ -84,14 +85,14 @@ if __name__ == '__main__':
 
     app.register_blueprint(map_api)
 
-    #rclpy.spin_once(map_manager_node) #Explicit spin for ros2 reasons
-    #parallel_flask_run(app)
+    # rclpy.spin_once(map_manager_node) #Explicit spin for ros2 reasons
+    # parallel_flask_run(app)
 
-    app_run = Thread( 
+    app_run = Thread(
         target=parallel_flask_run,
         args=(app,)
     )
     app_run.start()
 
     #app.run(host='0.0.0.0', port=RESOURCE_PORT)
-    rclpy.spin(map_manager_node) #This one doesnt get called 
+    rclpy.spin(map_manager_node)  # This one doesnt get called

@@ -277,9 +277,9 @@ class Map(Document, DocumentMixin):
         self.image.seek(0)
         return OccupancyGridMsg(
             #header=Header(seq=0, stamp=rospy.Time.now(), frame_id='map'),
-            header=Header(#seq=0,
-                          stamp=node.get_clock().now().to_msg(),
-                          frame_id='map'),
+            header=Header(  # seq=0,
+                stamp=node.get_clock().now().to_msg(),
+                frame_id='map'),
             info=self.get_map_meta_data_msg(),
             data=numpy.array(Image.open(fp=self.image), dtype=numpy.int8).ravel()
         )
@@ -287,7 +287,7 @@ class Map(Document, DocumentMixin):
     def get_map_meta_data_msg(self):
         # type: () -> MapMetaDataMsg
         return MapMetaDataMsg(
-            #map_load_time=rospy.Time(0),
+            # map_load_time=rospy.Time(0),
             map_load_time=rclpy.time.Time(seconds=0).to_msg(),
             resolution=self.resolution,
             width=self.width,
@@ -300,8 +300,8 @@ class Map(Document, DocumentMixin):
         return MapInfoMsg(
             name=str(self.name),
             description=str(self.description),
-            #created=rospy.Time(calendar.timegm(self.created.timetuple())),
-            #modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
+            # created=rospy.Time(calendar.timegm(self.created.timetuple())),
+            # modified=rospy.Time(calendar.timegm(self.modified.timetuple())),
             created=rclpy.time.Time(seconds=calendar.timegm(self.created.timetuple())).to_msg(),
             modified=rclpy.time.Time(seconds=calendar.timegm(self.modified.timetuple())).to_msg(),
             meta_data=self.get_map_meta_data_msg()

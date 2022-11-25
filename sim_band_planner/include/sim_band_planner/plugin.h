@@ -4,12 +4,13 @@
 #include <gridmap/map_data.h>
 #include <navigation_interface/trajectory_planner.h>
 //#include <ros/ros.h>
-#include "rclcpp/rclcpp.hpp"
 #include <sim_band_planner/moving_window.h>
 #include <sim_band_planner/simulate.h>
 #include <visualization_msgs/msg/marker_array.hpp>
 
 #include <memory>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace sim_band_planner
 {
@@ -27,7 +28,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     virtual boost::optional<navigation_interface::Path> path() const override;
 
     virtual Result plan(const gridmap::AABB& local_region, const navigation_interface::KinodynamicState& robot_state,
-                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance);// override;
+                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance);  // override;
 
     virtual bool valid(const navigation_interface::Trajectory& trajectory, const double) const override;
     virtual double cost(const navigation_interface::Trajectory& trajectory, const double) const override;
@@ -44,8 +45,7 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     }
 
   private:
-  
-    //ros::Publisher marker_pub_;
+    // ros::Publisher marker_pub_;
     rclcpp::Node::SharedPtr node_ = nullptr;
     typename rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 

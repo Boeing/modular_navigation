@@ -1,4 +1,5 @@
 #include <gridmap/grids/grid_2d.h>
+
 #include "rcpputils/asserts.hpp"
 
 namespace gridmap

@@ -182,20 +182,20 @@ def process_dxf(
             plt.show()
 
         map_info_msg = MapInfoMsg(
-                            name=name,
-                            description=description,
-                            created=rospy.Time.from_sec(datetime.now().timestamp()),
-                            modified=rospy.Time.from_sec(datetime.now().timestamp()),
-                            meta_data=MapMetaDataMsg(
-                                resolution=resolution,
-                                width=ceil(width_m / resolution),
-                                height=ceil(height_m / resolution),
-                                origin=PoseMsg(
-                                    position=PointMsg(x=origin_x, y=origin_y, z=0),
-                                    orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
-                                )
-                            )
-                        )
+            name=name,
+            description=description,
+            created=rospy.Time.from_sec(datetime.now().timestamp()),
+            modified=rospy.Time.from_sec(datetime.now().timestamp()),
+            meta_data=MapMetaDataMsg(
+                resolution=resolution,
+                width=ceil(width_m / resolution),
+                height=ceil(height_m / resolution),
+                origin=PoseMsg(
+                    position=PointMsg(x=origin_x, y=origin_y, z=0),
+                    orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
+                )
+            )
+        )
 
         #
         # Save the map via ROS interface

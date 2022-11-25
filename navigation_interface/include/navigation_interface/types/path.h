@@ -31,9 +31,9 @@ struct Path
     std::pair<std::size_t, double> closestSegment(const Eigen::Isometry2d& pose) const
     {
         std::vector<double> distances;
-        std::transform(
-            nodes.begin(), nodes.end(), std::back_inserter(distances),
-            [&pose](const Eigen::Isometry2d& node) { return (node.translation() - pose.translation()).norm(); });
+        std::transform(nodes.begin(), nodes.end(), std::back_inserter(distances),
+                       [&pose](const Eigen::Isometry2d& node)
+                       { return (node.translation() - pose.translation()).norm(); });
         const auto it = std::min_element(distances.begin(), distances.end());
         const long dist = std::distance(distances.begin(), it);
         if (dist > 0 && dist < nodes.size() - 1)

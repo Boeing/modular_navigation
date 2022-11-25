@@ -4,9 +4,10 @@
 #include <Eigen/Geometry>
 
 //#include <ros/ros.h>
+#include <yaml-cpp/yaml.h>
+
 #include "rclcpp/rclcpp.hpp"
 #include "rcpputils/asserts.hpp"
-#include <yaml-cpp/yaml.h>
 //#include <XmlRpcValue.h>
 
 #include <string>
@@ -14,14 +15,13 @@
 namespace navigation_interface
 {
 
-template <typename T>
- T get_param_with_default(const std::string& param_name, const T& default_val)
+template <typename T> T get_param_with_default(const std::string& param_name, const T& default_val)
 {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Using old ros1 version of get_param_with_default, pass a node as first argument");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
+                        "Using old ros1 version of get_param_with_default, pass a node as first argument");
 }
 
-template <typename T>
- T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
+template <typename T> T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
 {
     if (node.has_parameter(param_name))
     {
@@ -36,7 +36,7 @@ template <typename T>
 }
 
 template <typename T>
-//T get_param_with_default_warn(ros::NodeHandle nh, const std::string& param_name, const T& default_val)
+// T get_param_with_default_warn(ros::NodeHandle nh, const std::string& param_name, const T& default_val)
 T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, const T& default_val)
 {
     if (node.has_parameter(param_name))
@@ -47,8 +47,8 @@ T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, 
             return param_val;
         }
     }
-    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for '" << node.get_namespace() << "/" << param_name << "': '" << default_val
-                                                << "'");
+    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for '" << node.get_namespace() << "/" << param_name
+                                                                           << "': '" << default_val << "'");
     return default_val;
 }
 /**

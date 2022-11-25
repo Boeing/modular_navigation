@@ -23,7 +23,7 @@
     <build_depend>graph_map</build_depend>
     <build_depend>cartographer_ros_msgs</build_depend>
     <build_depend>map_manager</build_depend>
-    
+
 
     <!--<test_depend>rosunit</test_depend>-->
 

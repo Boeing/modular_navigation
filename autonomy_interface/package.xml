@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
 <package format="3">
-    <name>autonomy_interface</name>
-    <version>0.1.0</version>
-    <description>Mobile Robot Navigation</description>
-    <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
-    <author>Boeing</author>
-    <license>Boeing Proprietary</license>
+  <name>autonomy_interface</name>
+  <version>0.1.0</version>
+  <description>Mobile Robot Navigation</description>
+  <maintainer email="Phillip.Haeusler@boeing.com">Phillip Haeusler</maintainer>
+  <author>Boeing</author>
+  <license>Boeing Proprietary</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

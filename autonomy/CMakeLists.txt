@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ament_cmake REQUIRED)
-#find_package(rosidl_default_generators REQUIRED)
+# find_package(rosidl_default_generators REQUIRED)
 
 find_package(geometry_msgs REQUIRED)
 find_package(gridmap REQUIRED)
@@ -26,31 +26,33 @@ find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 
-
 include_directories(include ${YAML_CPP_INCLUDE_DIR})
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIRS})
 
-#add_library(${PROJECT_NAME} SHARED
-#  src/autonomy.cpp
-#)
+# add_library(${PROJECT_NAME} SHARED src/autonomy.cpp )
 
 add_executable(
-    ${PROJECT_NAME}
-    include/${PROJECT_NAME}/${PROJECT_NAME}.h
-    include/${PROJECT_NAME}/math.h
-    src/${PROJECT_NAME}.cpp
-    src/main.cpp
+    ${PROJECT_NAME} include/${PROJECT_NAME}/${PROJECT_NAME}.h include/${PROJECT_NAME}/math.h src/${PROJECT_NAME}.cpp
+                    src/main.cpp
 )
-ament_target_dependencies(${PROJECT_NAME} geometry_msgs gridmap map_manager nav_msgs navigation_interface pluginlib
-    tf2_ros yaml-cpp tf2_geometry_msgs std_srvs ${PROJECT_NAME}_interface)
+ament_target_dependencies(
+    ${PROJECT_NAME}
+    geometry_msgs
+    gridmap
+    map_manager
+    nav_msgs
+    navigation_interface
+    pluginlib
+    tf2_ros
+    yaml-cpp
+    tf2_geometry_msgs
+    std_srvs
+    ${PROJECT_NAME}_interface
+)
 
 target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${YAML_CPP_LIBRARIES})
 
-install(
-  PROGRAMS
-  scripts/fake_localisation.py
-  DESTINATION share/${PROJECT_NAME}
-)
+install(PROGRAMS scripts/fake_localisation.py DESTINATION share/${PROJECT_NAME})
 
 install(
     TARGETS ${PROJECT_NAME}
@@ -59,9 +61,6 @@ install(
     RUNTIME DESTINATION bin
 )
 
-#rosidl_generate_interfaces(${PROJECT_NAME}_action
-#  "action/Drive.action"
-#  DEPENDENCIES geometry_msgs
-#)
+# rosidl_generate_interfaces(${PROJECT_NAME}_action "action/Drive.action" DEPENDENCIES geometry_msgs )
 
 ament_package()

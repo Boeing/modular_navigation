@@ -45,12 +45,12 @@ class TestMapManager(unittest.TestCase):
         add_map_srv = rospy.ServiceProxy('/map_manager/add_map', AddMap)
         add_map_srv.wait_for_service(timeout=10)
         request = AddMapRequest(
-                    map_info=MapInfo(name=map_name, meta_data=map_meta),
-                    occupancy_grid=CompressedImage(
-                        format='png',
-                        data=png_map_bytes
-                    ),
-                    pbstream=[1, 2, 3, 4]
+            map_info=MapInfo(name=map_name, meta_data=map_meta),
+            occupancy_grid=CompressedImage(
+                format='png',
+                data=png_map_bytes
+            ),
+            pbstream=[1, 2, 3, 4]
         )
         rospy.loginfo('Adding a Map')
         response = add_map_srv.call(request)

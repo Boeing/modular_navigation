@@ -41,11 +41,12 @@
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/compression_common.h>
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/rvl_codec.h>
 #include <opencv2/highgui/highgui.hpp>
-#include "rclcpp/rclcpp.hpp"
 
 #include <limits>
 #include <string>
 #include <vector>
+
+#include "rclcpp/rclcpp.hpp"
 
 // If OpenCV3
 #ifndef CV_VERSION_EPOCH
@@ -57,7 +58,7 @@
 #endif
 #endif
 
-namespace enc = sensor_msgs::image_encodings; // changed from sensor_msgs::msg::Image::encodings
+namespace enc = sensor_msgs::image_encodings;  // changed from sensor_msgs::msg::Image::encodings
 using namespace cv;
 
 namespace gridmap
@@ -67,7 +68,7 @@ namespace gridmap
 namespace compressed_depth_image_transport
 {
 
-sensor_msgs::msg::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& message)// changed
+sensor_msgs::msg::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& message)  // changed
 {
     cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
 
@@ -228,8 +229,9 @@ sensor_msgs::msg::Image::Ptr decodeCompressedDepthImage(const sensor_msgs::msg::
 
 // cppcheck-suppress unusedFunction
 sensor_msgs::msg::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_msgs::msg::Image& message,
-                                                             const std::string& compression_format, double depth_max,
-                                                             double depth_quantization, int png_level)
+                                                                  const std::string& compression_format,
+                                                                  double depth_max, double depth_quantization,
+                                                                  int png_level)
 {
 
     // Compressed image message
@@ -322,8 +324,9 @@ sensor_msgs::msg::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_m
                     {
                         float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize()) /
                                        (float)compressedImage.size();
-                        RCLCPP_DEBUG(rclcpp::get_logger(""), "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
-                                  compressedImage.size());
+                        RCLCPP_DEBUG(rclcpp::get_logger(""),
+                                     "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
+                                     compressedImage.size());
                     }
                     else
                     {
@@ -394,8 +397,9 @@ sensor_msgs::msg::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_m
                 {
                     float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize()) /
                                    (float)compressedImage.size();
-                    RCLCPP_DEBUG(rclcpp::get_logger(""), "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
-                              compressedImage.size());
+                    RCLCPP_DEBUG(rclcpp::get_logger(""),
+                                 "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
+                                 compressedImage.size());
                 }
                 else
                 {
@@ -422,9 +426,10 @@ sensor_msgs::msg::CompressedImage::Ptr encodeCompressedDepthImage(const sensor_m
     }
     else
     {
-        RCLCPP_ERROR(rclcpp::get_logger(""), "Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or "
-                  "16bit raw depth images (input format is: %s).",
-                  message.encoding.c_str());
+        RCLCPP_ERROR(rclcpp::get_logger(""),
+                     "Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or "
+                     "16bit raw depth images (input format is: %s).",
+                     message.encoding.c_str());
         return sensor_msgs::msg::CompressedImage::Ptr();
     }
 

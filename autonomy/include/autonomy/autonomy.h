@@ -6,25 +6,22 @@
 //#include <autonomy/DriveAction.h>
 #include <autonomy_interface/action/drive.hpp>
 #include <geometry_msgs/msg/pose_stamped.h>
+#include <geometry_msgs/msg/twist.hpp>
 #include <gridmap/layered_map.h>
 #include <gridmap/robot_tracker.h>
 #include <gridmap/urdf_tree.h>
+#include <map_manager/srv/get_map_info.hpp>
+#include <map_msgs/msg/occupancy_grid_update.hpp>
 #include <nav_msgs/msg/odometry.h>
+#include <nav_msgs/msg/path.hpp>
 #include <navigation_interface/controller.h>
 #include <navigation_interface/path_planner.h>
 #include <navigation_interface/trajectory_planner.h>
 #include <pluginlib/class_loader.hpp>
 #include <std_msgs/msg/float64.h>
-#include <map_msgs/msg/occupancy_grid_update.hpp>
-#include <nav_msgs/msg/path.hpp>
-#include <geometry_msgs/msg/twist.hpp>
-#include <map_manager/srv/get_map_info.hpp>
 
 //#include <ros/ros.h>
-#include "rclcpp/rclcpp.hpp"
-#include "rcpputils/asserts.hpp"
 #include <tf2_ros/transform_listener.h>
-#include "std_msgs/msg/float64.hpp" // TODO is this needed?
 
 #include <atomic>
 #include <condition_variable>
@@ -33,6 +30,10 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include "rclcpp/rclcpp.hpp"
+#include "rcpputils/asserts.hpp"
+#include "std_msgs/msg/float64.hpp"  // TODO is this needed?
 
 namespace autonomy
 {
@@ -56,7 +57,7 @@ template <typename T> T get_param_or_throw(const std::string& param_name)
 template <typename T> T get_param_or_throw(autonomy::Autonomy node, const std::string& param_name)
 {
 
-    if (node->has_parameter(param_name)) // TODO does it work?
+    if (node->has_parameter(param_name))  // TODO does it work?
     {
         auto param = node->get_parameter(param_name);
         return param.get_parameter_value().get<T>();
@@ -100,23 +101,23 @@ class Autonomy : public rclcpp::Node
     void executionThread();
     void executeGoal();
 
-    rclcpp_action::GoalResponse  goalCallback(const rclcpp_action::GoalUUID & uuid, GoalHandle goal);
-    rclcpp_action::CancelResponse  cancelCallback(GoalHandle);
+    rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid, GoalHandle goal);
+    rclcpp_action::CancelResponse cancelCallback(GoalHandle);
     rclcpp_action::GoalResponse acceptedCallback(GoalHandle);
 
     void pathPlannerThread();
     void trajectoryPlannerThread();
     void controllerThread();
 
-    //ros::NodeHandle nh_;
-    //rclcpp::Node::SharedPtr nh_ = nullptr;
+    // ros::NodeHandle nh_;
+    // rclcpp::Node::SharedPtr nh_ = nullptr;
 
     std::mutex goal_mutex_;
-    std::unique_ptr<GoalHandle> goal_; // CHECK; Should this be a shared_ptr<>
+    std::unique_ptr<GoalHandle> goal_;  // CHECK; Should this be a shared_ptr<>
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
-    //actionlib::ActionServer<autonomy::DriveAction> as_;
-    rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_; // TODO: Check this type
+    // actionlib::ActionServer<autonomy::DriveAction> as_;
+    rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;  // TODO: Check this type
 
     pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
@@ -133,31 +134,30 @@ class Autonomy : public rclcpp::Node
 
     std::shared_ptr<gridmap::LayeredMap> layered_map_;
 
-    //ros::Subscriber active_map_sub_;
+    // ros::Subscriber active_map_sub_;
     rclcpp::Subscription<map_manager::msg::MapInfo>::SharedPtr active_map_sub_;
 
-    //ros::Publisher costmap_publisher_;
+    // ros::Publisher costmap_publisher_;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_publisher_;
 
-    
-    //ros::Publisher costmap_updates_publisher_;
+    // ros::Publisher costmap_updates_publisher_;
     rclcpp::Publisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr costmap_updates_publisher_;
 
-    //ros::Publisher current_goal_pub_;
-    //ros::Publisher path_goal_pub_;
-    //ros::Publisher vel_pub_;
+    // ros::Publisher current_goal_pub_;
+    // ros::Publisher path_goal_pub_;
+    // ros::Publisher vel_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr current_goal_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr path_goal_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
 
-    //ros::Publisher path_pub_;
-    //ros::Publisher trajectory_pub_;
+    // ros::Publisher path_pub_;
+    // ros::Publisher trajectory_pub_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr trajectory_pub_;
 
-    //ros::Publisher planner_map_update_pub_;
-    //ros::Publisher trajectory_map_update_pub_;
-    //ros::Publisher control_map_update_pub_;
+    // ros::Publisher planner_map_update_pub_;
+    // ros::Publisher trajectory_map_update_pub_;
+    // ros::Publisher control_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr planner_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr trajectory_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr control_map_update_pub_;
@@ -196,11 +196,11 @@ class Autonomy : public rclcpp::Node
     std::shared_ptr<gridmap::URDFTree> urdf_tree_;
     std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
 
-    //ros::Subscriber odom_sub_;
+    // ros::Subscriber odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
 
-    //ros::Subscriber mapper_status_sub_;
+    // ros::Subscriber mapper_status_sub_;
     rclcpp::Subscription<cartographer_ros_msgs::msg::SystemState>::SharedPtr mapper_status_sub_;
     void mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg);
 };

@@ -33,8 +33,8 @@ def task(map_name):
     save_map_response = save_map.call(
         AddMapRequest(
             map_info=MapInfo(
-                    name=map_name,
-                    meta_data=get_map_response.map.info
+                name=map_name,
+                meta_data=get_map_response.map.info
             ),
             occupancy_grid=CompressedImage(
                 format='raw',

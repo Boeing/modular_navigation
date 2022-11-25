@@ -1,9 +1,10 @@
 //#include <ros/assert.h>
-#include "rcpputils/asserts.hpp"
 #include <sim_band_planner/simulate.h>
 
 #include <sstream>
 #include <vector>
+
+#include "rcpputils/asserts.hpp"
 
 namespace sim_band_planner
 {
@@ -137,7 +138,8 @@ Eigen::Vector3d internalForce(const Node& prev, const Node& curr, const Node& ne
         _force.topRows(2) += 2 * gain * d_2;
     }
 
-    rcpputils::assert_true(_force.allFinite(), "internal force: " + std::to_string(_force[0]) +" "+ std::to_string(_force[1])+" "+ std::to_string(_force[2]));
+    rcpputils::assert_true(_force.allFinite(), "internal force: " + std::to_string(_force[0]) + " " +
+                                                   std::to_string(_force[1]) + " " + std::to_string(_force[2]));
     return _force;
 }
 
@@ -188,7 +190,8 @@ Eigen::Vector3d rotationForce(const Node& prev, const Node& curr, const Node& ne
         _force[2] += rotation_gain * cp_torque;
     }
 
-    rcpputils::assert_true(_force.allFinite(),  "internal force: " + std::to_string(_force[0]) +" "+ std::to_string(_force[1])+" "+ std::to_string(_force[2]));
+    rcpputils::assert_true(_force.allFinite(), "internal force: " + std::to_string(_force[0]) + " " +
+                                                   std::to_string(_force[1]) + " " + std::to_string(_force[2]));
     return _force;
 }
 

@@ -1,4 +1,5 @@
 #include <gridmap/robot_tracker.h>
+
 #include "rcpputils/asserts.hpp"
 //#include <ros/console.h>
 
@@ -55,8 +56,9 @@ TimedOdom interpolate(const rclcpp::Time& time, const boost::circular_buffer<Tim
 
     if (it == odometry_data.begin())
     {
-        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "No odometry data for time: " << time.seconds()
-                                                      << " (earliest: " << odometry_data.front().time.seconds() << ")");
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "No odometry data for time: " << time.seconds() << " (earliest: "
+                                                                                 << odometry_data.front().time.seconds()
+                                                                                 << ")");
         odom.pose = it->pose;
         odom.velocity = it->velocity;
     }
@@ -103,8 +105,9 @@ RobotState RobotTracker::robotState() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (odometry_data_.empty())
-        return RobotState{TimedOdom{rclcpp::Clock(RCL_ROS_TIME).now(), Eigen::Isometry2d::Identity(), Eigen::Vector3d::Zero()},
-                          localisation_.localised, localisation_.map_to_odom};
+        return RobotState{
+            TimedOdom{rclcpp::Clock(RCL_ROS_TIME).now(), Eigen::Isometry2d::Identity(), Eigen::Vector3d::Zero()},
+            localisation_.localised, localisation_.map_to_odom};
     else
         return RobotState{odometry_data_.back(), localisation_.localised, localisation_.map_to_odom};
 }
@@ -113,8 +116,9 @@ RobotState RobotTracker::robotState(const rclcpp::Time& time) const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     if (odometry_data_.empty())
-        return RobotState{TimedOdom{rclcpp::Clock(RCL_ROS_TIME).now(), Eigen::Isometry2d::Identity(), Eigen::Vector3d::Zero()},
-                          localisation_.localised, localisation_.map_to_odom};
+        return RobotState{
+            TimedOdom{rclcpp::Clock(RCL_ROS_TIME).now(), Eigen::Isometry2d::Identity(), Eigen::Vector3d::Zero()},
+            localisation_.localised, localisation_.map_to_odom};
 
     // estimate odometry at the queried time
     const TimedOdom current_odom = interpolate(time, odometry_data_);

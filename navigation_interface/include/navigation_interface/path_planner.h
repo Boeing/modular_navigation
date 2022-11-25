@@ -4,9 +4,10 @@
 #include <gridmap/map_data.h>
 #include <navigation_interface/types/path.h>
 #include <yaml-cpp/yaml.h>
-#include "rclcpp/rclcpp.hpp"
 
 #include <memory>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace navigation_interface
 {

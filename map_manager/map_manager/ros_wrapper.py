@@ -21,18 +21,18 @@ from map_manager.config import DATABASE_NAME, RESOURCE_PORT
 
 from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
-from map_manager.srv import AddMap#, AddMapRequest, AddMapResponse
+from map_manager.srv import AddMap  # , AddMapRequest, AddMapResponse
 from map_manager.msg import MapInfo as MapInfoMsg
 from map_manager.documents import Map
-from map_manager.srv import DeleteMap#, DeleteMapRequest, DeleteMapResponse
-from map_manager.srv import GetActiveMap#, GetActiveMapRequest, GetActiveMapResponse
-from map_manager.srv import GetAreaTree#, GetAreaTreeRequest, GetAreaTreeResponse
-from map_manager.srv import GetMapInfo#, GetMapInfoRequest, GetMapInfoResponse
-from map_manager.srv import GetNodeGraph#, GetNodeGraphRequest, GetNodeGraphResponse
-from map_manager.srv import GetOccupancyGrid#, GetOccupancyGridRequest, GetOccupancyGridResponse
-from map_manager.srv import GetZones#, GetZonesRequest, GetZonesResponse
-from map_manager.srv import ListMaps#, ListMapsRequest, ListMapsResponse
-from map_manager.srv import SetActiveMap#, SetActiveMapRequest, SetActiveMapResponse
+from map_manager.srv import DeleteMap  # , DeleteMapRequest, DeleteMapResponse
+from map_manager.srv import GetActiveMap  # , GetActiveMapRequest, GetActiveMapResponse
+from map_manager.srv import GetAreaTree  # , GetAreaTreeRequest, GetAreaTreeResponse
+from map_manager.srv import GetMapInfo  # , GetMapInfoRequest, GetMapInfoResponse
+from map_manager.srv import GetNodeGraph  # , GetNodeGraphRequest, GetNodeGraphResponse
+from map_manager.srv import GetOccupancyGrid  # , GetOccupancyGridRequest, GetOccupancyGridResponse
+from map_manager.srv import GetZones  # , GetZonesRequest, GetZonesResponse
+from map_manager.srv import ListMaps  # , ListMapsRequest, ListMapsResponse
+from map_manager.srv import SetActiveMap  # , SetActiveMapRequest, SetActiveMapResponse
 from map_manager.visualise import build_zones_marker_array, build_areas_marker_array, build_graph_marker_array
 
 logger = logging.getLogger(__name__)
@@ -67,13 +67,12 @@ class RosWrapper(Node):
         # State
         #
         super().__init__('map_manager')
-                
+
         self.__map_name = None
 
         # Parameters are now handled by the node, no more param server
         self.mongo_hostname = self.declare_parameter('~mongo_hostname', 'localhost').value
         self.mongo_port = self.declare_parameter('~mongo_port', 27017).value
-
 
         self.logger = self.get_logger()
 
@@ -130,16 +129,14 @@ class RosWrapper(Node):
 
         self.__list_maps = self.create_service(ListMaps, 'list_maps', self.__list_maps_cb)
 
-        self.__set_active_map = self.create_service(SetActiveMap, 'set_active_map' , self.__set_active_map_cb)
+        self.__set_active_map = self.create_service(SetActiveMap, 'set_active_map', self.__set_active_map_cb)
         self.__get_active_map = self.create_service(GetActiveMap, 'get_active_map', self.__get_active_map_cb)
-
 
         # QoS profile, substitutes latch and queue_size args in create_publisher
         # See: https://docs.ros.org/en/rolling/Concepts/About-Quality-of-Service-Settings.html
-        self.qos_profile = QoSProfile(depth=100, 
-            durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
-            history=QoSHistoryPolicy.KEEP_LAST)
-
+        self.qos_profile = QoSProfile(depth=100,
+                                      durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
+                                      history=QoSHistoryPolicy.KEEP_LAST)
 
         # Initialise a unit world->map transform
         self.__static_tf_pub = self.create_publisher(TFMessage, "/tf_static", self.qos_profile)
@@ -173,16 +170,16 @@ class RosWrapper(Node):
         map_query = Map.objects.order_by('-modified')
         if map_query.count():
             map_obj = map_query.first()
-            self.__load_map(map_name=str(map_obj.name)) # __load_map loads map even without rcl.spin()
+            self.__load_map(map_name=str(map_obj.name))  # __load_map loads map even without rcl.spin()
         else:
             self.__active_map_pub.publish(MapInfoMsg())
 
         self.logger.info('Successfully started')
 
-        #Publish every topic with a timer callback TODO comment this for latching testing...
+        # Publish every topic with a timer callback TODO comment this for latching testing...
         timer_period = 0.5  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
-        
+
     def __init_publishers(self):
         self.logger.info('Initialising publishers')
 
@@ -203,7 +200,7 @@ class RosWrapper(Node):
         )
         self.__zones_pub = self.create_publisher(
             MarkerArrayMsg,
-            'zones', 
+            'zones',
             qos_profile=self.qos_profile
         )
         self.__areas_pub = self.create_publisher(
@@ -220,7 +217,7 @@ class RosWrapper(Node):
     def timer_callback(self):
         """Callback to publish map_manager topics given a timer
         """
-        
+
         map_obj = Map.objects(name=self.__map_name).get()  # type: Map
 
         self.__active_map_pub.publish(map_obj.get_map_info_msg())
@@ -235,10 +232,10 @@ class RosWrapper(Node):
 
         self.__zones_pub.publish(build_zones_marker_array(self, map_obj))
         self.__areas_pub.publish(build_areas_marker_array(self, map_obj))
-        self.__graph_pub.publish(build_graph_marker_array(self, map_obj,
-                                                            node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() },
-                                                            edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() }))
-
+        self.__graph_pub.publish(
+            build_graph_marker_array(
+                self, map_obj, node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()},
+                edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()}))
 
     #
     # ADD callbacks
@@ -442,11 +439,10 @@ class RosWrapper(Node):
 
             self.__zones_pub.publish(build_zones_marker_array(self, map_obj))
             self.__areas_pub.publish(build_areas_marker_array(self, map_obj))
-            self.__graph_pub.publish(build_graph_marker_array(self, map_obj,
-                                                              node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() },
-                                                              edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg() }))
+            self.__graph_pub.publish(
+                build_graph_marker_array(
+                    self, map_obj, node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()},
+                    edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()}))
             self.logger.info('Map: {} is Loaded'.format(map_name))
         except Exception as e:
             self.logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))
-
-        

@@ -2,7 +2,6 @@
 #include <pluginlib/class_list_macros.hpp>
 #include <sim_band_planner/plugin.h>
 
-
 PLUGINLIB_EXPORT_CLASS(sim_band_planner::SimBandPlanner, navigation_interface::TrajectoryPlanner)
 
 namespace sim_band_planner
@@ -142,8 +141,8 @@ navigation_interface::TrajectoryPlanner::Result
             // const auto now = ros::Time::now();
             const auto now = node_->get_clock()->now();  //.nanoseconds()
 
-            auto make_cylider = [&ma, &now](const std_msgs::msg::ColorRGBA& color, const double radius, const double height,
-                                            const Eigen::Isometry3d& pose)
+            auto make_cylider = [&ma, &now](const std_msgs::msg::ColorRGBA& color, const double radius,
+                                            const double height, const Eigen::Isometry3d& pose)
             {
                 visualization_msgs::msg::Marker marker;
                 marker.ns = "cylinder";
@@ -281,7 +280,7 @@ navigation_interface::TrajectoryPlanner::Result
                 }
             }
 
-            marker_pub_->publish(ma);            
+            marker_pub_->publish(ma);
         }
 
         // copy the nodes back to the moving window

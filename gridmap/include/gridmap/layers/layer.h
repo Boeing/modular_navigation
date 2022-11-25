@@ -14,10 +14,10 @@
 #include <yaml-cpp/yaml.h>
 
 // For logging reasons
-#include "rclcpp/rclcpp.hpp"
-
 #include <memory>
 #include <thread>
+
+#include "rclcpp/rclcpp.hpp"
 
 namespace gridmap
 {

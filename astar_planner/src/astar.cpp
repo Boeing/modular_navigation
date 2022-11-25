@@ -69,7 +69,7 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
     rcpputils::assert_true(goal.y >= 0);
     rcpputils::assert_true(goal.y < costmap.height);
 
-    rcpputils::assert_true(costmap.traversal_cost != nullptr); //(costmap.traversal_cost)
+    rcpputils::assert_true(costmap.traversal_cost != nullptr);  //(costmap.traversal_cost)
 
     const float closest_distance_px =
         static_cast<float>((collision_checker.conservativeRadius() - costmap.inflation_radius) / costmap.resolution);

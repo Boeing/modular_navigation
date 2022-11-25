@@ -6,18 +6,18 @@
 #include <gridmap/robot_tracker.h>
 #include <gridmap/urdf_tree.h>
 //#include <ros/callback_queue.h>
+#include "rclcpp/future_return_code.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/subscription_options.hpp"
-#include "rclcpp/future_return_code.hpp"
 //#include <ros/subscription_queue.h> //This is handled by a QoS profile now
 #include <yaml-cpp/yaml.h>
 
+#include <future>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
-#include <future>
 
 namespace gridmap
 {
@@ -129,7 +129,8 @@ class SizedCallbackQueue : public ros::CallbackQueue
 template <typename MsgType> class TopicDataSource : public DataSource
 {
   public:
-    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic), last_updated_(rclcpp::Clock(RCL_ROS_TIME).now())//(rclcpp::Time(0))
+    TopicDataSource(const std::string& default_topic)
+        : default_topic_(default_topic), last_updated_(rclcpp::Clock(RCL_ROS_TIME).now())  //(rclcpp::Time(0))
     {
     }
     virtual ~TopicDataSource()
@@ -161,31 +162,31 @@ template <typename MsgType> class TopicDataSource : public DataSource
         g_node_ = rclcpp::Node::make_shared(name_);
         executor_.add_node(g_node_);
 
-        //sub_opts_ = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
-        //                                                   boost::bind(&TopicDataSource::callback, this, _1),
-        //                                                   ros::VoidPtr(), &data_queue_);
+        // sub_opts_ = ros::SubscribeOptions::create<MsgType>(_topic, callback_queue_size_,
+        //                                                    boost::bind(&TopicDataSource::callback, this, _1),
+        //                                                    ros::VoidPtr(), &data_queue_);
 
         // create a mutually exclusive callback group and add it to a sub_options object
-        auto cbg = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
+        auto cbg = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);  // V 0.1
         rclcpp::SubscriptionOptions sub_opts_;
         sub_opts_.callback_group = cbg;
 
         RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Subscribing to: " << _topic);
         // Create a callback group for the node
-        //sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-        //auto subscriber_ = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(), boost::bind(&TopicDataSource::callback, g_node_, _1), sub_opts_);
+        // sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+        // auto subscriber_ = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
+        // boost::bind(&TopicDataSource::callback, g_node_, _1), sub_opts_);
 
         auto cb_func = [this](const typename MsgType::SharedPtr msg) { this->callback(msg); };
         auto subscriber_ = g_node_->create_subscription<MsgType>(_topic,
-                                                                100,//callback_queue_size_,
-                                                                cb_func,
-                                                                sub_opts_);
+                                                                 100,  // callback_queue_size_,
+                                                                 cb_func, sub_opts_);
 
         // Add the node to the executor_
-        //rclcpp::executors::SingleThreadedExecutor executor_;
+        // rclcpp::executors::SingleThreadedExecutor executor_;
         executor_.add_node(g_node_);
 
-        //opts.transport_hints = ros::TransportHints();
+        // opts.transport_hints = ros::TransportHints();
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
     }
 
@@ -204,7 +205,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
     virtual bool isDataOk() const override
     {
         std::lock_guard<std::mutex> lock(last_updated_mutex_);
-        const double delay = (rclcpp::Clock(RCL_ROS_TIME).now() - last_updated_).seconds(); //toSec()
+        const double delay = (rclcpp::Clock(RCL_ROS_TIME).now() - last_updated_).seconds();  // toSec()
         return delay < maximum_sensor_delay_;
     }
 
@@ -234,30 +235,31 @@ template <typename MsgType> class TopicDataSource : public DataSource
     const size_t callback_queue_size_ = 100;
 
     std::thread data_thread_;
-    //SizedCallbackQueue data_queue_;
+    // SizedCallbackQueue data_queue_;
 
-    //callback_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    // callback_group = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
     std::unordered_map<std::string, Eigen::Isometry3d> transform_cache_;
 
     // Node creation and initialization is not done inside thread call now
-    //g_node_ = nullptr;//auto = rclcpp::Node::make_shared(name()); //V 0.1
-    //previous ros::Subscriber subscriber_; see https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
-    //rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
+    // g_node_ = nullptr;//auto = rclcpp::Node::make_shared(name()); //V 0.1
+    // previous ros::Subscriber subscriber_; see
+    // https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#a82f97ad29e3d54c91f6ef3265a8636d1
+    // rclcpp::Subscription<MsgType>::SharedPtr subscriber_;
 
     // See https://get-help.robotigniteacademy.com/t/how-to-link-callback-function-to-a-subscription/11043/3
     // For reference of the current implementation
     // Create a Reentrant Callback Group
-    //auto cbg = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
-    //sub_opts_ = nullptr;//auto = rclcpp::SubscriptionOptions();//V 0.1
+    // auto cbg = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);//V 0.1
+    // sub_opts_ = nullptr;//auto = rclcpp::SubscriptionOptions();//V 0.1
     // Add your callback to the CallbackGroup
-    //sub_opts_.callback_group = cbg;//V 0.1
+    // sub_opts_.callback_group = cbg;//V 0.1
 
     // Create a callback group for the node
-    //sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    // sub_opts_.callback_group = g_node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-    //subscriber_ = nullptr;//auto = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
-    //                                            boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
+    // subscriber_ = nullptr;//auto = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
+    //                                             boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
 
     rclcpp::Node::SharedPtr g_node_ = nullptr;
     rclcpp::SubscriptionOptions sub_opts_;
@@ -269,7 +271,6 @@ template <typename MsgType> class TopicDataSource : public DataSource
     rclcpp::executors::SingleThreadedExecutor executor_;
 
   private:
-
     Eigen::Isometry3d getSensorTransform(const std::string& frame_name)
     {
         auto it = transform_cache_.find(frame_name);
@@ -309,7 +310,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
             const double delay = (rclcpp::Clock(RCL_ROS_TIME).now() - msg->header.stamp).seconds();
             if (delay > maximum_sensor_delay_)
             {
-                RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' incoming data is " << delay << "s old!");
+                RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                   "DataSource '" << name_ << "' incoming data is " << delay << "s old!");
             }
 
             const Eigen::Isometry3d sensor_tr = getSensorTransform(msg->header.frame_id);
@@ -340,16 +342,16 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     void dataThread()
     {
-    /*
-    PREV:
-        * threaded loop where:
-            - if no connection then subscribe to topic
-            - checks if connection is lost, if true execute above
-            - last callback gets executed, waits for time if queue is empty
-            - then some queue related error checking/logging happens
-    */
+        /*
+        PREV:
+            * threaded loop where:
+                - if no connection then subscribe to topic
+                - checks if connection is lost, if true execute above
+                - last callback gets executed, waits for time if queue is empty
+                - then some queue related error checking/logging happens
+        */
 
-        //ros::NodeHandle g_nh;
+        // ros::NodeHandle g_nh;
 
         // Node creation exposed to the whole class
 
@@ -365,8 +367,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     {
                         RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Disconnecting data for: " << name_);
                         subscriber_.reset();
-                        //data_queue_.flushMessages();
-                        //data_queue_.clear();
+                        // data_queue_.flushMessages();
+                        // data_queue_.clear();
                         connected = false;
                     }
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -376,55 +378,63 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 if (!connected)
                 {
                     RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);
-                    //subscriber_ = g_node->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
-                    //                                boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
+                    // subscriber_ = g_node->create_subscription<Int32>(_topic, rclcpp::SensorDataQoS(),
+                    //                                 boost::bind(&TopicDataSource::callback, this, _1), sub_opts_);
                     connected = true;
                 }
 
                 const auto t0 = std::chrono::steady_clock::now();
-                promise_ = std::promise <rclcpp::FutureReturnCode>();
+                promise_ = std::promise<rclcpp::FutureReturnCode>();
                 std::shared_future<rclcpp::FutureReturnCode> ready_future(promise_.get_future());
                 // const auto result = data_queue_.callOne(rclcpp::WallTimer(maximum_sensor_delay_));
                 // //(ros::WallDuration(maximum_sensor_delay_));
                 const auto result = executor_.spin_until_future_complete(
                     ready_future,  // TODO, CHECK THIS FUTURE in CB func
-                    std::chrono::milliseconds((int) (1000.0*maximum_sensor_delay_)));
-                const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
+                    std::chrono::milliseconds((int)(1000.0 * maximum_sensor_delay_)));
+                const double duration =
+                    std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
+                        .count();
                 std::lock_guard<std::mutex> lock(mutex_);
-                if (result == rclcpp::FutureReturnCode::SUCCESS)//ros::CallbackQueue::CallOneResult::Called)
-                //rclcpp::FutureReturnCode::SUCCESS
+                if (result == rclcpp::FutureReturnCode::SUCCESS)  // ros::CallbackQueue::CallOneResult::Called)
+                // rclcpp::FutureReturnCode::SUCCESS
                 {
-                    if (duration > maximum_sensor_delay_)// this is redundant if rclcpp::executor_::FutureReturnCode::TIMEOUT is used?
+                    if (duration > maximum_sensor_delay_)  // this is redundant if
+                                                           // rclcpp::executor_::FutureReturnCode::TIMEOUT is used?
                     {
-                        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' update took: " << duration
-                                                       << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
-                                                       << "\nConsider compiling with optimisation flag -O2.");
+                        RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                           "DataSource '" << name_ << "' update took: " << duration
+                                                          << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
+                                                          << "\nConsider compiling with optimisation flag -O2.");
                     }
 
-                    //if (data_queue_.size() == callback_queue_size_)
+                    // if (data_queue_.size() == callback_queue_size_)
                     //{
-                    //    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' callback queue is full!");
-                    //}
+                    //     RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' callback queue is
+                    //     full!");
+                    // }
                 }
-                else if (result == rclcpp::FutureReturnCode::TIMEOUT)//ros::CallbackQueue::CallOneResult::Empty)
+                else if (result == rclcpp::FutureReturnCode::TIMEOUT)  // ros::CallbackQueue::CallOneResult::Empty)
                 {
                     std::lock_guard<std::mutex> l(last_updated_mutex_);
                     const double delay = (rclcpp::Clock(RCL_ROS_TIME).now() - last_updated_).seconds();
                     if (delay > maximum_sensor_delay_)
                     {
-                        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' has not updated for " << delay << "s");
+                        RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                           "DataSource '" << name_ << "' has not updated for " << delay << "s");
                     }
                 }
                 else
                 {
-                    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' error, spinning was interrupted by Ctrl-C or another error");
+                    RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                       "DataSource '"
+                                           << name_ << "' error, spinning was interrupted by Ctrl-C or another error");
                 }
             }
             catch (const std::exception& e)
             {
                 RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "': " << e.what());
-                //data_queue_.flushMessages();
-                //data_queue_.clear();
+                // data_queue_.flushMessages();
+                // data_queue_.clear();
             }
         }
     }

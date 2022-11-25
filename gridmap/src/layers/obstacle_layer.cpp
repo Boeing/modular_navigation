@@ -7,10 +7,10 @@
 #include <visualization_msgs/msg/marker.hpp>
 
 // For logging reasons
+#include <chrono>
+
 #include "rclcpp/rclcpp.hpp"
 #include "rcpputils/asserts.hpp"
-
-#include <chrono>
 
 PLUGINLIB_EXPORT_CLASS(gridmap::ObstacleLayer, gridmap::Layer)
 
@@ -261,7 +261,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
     if (time_decay_)
     {
         RCLCPP_INFO_STREAM(rclcpp::get_logger(""), name() << ": enabling time decay freq: " << time_decay_frequency_
-                               << " alpha: " << alpha_decay_);
+                                                          << " alpha: " << alpha_decay_);
         if (time_decay_running_)
         {
             time_decay_running_ = false;

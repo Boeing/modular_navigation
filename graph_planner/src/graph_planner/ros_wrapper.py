@@ -233,9 +233,9 @@ class RosWrapper(object):
         # Get area tree
         logger.info("Loading Area Tree...")
         get_area_tree_srv = rospy.ServiceProxy(
-                    name='map_manager/get_area_tree',
-                    service_class=GetAreaTree
-                )
+            name='map_manager/get_area_tree',
+            service_class=GetAreaTree
+        )
         get_area_tree_srv.wait_for_service(timeout=10)
         response = get_area_tree_srv.call(GetAreaTreeRequest(map_name=map_info.name))
         assert isinstance(response, GetAreaTreeResponse)
@@ -247,9 +247,9 @@ class RosWrapper(object):
         # Get graph map
         logger.info("Loading Graph Map...")
         get_node_graph_srv = rospy.ServiceProxy(
-                    name='map_manager/get_node_graph',
-                    service_class=GetNodeGraph
-                )
+            name='map_manager/get_node_graph',
+            service_class=GetNodeGraph
+        )
         get_node_graph_srv.wait_for_service(timeout=10)
         response = get_node_graph_srv.call(GetNodeGraphRequest(map_name=map_info.name))
         assert isinstance(response, GetNodeGraphResponse)
@@ -263,9 +263,9 @@ class RosWrapper(object):
         # Get zones
         logger.info("Loading Zones...")
         get_zones_srv = rospy.ServiceProxy(
-                    name='map_manager/get_zones',
-                    service_class=GetZones
-                )
+            name='map_manager/get_zones',
+            service_class=GetZones
+        )
         get_zones_srv.wait_for_service(timeout=10)
         response = get_zones_srv.call(GetZonesRequest(map_name=map_info.name))
         assert isinstance(response, GetZonesResponse)

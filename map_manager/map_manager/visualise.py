@@ -147,7 +147,8 @@ def build_node_markers(node: Node, color, radius, height, lifetime):
     return markers
 
 
-def build_edge_marker(start: Node, end: Node, color: ColorRGBA, diameter: float, lifetime): # Lifetime is of type builtin_interfaces.Duration
+# Lifetime is of type builtin_interfaces.Duration
+def build_edge_marker(start: Node, end: Node, color: ColorRGBA, diameter: float, lifetime):
     return Marker(
         type=Marker.ARROW,
         points=[
@@ -202,9 +203,9 @@ def build_region_markers(region):
         points = [polygon_points[t[0]], polygon_points[t[1]], polygon_points[t[2]]]
         points = sort_clockwise(points)
 
-        #triangle_marker.points.append(PointMsg(*points[2]))
-        #triangle_marker.points.append(PointMsg(*points[1]))
-        #triangle_marker.points.append(PointMsg(*points[0]))
+        # triangle_marker.points.append(PointMsg(*points[2]))
+        # triangle_marker.points.append(PointMsg(*points[1]))
+        # triangle_marker.points.append(PointMsg(*points[0]))
 
         triangle_marker.points.append(PointMsg(x=points[2][0], y=points[2][1], z=points[2][2]))
         triangle_marker.points.append(PointMsg(x=points[1][0], y=points[1][1], z=points[1][2]))
@@ -290,8 +291,10 @@ def build_graph_marker_array(ros_node,
                              map_obj: typing.Union[MapDoc, NodeGraphManager, nx.Graph],
                              node_params: typing.Optional[typing.Dict] = None,
                              edge_params: typing.Optional[typing.Dict] = None) -> MarkerArray:
-    node_params_ = {'color': ColorRGBA(r=0., g=0., b=1.0, a=0.7), 'radius': 0.3, 'height': 0.1, 'lifetime': rclpy.duration.Duration(seconds=6).to_msg()}
-    edge_params_ = {'color': ColorRGBA(r=0., g=1.0, b=0., a=0.3), 'diameter': 0.05, 'lifetime': rclpy.duration.Duration(seconds=6).to_msg()}
+    node_params_ = {'color': ColorRGBA(r=0., g=0., b=1.0, a=0.7), 'radius': 0.3,
+                    'height': 0.1, 'lifetime': rclpy.duration.Duration(seconds=6).to_msg()}
+    edge_params_ = {'color': ColorRGBA(r=0., g=1.0, b=0., a=0.3), 'diameter': 0.05,
+                    'lifetime': rclpy.duration.Duration(seconds=6).to_msg()}
 
     if node_params is not None:
         node_params_.update(node_params)
