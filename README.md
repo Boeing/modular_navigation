@@ -6,7 +6,6 @@ A mobile robot needs to be able to navigate a complex and dynamic environment an
 to a given goal. This package aims to be a flexible, modular system for real-time navigation and path planning for
 a holonomic robot equipped with a number of sensors (namely laser and depth).
 
-
 ## Usage
 
 The navigation stack contains many packages but runs as a single ROS node with independent threads for each of the
@@ -19,6 +18,7 @@ Most of the configurations is done via a YAML file which is read *once* directly
 parameter server is **NOT** used except to pass the path of the YAML file.
 
 An example launch script:
+
 ```xml
 <node pkg="autonomy" type="autonomy" respawn="true" name="autonomy">
     <param name="navigation_config" value="/path/to/config/file" />
@@ -37,24 +37,24 @@ An example launch script:
 ## Requirements
 
 1. Find a path from start to goal if physically possible
-2. Path must avoid obstacles
-3. Path must update in real-time to avoid newly detected obstacles
-4. Control robot by sending velocity commands
-5. Robot must be able to drive very close (up to 5cm) to obstacles
+1. Path must avoid obstacles
+1. Path must update in real-time to avoid newly detected obstacles
+1. Control robot by sending velocity commands
+1. Robot must be able to drive very close (up to 5cm) to obstacles
 
 ## Definitions
 
-| Definition   | Description                                                                               |
-| ------------ | ----------------------------------------------------------------------------------------- |
-| Pose         | A 3D state of the robot (X, Y and orientation)                                            |
-| Goal         | The final desired pose of the robot. Usually w.r.t. the map origin                        |
-| Cost         | A measure of how undesireable it is for the robot to be at or move through a particular region |
-| Costmap      | A map showing the costs at each point on the map                                          |
-| Node         | A single point on a trajectory                                                            |
-| Trajectory   | An ordered set of nodes that links the start to the goal.                                 |
-| Path Planning| The process of finding a continuous path from start to goal                               |
-| Trajectory optimisation| The process of refining a trajectory to smooth it and avoid obstacles           |
-| Control | The process of commanding the robot to accurately follow the trajectory                        |
+| Definition              | Description                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------- |
+| Pose                    | A 3D state of the robot (X, Y and orientation)                                                 |
+| Goal                    | The final desired pose of the robot. Usually w.r.t. the map origin                             |
+| Cost                    | A measure of how undesireable it is for the robot to be at or move through a particular region |
+| Costmap                 | A map showing the costs at each point on the map                                               |
+| Node                    | A single point on a trajectory                                                                 |
+| Trajectory              | An ordered set of nodes that links the start to the goal.                                      |
+| Path Planning           | The process of finding a continuous path from start to goal                                    |
+| Trajectory optimisation | The process of refining a trajectory to smooth it and avoid obstacles                          |
+| Control                 | The process of commanding the robot to accurately follow the trajectory                        |
 
 ## Design
 
@@ -63,19 +63,18 @@ An example launch script:
 - Robot knows its location relative to the map (robot is localised) using something like Cartographer
 - Odometry is published
 - There are sufficient sensors to detect any potential obstacles and the sensor data is accurate
-- `cmd_vel` will be obeyed reasonably faithfully and that the robot can physically achieve the velocities
-and accelerations
+- `cmd_vel` will be obeyed reasonably faithfully and that the robot can physically achieve the velocities and accelerations
 - Robot drives reasonably slowly (<0.25 m/s)
 
 ### Limitations
 
-- Path planning updates take approximately 1 second for a map of size 150 m^2, so there will
-likely be performance issues when scaling up.
+- Path planning updates take approximately 1 second for a map of size 150 m^2, so there will likely be performance issues when scaling up.
 - Robot cannot drive too fast or the map/trajectory cannot update fast enough.
 
 ### Description
 
 Meta-package for navigation stack. Contains:
+
 - `autonomy` - Main package for navigation
 - `astar_planner` - Hybrid A* path planner
 - `sim_band_planner` - Sim band (trajectory optimiser)
@@ -84,11 +83,13 @@ Meta-package for navigation stack. Contains:
 - `map_manager` - map database interface
 
 #### Overview
+
 Autonomy is a multi-layered system for 3D robot navigation (X,Y and rotation).
 Conceptually, navigation can be broken into three layers:
+
 1. Path planning - produce a rough path from A to B
-2. Trajectory optimisation - Smooth out the path and swerve around immediate obstacles
-3. Control - Follow the path and perform last-second collision checking
+1. Trajectory optimisation - Smooth out the path and swerve around immediate obstacles
+1. Control - Follow the path and perform last-second collision checking
 
 Each layer can in theory be swapped out with different algorithms without
 affecting the next. Therefore, the interface for each layer is separately
@@ -97,6 +98,7 @@ defined in `navigation_interface`.
 For now, there is only one of each layer:
 
 #### Path planning (Hybrid A*)
+
 Hybrid A* divides the map into a grid and "explores" it by computing the
 cost required to get to each cell.
 
@@ -145,12 +147,13 @@ a footprint that is equal to or smaller than the planner so that the planner wil
 not generate a path that causes Sim Band to be in collision.
 
 Summary of differences between E-band and Sim-band
+
 - No "bubbles"
 - Robot footprint is approximated as multiple circles
 - Torque is applied to nodes as well (e-band uses as single circle, so rotation is ignored)
 
-
 #### Pure Pursuit Controller
+
 The controller's job is to track the trajectory while performing last-second, thorough
 collision checking. [Pure pursuit](https://www.ri.cmu.edu/pub_files/pub3/coulter_r_craig_1992_1/coulter_r_craig_1992_1.pdf)
 is one of the simplest control algorithms. The vehicle finds a point on the path that is
@@ -172,22 +175,29 @@ When the robot approaches the final node, the integral term is enabled, allowing
 robot to completely close the gap.
 
 #### How to build
+
 `astar_planner` and `sim_band_planner` need to be built with compiler
 optimisation to work in real time:
+
 ```bash
 catkin build modular_navigation --cmake-args -DCMAKE_CXX_FLAGS="-O2 -Wall -Werror"
 ```
 
 #### Tests and debugging
+
 ##### Testing the entire stack
+
 Run the simulation and use `goal.py`. This script sends goal commands to
 autonomy in a loop.
 
 ##### astar_planner tests
+
 Build astar_planner with the test arg:
+
 ```bash
 catkin build astar_planner --make-args tests
 ```
+
 The `unit_test` will be in `devel/.private/astar_planner/lib/astar_planner`
 
 ## Technologies
@@ -196,10 +206,13 @@ The `unit_test` will be in `devel/.private/astar_planner/lib/astar_planner`
 
 ## Requirements Evaluation
 
-| Requirement | Met? | Comments |
-| ------------| ------- | ---------- |
-| Find a path from start to goal if physically possible            | Yes | If goal is in collision, can resample to a nearby pose |
-| Path must avoid obstacles                                        | Yes | Depth sensor noise means it can not see obstacles lower than a configurable threshold |
-| Path must update in real-time to avoid newly detected obstacles  | Yes | Large maps may slow down planning |
-| Control robot by sending velocity commands                       | Yes | |
-| Robot must be able to drive very close (up to 5cm) to obstacles  | Yes | Can sometimes drive itself into collision and get stuck |
+| Definition   | Description                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| Pose         | A 3D state of the robot (X, Y and orientation)                                            |
+| Goal         | The final desired pose of the robot. Usually w.r.t. the map origin                        |
+| Cost         | A measure of how undesireable it is for the robot to be at or move through a particular region |
+| Costmap      | A map showing the costs at each point on the map                                          |
+| Node         | A single point on a trajectory                                                            |
+| Trajectory   | An ordered set of nodes that links the start to the goal.                                 |
+| Path Planning| The process of finding a continuous path from start to goal                               |
+| Trajectory optimisation| The process of refining a trajectory to smooth it and avoid obstacles           |

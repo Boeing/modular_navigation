@@ -11,30 +11,22 @@ used in the map pipeline.
 
 ## Definitions
 
-| Definition                          | Description |
-| ----------------------------------- | --------------------------- |
-| Cartographer                        | The SLAM system originally devloped by Google and then modified in-house. Includes [cartographer](https://git.web.boeing.com/brta-robotics/cartographer) and [cartographer_ros](https://git.web.boeing.com/brta-robotics/ros/modular_cartographer) |
-| cartographer_ros                    | The ROS wrapper for cartographer. Also modified from upstream |
-| Floor plan                          | Site or cell plan in human-editable CAD format (currently DXF) |
-| Cost map/Occupancy Grid             | Final occupancy grid that the planners plan on |
-| Node                                | A node in a graph-based planner |
-| Edge                                | An edge in a graph-based planner |
-| Behaviour                           | A profile of settings/strategy used by the navigation stack in its execution |
-| Trajectory                          | The path of the robot takes in a mapping or localisation run |
-| Submap                              | One of the many maps that Cartographer creates along its trajectory |
-| Zone                                | A region of the map that may influence behaviour |
-| `Ln#`                               | Node abstraction level of number `#` |
-| `La#`                               | Area abstraction level of number `#` |
-| Traversal node                      | Required graph node for the traversal planner, holds pose information. Equivalent to `Ln0` |
-| Area                                | A locale where an agent may freely navigate within. Abstraction of the physical representation of a set of locations in a floor plan. The physical representation `La0` may be a set of polygons, or list of pixels. `La(x)` where `x>1` is the union of some subset of `La(x-1)` |
-| Node                                | In general, node will be used as the shorthand for traversal node. |
+| Definition   | Description                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| Pose         | A 3D state of the robot (X, Y and orientation)                                            |
+| Goal         | The final desired pose of the robot. Usually w.r.t. the map origin                        |
+| Cost         | A measure of how undesireable it is for the robot to be at or move through a particular region |
+| Costmap      | A map showing the costs at each point on the map                                          |
+| Node         | A single point on a trajectory                                                            |
+| Trajectory   | An ordered set of nodes that links the start to the goal.                                 |
+| Path Planning| The process of finding a continuous path from start to goal                               |
+| Trajectory optimisation| The process of refining a trajectory to smooth it and avoid obstacles           |
 
 Disambiguations:
 
 * Paths in map_manger/autonomy are lines with low-cost that the robot will preferentially use
 * Currently, "Nodes" in map_manager refers to the points at the end and intersections of paths
-* Zones refer to polygons with an enumerated type (avoid, exclusion, driveable etc.). This is only
-used to modify the cost in astar planner. In the new system, zones may be an extension of this.
+* Zones refer to polygons with an enumerated type (avoid, exclusion, driveable etc.). This is only used to modify the cost in astar planner. In the new system, zones may be an extension of this.
 
 ## Goal
 
@@ -103,7 +95,7 @@ The import script now no longer does any scaling.
 Layer names can have optional tags that tell the parser how to process that layer. Tags are always at the beginning
 of the layer name string and enclosed in square brackets. Eg.
 
-```
+```yaml
 [TAG1][TAG2]layer_name
 ```
 
@@ -130,7 +122,7 @@ Currently, valid tags include:
 
 Layers can have attributes defined in the description. They must be in the form:
 
-```
+```yaml
 <key1=value1><key2=value1,value2,value3>
 ```
 
@@ -138,7 +130,7 @@ Depending on the type of layer (based on the tags), different attributes are rel
 
 Some examples of attributes:
 
-```
+```yaml
 <HEIGHT=1.2>  # Sets the height of objects in an OBSTACLE layer
 <NAME=Pretty name>  # Sets the pretty name of a ZONE or AREA
 ```
@@ -153,7 +145,7 @@ in metres.
 The colour of the link in Gazebo can be set by setting either:
 
 1. The colour of the individual entity
-2. The colour of the entire layer, and choose "BY LAYER" for the entity's colour
+1. The colour of the entire layer, and choose "BY LAYER" for the entity's colour
 
 The colour will be used to change the appearance of the link in the resulting `.world` file.
 
@@ -207,7 +199,7 @@ Only La1 areas should have hatches. LaN (N >= 2) layers are only unions of La0 a
 Areas should be defined as one or more hatches in separate DXF layers, with each DXF layer being an La0 area.
 DXF layers that are areas **must** include the `[AREA]` tag in the layer name followed by the area's ID.
 
-```
+```yaml
 [AREA]your_area_id spaces allowed
 ```
 
@@ -227,7 +219,9 @@ Higher level areas can be defined using groups:
 
 * Group Name becomes the new area's ID
 * Entities should be the hatches of the included areas
+
 The following attributes (in the group description) are used
+
 * LEVEL (int >=2, required) - The level of the area
 * NAME (str, optional) - display name of the area
 
@@ -247,7 +241,7 @@ or `EdgePath` in CAD but the import script will tell you if an `EdgePath` is det
 Zones are defined similarly to areas, except a [ZONE] tag should be added and a few extra attributes are
 available.
 
-```
+```yaml
 <COST=int> # Value from 0 to 255 specifying the cost of the zone on the costmap
 <BEHAVIOUR=str> # String referring to the behaviour that should be used on this zone
 ```

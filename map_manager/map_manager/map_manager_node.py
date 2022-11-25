@@ -3,16 +3,15 @@
 import logging
 
 import flask
-#import mongoengine
-#import pymongo
-#import rospy.impl.rosout
+# import mongoengine
+# import pymongo
+# import rospy.impl.rosout
 import rclpy
 
-#from map_manager.config import DATABASE_NAME, RESOURCE_PORT
 from map_manager.ros_wrapper import RosWrapper
 from map_manager.http_utils.routes import map_api
 from threading import Thread
-from map_manager.config import DATABASE_NAME, RESOURCE_PORT
+from map_manager.config import RESOURCE_PORT  # , DATABASE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +21,14 @@ def parallel_flask_run(app):
     logger.info('Starting Flask run in a thread...')
 
 
-#name = 'map_manager'
+# name = 'map_manager'
 
 if __name__ == '__main__':
-    #rospy.init_node(name, disable_signals=True)
+    # rospy.init_node(name, disable_signals=True)
     rclpy.init()
 
     map_manager_node = RosWrapper()
-    #node = rclpy.create_node(name)
+    # node = rclpy.create_node(name)
 
     handlers = logging.getLogger('rosout').handlers
     for handler in handlers:
@@ -42,8 +41,8 @@ if __name__ == '__main__':
                 _logger.addHandler(handler)
                 _logger.setLevel(logging.DEBUG)
 
-    #mongo_hostname = rospy.get_param('~mongo_hostname', 'localhost')
-    #mongo_port = rospy.get_param('~mongo_port', 27017)
+    # mongo_hostname = rospy.get_param('~mongo_hostname', 'localhost')
+    # mongo_port = rospy.get_param('~mongo_port', 27017)
 
     # Parameters are now handled at each node, retrieve them from map_manager_node
     mongo_hostname = map_manager_node.get_parameter('~mongo_hostname').value
@@ -94,5 +93,5 @@ if __name__ == '__main__':
     )
     app_run.start()
 
-    #app.run(host='0.0.0.0', port=RESOURCE_PORT)
+    # app.run(host='0.0.0.0', port=RESOURCE_PORT)
     rclpy.spin(map_manager_node)  # This one doesnt get called

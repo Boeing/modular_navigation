@@ -346,7 +346,7 @@ class RosWrapper(object):
     #
     def __new_goal_cb(self):
         new_goal: DriveGoal = self.__action_server.next_goal.get_goal()
-        assert(isinstance(new_goal, DriveGoal))
+        assert (isinstance(new_goal, DriveGoal))
         logger.info('Received new goal, x: {}, y: {}'.format(new_goal.target_pose.pose.position.x,
                                                              new_goal.target_pose.pose.position.y))
 

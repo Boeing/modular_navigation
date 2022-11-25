@@ -2,7 +2,7 @@ import json
 import rospy
 
 import datetime
-from map_manager_msgs.msgs import MapInfo as MapInfoMsg
+from map_manager.msgs import MapInfo as MapInfoMsg
 from nav_msgs.msg import MapMetaData as MapMetaDataMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Point as PointMsg

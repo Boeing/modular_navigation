@@ -7,12 +7,12 @@
 {% block content %}
 
 <ul>
-{% for map in maps %}
+  {% for map in maps %}
   <li>
-      <h4>{{ map.name }}</h4>
-       <img src="maps/{{map.name}}/thumbnail.png" alt="Map Thumbnail">
+    <h4>{{ map.name }}</h4>
+    <img src="maps/{{map.name}}/thumbnail.png" alt="Map Thumbnail">
   </li>
-{% endfor %}
+  {% endfor %}
 </ul>
 
 {% endblock %}

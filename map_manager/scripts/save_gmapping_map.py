@@ -8,7 +8,7 @@ import rospy.impl.rosout
 from nav_msgs.srv import GetMap, GetMapRequest, GetMapResponse
 from sensor_msgs.msg import CompressedImage
 
-from map_manager_msgs.msgs import MapInfo
+from map_manager.msgs import MapInfo
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from sm_core.state import COMPLETED, FAILED
 

@@ -5,15 +5,15 @@ import unittest
 from PIL import Image, ImageDraw
 from io import BytesIO
 
-#import rospy
-import rclpy
+import rospy
+# import rclpy
 import rostest
 from geometry_msgs.msg import Point, Pose, Quaternion
 from nav_msgs.msg import MapMetaData
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import UInt8MultiArray
 
-from map_manager_msgs.msgs import MapInfo
+from map_manager.msgs import MapInfo
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
 
@@ -32,7 +32,7 @@ class TestMapManager(unittest.TestCase):
         png_map_bytes = b.getvalue()
 
         map_meta = MapMetaData(
-            map_load_time=rclpy.time.Time(seconds=0).to_msg(),
+            map_load_time=rospy.Time(secs=0),
             resolution=0.02,
             width=800,
             height=800,

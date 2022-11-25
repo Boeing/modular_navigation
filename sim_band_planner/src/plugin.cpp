@@ -280,7 +280,8 @@ navigation_interface::TrajectoryPlanner::Result
                 }
             }
 
-            marker_pub_->publish(ma);
+            //marker_pub_->publish(ma)
+            marker_pub_->publish(ma.markers);
         }
 
         // copy the nodes back to the moving window

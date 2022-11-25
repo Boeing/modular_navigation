@@ -10,7 +10,7 @@ import rospy
 import rospy.impl.rosout
 
 from cartographer_ros_msgs.srv import WriteState, WriteStateRequest, WriteStateResponse
-from map_manager_msgs.msgs import MapInfo
+from map_manager.msgs import MapInfo
 from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
 from map_manager.map_info import MapInfo as MapInfoCls
 
