@@ -470,9 +470,7 @@ void Autonomy::executeGoal()
     }
 }
 
-rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid,
-                                                   GoalHandle goal)  // const rclcpp_action::GoalUUID & uuid,
-// std::shared_ptr<const autonomy_interface::action::Drive::Goal> goal)
+rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const Drive::Goal> goal)
 {
 
     //(rclcpp::get_logger(""),"Received goal: " << std::to_string(goal.get_goal_id()) << " (" <<
@@ -605,9 +603,7 @@ void Autonomy::cancelCallback(GoalHandle)
 }
 */
 
-rclcpp_action::CancelResponse Autonomy::cancelCallback(
-    GoalHandle)  // const std::shared_ptr<rclcpp_action::ServerGoalHandle<autonomy_interface::action::Drive>
-                 // goal_handle)
+rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
     std::lock_guard<std::mutex> goal_lock(goal_mutex_);
 
@@ -627,9 +623,7 @@ rclcpp_action::CancelResponse Autonomy::cancelCallback(
     return rclcpp_action::CancelResponse::REJECT;
 }
 
-rclcpp_action::GoalResponse Autonomy::acceptedCallback(
-    GoalHandle)  // const std::shared_ptr<rclcpp_action::ServerGoalHandle<autonomy_interface::action::Drive>
-                 // goal_handle)
+rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
     // TODO?: This should execute the thread which launches navigation
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;

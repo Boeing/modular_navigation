@@ -78,7 +78,8 @@ struct TrackingPath
 class Autonomy : public rclcpp::Node
 {
   public:
-    typedef rclcpp_action::ServerGoalHandle<autonomy_interface::action::Drive> GoalHandle;
+    using Drive = autonomy_interface::action::Drive;
+    using GoalHandleDrive = rclcpp_action::ServerGoalHandle<Drive>;
 
     Autonomy();
     virtual ~Autonomy();
@@ -89,9 +90,9 @@ class Autonomy : public rclcpp::Node
     void executionThread();
     void executeGoal();
 
-    rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid, GoalHandle goal);
-    rclcpp_action::CancelResponse cancelCallback(GoalHandle);
-    rclcpp_action::GoalResponse acceptedCallback(GoalHandle);
+    rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const Drive::Goal> goal);
+    rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr <GoalHandleDrive> goal_handle);
+    rclcpp_action::GoalResponse acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
 
     void pathPlannerThread();
     void trajectoryPlannerThread();
@@ -101,7 +102,7 @@ class Autonomy : public rclcpp::Node
     // rclcpp::Node::SharedPtr nh_ = nullptr;
 
     std::mutex goal_mutex_;
-    std::unique_ptr<GoalHandle> goal_;  // CHECK; Should this be a shared_ptr<>
+    std::unique_ptr<GoalHandleDrive> goal_;  // CHECK; Should this be a shared_ptr<>
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     // actionlib::ActionServer<autonomy::DriveAction> as_;
