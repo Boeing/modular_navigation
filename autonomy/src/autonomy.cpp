@@ -476,55 +476,49 @@ void Autonomy::executeGoal()
     }
 }
 
-rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const Drive::Goal> goal)
+rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid,
+                                                   std::shared_ptr<const Drive::Goal> goal)
 {
 
-    //(rclcpp::get_logger(""),"Received goal: " << std::to_string(goal.get_goal_id()) << " (" <<
-    // goal.get_goal()->target_pose.pose.position.x
-    //                                  << ", " << goal.get_goal()->target_pose.pose.position.y << ")");
-    RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
-                       "Goal standard deviations: X: " << goal.get_goal()->std_x << ", Y: " << goal.get_goal()->std_y
-                                                       << ", W: " << goal.get_goal()->std_w
-                                                       << ", Max Samples: " << goal.get_goal()->max_samples);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Goal standard deviations: X: "
+                                                   << goal->std_x << ", Y: " << goal->std_y << ", W: " << goal->std_w
+                                                   << ", Max Samples: " << goal->max_samples);
 
     const gridmap::RobotState robot_state = robot_tracker_->robotState();
     auto result = std::make_shared<autonomy_interface::action::Drive::Result>();
 
     if (!robot_state.localised)
     {
-        // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Rejected new goal: " << std::to_string(goal.get_goal_id()) << " -
-        // Robot not localised");
-        goal.canceled(result);
+        RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
+                            "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - // Robot not localised");
         return rclcpp_action::GoalResponse::REJECT;
     }
 
     if (max_planning_distance_ > 0.0)
     {
         const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
-        const Eigen::Vector2d goal_position(goal.get_goal()->target_pose.pose.position.x,
-                                            goal.get_goal()->target_pose.pose.position.y);
+        const Eigen::Vector2d goal_position(goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
         const double dist_to_goal = (robot_pose.translation() - goal_position).squaredNorm();
         if (dist_to_goal > (max_planning_distance_ * max_planning_distance_))
         {
-            // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Rejected new goal: " << std::to_string(goal.get_goal_id()) <<
-            // " - Goal beyond max planning distance of "
-            //                                       << max_planning_distance_ << "m");
-            goal.canceled(result);
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                               "Rejected new goal: " << rclcpp_action::to_string(uuid)
+                                                     << " - Goal beyond max planning distance of "
+                                                     << max_planning_distance_ << "m");
             return rclcpp_action::GoalResponse::REJECT;
         }
     }
 
-    if (goal.get_goal()->std_x < 0.0 || goal.get_goal()->std_y < 0.0 || goal.get_goal()->std_w < 0.0)
+    if (goal->std_x < 0.0 || goal->std_y < 0.0 || goal->std_w < 0.0)
     {
-        // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Rejected new goal: " << std::to_string(goal.get_goal_id()) << " -
-        // Bad sample settings");
-        goal.canceled(result);
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                           "Rejected new goal: " << rclcpp_action::to_string(uuid) << " -  Bad sample settings");
         return rclcpp_action::GoalResponse::REJECT;
     }
 
-    if (goal.get_goal()->target_pose.header.frame_id != global_frame_)
+    if (goal->target_pose.header.frame_id != global_frame_)
     {
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Goal is in frame: " << goal.get_goal()->target_pose.header.frame_id
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Goal is in frame: " << goal->target_pose.header.frame_id
                                                                         << ", not: " << global_frame_
                                                                         << ", transforming...");
 
@@ -532,22 +526,21 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         geometry_msgs::msg::TransformStamped transform;
         try
         {
-            transform = tfBuffer_.lookupTransform(global_frame_, goal.get_goal()->target_pose.header.frame_id,
+            transform = tfBuffer_.lookupTransform(global_frame_, goal->target_pose.header.frame_id,
                                                   rclcpp::Time(0));  // ros::Time(0)
         }
         catch (tf2::TransformException& ex)
         {
-            // RCLCPP_WARN(rclcpp::get_logger(""), std::to_string(ex.what()));
-            goal.canceled(result);
+            RCLCPP_WARN(rclcpp::get_logger(""), ex.what());
             return rclcpp_action::GoalResponse::REJECT;
         }
 
         // Can't modify pose in-place because it's a const
-        tf2::doTransform(goal.get_goal()->target_pose, transformed_goal_pose_, transform);
+        tf2::doTransform(goal->target_pose, transformed_goal_pose_, transform);
     }
     else
     {
-        transformed_goal_pose_ = goal.get_goal()->target_pose;
+        transformed_goal_pose_ = goal->target_pose;
     }
 
     // A Goal is already running... preempt old goal and set new as active
@@ -571,22 +564,18 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
             }
             else
             {
-                // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Updating goal: " << std::to_string(goal_->get_goal_id())
-                // << " with: " << std::to_string(goal.get_goal_id()));
-                goal_->canceled(result);
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Updating goal with: " << rclcpp_action::to_string(uuid));
             }
         }
         if (layered_map_->map() && path_planner_map_data_ && trajectory_planner_map_data_ && controller_map_data_)
         {
-            // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Accepted new goal: " << std::to_string(goal.get_goal_id()));
-            // goal.setAccepted();
-            goal_ = std::make_unique<GoalHandle>(goal);
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Accepted new goal: " << rclcpp_action::to_string(uuid));
+            goal_ = std::make_unique<GoalHandleDrive>(goal);
         }
         else
         {
-            // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Rejected new goal: " << std::to_string(goal.get_goal_id()). <<
-            // " - No Map!");
-            goal.canceled(result);
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                               "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - No Map!");
             return rclcpp_action::GoalResponse::REJECT;
         }
     }

@@ -90,8 +90,9 @@ class Autonomy : public rclcpp::Node
     void executionThread();
     void executeGoal();
 
-    rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const Drive::Goal> goal);
-    rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr <GoalHandleDrive> goal_handle);
+    rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid,
+                                             std::shared_ptr<const Drive::Goal> goal);
+    rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
     rclcpp_action::GoalResponse acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
 
     void pathPlannerThread();
