@@ -3,16 +3,15 @@
 #include <astar_planner/astar.h>
 #include <astar_planner/plugin.h>
 #include <astar_planner/visualisation.h>
-#include <graph_map/Region.h>
-#include <graph_map/Zone.h>
+#include <graph_map/msg/region.hpp>
+#include <graph_map/msg/zone.h>
 #include <gridmap/operations/rasterize.h>
 #include <gridmap/operations/raytrace.h>
-#include <nav_msgs/OccupancyGrid.h>
+#include <nav_msgs/msg/occupancy_grid.h>
 #include <navigation_interface/params.h>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <pluginlib/class_list_macros.hpp>
-#include <visualization_msgs/MarkerArray.h>
 
 #include <chrono>
 
@@ -95,7 +94,7 @@ navigation_interface::PathPlanner::Result
 
     costmap_->processObstacleMap(local_region);
 
-    rcpputils::assert_true(traversal_cost_);
+    rcpputils::assert_true(traversal_cost_ != nullptr);  //(traversal_cost_)
     costmap_->traversal_cost = traversal_cost_;
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, inflated_conservative_robot_radius);
 
@@ -122,14 +121,14 @@ navigation_interface::PathPlanner::Result
     if (debug_viz_)
     {
         // if (explore_pub_.getNumSubscribers() > 0)
-        if (explore_pub_.get_subscription_count() > 0)  //
+        if (explore_pub_->get_subscription_count() > 0)  //
         {
             cv::Mat disp = astar_planner::visualise(*costmap_, astar_result);
             cv::cvtColor(disp, disp, cv::COLOR_BGR2GRAY);
 
-            nav_msgs::OccupancyGrid og;
+            nav_msgs::msg::OccupancyGrid og;
             // og.header.stamp = ros::Time::now();
-            og.header.stamp = node->get_clock()->now();  //.nanoseconds()
+            og.header.stamp = node_->get_clock()->now();  //.nanoseconds()
             og.info.resolution = costmap_->resolution;
             og.info.width = costmap_->width;
             og.info.height = costmap_->height;
@@ -141,7 +140,7 @@ navigation_interface::PathPlanner::Result
             unsigned char* input = (unsigned char*)(disp.data);
             std::copy_n(input, og.data.size(), &og.data[0]);
 
-            explore_pub_.publish(og);
+            explore_pub_->publish(og);
         }
     }
 
@@ -175,7 +174,7 @@ bool AStarPlanner::valid(const navigation_interface::Path& path, const double av
     const double inflated_conservative_robot_radius = conservative_robot_radius_ + std::max(0.0, avoid_distance);
 
     // assume this is called immediately after plan to re-use the data structures
-    rcpputils::assert_true(costmap_);
+    rcpputils::assert_true(costmap_ != nullptr);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, inflated_conservative_robot_radius);
     return pathCost(path, collision_checker, backwards_mult_, strafe_mult_, rotation_mult_) <
@@ -187,7 +186,7 @@ double AStarPlanner::cost(const navigation_interface::Path& path, const double a
     const double inflated_conservative_robot_radius = conservative_robot_radius_ + std::max(0.0, avoid_distance);
 
     // assume this is called immediately after plan to re-use the data structures
-    rcpputils::assert_true(costmap_);
+    rcpputils::assert_true(costmap_ != nullptr);
 
     const astar_planner::CollisionChecker collision_checker(*costmap_, offsets_, inflated_conservative_robot_radius);
     return pathCost(path, collision_checker, backwards_mult_, strafe_mult_, rotation_mult_);
@@ -218,10 +217,9 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
+        node_ = rclcpp::Node::make_shared("~");
         // ros::NodeHandle nh("~");
-        // explore_pub_ = nh.advertise<nav_msgs::OccupancyGrid>("expansion", 100);
-        //  TODO What is the scope on this? consider moving it to plugin.h
-        auto explore_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", 100);
+        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", 100);
     }
 }
 
@@ -234,14 +232,14 @@ void AStarPlanner::onMapDataChanged()
     traversal_cost_ = std::make_shared<cv::Mat>(map_data_->grid.dimensions().size().y(),
                                                 map_data_->grid.dimensions().size().x(), CV_32F, cv::Scalar(1.0));
 
-    for (const graph_map::Zone& zone : map_data_->zones)
+    for (const graph_map::msg::Zone& zone : map_data_->zones)
     {
         // By default, cost is zero
         if (zone.drivable && zone.cost > 0.0)
         {
-            for (const graph_map::Region& region : zone.regions)
+            for (const graph_map::msg::Region& region : zone.regions)
             {
-                const geometry_msgs::Polygon& polygon = region.polygon;
+                const geometry_msgs::msg::Polygon& polygon = region.polygon;
                 int min_x = std::numeric_limits<int>::max();
                 int max_x = 0;
 
@@ -249,7 +247,7 @@ void AStarPlanner::onMapDataChanged()
                 int max_y = 0;
 
                 std::vector<Eigen::Array2i> map_polygon;
-                for (const geometry_msgs::Point32& p : polygon.points)
+                for (const geometry_msgs::msg::Point32& p : polygon.points)
                 {
                     const Eigen::Array2i map_point = map_data_->grid.dimensions().getCellIndex({p.x, p.y});
                     min_x = std::min(map_point.x(), min_x);

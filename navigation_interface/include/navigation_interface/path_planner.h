@@ -7,6 +7,8 @@
 
 #include <memory>
 
+#include "rclcpp/rclcpp.hpp"
+
 namespace navigation_interface
 {
 

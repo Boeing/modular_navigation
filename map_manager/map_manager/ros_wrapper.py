@@ -68,6 +68,7 @@ class RosWrapper(Node):
         #
         super().__init__('map_manager')
 
+
         self.__map_name = None
 
         # Parameters are now handled by the node, no more param server
@@ -176,7 +177,7 @@ class RosWrapper(Node):
 
         self.logger.info('Successfully started')
 
-        # Publish every topic with a timer callback
+        # Publish every topic with a timer callback TODO comment this for latching testing...
         timer_period = 0.5  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
 

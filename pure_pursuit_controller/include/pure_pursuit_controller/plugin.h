@@ -18,7 +18,7 @@ namespace pure_pursuit_controller
 class PurePursuitController : public navigation_interface::Controller
 {
   public:
-    PurePursuitController();
+    PurePursuitController(rclcpp::Node::SharedPtr& node);
     virtual ~PurePursuitController() override;
 
     virtual bool setTrajectory(const navigation_interface::Trajectory& trajectory) override;
@@ -77,7 +77,7 @@ class PurePursuitController : public navigation_interface::Controller
     // Making a node attrb instead of usig publishers
     // Although it is only used if debug_viz_ is set inside a yaml
     // auto node = rclcpp::Node::make_shared("~");
-    rclcpp::Node::SharedPtr node_ = nullptr;
+    rclcpp::Node::SharedPtr node_;  // = nullptr;
     typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr target_state_pub_;
     typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr footprint_pub_;
 

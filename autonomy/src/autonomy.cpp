@@ -3,15 +3,10 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 #include <boost/tokenizer.hpp>
-#include <geometry_msgs/Twist.h>
-#include <map_manager/GetMapInfo.h>
-#include <map_manager/GetOccupancyGrid.h>
-#include <map_manager/GetZones.h>
-#include <map_msgs/OccupancyGridUpdate.h>
-#include <nav_msgs/Path.h>
+#include <map_manager/srv/get_occupancy_grid.hpp>
+#include <map_manager/srv/get_zones.hpp>
 #include <navigation_interface/params.h>
-#include <std_msgs/Float64.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>  // TODO, this one needs /msg/ Question?
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
@@ -54,7 +49,7 @@ std::shared_ptr<PluginType> load(const YAML::Node& parameters, const std::string
 
         try
         {
-            ROS_INFO_STREAM("Loading plugin: " << planner_name << " type: " << class_name);
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Loading plugin: " << planner_name << " type: " << class_name);
             sp->initialize(plugin_params, costmap);
         }
         catch (const std::exception& e)
@@ -84,14 +79,14 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
         const YAML::Node layers_config = parameters["layers"];
         for (YAML::const_iterator it = layers_config.begin(); it != layers_config.end(); ++it)
         {
-            ROS_ASSERT(it->IsMap());
+            rcpputils::assert_true(it->IsMap());
 
             std::string pname = (*it)["name"].as<std::string>();
             std::string type = (*it)["type"].as<std::string>();
 
             try
             {
-                ROS_INFO_STREAM("Loading plugin: " << pname << " type: " << type);
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Loading plugin: " << pname << " type: " << type);
                 auto plugin_ptr = std::shared_ptr<gridmap::Layer>(loader.createUnmanagedInstance(type));
                 plugin_ptr->initialize(pname, parameters[pname], robot_footprint, robot_tracker, urdf_tree);
                 plugin_ptrs.push_back(plugin_ptr);
@@ -112,37 +107,57 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
 
 }  // namespace
 
-Autonomy::Autonomy()
-    : nh_("~"),
+Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
+    : Node("autonomy_action_server"),
+      // nh_("~"), // We now inherit from rclcpp::Node this prob NOT needed
 
-      as_(nh_, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1),
-          boost::bind(&Autonomy::cancelCallback, this, _1), false),
+      // ROS2 equivalent moved to the section below
+      // as_(this, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1), //
+      //    boost::bind(&Autonomy::cancelCallback, this, _1), false),
 
       layer_loader_("gridmap", "gridmap::Layer"),
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
-
-      tfListener_(tfBuffer_),
+      tfBuffer_(rclcpp::Clock::Clock::SharedPtr()),
+      tfListener_(
+          tfBuffer_),  // See
+                       // https://docs.ros2.org/foxy/api/tf2_ros/classtf2__ros_1_1Buffer.html#a9ae70eade08c8ea7f6cc1b3ad3ec0d4f
 
       running_(false), execution_thread_running_(false), controller_done_(false),
 
       current_path_(nullptr), current_trajectory_(nullptr)
 
 {
-    ROS_INFO("Starting");
+    // using namespace std::placeholders;
 
-    const std::string navigation_config = get_param_or_throw<std::string>("~navigation_config");
+    this->action_server_ = rclcpp_action::create_server<autonomy_interface::action::Drive>(
+        this, "autonomy", std::bind(&Autonomy::goalCallback, this, std::placeholders::_1, std::placeholders::_2),
+        std::bind(&Autonomy::cancelCallback, this, std::placeholders::_1),
+        std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1));
+
+    RCLCPP_INFO(rclcpp::get_logger(""), "Starting");
+
+    std::string navigation_config = "";
+    get_parameter<std::string>("~navigation_config", navigation_config);
+
+    if (navigation_config.empty())
+    {
+        throw std::invalid_argument("Could not get ~navigation_config");
+    }
+
+    // TODO: maybe check exception rclcpp::ParameterType::PARAMETER_NOT_SET.
+    // const std::string navigation_config = nh_->get_parameter<std::string>("~navigation_config");
 
     YAML::Node root_config;
     try
     {
-        ROS_INFO_STREAM("Reading navigation config from: " << navigation_config);
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Reading navigation config from: " << navigation_config);
         root_config = YAML::LoadFile(navigation_config);
     }
     catch (const std::exception& e)
     {
-        ROS_ERROR_STREAM("Navigation config is not valid: " << e.what());
+        RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Navigation config is not valid: " << e.what());
         throw;
     }
 
@@ -157,16 +172,18 @@ Autonomy::Autonomy()
         root_config, "footprint",
         {{+0.490, +0.000}, {+0.408, -0.408}, {-0.408, -0.408}, {-0.490, +0.000}, {-0.408, +0.408}, {+0.408, +0.408}});
 
-    ROS_INFO_STREAM("max_planning_distance: " << max_planning_distance_);
-    ROS_INFO_STREAM("clear_radius: " << clear_radius_);
-    ROS_INFO_STREAM("path_planner_frequency: " << path_planner_frequency_);
-    ROS_INFO_STREAM("trajectory_planner_frequency: " << trajectory_planner_frequency_);
-    ROS_INFO_STREAM("controller_frequency: " << controller_frequency_);
-    ROS_INFO_STREAM("path_swap_fraction: " << path_swap_fraction_);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "max_planning_distance: " << max_planning_distance_);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "clear_radius: " << clear_radius_);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "path_planner_frequency: " << path_planner_frequency_);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "trajectory_planner_frequency: " << trajectory_planner_frequency_);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "controller_frequency: " << controller_frequency_);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "path_swap_fraction: " << path_swap_fraction_);
 
     robot_tracker_.reset(new gridmap::RobotTracker());
     urdf::Model urdf;
-    urdf.initParam("robot_description");
+    // See https://github.com/ros2/urdf/blob/humble/urdf/src/model.cpp
+    // for urdf initialization in ros2
+    urdf.initString("robot_description");  // initParam("robot_description"); TODO check this is equivalent
     urdf_tree_.reset(new gridmap::URDFTree(urdf));
 
     const YAML::Node costmap_config = root_config["costmap"];
@@ -176,17 +193,31 @@ Autonomy::Autonomy()
     base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
-    odom_sub_ = nh_.subscribe<nav_msgs::Odometry>("/odom", 1000, &Autonomy::odomCallback, this,
-                                                  ros::TransportHints().tcpNoDelay());
-    vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
-    current_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("current_goal", 1, true);
-    path_goal_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("path_goal", 1, true);
-    path_pub_ = nh_.advertise<nav_msgs::Path>("path", 0, true);
-    trajectory_pub_ = nh_.advertise<nav_msgs::Path>("trajectory", 0, true);
+    rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 
-    planner_map_update_pub_ = nh_.advertise<std_msgs::Float64>("planner_map_update_time", 0, true);
-    trajectory_map_update_pub_ = nh_.advertise<std_msgs::Float64>("trajectory_map_update_time", 0, true);
-    control_map_update_pub_ = nh_.advertise<std_msgs::Float64>("control_map_update_time", 0, true);
+    // TODO: Look for transport_hints in ros2 QoS for TcpNoDelay option
+    // TODO: Latching issue: https://gitlab.com/mtdi/pi9419/boeing/modular_navigation/-/issues/2
+    // See https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#ad1dfc9d04d67ab93353e04a7df72bc9a
+
+    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        "/odom", 1000, std::bind(&Autonomy::odomCallback, this, std::placeholders::_1));
+    // ros::TransportHints().tcpNoDelay()); // TODO this is portable?
+    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 1);  //("cmd_vel", 1);
+    current_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+        "current_goal", rclcpp::QoS(1).transient_local());  // TODO Latching
+    path_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+        "path_goal", rclcpp::QoS(1).transient_local());                                                 // TODO Latching
+    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("path", rclcpp::QoS(0).transient_local());  // TODO Latching
+    trajectory_pub_ =
+        this->create_publisher<nav_msgs::msg::Path>("trajectory", rclcpp::QoS(0).transient_local());  // TODO Latching
+
+    // name, queue_size, latching
+    planner_map_update_pub_ = this->create_publisher<std_msgs::msg::Float64>(
+        "planner_map_update_time", rclcpp::QoS(0).transient_local());  // TODO Latching
+    trajectory_map_update_pub_ = this->create_publisher<std_msgs::msg::Float64>(
+        "trajectory_map_update_time", rclcpp::QoS(0).transient_local());  // TODO Latching
+    control_map_update_pub_ = this->create_publisher<std_msgs::msg::Float64>(
+        "control_map_update_time", rclcpp::QoS(0).transient_local());  // TODO Latching
 
     // Create the planners
     path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr);
@@ -194,20 +225,20 @@ Autonomy::Autonomy()
         load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr);
     controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr);
 
-    active_map_sub_ =
-        nh_.subscribe<map_manager::MapInfo>("/map_manager/active_map", 10, &Autonomy::activeMapCallback, this);
-    mapper_status_sub_ =
-        nh_.subscribe<cartographer_ros_msgs::SystemState>("/mapper/state", 1, &Autonomy::mapperCallback, this);
+    active_map_sub_ = this->create_subscription<map_manager::msg::MapInfo>(
+        "/map_manager/active_map", 10, std::bind(&Autonomy::activeMapCallback, this, std::placeholders::_1));
+    mapper_status_sub_ = this->create_subscription<cartographer_ros_msgs::msg::SystemState>(
+        "/mapper/state", 1, std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1));
 
-    costmap_publisher_ = nh_.advertise<nav_msgs::OccupancyGrid>("costmap", 1);
-    costmap_updates_publisher_ = nh_.advertise<map_msgs::OccupancyGridUpdate>("costmap_updates", 1);
+    costmap_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
+    costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", 1);
 
-    as_.start();
+    // as_.start(); // NOTE: Now when the node is started the node also starts i guess, no start() func per se.
 
     execution_thread_running_ = true;
     execution_thread_ = std::thread(&Autonomy::executionThread, this);
 
-    ROS_INFO("Successfully started");
+    RCLCPP_INFO(rclcpp::get_logger(""), "Successfully started");
 }
 
 Autonomy::~Autonomy()
@@ -223,7 +254,7 @@ Autonomy::~Autonomy()
     }
 }
 
-void Autonomy::activeMapCallback(const map_manager::MapInfo::SharedPtr map)
+void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
 {
     // preempt execution
     if (running_)
@@ -240,41 +271,56 @@ void Autonomy::activeMapCallback(const map_manager::MapInfo::SharedPtr map)
         goal_lock.lock();
     }
     goal_lock.unlock();
-    ROS_ASSERT(goal_ == nullptr);
+    rcpputils::assert_true(goal_ == nullptr);
 
     if (!map->name.empty())
     {
-        ROS_INFO_STREAM("Received map (" << map->name << ")");
+        // Here every client call is executed synchronously
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Received map (" << map->name << ")");
 
-        auto map_client = nh_.serviceClient<map_manager::GetMapInfo>("/map_manager/get_map_info");
-        map_manager::GetMapInfoRequest map_req;
-        map_req.map_name = map->name;
-        map_manager::GetMapInfoResponse map_res;
-        ROS_ASSERT(map_client.call(map_req, map_res));
-        ROS_ASSERT(map_res.success);
+        auto map_client = this->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info");
+        // map_manager::srv::GetMapInfo::Request map_req;
+        auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
+        map_req->map_name = map->name;  // TODO porque -> ?
+        // map_manager::srv::GetMapInfo::Response map_res;
+        auto map_res_future = map_client->async_send_request(
+            map_req);  // no sync call in rcpcpp, only in rclpy https://github.com/ros2/rclcpp/issues/975
 
-        auto og_client = nh_.serviceClient<map_manager::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
-        map_manager::GetOccupancyGridRequest og_req;
-        og_req.map_name = map->name;
-        map_manager::GetOccupancyGridResponse og_res;
-        ROS_ASSERT(og_client.call(og_req, og_res));
-        ROS_ASSERT(og_res.success);
+        // auto og_client = this.serviceClient<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+        auto og_client = this->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+        auto og_req = std::make_shared<map_manager::srv::GetOccupancyGrid::Request>();
+        og_req->map_name = map->name;
+        // map_manager::srv::GetOccupancyGrid::Response og_res;
+        // rcpputils::assert_true(og_client.call(og_req, og_res));
+        auto og_res_future = og_client->async_send_request(og_req);
 
-        auto zones_client = nh_.serviceClient<map_manager::GetZones>("/map_manager/get_zones");
-        map_manager::GetZonesRequest zones_req;
-        zones_req.map_name = map->name;
-        map_manager::GetZonesResponse zones_res;
-        ROS_ASSERT(zones_client.call(zones_req, zones_res));
-        ROS_ASSERT(zones_res.success);
+        // auto zones_client = this.serviceClient<map_manager::srv::GetZones>("/map_manager/get_zones");
+        auto zones_client = this->create_client<map_manager::srv::GetZones>("/map_manager/get_zones");
+        // map_manager::srv::GetZones::Request zones_req;
+        auto zones_req = std::make_shared<map_manager::srv::GetZones::Request>();
+        zones_req->map_name = map->name;
+        // map_manager::srv::GetZones::Response zones_res;
+        // rcpputils::assert_true(zones_client.call(zones_req, zones_res));
+        auto zones_res_future = zones_client->async_send_request(zones_req);
 
-        layered_map_->setMap(map_res.map_info, og_res.grid, zones_res.zones);
+        auto map_future_code = rclcpp::spin_until_future_complete(this->get_node_base_interface(), map_res_future);  //,
+        rcpputils::assert_true(map_future_code == rclcpp::FutureReturnCode::SUCCESS);
+
+        auto og_future_code = rclcpp::spin_until_future_complete(this->get_node_base_interface(), og_res_future);
+        rcpputils::assert_true(og_future_code == rclcpp::FutureReturnCode::SUCCESS);
+
+        auto zones_res = rclcpp::spin_until_future_complete(this->get_node_base_interface(), zones_res_future);
+        // std::chrono::milliseconds((int) (1000.0*maximum_map_server_delay)));
+        rcpputils::assert_true(zones_res == rclcpp::FutureReturnCode::SUCCESS);
+
+        layered_map_->setMap(map_res_future.get()->map_info, og_res_future.get()->grid, zones_res_future.get()->zones);
     }
     else
     {
-        ROS_INFO_STREAM("Generating an empty map");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Generating an empty map");
 
         // generate an empty map
-        map_manager::MapInfo map_info;
+        map_manager::msg::MapInfo map_info;
         map_info.name = "";
         map_info.meta_data.width = 2000;
         map_info.meta_data.height = 2000;
@@ -283,10 +329,10 @@ void Autonomy::activeMapCallback(const map_manager::MapInfo::SharedPtr map)
             -static_cast<double>(map_info.meta_data.width) * map_info.meta_data.resolution / 2.0;
         map_info.meta_data.origin.position.y =
             -static_cast<double>(map_info.meta_data.height) * map_info.meta_data.resolution / 2.0;
-        nav_msgs::OccupancyGrid map_data;
+        nav_msgs::msg::OccupancyGrid map_data;
         map_data.info = map_info.meta_data;
         map_data.data = std::vector<int8_t>(map_info.meta_data.width * map_info.meta_data.height, 0);
-        const std::vector<graph_map::Zone> zones;
+        const std::vector<graph_map::msg::Zone> zones;
         layered_map_->setMap(map_info, map_data, zones);
     }
 
@@ -308,18 +354,18 @@ void Autonomy::activeMapCallback(const map_manager::MapInfo::SharedPtr map)
     layered_map_->update(controller_map_data_->grid);
 
     {
-        nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+        nav_msgs::msg::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
         grid.header.frame_id = "map";
-        grid.header.stamp = ros::Time::now();
-        costmap_publisher_.publish(grid);
+        grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
+        costmap_publisher_->publish(grid);
     }
 
-    ROS_INFO_STREAM("Finished updating map");
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Finished updating map");
 }
 
 void Autonomy::executionThread()
 {
-    ros::Rate rate(1);
+    rclcpp::Rate rate(1);
     while (execution_thread_running_)
     {
         {
@@ -340,15 +386,15 @@ void Autonomy::executionThread()
                 layered_map_->update();
 
                 {
-                    nav_msgs::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                    nav_msgs::msg::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
                     grid.header.frame_id = "map";
-                    grid.header.stamp = ros::Time::now();
-                    costmap_publisher_.publish(grid);
+                    grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
+                    costmap_publisher_->publish(grid);
                 }
             }
             else
             {
-                ROS_INFO_STREAM("Robot not localised");
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Robot not localised");
             }
         }
 
@@ -360,18 +406,18 @@ void Autonomy::executeGoal()
 {
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        ROS_INFO_STREAM("Executing goal: " << goal_->getGoalID().id);
-        current_goal_pub_.publish(transformed_goal_pose_);
+        // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Executing goal: " << std::to_string(goal_->get_goal_id()));
+        current_goal_pub_->publish(transformed_goal_pose_);
     }
 
     // make sure no threads are running
-    ROS_ASSERT(!running_);
-    ROS_ASSERT(!path_planner_thread_);
-    ROS_ASSERT(!trajectory_planner_thread_);
-    ROS_ASSERT(!controller_thread_);
-    ROS_ASSERT(path_planner_map_data_);
-    ROS_ASSERT(trajectory_planner_map_data_);
-    ROS_ASSERT(controller_map_data_);
+    rcpputils::assert_true(!running_);
+    rcpputils::assert_true(!path_planner_thread_);
+    rcpputils::assert_true(!trajectory_planner_thread_);
+    rcpputils::assert_true(!controller_thread_);
+    rcpputils::assert_true(path_planner_map_data_ != nullptr);
+    rcpputils::assert_true(trajectory_planner_map_data_ != nullptr);
+    rcpputils::assert_true(controller_map_data_ != nullptr);
 
     controller_done_ = false;
     running_ = true;
@@ -386,14 +432,14 @@ void Autonomy::executeGoal()
     {
         {
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            if (goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
+            if (goal_->is_canceling())  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
             {
                 break;
             }
 
             if (controller_done_)
             {
-                goal_->setSucceeded(autonomy::DriveResult(), "Goal reached");
+                goal_->succeed(std::make_shared<autonomy_interface::action::Drive::Result>());  //, "Goal reached");
                 break;
             }
         }
@@ -424,75 +470,77 @@ void Autonomy::executeGoal()
 
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        ROS_INFO_STREAM("Goal " << goal_->getGoalID().id << " execution complete");
+        // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Goal " << std::to_string(goal_->get_goal_id()) << " execution
+        // complete");
         goal_ = nullptr;
     }
 }
 
-void Autonomy::goalCallback(GoalHandle goal)
+rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid,
+                                                   std::shared_ptr<const Drive::Goal> goal)
 {
-    ROS_INFO_STREAM("Received goal: " << goal.getGoalID().id << " (" << goal.getGoal()->target_pose.pose.position.x
-                                      << ", " << goal.getGoal()->target_pose.pose.position.y << ")");
-    ROS_INFO_STREAM("Goal standard deviations: X: " << goal.getGoal()->std_x << ", Y: " << goal.getGoal()->std_y
-                                                    << ", W: " << goal.getGoal()->std_w
-                                                    << ", Max Samples: " << goal.getGoal()->max_samples);
+
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Goal standard deviations: X: "
+                                                   << goal->std_x << ", Y: " << goal->std_y << ", W: " << goal->std_w
+                                                   << ", Max Samples: " << goal->max_samples);
 
     const gridmap::RobotState robot_state = robot_tracker_->robotState();
+    auto result = std::make_shared<autonomy_interface::action::Drive::Result>();
 
     if (!robot_state.localised)
     {
-        ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Robot not localised");
-        goal.setRejected();
-        return;
+        RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
+                            "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - // Robot not localised");
+        return rclcpp_action::GoalResponse::REJECT;
     }
 
     if (max_planning_distance_ > 0.0)
     {
         const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
-        const Eigen::Vector2d goal_position(goal.getGoal()->target_pose.pose.position.x,
-                                            goal.getGoal()->target_pose.pose.position.y);
+        const Eigen::Vector2d goal_position(goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
         const double dist_to_goal = (robot_pose.translation() - goal_position).squaredNorm();
         if (dist_to_goal > (max_planning_distance_ * max_planning_distance_))
         {
-            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Goal beyond max planning distance of "
-                                                  << max_planning_distance_ << "m");
-            goal.setRejected();
-            return;
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                               "Rejected new goal: " << rclcpp_action::to_string(uuid)
+                                                     << " - Goal beyond max planning distance of "
+                                                     << max_planning_distance_ << "m");
+            return rclcpp_action::GoalResponse::REJECT;
         }
     }
 
-    if (goal.getGoal()->std_x < 0.0 || goal.getGoal()->std_y < 0.0 || goal.getGoal()->std_w < 0.0)
+    if (goal->std_x < 0.0 || goal->std_y < 0.0 || goal->std_w < 0.0)
     {
-        ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - Bad sample settings");
-        goal.setRejected();
-        return;
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                           "Rejected new goal: " << rclcpp_action::to_string(uuid) << " -  Bad sample settings");
+        return rclcpp_action::GoalResponse::REJECT;
     }
 
-    if (goal.getGoal()->target_pose.header.frame_id != global_frame_)
+    if (goal->target_pose.header.frame_id != global_frame_)
     {
-        ROS_INFO_STREAM("Goal is in frame: " << goal.getGoal()->target_pose.header.frame_id
-                                             << ", not: " << global_frame_ << ", transforming...");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Goal is in frame: " << goal->target_pose.header.frame_id
+                                                                        << ", not: " << global_frame_
+                                                                        << ", transforming...");
 
         // Transform into global_frame_
-        geometry_msgs::TransformStamped transform;
+        geometry_msgs::msg::TransformStamped transform;
         try
         {
-            transform =
-                tfBuffer_.lookupTransform(global_frame_, goal.getGoal()->target_pose.header.frame_id, ros::Time(0));
+            transform = tfBuffer_.lookupTransform(global_frame_, goal->target_pose.header.frame_id,
+                                                  rclcpp::Time(0));  // ros::Time(0)
         }
         catch (tf2::TransformException& ex)
         {
-            ROS_WARN("%s", ex.what());
-            goal.setRejected();
-            return;
+            RCLCPP_WARN(rclcpp::get_logger(""), ex.what());
+            return rclcpp_action::GoalResponse::REJECT;
         }
 
         // Can't modify pose in-place because it's a const
-        tf2::doTransform(goal.getGoal()->target_pose, transformed_goal_pose_, transform);
+        tf2::doTransform(goal->target_pose, transformed_goal_pose_, transform);
     }
     else
     {
-        transformed_goal_pose_ = goal.getGoal()->target_pose;
+        transformed_goal_pose_ = goal->target_pose;
     }
 
     // A Goal is already running... preempt old goal and set new as active
@@ -504,8 +552,8 @@ void Autonomy::goalCallback(GoalHandle goal)
         if (goal_)
         {
             // Goal is currently finishing up. Wait for it to gracefully finish.
-            if (goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED ||
-                goal_->getGoalStatus().status == actionlib_msgs::GoalStatus::SUCCEEDED)
+            if (goal_->is_canceling() ||  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED ||
+                goal_->is_executing())    // getGoalStatus().status == actionlib_msgs::GoalStatus::SUCCEEDED)
             {
                 while (goal_)
                 {
@@ -516,49 +564,79 @@ void Autonomy::goalCallback(GoalHandle goal)
             }
             else
             {
-                ROS_INFO_STREAM("Updating goal: " << goal_->getGoalID().id << " with: " << goal.getGoalID().id);
-                goal_->setCanceled();  // Old goal
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Updating goal with: " << rclcpp_action::to_string(uuid));
             }
         }
         if (layered_map_->map() && path_planner_map_data_ && trajectory_planner_map_data_ && controller_map_data_)
         {
-            ROS_INFO_STREAM("Accepted new goal: " << goal.getGoalID().id);
-            goal.setAccepted();
-            goal_ = std::make_unique<GoalHandle>(goal);
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Accepted new goal: " << rclcpp_action::to_string(uuid));
         }
         else
         {
-            ROS_INFO_STREAM("Rejected new goal: " << goal.getGoalID().id << " - No Map!");
-            goal.setRejected();
-            return;
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                               "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - No Map!");
+            return rclcpp_action::GoalResponse::REJECT;
         }
     }
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
 }
 
+/*
 void Autonomy::cancelCallback(GoalHandle)
 {
     std::lock_guard<std::mutex> goal_lock(goal_mutex_);
 
     if (goal_)
     {
-        ROS_INFO_STREAM("Cancelling goal: " << goal_->getGoalID().id);
-        autonomy::DriveFeedback feedback;
-        feedback.state = autonomy::DriveFeedback::NO_PLAN;
-        goal_->publishFeedback(feedback);
-        goal_->setCanceled();  // Setting as cancelled will let the executeGoal finish gracefully
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Cancelling goal: " << goal_->get_goal_id().id);
+        autonomy_interface::DriveFeedback feedback;
+        feedback.state = autonomy_interface::DriveFeedback::NO_PLAN;
+        goal_->publish_feedback(feedback);
+        goal_->canceled();  // Setting as cancelled will let the executeGoal finish gracefully
     }
+}
+*/
+
+rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
+{
+    std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+
+    if (goal_)
+    {
+        // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Cancelling goal: " << std::to_string(goal_->get_goal_id()));
+        // autonomy_interface::action::Drive::Feedback feedback;
+        auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
+        feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
+        goal_->publish_feedback(feedback);
+        (void)goal_;
+        // goal_->canceled();  // Setting as cancelled will let the executeGoal finish gracefully
+
+        return rclcpp_action::CancelResponse::ACCEPT;
+    }
+
+    return rclcpp_action::CancelResponse::REJECT;
+}
+
+rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
+{
+    // this needs to return quickly to avoid blocking the executor, so spin up a new thread
+    goal_ = goal_handle;
+    std::thread{std::bind(&Autonomy::executeGoal, this), goal_handle}.detach();
 }
 
 void Autonomy::pathPlannerThread()
 {
-    ros::WallRate rate(path_planner_frequency_);
-    autonomy::DriveFeedback feedback;
-    feedback.state = autonomy::DriveFeedback::NO_PLAN;
+    // see pag.11 for porting ros::WallRate
+    // https://info.rti.com/hubfs/podcast/rti%20site/tile/White%20paper%20on%20ROS%201%20to%20ROS%202%20Transition_Final.pdf
+    rclcpp::WallRate rate(path_planner_frequency_);
+    // autonomy_interface::action::Drive::Feedback feedback;
+    auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
+    feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
 
     std::string last_goal_id;  // Keeps track of the previous goal ID to see if has been updated
 
-    ROS_ASSERT(layered_map_);
-    ROS_ASSERT(path_planner_map_data_);
+    rcpputils::assert_true(layered_map_ != nullptr);
+    rcpputils::assert_true(path_planner_map_data_ != nullptr);
     // Path planning window. Add a 2m border.
     const int size_x = max_planning_distance_ > 0.0
                            ? static_cast<int>(((2 * max_planning_distance_) + 4.0) /
@@ -578,19 +656,19 @@ void Autonomy::pathPlannerThread()
             current_path_.reset();
 
             // publish
-            nav_msgs::Path gui_path;
+            nav_msgs::msg::Path gui_path;
             gui_path.header.frame_id = global_frame_;
-            path_pub_.publish(gui_path);
+            path_pub_->publish(gui_path);
 
-            feedback.state = autonomy::DriveFeedback::NO_PLAN;
+            feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
 
             {
                 std::lock_guard<std::mutex> lock(path_mutex_);
-                ROS_ASSERT(goal_);
-                goal_->publishFeedback(feedback);
+                rcpputils::assert_true(goal_ != nullptr);
+                goal_->publish_feedback(feedback);
             }
 
-            ROS_INFO_STREAM("Robot not localised. Unable to plan!");
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Robot not localised. Unable to plan!");
 
             rate.sleep();
 
@@ -609,8 +687,8 @@ void Autonomy::pathPlannerThread()
         const int actual_size_y =
             std::min(layered_map_->map()->grid.dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
 
-        ROS_ASSERT((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
-        ROS_ASSERT((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
+        rcpputils::assert_true((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
+        rcpputils::assert_true((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
 
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
         {
@@ -628,15 +706,18 @@ void Autonomy::pathPlannerThread()
             const double map_update_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
-            std_msgs::Float64 map_update_duration_msg;
+            std_msgs::msg::Float64 map_update_duration_msg;
             map_update_duration_msg.data = map_update_duration;
-            planner_map_update_pub_.publish(map_update_duration_msg);
-            if (map_update_duration > rate.expectedCycleTime().toSec())
-                ROS_WARN_STREAM("Path Planning map update took too long: " << map_update_duration << "s");
+            planner_map_update_pub_->publish(map_update_duration_msg);
+
+            // if (map_update_duration > rate.expectedCycleTime().toSec())
+            if (map_update_duration > path_planner_frequency_)
+                RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                   "Path Planning map update took too long: " << map_update_duration << "s");
 
             if (!success)
             {
-                ROS_ERROR("Path Planning map update failed");
+                RCLCPP_ERROR(rclcpp::get_logger(""), "Path Planning map update failed");
 
                 {
                     std::lock_guard<std::mutex> lock(path_mutex_);
@@ -644,15 +725,15 @@ void Autonomy::pathPlannerThread()
                 }
 
                 // publish
-                nav_msgs::Path gui_path;
+                nav_msgs::msg::Path gui_path;
                 gui_path.header.frame_id = global_frame_;
-                path_pub_.publish(gui_path);
+                path_pub_->publish(gui_path);
 
-                feedback.state = autonomy::DriveFeedback::NO_PLAN;
+                feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
                 {
                     std::lock_guard<std::mutex> lock(goal_mutex_);
-                    ROS_ASSERT(goal_);
-                    goal_->publishFeedback(feedback);
+                    rcpputils::assert_true(goal_ != nullptr);
+                    goal_->publish_feedback(feedback);
                 }
 
                 rate.sleep();
@@ -661,10 +742,10 @@ void Autonomy::pathPlannerThread()
             }
 
             {
-                nav_msgs::OccupancyGrid grid = path_planner_map_data_->grid.toMsg();
+                nav_msgs::msg::OccupancyGrid grid = path_planner_map_data_->grid.toMsg();
                 grid.header.frame_id = "map";
-                grid.header.stamp = ros::Time::now();
-                costmap_publisher_.publish(grid);
+                grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
+                costmap_publisher_->publish(grid);
             }
         }
         bool goal_updated = false;
@@ -676,30 +757,32 @@ void Autonomy::pathPlannerThread()
         double rotation_mult;
         {
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            ROS_ASSERT(goal_);
+            rcpputils::assert_true(goal_ != nullptr);
             goal_pose = convert(transformed_goal_pose_.pose);
-            goal_sample_settings.std_x = goal_->getGoal()->std_x;
-            goal_sample_settings.std_y = goal_->getGoal()->std_y;
-            goal_sample_settings.std_w = goal_->getGoal()->std_w;
-            goal_sample_settings.max_samples = goal_->getGoal()->max_samples;
+            goal_sample_settings.std_x = goal_->get_goal()->std_x;
+            goal_sample_settings.std_y = goal_->get_goal()->std_y;
+            goal_sample_settings.std_w = goal_->get_goal()->std_w;
+            goal_sample_settings.max_samples = goal_->get_goal()->max_samples;
 
-            avoid_distance = goal_->getGoal()->avoid_distance;
+            avoid_distance = goal_->get_goal()->avoid_distance;
 
-            backwards_mult = goal_->getGoal()->backwards_mult;
-            strafe_mult = goal_->getGoal()->strafe_mult;
-            rotation_mult = goal_->getGoal()->rotation_mult;
+            backwards_mult = goal_->get_goal()->backwards_mult;
+            strafe_mult = goal_->get_goal()->strafe_mult;
+            rotation_mult = goal_->get_goal()->rotation_mult;
 
-            if (goal_->getGoalID().id != last_goal_id)
-            {
-                goal_updated = true;
-                ROS_INFO_STREAM("Goal updated from: " << last_goal_id << " to:" << goal_->getGoalID().id);
-            }
-            last_goal_id = goal_->getGoalID().id;
+            // TODO
+            // if (std::to_string(goal_->get_goal_id()) != last_goal_id)
+            //{
+            //     goal_updated = true;
+            //     RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Goal updated from: " << last_goal_id << " to:" <<
+            //     std::to_string(goal_->get_goal_id()));
+            // }
+            // last_goal_id = std::to_string(goal_->get_goal_id());
         }
 
         // Plan
         navigation_interface::PathPlanner::Result result;
-        const auto now = ros::SteadyTime::now();
+        const auto now = this->now();  // rclcpp::Clock(RCL_STEADY_TIME).now();//ros::SteadyTime::now();
         {
 
             const auto t0 = std::chrono::steady_clock::now();
@@ -709,10 +792,10 @@ void Autonomy::pathPlannerThread()
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
-            if (plan_duration > rate.expectedCycleTime().toSec())
-                ROS_WARN_STREAM("Path Planning took too long: " << plan_duration << "s");
+            if (plan_duration > path_planner_frequency_)  // rate.expectedCycleTime().toSec())
+                RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Path Planning took too long: " << plan_duration << "s");
 
-            ROS_DEBUG_STREAM("Path Planning took: " << plan_duration << " s.");
+            RCLCPP_DEBUG_STREAM(rclcpp::get_logger(""), "Path Planning took: " << plan_duration << " s.");
         }
 
         if (!running_)
@@ -722,7 +805,7 @@ void Autonomy::pathPlannerThread()
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
             bool update = false;
-            ROS_ASSERT(!result.path.nodes.empty());
+            rcpputils::assert_true(!result.path.nodes.empty());
 
             std::lock_guard<std::mutex> lock(path_mutex_);
             if (current_path_ && !goal_updated)
@@ -747,7 +830,7 @@ void Autonomy::pathPlannerThread()
                     current_path_->last_successful_cost = cost;
                 }
 
-                const double time_since_successful_recalc = (now - current_path_->last_successful_time).toSec();
+                const double time_since_successful_recalc = (now - current_path_->last_successful_time).seconds();
 
                 const bool old_path_expired = time_since_successful_recalc > path_persistence_time_;
                 const bool old_path_possible = cost < std::numeric_limits<double>::max();
@@ -767,16 +850,17 @@ void Autonomy::pathPlannerThread()
 
                 update = case_1 || case_2 || case_3;
 
-                ROS_INFO_STREAM("swap: " << update << " old_cost: " << cost << " (" << old_path_possible << ")"
-                                         << " new_cost: " << result.cost << " (" << new_path_possible << ")"
-                                         << " new_is_better: " << new_path_much_better << " time_invalid: "
-                                         << time_since_successful_recalc << "s (" << old_path_expired << ")"
-                                         << " dist_to_old: " << distance_to_old_path << "m (" << robot_near_old_path
-                                         << ")");
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                                   "swap: " << update << " old_cost: " << cost << " (" << old_path_possible << ")"
+                                            << " new_cost: " << result.cost << " (" << new_path_possible << ")"
+                                            << " new_is_better: " << new_path_much_better << " time_invalid: "
+                                            << time_since_successful_recalc << "s (" << old_path_expired << ")"
+                                            << " dist_to_old: " << distance_to_old_path << "m (" << robot_near_old_path
+                                            << ")");
             }
             else if (!current_path_)
             {
-                ROS_INFO_STREAM("First path found");
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "First path found");
                 update = true;
             }
             else
@@ -790,14 +874,14 @@ void Autonomy::pathPlannerThread()
                 current_path_.reset(new TrackingPath{goal_pose, now, result.cost, now, result.cost, result.path});
 
                 // publish
-                nav_msgs::Path gui_path;
+                nav_msgs::msg::Path gui_path;
                 gui_path.header.frame_id = global_frame_;
                 for (const auto& node : result.path.nodes)
                 {
                     const Eigen::Quaterniond qt(
                         Eigen::AngleAxisd(Eigen::Rotation2Dd(node.linear()).smallestAngle(), Eigen::Vector3d::UnitZ()));
 
-                    geometry_msgs::PoseStamped p;
+                    geometry_msgs::msg::PoseStamped p;
                     p.header.frame_id = global_frame_;
                     p.pose.position.x = node.translation().x();
                     p.pose.position.y = node.translation().y();
@@ -808,35 +892,35 @@ void Autonomy::pathPlannerThread()
 
                     gui_path.poses.push_back(p);
                 }
-                path_goal_pub_.publish(gui_path.poses.back());
-                path_pub_.publish(gui_path);
+                path_goal_pub_->publish(gui_path.poses.back());
+                path_pub_->publish(gui_path);
             }
 
-            feedback.state = autonomy::DriveFeedback::GOOD_PLAN;
+            feedback->state = autonomy_interface::action::Drive::Feedback::GOOD_PLAN;
         }
         else
         {
-            ROS_WARN("Failed to find a path");
+            RCLCPP_WARN(rclcpp::get_logger(""), "Failed to find a path");
 
             std::lock_guard<std::mutex> lock(path_mutex_);
             const double time_since_successful_recalc = current_path_
-                                                            ? (now - current_path_->last_successful_time).toSec()
+                                                            ? (now - current_path_->last_successful_time).seconds()
                                                             : std::numeric_limits<double>::max();
 
             // In the situation of persistent
             if (time_since_successful_recalc > 4.0)
             {
-                feedback.state = autonomy::DriveFeedback::STUCK;
+                feedback->state = autonomy_interface::action::Drive::Feedback::STUCK;
 
                 current_path_.reset();
 
                 std::lock_guard<std::mutex> t_lock(trajectory_mutex_);
                 current_trajectory_.reset();
 
-                ROS_INFO_STREAM("Clearing radius of " << clear_radius_ << "m around robot");
+                RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Clearing radius of " << clear_radius_ << "m around robot");
                 layered_map_->clearRadius(path_planner_map_data_->grid, robot_pose.translation(), clear_radius_);
 
-                ROS_INFO("Waiting for sensors to stabilise...");
+                RCLCPP_INFO(rclcpp::get_logger(""), "Waiting for sensors to stabilise...");
                 std::this_thread::sleep_for(std::chrono::milliseconds(2000));
             }
         }
@@ -844,8 +928,8 @@ void Autonomy::pathPlannerThread()
         // Update feedback to correspond to our current position
         {
             std::lock_guard<std::mutex> lock(path_mutex_);
-            ROS_ASSERT(goal_);
-            goal_->publishFeedback(feedback);
+            rcpputils::assert_true(goal_ != nullptr);
+            goal_->publish_feedback(feedback);
         }
 
         rate.sleep();
@@ -859,10 +943,10 @@ void Autonomy::pathPlannerThread()
 
 void Autonomy::trajectoryPlannerThread()
 {
-    ros::WallRate rate(trajectory_planner_frequency_);
+    rclcpp::WallRate rate(trajectory_planner_frequency_);
 
-    ROS_ASSERT(layered_map_);
-    ROS_ASSERT(trajectory_planner_map_data_);
+    rcpputils::assert_true(layered_map_ != nullptr);
+    rcpputils::assert_true(trajectory_planner_map_data_ != nullptr);
     const int size_x = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
     const int size_y = static_cast<int>(8.0 / layered_map_->map()->grid.dimensions().resolution());
 
@@ -889,9 +973,9 @@ void Autonomy::trajectoryPlannerThread()
             current_trajectory_.reset();
 
             // publish
-            nav_msgs::Path gui_path;
+            nav_msgs::msg::Path gui_path;
             gui_path.header.frame_id = "odom";
-            trajectory_pub_.publish(gui_path);
+            trajectory_pub_->publish(gui_path);
 
             rate.sleep();
             continue;
@@ -905,9 +989,9 @@ void Autonomy::trajectoryPlannerThread()
             current_trajectory_.reset();
 
             // publish
-            nav_msgs::Path gui_path;
+            nav_msgs::msg::Path gui_path;
             gui_path.header.frame_id = "odom";
-            trajectory_pub_.publish(gui_path);
+            trajectory_pub_->publish(gui_path);
 
             rate.sleep();
 
@@ -926,8 +1010,8 @@ void Autonomy::trajectoryPlannerThread()
         const int actual_size_y =
             std::min(layered_map_->map()->grid.dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
 
-        ROS_ASSERT((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
-        ROS_ASSERT((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
+        rcpputils::assert_true((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
+        rcpputils::assert_true((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
 
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
@@ -939,24 +1023,25 @@ void Autonomy::trajectoryPlannerThread()
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
 
-            std_msgs::Float64 map_update_duration_msg;
+            std_msgs::msg::Float64 map_update_duration_msg;
             map_update_duration_msg.data = map_update_duration;
-            trajectory_map_update_pub_.publish(map_update_duration_msg);
+            trajectory_map_update_pub_->publish(map_update_duration_msg);
 
-            if (map_update_duration > rate.expectedCycleTime().toSec())
-                ROS_WARN_STREAM("Trajectory Planning map update took too long: " << map_update_duration << " s.");
+            if (map_update_duration > path_planner_frequency_)  // rate.expectedCycleTime().toSec())
+                RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                   "Trajectory Planning map update took too long: " << map_update_duration << " s.");
 
             if (!success)
             {
-                ROS_ERROR("Trajectory Planning map update failed");
+                RCLCPP_ERROR(rclcpp::get_logger(""), "Trajectory Planning map update failed");
 
                 std::lock_guard<std::mutex> lock(trajectory_mutex_);
                 current_trajectory_.reset();
 
                 // publish
-                nav_msgs::Path gui_path;
+                nav_msgs::msg::Path gui_path;
                 gui_path.header.frame_id = "odom";
-                trajectory_pub_.publish(gui_path);
+                trajectory_pub_->publish(gui_path);
 
                 rate.sleep();
 
@@ -967,9 +1052,9 @@ void Autonomy::trajectoryPlannerThread()
         double avoid_distance;
         {
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            ROS_ASSERT(goal_);
+            rcpputils::assert_true(goal_ != nullptr);
 
-            avoid_distance = goal_->getGoal()->avoid_distance;
+            avoid_distance = goal_->get_goal()->avoid_distance;
         }
 
         navigation_interface::TrajectoryPlanner::Result result;
@@ -983,8 +1068,9 @@ void Autonomy::trajectoryPlannerThread()
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
-            if (plan_duration > rate.expectedCycleTime().toSec())
-                ROS_WARN_STREAM("Trajectory Planning took too long: " << plan_duration << " s.");
+            if (plan_duration > path_planner_frequency_)  // rate.expectedCycleTime().toSec())
+                RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                                   "Trajectory Planning took too long: " << plan_duration << " s.");
         }
 
         // update trajectory for the controller
@@ -998,14 +1084,14 @@ void Autonomy::trajectoryPlannerThread()
             current_trajectory_.reset(new ControlTrajectory({final_goal, result.trajectory}));
 
             // publish
-            nav_msgs::Path gui_path;
+            nav_msgs::msg::Path gui_path;
             gui_path.header.frame_id = "odom";
             for (const auto& state : result.trajectory.states)
             {
                 const Eigen::Quaterniond qt(
                     Eigen::AngleAxisd(Eigen::Rotation2Dd(state.pose.linear()).angle(), Eigen::Vector3d::UnitZ()));
 
-                geometry_msgs::PoseStamped p;
+                geometry_msgs::msg::PoseStamped p;
                 p.header.frame_id = "odom";
                 p.pose.position.x = state.pose.translation().x();
                 p.pose.position.y = state.pose.translation().y();
@@ -1016,7 +1102,7 @@ void Autonomy::trajectoryPlannerThread()
 
                 gui_path.poses.push_back(p);
             }
-            trajectory_pub_.publish(gui_path);
+            trajectory_pub_->publish(gui_path);
         }
         // clear the trajectory from the controller
         else
@@ -1025,9 +1111,9 @@ void Autonomy::trajectoryPlannerThread()
             current_trajectory_.reset();
 
             // publish
-            nav_msgs::Path gui_path;
+            nav_msgs::msg::Path gui_path;
             gui_path.header.frame_id = "odom";
-            trajectory_pub_.publish(gui_path);
+            trajectory_pub_->publish(gui_path);
         }
 
         rate.sleep();
@@ -1042,10 +1128,10 @@ void Autonomy::trajectoryPlannerThread()
 void Autonomy::controllerThread()
 {
     const long period_ms = static_cast<long>(1000.0 / controller_frequency_);
-    ros::Time last_odom_time(0);
+    rclcpp::Time last_odom_time(0);
 
-    ROS_ASSERT(layered_map_);
-    ROS_ASSERT(controller_map_data_);
+    rcpputils::assert_true(layered_map_ != nullptr);
+    rcpputils::assert_true(controller_map_data_ != nullptr);
     const int size_x = static_cast<int>(5.0 / layered_map_->map()->grid.dimensions().resolution());
     const int size_y = static_cast<int>(5.0 / layered_map_->map()->grid.dimensions().resolution());
 
@@ -1055,13 +1141,13 @@ void Autonomy::controllerThread()
         gridmap::RobotState robot_state = robot_tracker_->robotState();
         try
         {
-            if (robot_state.odom.time.toNSec() == last_odom_time.toNSec())
+            if (robot_state.odom.time.seconds() == last_odom_time.seconds())
                 robot_state = robot_tracker_->waitForRobotState(2 * period_ms);
         }
         catch (const std::exception& e)
         {
-            ROS_ERROR_STREAM(e.what());
-            vel_pub_.publish(geometry_msgs::Twist());
+            RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), e.what());
+            vel_pub_->publish(geometry_msgs::msg::Twist());
         }
         last_odom_time = robot_state.odom.time;
 
@@ -1078,7 +1164,7 @@ void Autonomy::controllerThread()
             }
             else
             {
-                vel_pub_.publish(geometry_msgs::Twist());
+                vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
         }
@@ -1095,8 +1181,8 @@ void Autonomy::controllerThread()
         const int actual_size_y =
             std::min(layered_map_->map()->grid.dimensions().size().y() - 1, top_left_y + size_y) - top_left_y;
 
-        ROS_ASSERT((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
-        ROS_ASSERT((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
+        rcpputils::assert_true((top_left_x + actual_size_x) <= layered_map_->map()->grid.dimensions().size().x());
+        rcpputils::assert_true((top_left_y + actual_size_y) <= layered_map_->map()->grid.dimensions().size().y());
 
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
@@ -1107,8 +1193,8 @@ void Autonomy::controllerThread()
 
             if (!success)
             {
-                ROS_ERROR("Control Planning map update failed");
-                vel_pub_.publish(geometry_msgs::Twist());
+                RCLCPP_ERROR(rclcpp::get_logger(""), "Control Planning map update failed");
+                vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
 
@@ -1116,14 +1202,15 @@ void Autonomy::controllerThread()
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
 
-            std_msgs::Float64 map_update_duration_msg;
+            std_msgs::msg::Float64 map_update_duration_msg;
             map_update_duration_msg.data = map_update_duration;
-            control_map_update_pub_.publish(map_update_duration_msg);
+            control_map_update_pub_->publish(map_update_duration_msg);
 
             if (1e3 * map_update_duration > period_ms)
             {
-                ROS_ERROR_STREAM("Control Planning map update took too long: " << map_update_duration << "s");
-                vel_pub_.publish(geometry_msgs::Twist());
+                RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
+                                    "Control Planning map update took too long: " << map_update_duration << "s");
+                vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
         }
@@ -1133,14 +1220,14 @@ void Autonomy::controllerThread()
         double yaw_goal_tolerance;
         {
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            ROS_ASSERT(goal_);
+            rcpputils::assert_true(goal_ != nullptr);
 
-            max_velocity[0] = goal_->getGoal()->max_velocity_x;
-            max_velocity[1] = goal_->getGoal()->max_velocity_y;
-            max_velocity[2] = goal_->getGoal()->max_velocity_w;
+            max_velocity[0] = goal_->get_goal()->max_velocity_x;
+            max_velocity[1] = goal_->get_goal()->max_velocity_y;
+            max_velocity[2] = goal_->get_goal()->max_velocity_w;
 
-            xy_goal_tolerance = goal_->getGoal()->xy_goal_tolerance;
-            yaw_goal_tolerance = goal_->getGoal()->yaw_goal_tolerance;
+            xy_goal_tolerance = goal_->get_goal()->xy_goal_tolerance;
+            yaw_goal_tolerance = goal_->get_goal()->yaw_goal_tolerance;
         }
 
         navigation_interface::Controller::Result result;
@@ -1149,7 +1236,7 @@ void Autonomy::controllerThread()
 
             // control
             const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
-            const auto t = ros::SteadyTime::now();
+            const auto t = this->now();  // ros::SteadyTime::now();
             result = controller_->control(t, roi, ks, robot_state.map_to_odom, max_velocity, xy_goal_tolerance,
                                           yaw_goal_tolerance);
 
@@ -1158,22 +1245,23 @@ void Autonomy::controllerThread()
                     .count();
             if (1e3 * control_duration > period_ms)
             {
-                ROS_ERROR_STREAM("Control Planning took too long: " << control_duration << "s");
-                vel_pub_.publish(geometry_msgs::Twist());
+                RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
+                                    "Control Planning took too long: " << control_duration << "s");
+                vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
         }
 
         // send cmd_vel
-        geometry_msgs::Twist cmd_vel;
+        geometry_msgs::msg::Twist cmd_vel;
         if (result.outcome == navigation_interface::Controller::Outcome::SUCCESSFUL)
         {
-            ROS_ASSERT(result.command.allFinite());
+            rcpputils::assert_true(result.command.allFinite());
             cmd_vel.linear.x = result.command.x();
             cmd_vel.linear.y = result.command.y();
             cmd_vel.angular.z = result.command.z();
         }
-        vel_pub_.publish(cmd_vel);
+        vel_pub_->publish(cmd_vel);
 
         // finish if end of path
         if (result.outcome == navigation_interface::Controller::Outcome::COMPLETE)
@@ -1181,24 +1269,24 @@ void Autonomy::controllerThread()
             std::lock_guard<std::mutex> lock(trajectory_mutex_);
             if (current_trajectory_->goal_trajectory)
             {
-                ROS_INFO("Final trajectory complete");
+                RCLCPP_INFO(rclcpp::get_logger(""), "Final trajectory complete");
                 break;
             }
         }
     }
 
-    geometry_msgs::Twist cmd_vel;
-    vel_pub_.publish(cmd_vel);
+    geometry_msgs::msg::Twist cmd_vel;
+    vel_pub_->publish(cmd_vel);
 
     controller_done_ = true;
 }
 
-void Autonomy::odomCallback(const nav_msgs::Odometry::SharedPtr msg)
+void Autonomy::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
     robot_tracker_->addOdometryData(*msg);
 }
 
-void Autonomy::mapperCallback(const cartographer_ros_msgs::SystemState::SharedPtr msg)
+void Autonomy::mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg)
 {
     const bool was_localised = robot_tracker_->localised();
     robot_tracker_->addLocalisationData(*msg);
@@ -1208,9 +1296,9 @@ void Autonomy::mapperCallback(const cartographer_ros_msgs::SystemState::SharedPt
     if (was_localised != is_localised)
     {
         if (is_localised)
-            ROS_INFO_STREAM("Robot localised!");
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Robot localised!");
         else
-            ROS_INFO_STREAM("Robot not localised!");
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Robot not localised!");
 
         if (layered_map_->map())
             layered_map_->clear();
