@@ -51,7 +51,7 @@ namespace compressed_depth_image_transport
 {
 
 // Returns a null pointer on bad input.
-sensor_msgs::msg::Image::Ptr
+sensor_msgs::msg::Image::SharedPtr
     decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& compressed_image);  // changed
 
 // Compress a depth image. Returns a null pointer on bad input.
