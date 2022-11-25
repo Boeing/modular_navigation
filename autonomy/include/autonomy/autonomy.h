@@ -54,18 +54,6 @@ template <typename T> T get_param_or_throw(const std::string& param_name)
 }
 */
 
-template <typename T> T get_param_or_throw(autonomy::Autonomy node, const std::string& param_name)
-{
-
-    if (node->has_parameter(param_name))  // TODO does it work?
-    {
-        auto param = node->get_parameter(param_name);
-        return param.get_parameter_value().get<T>();
-    }
-
-    throw std::runtime_error("Must specify an existing param, " + param_name + " does not exist");
-}
-
 struct ControlTrajectory
 {
     bool goal_trajectory;
@@ -204,6 +192,18 @@ class Autonomy : public rclcpp::Node
     rclcpp::Subscription<cartographer_ros_msgs::msg::SystemState>::SharedPtr mapper_status_sub_;
     void mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg);
 };
+
+template <typename T> T get_param_or_throw(Autonomy node, const std::string& param_name)
+{
+
+    if (node.has_parameter(param_name))  // TODO does it work?
+    {
+        auto param = node.get_parameter(param_name);
+        return param.get_parameter_value().get<T>();
+    }
+
+    throw std::runtime_error("Must specify an existing param, " + param_name + " does not exist");
+}
 
 }  // namespace autonomy
 
