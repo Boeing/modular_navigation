@@ -11,12 +11,14 @@ find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(gridmap REQUIRED)
 find_package(map_manager REQUIRED)
+find_package(map_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(navigation_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(urdf REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(actionlib_msgs REQUIRED)
 find_package(cartographer_ros_msgs REQUIRED)
@@ -40,10 +42,12 @@ ament_target_dependencies(
     geometry_msgs
     gridmap
     map_manager
+    map_msgs
     nav_msgs
     navigation_interface
     pluginlib
     tf2_ros
+    urdf
     yaml-cpp
     tf2_geometry_msgs
     std_srvs
