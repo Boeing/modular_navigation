@@ -119,7 +119,7 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
       pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
       tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
       c_loader_("navigation_interface", "navigation_interface::Controller"),
-
+      tfBuffer_(rclcpp::Clock::Clock::SharedPtr()),
       tfListener_(
           tfBuffer_),  // See
                        // https://docs.ros2.org/foxy/api/tf2_ros/classtf2__ros_1_1Buffer.html#a9ae70eade08c8ea7f6cc1b3ad3ec0d4f
