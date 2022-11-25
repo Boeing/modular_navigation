@@ -103,7 +103,7 @@ class Autonomy : public rclcpp::Node
     // rclcpp::Node::SharedPtr nh_ = nullptr;
 
     std::mutex goal_mutex_;
-    std::unique_ptr<GoalHandleDrive> goal_;  // CHECK; Should this be a shared_ptr<>
+    std::shared_ptr<GoalHandleDrive> goal_;  // CHECK; Should this be a shared_ptr<>
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     // actionlib::ActionServer<autonomy::DriveAction> as_;

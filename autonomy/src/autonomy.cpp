@@ -570,7 +570,6 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         if (layered_map_->map() && path_planner_map_data_ && trajectory_planner_map_data_ && controller_map_data_)
         {
             RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Accepted new goal: " << rclcpp_action::to_string(uuid));
-            goal_ = std::make_unique<GoalHandleDrive>(goal);
         }
         else
         {
@@ -620,8 +619,9 @@ rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<Goa
 
 rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
-    // TODO?: This should execute the thread which launches navigation
-    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+    // this needs to return quickly to avoid blocking the executor, so spin up a new thread
+    goal_ = goal_handle;
+    std::thread{std::bind(&Autonomy::executeGoal, this), goal_handle}.detach();
 }
 
 void Autonomy::pathPlannerThread()
