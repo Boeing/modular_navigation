@@ -135,10 +135,12 @@ class RosWrapper(Node):
 
         # QoS profile, substitutes latch and queue_size args in create_publisher
         # See: https://docs.ros.org/en/rolling/Concepts/About-Quality-of-Service-Settings.html
+        # Using geometry2 latching params:
+        #https://github.com/ros2/geometry2/blob/6788c1b78fe35e1a459a9d8f184afeb79792bd71/tf2_ros/src/tf2_ros/static_transform_broadcaster.py#L55
         self.qos_profile = QoSProfile(depth=100,
-                                      durability=QoSDurabilityPolicy.RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL,
-                                      history=QoSHistoryPolicy.KEEP_LAST)
-
+                durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                history=HistoryPolicy.KEEP_LAST,
+                )
         # Initialise a unit world->map transform
         self.__static_tf_pub = self.create_publisher(TFMessage, "/tf_static", self.qos_profile)
         self.__static_tf_pub.publish(
@@ -177,9 +179,9 @@ class RosWrapper(Node):
 
         self.logger.info('Successfully started')
 
-        # Publish every topic with a timer callback TODO comment this for latching testing...
-        timer_period = 0.5  # seconds
-        self.timer = self.create_timer(timer_period, self.timer_callback)
+        # Publish every topic with a timer callback, TODO just in case latching fails
+        #timer_period = 0.5  # seconds
+        #self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def __init_publishers(self):
         self.logger.info('Initialising publishers')
