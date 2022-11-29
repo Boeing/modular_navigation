@@ -9,7 +9,7 @@ import geometry_msgs.msg
 # import rospy
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSHistoryPolicy
+from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
 import std_msgs.msg
 import typing
 from mongoengine import DoesNotExist, ValidationError
