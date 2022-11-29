@@ -18,7 +18,7 @@ namespace pure_pursuit_controller
 class PurePursuitController : public navigation_interface::Controller
 {
   public:
-    PurePursuitController(rclcpp::Node::SharedPtr& node);
+    PurePursuitController();//rclcpp::Node::SharedPtr& node); TODO pass node to the constructor
     virtual ~PurePursuitController() override;
 
     virtual bool setTrajectory(const navigation_interface::Trajectory& trajectory) override;

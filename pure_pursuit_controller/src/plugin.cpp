@@ -341,7 +341,7 @@ navigation_interface::KinodynamicState lookAhead(const std::vector<navigation_in
 
 }  // namespace
 
-PurePursuitController::PurePursuitController(rclcpp::Node::SharedPtr& node)
+PurePursuitController::PurePursuitController()//rclcpp::Node::SharedPtr& node)
 {
     // node_ = node;
 }
