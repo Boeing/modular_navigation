@@ -1,45 +1,56 @@
 #!/usr/bin/python3
 
-import rospy
+import rclpy
+from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
+import sys
 from cartographer_ros_msgs.msg import StatusCode, StatusResponse
 from cartographer_ros_msgs.msg import SystemState
-from cartographer_ros_msgs.srv import StartLocalisation, StartLocalisationResponse
+from cartographer_ros_msgs.srv import StartLocalisation
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped, Vector3
 from std_msgs.msg import Header
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger
 from tf2_msgs.msg import TFMessage
 
-
-def start_localisation_callback(_):
-    return StartLocalisationResponse(status=StatusResponse(code=StatusCode.OK))
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 
 
-def stop_localisation_callback(_):
-    TriggerResponse(success=True)
+def start_localisation_callback(_, res):
+    return StartLocalisation.Response(status=StatusResponse(code=StatusCode.OK))
+
+
+def stop_localisation_callback(_, res):
+    Trigger.Response(success=True)
 
 
 if __name__ == '__main__':
-    rospy.init_node('fake_localisation')
+    
+    rclpy.init(args=sys.argv)
+    node = rclpy.create_node('fake_localisation')
 
-    start_loc_srv = rospy.Service(
-        name='/mapper/start_localisation',
-        service_class=StartLocalisation,
-        handler=start_localisation_callback
+    start_loc_srv = node.create_service(
+        srv_name='/mapper/start_localisation',
+        srv_type=StartLocalisation,
+        callback=start_localisation_callback
     )
-    stop_loc_srv = rospy.Service(
-        name='/mapper/stop_localisation',
-        service_class=Trigger,
-        handler=stop_localisation_callback
+    stop_loc_srv = node.create_service(
+        srv_name='/mapper/stop_localisation',
+        srv_type=Trigger,
+        callback=stop_localisation_callback
     )
 
-    pub = rospy.Publisher(name='/mapper/state', data_class=SystemState, queue_size=1, latch=True)
+    qos_profile = QoSProfile(depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            )
+
+    pub = node.create_publisher(topic='/mapper/state', msg_type=SystemState, qos_profile=qos_profile)
 
     tr = TransformStamped(
-        header=Header(frame_id='map', stamp=rospy.Time(0)),
+        header=Header(frame_id='map', stamp=node.get_clock().now().to_msg()),
         child_frame_id='odom',
         transform=Transform(
-            translation=Vector3(0, 0, 0),
-            rotation=Quaternion(0, 0, 0, 1)
+            translation=Vector3(x=0., y=0., z=0.),
+            rotation=Quaternion(x=0., y=0., z=0., w=1.)
         )
     )
 
@@ -53,7 +64,9 @@ if __name__ == '__main__':
         )
     )
 
-    static_tf_pub = rospy.Publisher("/tf_static", TFMessage, queue_size=1, latch=True)
-    static_tf_pub.publish(TFMessage(transforms=[tr]))
+    #static_tf_pub = rospy.Publisher("/tf_static", TFMessage, queue_size=1, latch=True)
+    #static_tf_pub.publish(TFMessage(transforms=[tr]))
+    tf_static_broadcaster = StaticTransformBroadcaster(node=node, qos=qos_profile)
+    tf_static_broadcaster.sendTransform(tr)
 
-    rospy.spin()
+    rclpy.spin(node)
