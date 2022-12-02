@@ -57,6 +57,13 @@ ament_target_dependencies(
 target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${YAML_CPP_LIBRARIES})
 
 install(PROGRAMS scripts/fake_localisation.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS launch/autonomy_launch.py DESTINATION share/${PROJECT_NAME})
+
+# Install Cpp executables
+install(TARGETS
+  ${PROJECT_NAME}
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(
     TARGETS ${PROJECT_NAME}
