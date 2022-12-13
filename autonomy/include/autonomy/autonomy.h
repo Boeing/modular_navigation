@@ -152,8 +152,12 @@ class Autonomy : public rclcpp::Node
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr trajectory_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr control_map_update_pub_;
 
-    tf2_ros::Buffer tfBuffer_;
-    tf2_ros::TransformListener tfListener_;
+    //tf2_ros::Buffer tfBuffer_;
+    //tf2_ros::TransformListener tfListener_;
+
+    // TODO, check 
+    std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tfListener_;
 
     std::atomic<bool> running_;
     std::atomic<bool> execution_thread_running_;

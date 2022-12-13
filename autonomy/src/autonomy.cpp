@@ -108,25 +108,24 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
 }  // namespace
 
 Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
-    : Node("autonomy_action_server"),
-      // nh_("~"), // We now inherit from rclcpp::Node this prob NOT needed
+    : Node("autonomy"), // autonomy_action_server
+    // nh_("~"), // We now inherit from rclcpp::Node this prob NOT needed
 
-      // ROS2 equivalent moved to the section below
-      // as_(this, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1), //
-      //    boost::bind(&Autonomy::cancelCallback, this, _1), false),
+    // ROS2 equivalent moved to the section below
+    // as_(this, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1), //
+    //    boost::bind(&Autonomy::cancelCallback, this, _1), false),
 
-      layer_loader_("gridmap", "gridmap::Layer"),
-      pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
-      tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
-      c_loader_("navigation_interface", "navigation_interface::Controller"),
-      tfBuffer_(rclcpp::Clock::Clock::SharedPtr()),
-      tfListener_(
-          tfBuffer_),  // See
-                       // https://docs.ros2.org/foxy/api/tf2_ros/classtf2__ros_1_1Buffer.html#a9ae70eade08c8ea7f6cc1b3ad3ec0d4f
+    layer_loader_("gridmap", "gridmap::Layer"),
+    pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
+    tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
+    c_loader_("navigation_interface", "navigation_interface::Controller"),
 
-      running_(false), execution_thread_running_(false), controller_done_(false),
+    //tfBuffer_(this->get_clock()),
+    //tfListener_(tfBuffer_),
 
-      current_path_(nullptr), current_trajectory_(nullptr)
+    running_(false), execution_thread_running_(false), controller_done_(false),
+
+    current_path_(nullptr), current_trajectory_(nullptr)
 
 {
     // using namespace std::placeholders;
@@ -137,6 +136,12 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
         std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1));
 
     RCLCPP_INFO(rclcpp::get_logger(""), "Starting");
+
+    //tfBuffer_(this->get_clock());
+    //tfListener_(tfBuffer_);
+
+    tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+    tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
     std::string navigation_config = "";
     get_parameter<std::string>("~navigation_config", navigation_config);
@@ -526,7 +531,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         geometry_msgs::msg::TransformStamped transform;
         try
         {
-            transform = tfBuffer_.lookupTransform(global_frame_, goal->target_pose.header.frame_id,
+            transform = tfBuffer_->lookupTransform(global_frame_, goal->target_pose.header.frame_id,
                                                   rclcpp::Time(0));  // ros::Time(0)
         }
         catch (tf2::TransformException& ex)
