@@ -144,11 +144,10 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
     std::string navigation_config = "";
-    get_parameter<std::string>("~navigation_config", navigation_config);
 
-    if (navigation_config.empty())
+    if (this->get_parameter("navigation_config", navigation_config))
     {
-        throw std::invalid_argument("Could not get ~navigation_config");
+        throw std::invalid_argument("Could not get navigation_config param");
     }
 
     // TODO: maybe check exception rclcpp::ParameterType::PARAMETER_NOT_SET.
@@ -186,9 +185,12 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
 
     robot_tracker_.reset(new gridmap::RobotTracker());
     urdf::Model urdf;
-    // See https://github.com/ros2/urdf/blob/humble/urdf/src/model.cpp
-    // for urdf initialization in ros2
-    urdf.initString("robot_description");  // initParam("robot_description"); TODO check this is equivalent
+    // Recover robot_description param form robot_state_publisher_node 
+    // TODO consider passing robot_state_publisher_node as an optional arg
+    auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, "robot_state_publisher");
+    auto robot_description_param = parameters_client->get_parameters({"robot_description"});
+
+    urdf.initString(robot_description_param[0].value_to_string());  // initParam("robot_description"); TODO check this is equivalent
     urdf_tree_.reset(new gridmap::URDFTree(urdf));
 
     const YAML::Node costmap_config = root_config["costmap"];
@@ -201,8 +203,6 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 
     // TODO: Look for transport_hints in ros2 QoS for TcpNoDelay option
-    // TODO: Latching issue: https://gitlab.com/mtdi/pi9419/boeing/modular_navigation/-/issues/2
-    // See https://docs.ros2.org/foxy/api/rclcpp/classrclcpp_1_1Node.html#ad1dfc9d04d67ab93353e04a7df72bc9a
 
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "/odom", 1000, std::bind(&Autonomy::odomCallback, this, std::placeholders::_1));
