@@ -2,19 +2,20 @@
 
 import struct
 import unittest
-from PIL import Image, ImageDraw
 from io import BytesIO
 
+import matplotlib
 import rospy
 import rostest
 from geometry_msgs.msg import Point, Pose, Quaternion
+from map_manager.msg import MapInfo
+from map_manager.srv import (AddMap, AddMapRequest, AddMapResponse,
+                             SetActiveMap, SetActiveMapRequest,
+                             SetActiveMapResponse)
 from nav_msgs.msg import MapMetaData
+from PIL import Image, ImageDraw
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import UInt8MultiArray
-
-from map_manager.msg import MapInfo
-from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
-from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
 
 
 class TestMapManager(unittest.TestCase):
@@ -71,4 +72,5 @@ class TestMapManager(unittest.TestCase):
 if __name__ == '__main__':
     rospy.init_node('TestMapManager')
 
+    matplotlib.use('Agg')
     rostest.rosrun('map_manager', 'test_manager', TestMapManager)

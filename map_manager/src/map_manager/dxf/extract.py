@@ -7,23 +7,21 @@ import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import ezdxf
+import matplotlib.pyplot as plt
 import numpy as np
 from ezdxf.colors import DXF_DEFAULT_COLORS, int2rgb
 from ezdxf.entities.boundary_paths import BoundaryPathType
 from ezdxf.entities.circle import Circle
 from ezdxf.entities.dxfgfx import DXFGraphic
+from ezdxf.entities.dxfgroups import DXFGroup, GroupCollection
 from ezdxf.entities.hatch import Hatch
 from ezdxf.entities.insert import Insert
 from ezdxf.entities.layer import Layer
-from ezdxf.entities.dxfgroups import DXFGroup, GroupCollection
+from graph_map.area import Area, Color, Region, Zone
+from graph_map.node import Edge, Node
 from shapely.geometry import Polygon
 from shapely.geometry.base import CAP_STYLE, JOIN_STYLE
 from shapely.geometry.linestring import LineString
-
-from graph_map.node import Edge, Node
-from graph_map.area import Area, Region, Zone, Color
-
-import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
@@ -539,7 +537,7 @@ def extract_zones(doc) -> Dict[str, Zone]:
     zones: Dict[str, Zone] = dict()
 
     layers: Iterable[Layer] = doc.layers
-    for layer_count, layer in enumerate(layers):
+    for layer in layers:
         thickness: float = 0.2
 
         zone_id, tags = split_layer_name(layer.get_dxf_attrib('name'))
