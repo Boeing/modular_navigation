@@ -1,19 +1,21 @@
 import json
 import logging
-import networkx as nx
-import matplotlib.pyplot as plt
-from typing import Dict, Optional, Iterable, List, Tuple, Final
-from shapely.geometry import Point, Polygon
-from geometry_msgs.msg import Polygon as PolygonMsg
+from typing import Dict, Final, Iterable, List, Optional, Tuple
 
-from graph_map.util import SimpleDictProtocol, PoseLike
-from graph_map.graph_exceptions import AreaError, UnknownAreaError, InconsistentTreeAreaError
-from graph_map.util import to_simple, dunder_name, Versioned
-from graph_map.msg import Zone as ZoneMsg
+import matplotlib.pyplot as plt
+import networkx as nx
+from geometry_msgs.msg import Polygon as PolygonMsg
+from graph_map.graph_exceptions import (AreaError, InconsistentTreeAreaError,
+                                        UnknownAreaError)
 from graph_map.msg import Region as RegionMsg
+from graph_map.msg import Zone as ZoneMsg
+from graph_map.util import (PoseLike, SimpleDictProtocol, Versioned,
+                            dunder_name, to_simple)
+from shapely.geometry import Point, Polygon
+from std_msgs.msg import ColorRGBA
+
 # from graph_map.node import Node
 
-from std_msgs.msg import ColorRGBA
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +39,14 @@ class Color(SimpleDictProtocol):
         return {'r': self.r, 'g': self.g, 'b': self.b, 'a': self.a}
 
     def __eq__(self, o: object) -> bool:
-        assert(isinstance(o, Color))
+        assert (isinstance(o, Color))
 
         equiv = [
-                    self.r == o.r,
-                    self.g == o.g,
-                    self.b == o.b,
-                    self.a == o.a
-                ]
+            self.r == o.r,
+            self.g == o.g,
+            self.b == o.b,
+            self.a == o.a
+        ]
 
         return all(equiv)
 
@@ -54,9 +56,9 @@ class Region(SimpleDictProtocol):
     ATTRIB_MAP = {'points': 'points',
                   'color': dunder_name('color', __class_name)}
 
-    def __init__(self, points: Iterable[Iterable[float]], color: Color = Color()):
+    def __init__(self, points: Iterable[Iterable[float]], color: Optional[Color] = None):
         self.__polygon = Polygon(points).simplify(1e-4)  # simplify can fix some issues like duplicate points
-        self.__color = color
+        self.__color = color or Color()
 
     @classmethod
     def from_dict(cls, attrib_dict):
@@ -162,13 +164,13 @@ class Area(Versioned, SimpleDictProtocol):
         return hash(self.__id)
 
     def __eq__(self, other: 'Area'):
-        assert(isinstance(other, Area))
+        assert (isinstance(other, Area))
 
         equiv = [
-                    self.id == other.id,
-                    self.display_name == other.display_name,
-                    self.regions == other.regions
-                ]
+            self.id == other.id,
+            self.display_name == other.display_name,
+            self.regions == other.regions
+        ]
 
         return all(equiv)
 
@@ -239,7 +241,7 @@ class Area(Versioned, SimpleDictProtocol):
         else:
             children_levels = set()
             for child in self.children:
-                assert(child is not self)
+                assert (child is not self)
                 children_levels.add(child.level)
             if len(children_levels) > 1:
                 # Children have different levels. Something is wrong with our tree.
@@ -269,7 +271,7 @@ class Area(Versioned, SimpleDictProtocol):
 
         generations = max(1, generations)
         current_area: 'Area' = self
-        for i in range(generations):
+        for _ in range(generations):
             current_area = next(current_area.tree.predecessors(current_area), None)
 
         return current_area
@@ -410,9 +412,9 @@ class Zone(Versioned, SimpleDictProtocol):
         else:
             self.__regions: List[Region] = list(regions)
 
-        assert(isinstance(drivable, bool))
+        assert (isinstance(drivable, bool))
         self.__drivable = drivable
-        assert(isinstance(cost, float))
+        assert (isinstance(cost, float))
         self.__cost = cost
         if isinstance(attr, dict):
             self.__attr = attr
@@ -433,16 +435,16 @@ class Zone(Versioned, SimpleDictProtocol):
         return new
 
     def __eq__(self, other: 'Zone'):
-        assert(isinstance(other, Zone))
+        assert (isinstance(other, Zone))
 
         equiv = [
-                    self.id == other.id,
-                    self.display_name == other.display_name,
-                    self.regions == other.regions,
-                    self.drivable == other.drivable,
-                    self.cost == other.cost,
-                    self.attr == other.attr
-                ]
+            self.id == other.id,
+            self.display_name == other.display_name,
+            self.regions == other.regions,
+            self.drivable == other.drivable,
+            self.cost == other.cost,
+            self.attr == other.attr
+        ]
 
         return all(equiv)
 
