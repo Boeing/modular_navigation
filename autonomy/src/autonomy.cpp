@@ -43,7 +43,7 @@ std::shared_ptr<PluginType> load(const YAML::Node& parameters, const std::string
     try
     {
         const std::string class_name = parameters[planner_name].as<std::string>();
-        std::shared_ptr<PluginType> sp(loader.createUnmanagedInstance(class_name));
+        std::shared_ptr<PluginType> sp(loader.createUnmanagedInstance(class_name)); // TODO changed to sharedInstance and check classname content
 
         const YAML::Node plugin_params = parameters[loader.getName(class_name)];
 
@@ -109,19 +109,11 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
 
 Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
     : Node("autonomy"), // autonomy_action_server
-    // nh_("~"), // We now inherit from rclcpp::Node this prob NOT needed
-
-    // ROS2 equivalent moved to the section below
-    // as_(this, "/autonomy", boost::bind(&Autonomy::goalCallback, this, _1), //
-    //    boost::bind(&Autonomy::cancelCallback, this, _1), false),
 
     layer_loader_("gridmap", "gridmap::Layer"),
     pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
     tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
     c_loader_("navigation_interface", "navigation_interface::Controller"),
-
-    //tfBuffer_(this->get_clock()),
-    //tfListener_(tfBuffer_),
 
     running_(false), execution_thread_running_(false), controller_done_(false),
 
@@ -136,9 +128,6 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
         std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1));
 
     RCLCPP_INFO(rclcpp::get_logger(""), "Starting");
-
-    //tfBuffer_(this->get_clock());
-    //tfListener_(tfBuffer_);
 
     tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
@@ -185,7 +174,7 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
 
     robot_tracker_.reset(new gridmap::RobotTracker());
     urdf::Model urdf;
-    // Recover robot_description param form robot_state_publisher_node 
+    // Recover robot_description param from robot_state_publisher_node 
     // TODO consider passing robot_state_publisher_node as an optional arg
     auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, "robot_state_publisher");
     auto robot_description_param = parameters_client->get_parameters({"robot_description"});
@@ -221,6 +210,20 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
         "trajectory_map_update_time", rclcpp::QoS(0).transient_local());  
     control_map_update_pub_ = this->create_publisher<std_msgs::msg::Float64>(
         "control_map_update_time", rclcpp::QoS(0).transient_local()); 
+
+    // Create the planners
+    path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr);
+    //std::shared_ptr<navigation_interface::PathPlanner> path_planner_ = pp_loader_.createSharedInstance("astar_planner::AStarPlanner");
+    //path_planner_->initialize(root_config["AStarPlanner"], nullptr);
+
+    trajectory_planner_ =
+        load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr);
+    //std::shared_ptr<navigation_interface::TrajectoryPlanner> trajectory_planner_ = tp_loader_.createSharedInstance("sim_band_planner::SimBandPlanner");
+    //trajectory_planner_->initialize(root_config["SimBandPlanner"], nullptr);
+
+    controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr);
+    //std::shared_ptr<navigation_interface::Controller> controller_ = c_loader_.createSharedInstance("pure_pursuit_controller::PurePursuitController");
+    //controller_->initialize(root_config["PurePursuitController"], nullptr);
 
     active_map_sub_ = this->create_subscription<map_manager::msg::MapInfo>(
         "/map_manager/active_map", rclcpp::QoS(10).transient_local(), std::bind(&Autonomy::activeMapCallback, this, std::placeholders::_1));
@@ -310,7 +313,7 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
         // std::chrono::milliseconds((int) (1000.0*maximum_map_server_delay)));
 
         rcpputils::assert_true(zones_res == rclcpp::FutureReturnCode::SUCCESS);
-
+        
         layered_map_->setMap(map_res_future.get()->map_info, og_res_future.get()->grid, zones_res_future.get()->zones);
     }
     else
@@ -371,7 +374,8 @@ void Autonomy::executionThread()
             if (goal_)
             {
                 goal_lock.unlock();
-                executeGoal();
+//                executeGoal(); // UNCOMMENT DEBUG
+                while(goal_); // DEBUG
             }
         }
 
@@ -400,13 +404,16 @@ void Autonomy::executionThread()
     }
 }
 
-void Autonomy::executeGoal()
+void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Executing goal!"); // DEBUG
+
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        // RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Executing goal: " << std::to_string(goal_->get_goal_id()));
+        //RCLCPP_INFO_STREAM(rclcpp::get_logger(""),"Executing goal: " << goal_->order); // COMMENTED FSR
         current_goal_pub_->publish(transformed_goal_pose_);
     }
+
 
     // make sure no threads are running
     rcpputils::assert_true(!running_);
@@ -421,7 +428,7 @@ void Autonomy::executeGoal()
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this));
+    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this, goal_handle));
     trajectory_planner_thread_.reset(new std::thread(&Autonomy::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&Autonomy::controllerThread, this));
 
@@ -430,14 +437,14 @@ void Autonomy::executeGoal()
     {
         {
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            if (goal_->is_canceling())  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
+            if (goal_handle->is_canceling())  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
             {
                 break;
             }
 
             if (controller_done_)
             {
-                goal_->succeed(std::make_shared<autonomy_interface::action::Drive::Result>());  //, "Goal reached");
+                goal_handle->succeed(std::make_shared<autonomy_interface::action::Drive::Result>());  //, "Goal reached");
                 break;
             }
         }
@@ -550,8 +557,8 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         if (goal_)
         {
             // Goal is currently finishing up. Wait for it to gracefully finish.
-            if (goal_->is_canceling() ||  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED ||
-                goal_->is_executing())    // getGoalStatus().status == actionlib_msgs::GoalStatus::SUCCEEDED)
+            if (goal_)// TODO DEBUG//goal_->is_canceling() ||  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED ||
+                //goal_->is_executing())    // getGoalStatus().status == actionlib_msgs::GoalStatus::SUCCEEDED)
             {
                 while (goal_)
                 {
@@ -605,9 +612,11 @@ rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<Goa
         // autonomy_interface::action::Drive::Feedback feedback;
         auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
         feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
-        goal_->publish_feedback(feedback);
+        goal_handle->publish_feedback(feedback);
         (void)goal_;
         // goal_->canceled();  // Setting as cancelled will let the executeGoal finish gracefully
+
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Cancelled goal: "); // DEBUG
 
         return rclcpp_action::CancelResponse::ACCEPT;
     }
@@ -618,11 +627,14 @@ rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<Goa
 rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
     // this needs to return quickly to avoid blocking the executor, so spin up a new thread
-    goal_ = goal_handle;
-    std::thread{std::bind(&Autonomy::executeGoal, this), goal_handle}.detach();
+    goal_ = goal_handle->get_goal();
+    //using namespace std::placeholders;
+    //RCLCPP_INFO(rclcpp::get_logger(""), "Accepted new goal!"); // DEBUG
+    //std::thread{std::bind(&Autonomy::executeGoal, this, std::placeholders::_1), goal_handle}.detach(); // already called
+    executeGoal(goal_handle);
 }
 
-void Autonomy::pathPlannerThread()
+void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
     // see pag.11 for porting ros::WallRate
     // https://info.rti.com/hubfs/podcast/rti%20site/tile/White%20paper%20on%20ROS%201%20to%20ROS%202%20Transition_Final.pdf
@@ -663,7 +675,7 @@ void Autonomy::pathPlannerThread()
             {
                 std::lock_guard<std::mutex> lock(path_mutex_);
                 rcpputils::assert_true(goal_ != nullptr);
-                goal_->publish_feedback(feedback);
+                goal_handle->publish_feedback(feedback);
             }
 
             RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Robot not localised. Unable to plan!");
@@ -731,7 +743,7 @@ void Autonomy::pathPlannerThread()
                 {
                     std::lock_guard<std::mutex> lock(goal_mutex_);
                     rcpputils::assert_true(goal_ != nullptr);
-                    goal_->publish_feedback(feedback);
+                    goal_handle->publish_feedback(feedback);
                 }
 
                 rate.sleep();
@@ -757,16 +769,16 @@ void Autonomy::pathPlannerThread()
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
             rcpputils::assert_true(goal_ != nullptr);
             goal_pose = convert(transformed_goal_pose_.pose);
-            goal_sample_settings.std_x = goal_->get_goal()->std_x;
-            goal_sample_settings.std_y = goal_->get_goal()->std_y;
-            goal_sample_settings.std_w = goal_->get_goal()->std_w;
-            goal_sample_settings.max_samples = goal_->get_goal()->max_samples;
+            goal_sample_settings.std_x = goal_->std_x;
+            goal_sample_settings.std_y = goal_->std_y;
+            goal_sample_settings.std_w = goal_->std_w;
+            goal_sample_settings.max_samples = goal_->max_samples;
 
-            avoid_distance = goal_->get_goal()->avoid_distance;
+            avoid_distance = goal_->avoid_distance;
 
-            backwards_mult = goal_->get_goal()->backwards_mult;
-            strafe_mult = goal_->get_goal()->strafe_mult;
-            rotation_mult = goal_->get_goal()->rotation_mult;
+            backwards_mult = goal_->backwards_mult;
+            strafe_mult = goal_->strafe_mult;
+            rotation_mult = goal_->rotation_mult;
 
             // TODO
             // if (std::to_string(goal_->get_goal_id()) != last_goal_id)
@@ -927,7 +939,7 @@ void Autonomy::pathPlannerThread()
         {
             std::lock_guard<std::mutex> lock(path_mutex_);
             rcpputils::assert_true(goal_ != nullptr);
-            goal_->publish_feedback(feedback);
+            goal_handle->publish_feedback(feedback);
         }
 
         rate.sleep();
@@ -1052,7 +1064,7 @@ void Autonomy::trajectoryPlannerThread()
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
             rcpputils::assert_true(goal_ != nullptr);
 
-            avoid_distance = goal_->get_goal()->avoid_distance;
+            avoid_distance = goal_->avoid_distance;
         }
 
         navigation_interface::TrajectoryPlanner::Result result;
@@ -1220,12 +1232,12 @@ void Autonomy::controllerThread()
             std::lock_guard<std::mutex> goal_lock(goal_mutex_);
             rcpputils::assert_true(goal_ != nullptr);
 
-            max_velocity[0] = goal_->get_goal()->max_velocity_x;
-            max_velocity[1] = goal_->get_goal()->max_velocity_y;
-            max_velocity[2] = goal_->get_goal()->max_velocity_w;
+            max_velocity[0] = goal_->max_velocity_x;
+            max_velocity[1] = goal_->max_velocity_y;
+            max_velocity[2] = goal_->max_velocity_w;
 
-            xy_goal_tolerance = goal_->get_goal()->xy_goal_tolerance;
-            yaw_goal_tolerance = goal_->get_goal()->yaw_goal_tolerance;
+            xy_goal_tolerance = goal_->xy_goal_tolerance;
+            yaw_goal_tolerance = goal_->yaw_goal_tolerance;
         }
 
         navigation_interface::Controller::Result result;

@@ -23,7 +23,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(actionlib_msgs REQUIRED)
 find_package(cartographer_ros_msgs REQUIRED)
 find_package(${PROJECT_NAME}_interface REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread chrono)
 
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})

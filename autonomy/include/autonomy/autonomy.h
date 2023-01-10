@@ -88,14 +88,14 @@ class Autonomy : public rclcpp::Node
     void activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map);
 
     void executionThread();
-    void executeGoal();
+    void executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle);
 
     rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid,
                                              std::shared_ptr<const Drive::Goal> goal);
     rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
     rclcpp_action::GoalResponse acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
 
-    void pathPlannerThread();
+    void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void trajectoryPlannerThread();
     void controllerThread();
 
@@ -103,7 +103,8 @@ class Autonomy : public rclcpp::Node
     // rclcpp::Node::SharedPtr nh_ = nullptr;
 
     std::mutex goal_mutex_;
-    std::shared_ptr<GoalHandleDrive> goal_;  // CHECK; Should this be a shared_ptr<>
+    //std::shared_ptr<GoalHandleDrive> goal_; // REMOVE 
+    std::shared_ptr<const Drive::Goal> goal_;
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     // actionlib::ActionServer<autonomy::DriveAction> as_;

@@ -1,6 +1,6 @@
-path_planner: "astar_planner/AStarPlanner"
-trajectory_planner: "sim_band_planner/SimBandPlanner"
-controller: "pure_pursuit_controller/PurePursuitController"
+path_planner: "astar_planner::AStarPlanner"
+trajectory_planner: "sim_band_planner::SimBandPlanner"
+controller: "pure_pursuit_controller::PurePursuitController"
 
 path_planner_frequency: 0.5
 trajectory_planner_frequency: 8.0
@@ -10,10 +10,10 @@ OmniRRTPlanner:
     robot_radius: 0.210
 
 AStarPlanner:
-    debug_viz: true
+    debug_viz: false
 
 SimBandPlanner:
-    debug_viz: true
+    debug_viz: false
     robot_radius: 0.210
     desired_speed: 0.15
     spline: false
@@ -24,9 +24,9 @@ PurePursuitController:
 costmap:
 
   layers:
-    - {name: laser_data, type: 'gridmap::ObstacleLayer'}
+#    - {name: laser_data, type: 'gridmap::ObstacleLayer'}
 #    - {name: sonar_data, type: 'gridmap::ObstacleLayer'}
-    - {name: realsense_data, type: 'gridmap::ObstacleLayer'}
+#    - {name: realsense_data, type: 'gridmap::ObstacleLayer'}
 
   base_map:
     lethal_threshold: 50
@@ -35,9 +35,9 @@ costmap:
     time_decay: true
     time_decay_frequency: 0.25
     data_sources:
-      - {name: laser_front, type: 'gridmap::LaserData'}
-      - {name: laser_back, type: 'gridmap::LaserData'}
-    laser:
+      - {name: scan, type: 'gridmap::LaserData'}
+#      - {name: laser_back, type: 'gridmap::LaserData'}
+    scan:
       sub_sample: 10
 
   sonar_data:

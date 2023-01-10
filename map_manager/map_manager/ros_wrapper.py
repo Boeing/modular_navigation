@@ -99,26 +99,7 @@ class RosWrapper(Node):
         except pymongo.errors.ServerSelectionTimeoutError as e:
             self.logger.error("Mongodb is offline", exc_info=e)
             raise e
-        """if node is None:
-            logger.info('No node passed to RosWrapper.')
-            return
-        """
 
-        """self.__add_map = rospy.Service('~add_map', AddMap, handler=self.__add_map_cb)
-
-        self.__delete_map = rospy.Service('~delete_map', DeleteMap, handler=self.__delete_map_cb)
-
-        self.__get_map_info = rospy.Service('~get_map_info', GetMapInfo, handler=self.__get_map_info_cb)
-        self.__get_og = rospy.Service('~get_occupancy_grid', GetOccupancyGrid, handler=self.__get_occupancy_grid_cb)
-        self.__get_node_graph = rospy.Service('~get_node_graph', GetNodeGraph, handler=self.__get_node_graph_cb)
-        self.__get_area_tree = rospy.Service('~get_area_tree', GetAreaTree, handler=self.__get_area_tree_cb)
-        self.__get_zones = rospy.Service('~get_zones', GetZones, handler=self.__get_zones_cb)
-
-        self.__list_maps = rospy.Service('~list_maps', ListMaps, handler=self.__list_maps_cb)
-
-        self.__set_active_map = rospy.Service('~set_active_map', SetActiveMap, handler=self.__set_active_map_cb)
-        self.__get_active_map = rospy.Service('~get_active_map', GetActiveMap, handler=self.__get_active_map_cb)
-        """
         self.__add_map = self.create_service(AddMap, 'add_map', self.__add_map_cb)
         self.__delete_map = self.create_service(DeleteMap, 'delete_map', self.__delete_map_cb)
 
@@ -245,7 +226,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(AddMap.Response)
-    def __add_map_cb(self, req: AddMap.Request) -> AddMap.Response:
+    def __add_map_cb(self, req: AddMap.Request, res) -> AddMap.Response:
         self.logger.info('Request to add a new Map: {}'.format(req.map_info.name))
 
         if len(req.occupancy_grid.data) <= 0:
@@ -279,7 +260,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(DeleteMap.Response)
-    def __delete_map_cb(self, req: DeleteMap.Request) -> DeleteMap.Response:
+    def __delete_map_cb(self, req: DeleteMap.Request, res) -> DeleteMap.Response:
         self.logger.info('Request to delete Map: {}'.format(req.map_name))
 
         obj = Map.objects(name=req.map_name).get()
@@ -298,7 +279,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(GetOccupancyGrid.Response)
-    def __get_occupancy_grid_cb(self, req: GetOccupancyGrid.Request) -> GetOccupancyGrid.Response:
+    def __get_occupancy_grid_cb(self, req: GetOccupancyGrid.Request, res) -> GetOccupancyGrid.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -312,7 +293,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetMapInfo.Response)
-    def __get_map_info_cb(self, req: GetMapInfo.Request) -> GetMapInfo.Response:
+    def __get_map_info_cb(self, req: GetMapInfo.Request, res) -> GetMapInfo.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -326,7 +307,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetZones.Response)
-    def __get_zones_cb(self, req: GetZones.Request) -> GetZones.Response:
+    def __get_zones_cb(self, req: GetZones.Request, res) -> GetZones.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -340,7 +321,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetNodeGraph.Response)
-    def __get_node_graph_cb(self, req: GetNodeGraph.Request) -> GetNodeGraph.Response:
+    def __get_node_graph_cb(self, req: GetNodeGraph.Request, res) -> GetNodeGraph.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -354,7 +335,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetAreaTree.Response)
-    def __get_area_tree_cb(self, req: GetAreaTree.Request) -> GetAreaTree.Response:
+    def __get_area_tree_cb(self, req: GetAreaTree.Request, res) -> GetAreaTree.Response:
         # map_name: an empty id will use the currently loaded map
         if not req.map_name:
             if self.__map_name:
@@ -372,7 +353,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(ListMaps.Response)
-    def __list_maps_cb(self, _: ListMaps.Request) -> ListMaps.Response:
+    def __list_maps_cb(self, _: ListMaps.Request, res) -> ListMaps.Response:
         return ListMaps.Response(
             active_map=self.__map_name if self.__map_name else '',
             map_infos=[obj.get_map_info_msg() for obj in Map.objects],
@@ -384,7 +365,7 @@ class RosWrapper(Node):
     #
 
     @exception_wrapper(SetActiveMap.Response)
-    def __set_active_map_cb(self, req: SetActiveMap.Request) -> SetActiveMap.Response:
+    def __set_active_map_cb(self, req: SetActiveMap.Request, res) -> SetActiveMap.Response:
         self.logger.info('Request to set active Map: {}'.format(req.map_name))
 
         Map.objects(name=req.map_name).get()
@@ -395,7 +376,7 @@ class RosWrapper(Node):
         )
 
     @exception_wrapper(GetActiveMap.Response)
-    def __get_active_map_cb(self, req: GetActiveMap.Request) -> GetActiveMap.Response:
+    def __get_active_map_cb(self, req: GetActiveMap.Request, res) -> GetActiveMap.Response:
         return GetActiveMap.Response(
             active_map=self.__map_name,
             success=True

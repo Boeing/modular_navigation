@@ -157,7 +157,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
         last_updated_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
-        const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
+        //const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
+        const std::string _topic = parameters["topic"].as<std::string>("/" + name_);
 
         g_node_ = rclcpp::Node::make_shared(name_);
         executor_.add_node(g_node_);
@@ -181,10 +182,6 @@ template <typename MsgType> class TopicDataSource : public DataSource
         auto subscriber_ = g_node_->create_subscription<MsgType>(_topic,
                                                                  100,  // callback_queue_size_,
                                                                  cb_func, sub_opts_);
-
-        // Add the node to the executor_
-        // rclcpp::executors::SingleThreadedExecutor executor_;
-        executor_.add_node(g_node_);
 
         // opts.transport_hints = ros::TransportHints();
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
@@ -333,6 +330,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 std::lock_guard<std::mutex> l(last_updated_mutex_);
                 last_updated_ = msg->header.stamp;
             }
+            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "SUCCEDED! to process data for '" << name_ << "'");//DEBUG
         }
         else
         {
