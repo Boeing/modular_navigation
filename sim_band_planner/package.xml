@@ -25,12 +25,7 @@
 
     <test_depend>rosunit</test_depend>-->
 
-    <!--
-    Plugin export in ROS2 is done through the CMakeLists
-    <export>
-        <navigation_interface plugin="${prefix}/plugin.xml"/>
-    </export>
-    -->
+    <!--Plugin export in ROS2 is done through the CMakeLists-->
     <export>
         <build_type>ament_cmake</build_type>
     </export>

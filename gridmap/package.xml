@@ -40,10 +40,7 @@
   <!--<test_depend>rostest</test_depend>-->
   <!--<test_depend>rosunit</test_depend>-->
 
-  <!-- Plugin export in ROS2 is done through the CMakeLists
-      <export>
-      <gridmap plugin="${prefix}/plugins.xml"/>
-    </export>-->
+  <!-- Plugin export in ROS2 is done through the CMakeLists-->
   <export>
     <build_type>ament_cmake</build_type>
   </export>

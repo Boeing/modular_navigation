@@ -52,18 +52,20 @@ class PathPlanner
 
     void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);        
         map_data_ = map_data;
         onInitialize(parameters);
     }
 
     void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
     {
-        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner");
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner DEEEE"); // DEBUG
         std::lock_guard<std::mutex> lock(mutex_);
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner");
         map_data_ = map_data;
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner -> map TO BE changed"); // DEBUG
         onMapDataChanged();
-        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner DONE");
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner DONE") ;// DEBUG
     }
 
   protected:
@@ -72,4 +74,4 @@ class PathPlanner
 };
 }  // namespace navigation_interface
 
-#endif
+#endif //NAVIGATION_INTERFACE_PATH_PLANNER_H

@@ -24,7 +24,7 @@ find_package(OpenCV 4 REQUIRED)
 find_package(graph_map REQUIRED)
 find_package(cartographer_ros_msgs REQUIRED)
 find_package(map_manager REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread chrono)
 
 find_package(Eigen3 REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS} ${Boost_INCLUDE_DIRS})
@@ -36,10 +36,11 @@ include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 
 # include_directories(include)
 
-add_library(${PROJECT_NAME} src/astar.cpp src/costmap.cpp src/node.cpp src/plugin.cpp src/visualisation.cpp)
+add_library(${PROJECT_NAME} SHARED src/astar.cpp src/costmap.cpp src/node.cpp src/plugin.cpp src/visualisation.cpp)
 
-target_include_directories(
-    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+target_include_directories(${PROJECT_NAME} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
+    $<INSTALL_INTERFACE:include>
 )
 
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -67,7 +68,8 @@ ament_target_dependencies(
 # endif()
 
 # Plugging Declaration
-pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
+#pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
+pluginlib_export_plugin_description_file(navigation_interface plugin.xml)
 
 install(
     TARGETS ${PROJECT_NAME}
@@ -77,11 +79,18 @@ install(
     RUNTIME DESTINATION bin
 )
 
+install(
+    DIRECTORY include/
+    DESTINATION include
+    PATTERN ".svn" EXCLUDE
+)
+
 # install( DIRECTORY include/${PROJECT_NAME}/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION} PATTERN ".svn" EXCLUDE )
 
 ament_export_libraries(${PROJECT_NAME})
 ament_export_targets(export_${PROJECT_NAME})
 
+ament_export_include_directories(include)
 # install(FILES plugin.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 ament_package()

@@ -1,5 +1,5 @@
 <class_libraries>
-    <library path="libgridmap">
+    <library path="gridmap">
         <class type="gridmap::DepthData" base_class_type="gridmap::DataSource"></class>
         <class type="gridmap::CompressedDepthData" base_class_type="gridmap::DataSource"></class>
         <class type="gridmap::RangeData" base_class_type="gridmap::DataSource"></class>

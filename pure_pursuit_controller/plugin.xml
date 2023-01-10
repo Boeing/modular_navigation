@@ -1,8 +1,8 @@
-<library path="lib/libpure_pursuit_controller">
-    <class name="pure_pursuit_controller/PurePursuitController" type="pure_pursuit_controller::PurePursuitController"
-        base_class_type="navigation_interface::Controller">
+<library path="pure_pursuit_controller">
+    <class  type="pure_pursuit_controller::PurePursuitController"
+           base_class_type="navigation_interface::Controller">
         <description>
             Pure pursuit for omni directional robots
-</description>
+        </description>
     </class>
 </library>

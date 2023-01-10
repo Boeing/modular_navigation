@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 project(gridmap)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,7 +34,7 @@ find_package(rcutils REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
 find_package(yaml-cpp REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread chrono)
 
 include_directories(SYSTEM ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
@@ -46,6 +46,7 @@ include_directories(include ${YAML_CPP_INCLUDE_DIR})
 
 add_library(
     ${PROJECT_NAME}
+    SHARED
     src/grids/grid_2d.cpp
     src/grids/occupancy_grid.cpp
     src/grids/probability_grid.cpp
@@ -64,6 +65,12 @@ add_library(
     src/robot_tracker.cpp
 )
 
+# allow to find headers, see
+# https://docs.ros.org/en/foxy/How-To-Guides/Ament-CMake-Documentation.html#adding-files-and-headers
+target_include_directories(
+    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+)
+
 ament_target_dependencies(
     ${PROJECT_NAME}
     Eigen3
@@ -76,12 +83,7 @@ ament_target_dependencies(
     nav_msgs
     geometry_msgs
     map_manager
-)
-
-# allow to find headers, see
-# https://docs.ros.org/en/foxy/How-To-Guides/Ament-CMake-Documentation.html#adding-files-and-headers
-target_include_directories(
-    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+    image_geometry
 )
 
 # Link packages against new deps add_dependencies(${PROJECT_NAME}
@@ -117,5 +119,7 @@ install(
 
 ament_export_libraries(${PROJECT_NAME})
 ament_export_targets(export_${PROJECT_NAME})
+
+ament_export_include_directories(include)
 
 ament_package()

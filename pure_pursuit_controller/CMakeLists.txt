@@ -23,7 +23,7 @@ find_package(cartographer_ros_msgs REQUIRED)
 
 add_definitions(${EIGEN3_DEFINITIONS})
 
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread chrono)
 # include_directories(include)
 include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 # target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
@@ -35,7 +35,11 @@ include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 # Followed https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Pluginlib.html#cmake-plugin-declaration
 # add_library( ${PROJECT_NAME} src/plugin.cpp )
 
-add_library(${PROJECT_NAME} include/${PROJECT_NAME}/plugin.h src/plugin.cpp)
+add_library(${PROJECT_NAME}
+    SHARED
+    #include/${PROJECT_NAME}/plugin.h
+    src/plugin.cpp
+)
 
 target_include_directories(
     ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
@@ -46,7 +50,7 @@ ament_target_dependencies(${PROJECT_NAME} Eigen3 navigation_interface gridmap pl
 # https://docs.ros.org/en/foxy/How-To-Guides/Ament-CMake-Documentation.html#adding-files-and-headers
 
 # Plugging Declaration
-pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
+pluginlib_export_plugin_description_file(navigation_interface plugin.xml)
 
 install(
     TARGETS ${PROJECT_NAME}
@@ -56,11 +60,17 @@ install(
     RUNTIME DESTINATION bin
 )
 
+install(
+    DIRECTORY include/
+    DESTINATION include
+    PATTERN ".svn" EXCLUDE
+)
 # install( DIRECTORY include/ DESTINATION include PATTERN ".svn" EXCLUDE )
 
 ament_export_libraries(${PROJECT_NAME})
 ament_export_targets(export_${PROJECT_NAME})
 
+ament_export_include_directories(include)
 # install(FILES plugin.xml DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
 
 ament_package()

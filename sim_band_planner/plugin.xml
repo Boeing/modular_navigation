@@ -1,6 +1,6 @@
-<library path="lib/libsim_band_planner_plugin">
-    <class name="sim_band_planner/SimBandPlanner" type="sim_band_planner::SimBandPlanner"
-        base_class_type="navigation_interface::TrajectoryPlanner">
+<library path="sim_band_planner">
+    <!--<class name="sim_band_planner/SimBandPlanner" type="sim_band_planner::SimBandPlanner"-->
+    <class type="sim_band_planner::SimBandPlanner" base_class_type="navigation_interface::TrajectoryPlanner">
         <description>
             Elastic Band Plugin for BaseLocalPlanner
 </description>

@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.8)
-set(CMAKE_CXX_STANDARD 14)
 project(sim_band_planner)
+
+set(CMAKE_CXX_STANDARD 14)
+
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+#set(CMAKE_CXX_FLAGS "-fPIC ${CMAKE_C_FLAGS}")
 
 # add_definitions(-std=c++11)
 
@@ -20,7 +24,7 @@ find_package(visualization_msgs REQUIRED)
 find_package(map_manager REQUIRED)
 find_package(cartographer_ros_msgs REQUIRED)
 
-find_package(Boost REQUIRED COMPONENTS system thread)
+find_package(Boost REQUIRED COMPONENTS system thread chrono)
 
 # find_package( catkin REQUIRED COMPONENTS geometry_msgs gridmap nav_msgs navigation_interface pluginlib roscpp
 # tf2_geometry_msgs tf2_ros visualization_msgs )
@@ -31,21 +35,22 @@ add_definitions(${EIGEN3_DEFINITIONS})
 
 include_directories(include)
 
-include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
+include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS}) ${Boost_INCLUDE_DIRS}
 
 # catkin_package( CATKIN_DEPENDS geometry_msgs gridmap nav_msgs navigation_interface pluginlib roscpp tf2_geometry_msgs
 # tf2_ros visualization_msgs INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME} )
 
 add_library(
     ${PROJECT_NAME}
-    include/${PROJECT_NAME}/band.h
-    include/${PROJECT_NAME}/distance_field.h
-    include/${PROJECT_NAME}/moving_window.h
-    include/${PROJECT_NAME}/plugin.h
-    include/${PROJECT_NAME}/simulate.h
-    include/${PROJECT_NAME}/spline/Spline.h
-    include/${PROJECT_NAME}/spline/SplineFitting.h
-    include/${PROJECT_NAME}/spline/SplineFwd.h
+    SHARED
+    #include/${PROJECT_NAME}/band.h
+    #include/${PROJECT_NAME}/distance_field.h
+    #include/${PROJECT_NAME}/moving_window.h
+    #include/${PROJECT_NAME}/plugin.h
+    #include/${PROJECT_NAME}/simulate.h
+    #include/${PROJECT_NAME}/spline/Spline.h
+    #include/${PROJECT_NAME}/spline/SplineFitting.h
+    #include/${PROJECT_NAME}/spline/SplineFwd.h
     src/simulate.cpp
     src/plugin.cpp
 )
@@ -71,7 +76,8 @@ ament_target_dependencies(
     pluginlib
 )
 
-pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
+#pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
+pluginlib_export_plugin_description_file(navigation_interface plugin.xml)
 
 # target_link_libraries(${PROJECT_NAME}_plugin ${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
 

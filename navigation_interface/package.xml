@@ -12,6 +12,7 @@
     <depend>gridmap</depend>
     <depend>geometry_msgs</depend>
     <depend>tf2_ros</depend>
+    <depend>pluginlib</depend>
 
     <export>
         <build_type>ament_cmake</build_type>
