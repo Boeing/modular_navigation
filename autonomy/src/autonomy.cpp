@@ -132,15 +132,14 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     tfBuffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
     tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
-    std::string navigation_config = "/home/fran/nav_ros2_ws/src/autonomy/test/navigation.yaml"; // TODO LEAVE EMPTY!
+    std::string navigation_config = "";
 
-    //if (this->get_parameter("navigation_config", navigation_config))
-    //{
-    //    throw std::invalid_argument("Could not get navigation_config param");
-    //}
+	this->declare_parameter<std::string>("navigation_config", "default");
 
-    // TODO: maybe check exception rclcpp::ParameterType::PARAMETER_NOT_SET.
-    // const std::string navigation_config = nh_->get_parameter<std::string>("~navigation_config");
+    if (!this->get_parameter("navigation_config", navigation_config))
+    {
+        throw std::invalid_argument("Could not get navigation_config param");
+    }
 
     YAML::Node root_config;
     try
