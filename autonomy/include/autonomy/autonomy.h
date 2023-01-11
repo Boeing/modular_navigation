@@ -33,7 +33,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "rcpputils/asserts.hpp"
-#include "std_msgs/msg/float64.hpp"  // TODO is this needed?
+#include "std_msgs/msg/float64.hpp"
 
 namespace autonomy
 {
@@ -98,17 +98,13 @@ class Autonomy : public rclcpp::Node
     void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void trajectoryPlannerThread();
     void controllerThread();
-
-    // ros::NodeHandle nh_;
-    // rclcpp::Node::SharedPtr nh_ = nullptr;
-
+    
     std::mutex goal_mutex_;
-    //std::shared_ptr<GoalHandleDrive> goal_; // REMOVE 
     std::shared_ptr<const Drive::Goal> goal_;
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     // actionlib::ActionServer<autonomy::DriveAction> as_;
-    rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;  // TODO: Check this type
+    rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;  
 
     pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;

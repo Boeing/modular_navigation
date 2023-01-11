@@ -43,7 +43,7 @@ std::shared_ptr<PluginType> load(const YAML::Node& parameters, const std::string
     try
     {
         const std::string class_name = parameters[planner_name].as<std::string>();
-        std::shared_ptr<PluginType> sp(loader.createUnmanagedInstance(class_name)); // TODO changed to sharedInstance and check classname content
+        std::shared_ptr<PluginType> sp(loader.createUnmanagedInstance(class_name));
 
         const YAML::Node plugin_params = parameters[loader.getName(class_name)];
 
@@ -191,10 +191,8 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
 
     rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
     
-    // TODO: Look for transport_hints in ros2 QoS for TcpNoDelay option
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "/odom", 1000, std::bind(&Autonomy::odomCallback, this, std::placeholders::_1));
-    // ros::TransportHints().tcpNoDelay()); // TODO this is portable?
     vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 1);  //("cmd_vel", 1);
     current_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
         "current_goal", rclcpp::QoS(1).transient_local());  
@@ -374,7 +372,7 @@ void Autonomy::executionThread()
             if (goal_)
             {
                 goal_lock.unlock();
-//                executeGoal(); // UNCOMMENT DEBUG
+                //executeGoal(goal_handle); // UNCOMMENT DEBUG TODO: ADD goal_handle_ as class param!!
                 while(goal_); // DEBUG
             }
         }
@@ -406,7 +404,6 @@ void Autonomy::executionThread()
 
 void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
-    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Executing goal!"); // DEBUG
 
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
@@ -616,8 +613,6 @@ rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<Goa
         (void)goal_;
         // goal_->canceled();  // Setting as cancelled will let the executeGoal finish gracefully
 
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Cancelled goal: "); // DEBUG
-
         return rclcpp_action::CancelResponse::ACCEPT;
     }
 
@@ -629,8 +624,8 @@ rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<Goa
     // this needs to return quickly to avoid blocking the executor, so spin up a new thread
     goal_ = goal_handle->get_goal();
     //using namespace std::placeholders;
-    //RCLCPP_INFO(rclcpp::get_logger(""), "Accepted new goal!"); // DEBUG
-    //std::thread{std::bind(&Autonomy::executeGoal, this, std::placeholders::_1), goal_handle}.detach(); // already called
+
+    //std::thread{std::bind(&Autonomy::executeGoal, this, std::placeholders::_1), goal_handle}.detach(); // TODO
     executeGoal(goal_handle);
 }
 

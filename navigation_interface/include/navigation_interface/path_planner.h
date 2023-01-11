@@ -59,13 +59,11 @@ class PathPlanner
 
     void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
     {
-        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner DEEEE"); // DEBUG
         std::lock_guard<std::mutex> lock(mutex_);
         RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner");
         map_data_ = map_data;
-        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner -> map TO BE changed"); // DEBUG
         onMapDataChanged();
-        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner DONE") ;// DEBUG
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: PathPlanner DONE") ;
     }
 
   protected:
