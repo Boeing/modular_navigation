@@ -14,6 +14,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include <chrono>
 
 namespace autonomy
 {
@@ -175,8 +176,29 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     urdf::Model urdf;
     // Recover robot_description param from robot_state_publisher_node 
     // TODO consider passing robot_state_publisher_node as an optional arg
+    using namespace std::chrono_literals;
     auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, "robot_state_publisher");
+    // Wait for robot description to be available
+
+    while(!parameters_client->wait_for_service(1s)){
+        RCLCPP_INFO(this->get_logger(), "Getting robot_description...");
+    }
+    //    RCLCPP_ERROR(this->get_logger(), "robot_state_publisher parameter server is not available.");
+    //} 
+    // TODO Clean this up
+    //while (parameters_client->wait_for_service(20s) == false) {
+    //    if (!rclcpp::ok()) {
+    //      // Show an error if the user types CTRL + C
+    //        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for robot_description param. Exiting.");
+    //        return 0;
+    //    }
+    //    // Search for service nodes in the network
+    //    RCLCPP_INFO(this->get_logger(), "robot_description not available, waiting again...");
+    //}
+
     auto robot_description_param = parameters_client->get_parameters({"robot_description"});
+
+    RCLCPP_INFO(this->get_logger(), "Getting robot_description DONE");
 
     urdf.initString(robot_description_param[0].value_to_string());  // initParam("robot_description"); TODO check this is equivalent
     urdf_tree_.reset(new gridmap::URDFTree(urdf));
@@ -1131,7 +1153,7 @@ void Autonomy::trajectoryPlannerThread()
 
 void Autonomy::controllerThread()
 {
-    const long period_ms = static_cast<long>(1000.0 / controller_frequency_);
+    const long period_ms = static_cast<long>(1000.0 / controller_frequency_); // default 100.0
     rclcpp::Time last_odom_time(0);
 
     rcpputils::assert_true(layered_map_ != nullptr);

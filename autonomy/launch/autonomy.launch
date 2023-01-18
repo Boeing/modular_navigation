@@ -1,0 +1,29 @@
+<launch>
+
+    <!-- Autonomy -->
+    <arg name="navigation_config" default="$(find autonomy)/test/navigation.yaml"/>
+    <arg name="autonomy" default="true"/>
+    <arg name="fake_localisation" default="true"/>
+    
+    <node if="$(arg fake_localisation)" name="fake_localisation" pkg="autonomy" exec="fake_localisation.py">
+    </node>
+
+    <node if="$(arg autonomy)" pkg="autonomy" exec="autonomy" respawn="true" name="autonomy">
+        <param name="navigation_config" value="$(arg navigation_config)" />
+        <remap from="/autonomy/cmd_vel" to="/cmd_vel" />
+<!--
+        <remap from="/state/updates" to="/world_state_merger/updates" />
+        <remap from="/state/get_world_state" to="/world_state_merger/get_world_state" />
+
+        <remap unless="$(arg sim)" from="/realsense_front/camera_info" to="/realsense_front/depth/camera_info" />
+        <remap unless="$(arg sim)" from="/realsense_back/camera_info" to="/realsense_back/depth/camera_info" />
+        <remap unless="$(arg sim)" from="/realsense_left/camera_info" to="/realsense_left/depth/camera_info/" />
+        <remap unless="$(arg sim)" from="/realsense_right/camera_info" to="/realsense_right/depth/camera_info" />
+
+        <remap unless="$(arg sim)" from="/realsense_front/depth/compressedDepth" to="/realsense_front/depth/image_rect_raw/compressedDepth" />
+        <remap unless="$(arg sim)" from="/realsense_back/depth/compressedDepth" to="/realsense_back/depth/image_rect_raw/compressedDepth" />
+        <remap unless="$(arg sim)" from="/realsense_left/depth/compressedDepth" to="/realsense_left/depth/image_rect_raw/compressedDepth" />
+        <remap unless="$(arg sim)" from="/realsense_right/depth/compressedDepth" to="/realsense_right/depth/image_rect_raw/compressedDepth" />-->
+    </node>
+
+</launch>

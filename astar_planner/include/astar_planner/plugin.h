@@ -29,7 +29,7 @@ class AStarPlanner : public navigation_interface::PathPlanner
     virtual void onMapDataChanged() override;
 
   private:
-    bool debug_viz_ = false;
+    bool debug_viz_ = true;
     double robot_radius_ = 0.230;
     // width of default offset = 0.185
     // conservative = width + robot_radius = 0.185 + 0.230 = 0.415

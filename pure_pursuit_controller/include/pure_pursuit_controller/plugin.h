@@ -72,7 +72,7 @@ class PurePursuitController : public navigation_interface::Controller
     double max_avoid_distance_ = 0.6;
     double min_avoid_distance_ = 0.12;
 
-    bool debug_viz_ = false;
+    bool debug_viz_ = true;
 
     // Making a node attrb instead of usig publishers
     // Although it is only used if debug_viz_ is set inside a yaml
