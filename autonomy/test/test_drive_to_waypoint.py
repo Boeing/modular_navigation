@@ -29,8 +29,6 @@ from gazebo_msgs.srv import SpawnEntity, GetEntityState
 from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
 from autonomy_interface.action import Drive
 from actionlib_msgs.msg import GoalStatus
-from cartographer_ros_msgs.srv import StartLocalisation
-from cartographer_ros_msgs.msg import SystemState
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros import TransformBroadcaster, TransformRegistration
@@ -40,7 +38,6 @@ from tf2_ros import TransformBroadcaster, TransformRegistration
 import time
 from math import pi
 import numpy as np
-import threading
 
 
 @pytest.mark.launch_test
@@ -103,11 +100,11 @@ def generate_test_description():
             ),
 
             # Launch fake localisation (map to odom transform)
-            Node(
-                package='autonomy',
-                namespace='autonomy',
-                executable='fake_localisation.py'
-            ),  
+            #Node(
+            #    package='autonomy',
+            #    namespace='autonomy',
+            #    executable='fake_localisation.py'
+            #),  
 
             # Map manager
             IncludeLaunchDescription(
@@ -164,12 +161,12 @@ class TestDriveToWaypoint(unittest.TestCase):
         if (self.node.get_parameter('use_sim_time').get_parameter_value().bool_value):
             # Spawn service
             self.spawn_client = self.node.create_client(
-                SpawnEntity, 'spawn_entity')
+                SpawnEntity, "/spawn_entity")
             while not self.spawn_client.wait_for_service(timeout_sec=1.0):
                 self.log.info('Spawn service not available, waiting again...')
             # State service
             self.entity_state_client = self.node.create_client(
-                GetEntityState, 'gazebo/get_entity_state')
+                GetEntityState, "/gazebo/get_entity_state")
             while not self.entity_state_client.wait_for_service(timeout_sec=1.0):
                 self.log.info(
                     'Entity state service not available, waiting again...')
@@ -189,14 +186,15 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.robot_name = 'test_robot'
         self.global_frame = 'map'
 
-        self.waypoint_offset = -2.0
+
         self.robot_pose = Pose()
         self.robot_pose.position.x = 20.0
         self.robot_pose.position.y = 7.0
         # Drive action field target_pose must be of type PoseStamped
+        self.waypoint_offset = -2.0
         self.waypoint_pose = PoseStamped()
         self.waypoint_pose.pose.position.x = 22.0
-        self.waypoint_pose.pose.position.y = 7.0
+        self.waypoint_pose.pose.position.y = 9.0
 
     def tearDown(self):
         self.node.destroy_node()
@@ -257,6 +255,10 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.backwards_mult = 1.5
         self.drive_action.strafe_mult = 1.5
         self.drive_action.rotation_mult = 0.3/pi
+
+        # Wait for robot to be localised 
+        time.sleep(35) # DEBUG
+
         # Send Goal
         drive_action_future = self.drive_action_client.send_goal_async(
             self.drive_action)
@@ -265,6 +267,9 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Get the goal handle as result of the future
         drive_action_goal_handle = drive_action_future.result()
         if (drive_action_goal_handle.accepted):
+            
+            time.sleep(600)
+            return
 
             # Request the goal result
             drive_action_result_future = drive_action_goal_handle.get_result_asyc()

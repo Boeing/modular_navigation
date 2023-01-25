@@ -83,6 +83,8 @@ class Autonomy : public rclcpp::Node
 
     Autonomy();
     virtual ~Autonomy();
+    rclcpp::Node::SharedPtr service_node_;
+    rclcpp::Node::SharedPtr param_client_node;
 
   private:
     void activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map);
@@ -103,6 +105,7 @@ class Autonomy : public rclcpp::Node
     std::shared_ptr<const Drive::Goal> goal_;
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
+    std::thread goal_exec_thread_; // DEBUG
     // actionlib::ActionServer<autonomy::DriveAction> as_;
     rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;  
 
@@ -121,38 +124,27 @@ class Autonomy : public rclcpp::Node
 
     std::shared_ptr<gridmap::LayeredMap> layered_map_;
 
-    // ros::Subscriber active_map_sub_;
     rclcpp::Subscription<map_manager::msg::MapInfo>::SharedPtr active_map_sub_;
 
-    // ros::Publisher costmap_publisher_;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_publisher_;
 
-    // ros::Publisher costmap_updates_publisher_;
     rclcpp::Publisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr costmap_updates_publisher_;
 
-    // ros::Publisher current_goal_pub_;
-    // ros::Publisher path_goal_pub_;
-    // ros::Publisher vel_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr current_goal_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr path_goal_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
 
-    // ros::Publisher path_pub_;
-    // ros::Publisher trajectory_pub_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub_;
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr trajectory_pub_;
 
-    // ros::Publisher planner_map_update_pub_;
-    // ros::Publisher trajectory_map_update_pub_;
-    // ros::Publisher control_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr planner_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr trajectory_map_update_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr control_map_update_pub_;
 
-    //tf2_ros::Buffer tfBuffer_;
-    //tf2_ros::TransformListener tfListener_;
+    // callback groups
+    rclcpp::CallbackGroup::SharedPtr callback_group_action_srv_;
+    rclcpp::CallbackGroup::SharedPtr umbrella_callback_group_;  
 
-    // TODO, check 
     std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
 
@@ -187,7 +179,8 @@ class Autonomy : public rclcpp::Node
     std::shared_ptr<gridmap::URDFTree> urdf_tree_;
     std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
 
-    rclcpp::Node::SharedPtr service_node_;
+    //rclcpp::Node::SharedPtr service_node_;
+    //rclcpp::Node::SharedPtr param_client_node;
 
     // ros::Subscriber odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;

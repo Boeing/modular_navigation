@@ -6,7 +6,7 @@
 #include <map_manager/srv/get_occupancy_grid.hpp>
 #include <map_manager/srv/get_zones.hpp>
 #include <navigation_interface/params.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>  // TODO, this one needs /msg/ Question?
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
@@ -121,12 +121,31 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     current_path_(nullptr), current_trajectory_(nullptr)
 
 {
+    // Create cb groups for different subscriptions
+    callback_group_action_srv_ = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+    umbrella_callback_group_ = this->create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive);
+
+    // Each of these callback groups is basically a thread
+    // Everything assigned to one of them gets bundled into the same thread
+    //auto sub_odom_opt = rclcpp::SubscriptionOptions();
+    //sub_odom_opt.callback_group = callback_group_odom_;
+    //auto sub_map_opt = rclcpp::SubscriptionOptions();
+    //sub_map_opt.callback_group = callback_group_map_;
+    // Create Sub Options with the reentrant callback group
+    auto umbrella_sub_opt = rclcpp::SubscriptionOptions();
+    umbrella_sub_opt.callback_group = umbrella_callback_group_;
+
     // using namespace std::placeholders;
+    const rcl_action_server_options_t & options = rcl_action_server_get_default_options();
 
     this->action_server_ = rclcpp_action::create_server<autonomy_interface::action::Drive>(
         this, "autonomy", std::bind(&Autonomy::goalCallback, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&Autonomy::cancelCallback, this, std::placeholders::_1),
-        std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1));
+        std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1),
+        options,
+        callback_group_action_srv_);
 
     RCLCPP_INFO(rclcpp::get_logger(""), "Starting");
 
@@ -176,32 +195,25 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     urdf::Model urdf;
     // Recover robot_description param from robot_state_publisher_node 
     // TODO consider passing robot_state_publisher_node as an optional arg
-    using namespace std::chrono_literals;
-    auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(this, "robot_state_publisher");
+    param_client_node = rclcpp::Node::make_shared("robot_state_publisher_client");
+    auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(param_client_node, "robot_state_publisher");
+
     // Wait for robot description to be available
-
-    while(!parameters_client->wait_for_service(1s)){
-        RCLCPP_INFO(this->get_logger(), "Getting robot_description...");
+    using namespace std::chrono_literals; 
+    while(!parameters_client->wait_for_service(1s)) {
+        RCLCPP_INFO(this->get_logger(), "Waiting for robot_state_publisher...");
     }
-    //    RCLCPP_ERROR(this->get_logger(), "robot_state_publisher parameter server is not available.");
-    //} 
-    // TODO Clean this up
-    //while (parameters_client->wait_for_service(20s) == false) {
-    //    if (!rclcpp::ok()) {
-    //      // Show an error if the user types CTRL + C
-    //        RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for robot_description param. Exiting.");
-    //        return 0;
-    //    }
-    //    // Search for service nodes in the network
-    //    RCLCPP_INFO(this->get_logger(), "robot_description not available, waiting again...");
-    //}
 
+    // Recover robot description from robot_state_publisher
     auto robot_description_param = parameters_client->get_parameters({"robot_description"});
-
+    //auto robot_description_future = parameters_client->get_parameters({"robot_description"});
+    
     RCLCPP_INFO(this->get_logger(), "Getting robot_description DONE");
 
-    urdf.initString(robot_description_param[0].value_to_string());  // initParam("robot_description"); TODO check this is equivalent
+    // Save the URDF with gridmap format
+    urdf.initString(robot_description_param[0].value_to_string());
     urdf_tree_.reset(new gridmap::URDFTree(urdf));
+    urdf_tree_ = nullptr;
 
     const YAML::Node costmap_config = root_config["costmap"];
 
@@ -210,10 +222,14 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
-    rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
+    rmw_qos_profile_t odom_qos_profile = rmw_qos_profile_sensor_data;
     
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "/odom", 1000, std::bind(&Autonomy::odomCallback, this, std::placeholders::_1));
+        "/odom",
+        rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort(),
+        std::bind(&Autonomy::odomCallback, this, std::placeholders::_1),
+        umbrella_sub_opt);
+
     vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 1);  //("cmd_vel", 1);
     current_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
         "current_goal", rclcpp::QoS(1).transient_local());  
@@ -232,22 +248,20 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
 
     // Create the planners
     path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr);
-    //std::shared_ptr<navigation_interface::PathPlanner> path_planner_ = pp_loader_.createSharedInstance("astar_planner::AStarPlanner");
-    //path_planner_->initialize(root_config["AStarPlanner"], nullptr);
-
     trajectory_planner_ =
         load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr);
-    //std::shared_ptr<navigation_interface::TrajectoryPlanner> trajectory_planner_ = tp_loader_.createSharedInstance("sim_band_planner::SimBandPlanner");
-    //trajectory_planner_->initialize(root_config["SimBandPlanner"], nullptr);
-
     controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr);
-    //std::shared_ptr<navigation_interface::Controller> controller_ = c_loader_.createSharedInstance("pure_pursuit_controller::PurePursuitController");
-    //controller_->initialize(root_config["PurePursuitController"], nullptr);
 
     active_map_sub_ = this->create_subscription<map_manager::msg::MapInfo>(
-        "/map_manager/active_map", rclcpp::QoS(10).transient_local(), std::bind(&Autonomy::activeMapCallback, this, std::placeholders::_1));
+        "/map_manager/active_map",
+        rclcpp::QoS(10).transient_local(),
+        std::bind(&Autonomy::activeMapCallback, this, std::placeholders::_1),
+        umbrella_sub_opt); 
+
     mapper_status_sub_ = this->create_subscription<cartographer_ros_msgs::msg::SystemState>(
-        "/mapper/state", 1, std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1));
+        "/mapper/state",
+        1, std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1),
+        umbrella_sub_opt);
 
     costmap_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", 1);
@@ -300,7 +314,7 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
         auto map_client = service_node_->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info");
         // map_manager::srv::GetMapInfo::Request map_req;
         auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
-        map_req->map_name = map->name;  // TODO porque -> ?
+        map_req->map_name = map->name;
         // map_manager::srv::GetMapInfo::Response map_res;
         auto map_res_future = map_client->async_send_request(
             map_req);  // no sync call in rcpcpp, only in rclpy https://github.com/ros2/rclcpp/issues/975
@@ -647,6 +661,7 @@ rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<Goa
     //using namespace std::placeholders;
 
     //std::thread{std::bind(&Autonomy::executeGoal, this, std::placeholders::_1), goal_handle}.detach(); // TODO
+    //std::thread goal_exec_thread_ = std::thread(&autonomy::Autonomy::executeGoal, this, goal_handle);
     executeGoal(goal_handle);
 }
 

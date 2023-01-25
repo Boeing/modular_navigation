@@ -186,33 +186,15 @@
       </axis>
     </joint>
 
-    <!--<plugin name="set_planar_move_plugin" filename="libgazebo_planar_move_plugin.so">-->
-    <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
-        <!--<robot_namespace>/</robot_namespace>
+    <plugin name="set_planar_move_plugin" filename="libgazebo_planar_move_plugin.so">
+        <robot_namespace>/</robot_namespace>
         <robot_frame>base_footprint</robot_frame>
         <odometry_frame>odom</odometry_frame>
         <odometry_topic>odom</odometry_topic>
         <command_topic>cmd_vel</command_topic>
         <control_mode>position</control_mode>
-        <publish_odometry>0.2</publish_odometry>
-        <publish_tf>0.2</publish_tf>-->
-
-        <ros>
-          <namespace>/</namespace>
-          <remapping>cmd_vel:=cmd_vel</remapping>
-          <remapping>odom:=odom</remapping>
-        </ros>
-
-        <update_rate>1</update_rate>
-        <publish_rate>1</publish_rate>
-
-        <odometry_frame>odom</odometry_frame>
-        <robot_base_frame>base_footprint</robot_base_frame>
-
-        <!-- output -->
-        <publish_odom>false</publish_odom>
-        <publish_odom_tf>false</publish_odom_tf>
-
+        <publish_odometry>true</publish_odometry>
+        <publish_tf>true</publish_tf>
     </plugin>
 
   </model>
