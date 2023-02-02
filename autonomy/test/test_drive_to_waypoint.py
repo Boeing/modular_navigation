@@ -32,8 +32,7 @@ from actionlib_msgs.msg import GoalStatus
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros import TransformBroadcaster, TransformRegistration
-#import tf2_geometry_msgs
-#import tf_transformations
+
 
 import time
 from math import pi
@@ -267,10 +266,9 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Get the goal handle as result of the future
         drive_action_goal_handle = drive_action_future.result()
         if (drive_action_goal_handle.accepted):
-            
-            time.sleep(600)
-            return
-
+            time.sleep(120)
+            return 
+            # TODO code below crashes
             # Request the goal result
             drive_action_result_future = drive_action_goal_handle.get_result_asyc()
             # Wait for the goal result
@@ -279,7 +277,6 @@ class TestDriveToWaypoint(unittest.TestCase):
             # Get the goal result
             drive_action_result = drive_action_result_future.result()
             # Assert if goal achieved
-
             self.assertTrue(drive_action_result.status ==
                             GoalStatus.STATUS_SUCCEEDED)
             # TODO Assert that desired position is reached in gazebo

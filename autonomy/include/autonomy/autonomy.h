@@ -95,7 +95,7 @@ class Autonomy : public rclcpp::Node
     rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid,
                                              std::shared_ptr<const Drive::Goal> goal);
     rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
-    rclcpp_action::GoalResponse acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
+    void acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
 
     void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void trajectoryPlannerThread();
@@ -103,6 +103,7 @@ class Autonomy : public rclcpp::Node
     
     std::mutex goal_mutex_;
     std::shared_ptr<const Drive::Goal> goal_;
+    std::shared_ptr<GoalHandleDrive> goal_handle_;
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     std::thread goal_exec_thread_; // DEBUG

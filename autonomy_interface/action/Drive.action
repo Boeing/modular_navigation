@@ -19,6 +19,7 @@ float64 backwards_mult       # Cost multiplier for reversing, default: 1.5
 float64 strafe_mult          # Cost multiplier for strafing, default: 1.5
 float64 rotation_mult        # Cost multiplier for in-place rotation, default: 0.3/PI
 ---
+bool success
 ---
 uint8 state
 

@@ -266,6 +266,7 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     costmap_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", 1);
 
+    goal_handle_ = nullptr;
     execution_thread_running_ = true;
     execution_thread_ = std::thread(&Autonomy::executionThread, this);
 
@@ -407,8 +408,10 @@ void Autonomy::executionThread()
             if (goal_)
             {
                 goal_lock.unlock();
-                //executeGoal(goal_handle); // UNCOMMENT DEBUG TODO: ADD goal_handle_ as class param!!
-                while(goal_); // DEBUG
+                //while(goal_); // DEBUG
+                if(goal_handle_){
+                    executeGoal(goal_handle_); // UNCOMMENT DEBUG TODO: ADD goal_handle_ as class param!!
+                }
             }
         }
 
@@ -439,6 +442,8 @@ void Autonomy::executionThread()
 
 void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
+
+    //TODO: Check if goal_handle is valid value
 
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
@@ -476,7 +481,9 @@ void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 
             if (controller_done_)
             {
-                goal_handle->succeed(std::make_shared<autonomy_interface::action::Drive::Result>());  //, "Goal reached");
+                auto action_result = std::make_shared<autonomy_interface::action::Drive::Result>();
+                action_result->success = true;
+                goal_handle->succeed(action_result);  //, "Goal reached");
                 break;
             }
         }
@@ -654,15 +661,18 @@ rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<Goa
     return rclcpp_action::CancelResponse::REJECT;
 }
 
-rclcpp_action::GoalResponse Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
+void Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
     // this needs to return quickly to avoid blocking the executor, so spin up a new thread
     goal_ = goal_handle->get_goal();
+    goal_handle_ = goal_handle; // this enables executeGoal()
     //using namespace std::placeholders;
 
     //std::thread{std::bind(&Autonomy::executeGoal, this, std::placeholders::_1), goal_handle}.detach(); // TODO
     //std::thread goal_exec_thread_ = std::thread(&autonomy::Autonomy::executeGoal, this, goal_handle);
-    executeGoal(goal_handle);
+    //executeGoal(goal_handle);
+    //TODO make execute goal return status?? this should not be final?
+    //return rclcpp_action::ResultCode::SUCCEEDED;
 }
 
 void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle)
