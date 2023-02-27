@@ -199,9 +199,11 @@ Autonomy::Autonomy()  // const rclcpp::NodeOptions & options = rclcpp::NodeOptio
     auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(param_client_node, "robot_state_publisher");
 
     // Wait for robot description to be available
-    using namespace std::chrono_literals; 
-    while(!parameters_client->wait_for_service(1s)) {
-        RCLCPP_INFO(this->get_logger(), "Waiting for robot_state_publisher...");
+    using namespace std::chrono_literals;
+    RCLCPP_INFO(this->get_logger(), "Waiting for robot_state_publisher parameter service...");
+    if (!parameters_client->wait_for_service(30s))
+    {
+        throw std::runtime_error("Timed out while waiting for robot_description parameter service. Exiting.");
     }
 
     // Recover robot description from robot_state_publisher
