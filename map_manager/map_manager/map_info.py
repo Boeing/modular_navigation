@@ -1,8 +1,8 @@
 import json
-import rospy
+import rclpy.node
 
 import datetime
-from map_manager.msgs import MapInfo as MapInfoMsg
+from map_manager.msg import MapInfo as MapInfoMsg
 from nav_msgs.msg import MapMetaData as MapMetaDataMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Point as PointMsg
@@ -60,12 +60,13 @@ class MapInfo:
             origin_y=dict['meta_data']['origin_y']
         )
 
-    def to_msg(self):
+    def to_msg(self, node: rclpy.node.Node):
+        t = node.get_clock().now()
         return MapInfoMsg(
             name=self.name,
             description=self.description,
-            created=rospy.Time.from_sec(self.created.timestamp()),
-            modified=rospy.Time.from_sec(self.modified.timestamp()),
+            created=t.to_msg(),
+            modified=t.to_msg(),
             meta_data=MapMetaDataMsg(
                 resolution=self.resolution,
                 width=self.width,
