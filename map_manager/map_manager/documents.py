@@ -231,7 +231,7 @@ class Map(Document, DocumentMixin):
 
         if pbstream_msg:
             map_obj.pbstream.new_file()
-            map_obj.pbstream.write(pbstream_msg)
+            map_obj.pbstream.write(BytesIO(pbstream_msg))
             map_obj.pbstream.close()
 
         map_obj.node_graph = node_graph_json

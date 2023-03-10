@@ -37,8 +37,8 @@ class MapInfo:
         return MapInfo(
             name=map_info_msg.name,
             description=map_info_msg.description,
-            created=datetime.datetime.utcfromtimestamp(map_info_msg.created.to_sec()),
-            modified=datetime.datetime.utcfromtimestamp(map_info_msg.modified.to_sec()),
+            created=datetime.datetime.utcfromtimestamp(map_info_msg.created.sec),
+            modified=datetime.datetime.utcfromtimestamp(map_info_msg.modified.sec),
             resolution=map_info_msg.meta_data.resolution,
             width=map_info_msg.meta_data.width,
             height=map_info_msg.meta_data.height,
