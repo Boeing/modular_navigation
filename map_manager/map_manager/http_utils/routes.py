@@ -46,13 +46,13 @@ def get_occupancy_grid_msg(map_name, node):
 
     map_msg = map_doc.get_occupancy_grid_msg(node)  # type: MapMsg
 
-    fp = io.StringIO()
+    fp = io.BytesIO()
     map_msg.serialize(fp)
     fp.flush()
     fp.seek(0)
 
     return send_file(
-        filename_or_fp=fp,
+        path_or_file=fp,
         mimetype='application/octet-stream',
         attachment_filename='{}.msg'.format(map_doc.name),
         cache_timeout=1
@@ -69,13 +69,13 @@ def get_png(map_name):
     except (DoesNotExist, ValidationError):
         raise abort(404)
 
-    fp = io.StringIO()
+    fp = io.BytesIO()
     map_doc.get_png(fp)
     fp.flush()
     fp.seek(0)
 
     return send_file(
-        filename_or_fp=fp,
+        path_or_file=fp,
         mimetype='image/png',
         attachment_filename='{}.png'.format(map_doc.name),
         cache_timeout=1
@@ -92,13 +92,13 @@ def get_thumbnail_png(map_name):
     except (DoesNotExist, ValidationError):
         raise abort(404)
 
-    fp = io.StringIO()
+    fp = io.BytesIO()
     map_doc.get_thumbnail_png(fp)
     fp.flush()
     fp.seek(0)
 
     return send_file(
-        filename_or_fp=fp,
+        path_or_file=fp,
         mimetype='image/png',
         attachment_filename='{}.png'.format(map_doc.name),
         cache_timeout=1

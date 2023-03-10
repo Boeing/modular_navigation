@@ -1,7 +1,8 @@
 import calendar
 import logging
-from datetime import datetime, date
-from io import BytesIO, TextIOWrapper
+import typing
+from datetime import date, datetime
+from io import BytesIO
 
 import math6d
 import mongoengine
@@ -15,20 +16,20 @@ from geometry_msgs.msg import Point32 as Point32Msg
 from geometry_msgs.msg import Polygon as PolygonMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
-from mongoengine import DateTimeField, StringField
-from mongoengine import Document, EmbeddedDocument, FileField
-from mongoengine import EmbeddedDocumentField, EmbeddedDocumentListField
-from mongoengine import FloatField, IntField, BooleanField
-from mongoengine import GridFSProxy
+from graph_map.msg import Region as RegionMsg
+from graph_map.msg import Zone as ZoneMsg
+from map_manager.msg import MapInfo as MapInfoMsg
+from mongoengine import (BooleanField, DateTimeField, Document,
+                         EmbeddedDocument, EmbeddedDocumentField,
+                         EmbeddedDocumentListField, FileField, FloatField,
+                         GridFSProxy, IntField, StringField)
 from nav_msgs.msg import MapMetaData as MapMetaDataMsg
 from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
+from PIL import Image
+from PIL.ImageOps import invert
 from sensor_msgs.msg import CompressedImage
-from std_msgs.msg import Header
 from std_msgs.msg import ColorRGBA as ColorMsg
-
-from map_manager.msg import MapInfo as MapInfoMsg
-from graph_map.msg import Zone as ZoneMsg
-from graph_map.msg import Region as RegionMsg
+from std_msgs.msg import Header
 
 logger = logging.getLogger(__name__)
 
@@ -256,14 +257,14 @@ class Map(Document, DocumentMixin):
     area_tree = StringField()
 
     def get_png(self, buff):
-        # type: (TextIOWrapper) -> None
+        # type: (BytesIO) -> None
         self.image.seek(0)
         im = Image.open(fp=self.image)
         inverted = invert(im)
         inverted.save(buff, format='PNG', compress_level=1)
 
     def get_thumbnail_png(self, buff):
-        # type: (TextIOWrapper) -> None
+        # type: (BytesIO) -> None
         self.thumbnail.seek(0)
         im = Image.open(fp=self.thumbnail)
         im.save(buff, format='PNG', compress_level=1)
