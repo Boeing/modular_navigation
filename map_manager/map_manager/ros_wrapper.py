@@ -378,7 +378,7 @@ class RosWrapper(Node):
     @exception_wrapper(GetActiveMap.Response)
     def __get_active_map_cb(self, req: GetActiveMap.Request, res) -> GetActiveMap.Response:
         return GetActiveMap.Response(
-            active_map=self.__map_name,
+            map_name=self.__map_name,
             success=True
         )
 
