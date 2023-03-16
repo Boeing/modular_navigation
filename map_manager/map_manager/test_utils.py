@@ -1,4 +1,3 @@
-import logging
 import os
 import subprocess
 import tempfile
@@ -21,17 +20,15 @@ from map_manager.documents import Quaternion as QuaternionDoc
 from map_manager.documents import Zone as ZoneDoc
 from map_manager.map_info import MapInfo as MapInfoCls
 
-import rospy
+import rclpy
 from graph_map.area import Zone
-from map_manager.msgs import MapInfo as MapInfoMsg
-from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
+from map_manager.msg import MapInfo as MapInfoMsg
+from map_manager.srv import AddMap
 from sensor_msgs.msg import CompressedImage
 from nav_msgs.msg import MapMetaData as MapMetaDataMsg
 from geometry_msgs.msg import Pose as PoseMsg
 from geometry_msgs.msg import Point as PointMsg
 from geometry_msgs.msg import Quaternion as QuaternionMsg
-
-logger = logging.getLogger(__name__)
 
 
 def sdf_to_og_pbstream(
@@ -49,7 +46,8 @@ def sdf_to_og_pbstream(
     assert os.path.isfile(world_sdf_path)
 
     cmd = [
-        'rosrun',
+        'ros2',
+        'run',
         'cartographer_ros',
         'sdf_to_pbstream',
         '--configuration_directory',
@@ -99,6 +97,7 @@ def sdf_to_og_pbstream(
 
 
 def process_dxf(
+        node,  # type: rclpy.Node
         dxf_file,
         cartographer_config,
         width_m,
@@ -113,6 +112,8 @@ def process_dxf(
         plot=False,
         upload=True,
         node_name=None):
+
+    logger = node.get_logger()
 
     if name is None or name == '':
         name = os.path.splitext(os.path.basename(dxf_file))[0]
@@ -181,18 +182,19 @@ def process_dxf(
 
             plt.show()
 
+        t = node.get_clock().now()
         map_info_msg = MapInfoMsg(
             name=name,
             description=description,
-            created=rospy.Time.from_sec(datetime.now().timestamp()),
-            modified=rospy.Time.from_sec(datetime.now().timestamp()),
+            created=t.to_msg(),
+            modified=t.to_msg(),
             meta_data=MapMetaDataMsg(
                 resolution=resolution,
                 width=ceil(width_m / resolution),
                 height=ceil(height_m / resolution),
                 origin=PoseMsg(
-                    position=PointMsg(x=origin_x, y=origin_y, z=0),
-                    orientation=QuaternionMsg(x=0, y=0, z=0, w=1)
+                    position=PointMsg(x=float(origin_x), y=float(origin_y), z=0.0),
+                    orientation=QuaternionMsg(x=0.0, y=0.0, z=0.0, w=1.0)
                 )
             )
         )
@@ -203,30 +205,35 @@ def process_dxf(
         if node_name and upload:
             logger.info('Uploading map via ROS to {}'.format(node_name))
 
-            add_map_srv = rospy.ServiceProxy(
-                name=node_name + '/add_map',
-                service_class=AddMap
+            add_map_srv = node.create_client(
+                AddMap,
+                node_name + '/add_map'
             )
 
             temp_png_f.seek(0)
             temp_pb_f.seek(0)
 
-            add_map_srv.wait_for_service(timeout=10)
-            add_response = add_map_srv.call(
-                AddMapRequest(
-                    map_info=map_info_msg,
-                    node_graph=gm.to_json(),
-                    area_tree=am.to_json(),
-                    zones=[zone.to_msg() for zone in loader.zones.values()],
-                    occupancy_grid=CompressedImage(
-                        format='png',
-                        data=temp_png_f.read()
-                    ),
-                    pbstream=temp_pb_f.read()
-                )
-            )  # type: AddMapResponse
-            if not add_response.success:
-                raise Exception('Failed to save map: {}'.format(add_response.message))
+            add_map_srv.wait_for_service(timeout_sec=5.0)
+
+            add_req = AddMap.Request(
+                map_info=map_info_msg,
+                node_graph=gm.to_json(),
+                area_tree=am.to_json(),
+                zones=[zone.to_msg() for zone in loader.zones.values()],
+                occupancy_grid=CompressedImage(
+                    format='png',
+                    data=temp_png_f.read()
+                ),
+                pbstream=temp_pb_f.read()
+            )
+
+            add_map_future = add_map_srv.call_async(add_req)
+            rclpy.spin_until_future_complete(node, add_map_future)
+
+            add_map_res = add_map_future.result()  # type: AddMap.Response
+
+            if not add_map_res.success:
+                raise Exception('Failed to save map: {}'.format(add_map_res.message))
 
         #
         # Save to mongo database without ROS

@@ -240,7 +240,7 @@ class RosWrapper(object):
         response = get_area_tree_srv.call(GetAreaTreeRequest(map_name=map_info.name))
         assert isinstance(response, GetAreaTreeResponse)
         if not response.success:
-            raise Exception('Failed to get area tree: {}'.format(response.status_message))
+            raise Exception('Failed to get area tree: {}'.format(response.message))
 
         am = AreaManager.from_jsons(response.area_tree)
 
@@ -254,7 +254,7 @@ class RosWrapper(object):
         response = get_node_graph_srv.call(GetNodeGraphRequest(map_name=map_info.name))
         assert isinstance(response, GetNodeGraphResponse)
         if not response.success:
-            raise Exception('Failed to get node graph: {}'.format(response.status_message))
+            raise Exception('Failed to get node graph: {}'.format(response.message))
 
         gm = NodeGraphManager.from_jsons(response.node_graph)
 
@@ -270,7 +270,7 @@ class RosWrapper(object):
         response = get_zones_srv.call(GetZonesRequest(map_name=map_info.name))
         assert isinstance(response, GetZonesResponse)
         if not response.success:
-            raise Exception('Failed to get node graph: {}'.format(response.status_message))
+            raise Exception('Failed to get node graph: {}'.format(response.message))
 
         zones = [Zone.from_msg(zone_msg) for zone_msg in response.zones]
 
