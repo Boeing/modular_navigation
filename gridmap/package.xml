@@ -17,6 +17,7 @@
   <depend>geometry_msgs</depend>
   <depend>graph_map</depend>
   <depend>image_geometry</depend>
+  <depend>image_transport</depend>
   <depend>laser_geometry</depend>
   <depend>map_manager</depend>
   <depend>map_msgs</depend>
