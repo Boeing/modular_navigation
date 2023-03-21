@@ -32,6 +32,11 @@ find_package(visualization_msgs REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rcutils REQUIRED)
+find_package(rcpputils REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(urdf REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(visualization_msgs REQUIRED)
 add_definitions(${EIGEN3_DEFINITIONS})
 
 find_package(yaml-cpp REQUIRED)
@@ -80,11 +85,17 @@ ament_target_dependencies(
     graph_map
     sensor_msgs
     rcutils
+    rcpputils
+    rclcpp
     cartographer_ros_msgs
     nav_msgs
     geometry_msgs
     map_manager
     image_geometry
+    image_transport
+    tf2_ros
+    urdf
+    visualization_msgs
 )
 
 # Link packages against new deps add_dependencies(${PROJECT_NAME}
