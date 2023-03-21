@@ -25,6 +25,11 @@ find_package(cartographer_ros_msgs REQUIRED)
 find_package(${PROJECT_NAME}_interface REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread chrono)
 
+find_package(cv_bridge REQUIRED)
+find_package(image_geometry REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(visualization_msgs REQUIRED)
+
 find_package(Eigen3)
 add_definitions(${EIGEN3_DEFINITIONS})
 

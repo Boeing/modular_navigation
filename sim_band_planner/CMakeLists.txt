@@ -23,7 +23,11 @@ find_package(tf2_ros REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(map_manager REQUIRED)
 find_package(cartographer_ros_msgs REQUIRED)
-
+find_package(OpenCV REQUIRED)
+find_package(image_geometry)
+find_package(image_transport)
+find_package(cv_bridge)
+find_package(urdf)
 find_package(Boost REQUIRED COMPONENTS system thread chrono)
 
 # find_package( catkin REQUIRED COMPONENTS geometry_msgs gridmap nav_msgs navigation_interface pluginlib roscpp

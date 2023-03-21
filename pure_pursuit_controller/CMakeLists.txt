@@ -20,6 +20,13 @@ find_package(sensor_msgs REQUIRED)
 find_package(graph_map REQUIRED)
 find_package(map_manager REQUIRED)
 find_package(cartographer_ros_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(image_geometry REQUIRED)
+find_package(image_transport)
+find_package(tf2_ros REQUIRED)
+find_package(urdf REQUIRED)
+find_package(visualization_msgs REQUIRED)
 
 add_definitions(${EIGEN3_DEFINITIONS})
 
