@@ -157,8 +157,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
         last_updated_ = rclcpp::Clock(RCL_ROS_TIME).now();
 
-        //const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
-        const std::string _topic = parameters["topic"].as<std::string>("/" + name_);
+        const std::string _topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
+//        const std::string _topic = parameters["topic"].as<std::string>("/" + name_);
 
         g_node_ = rclcpp::Node::make_shared(name_);
         executor_.add_node(g_node_);
@@ -178,7 +178,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
         // auto subscriber_ = g_node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
         // boost::bind(&TopicDataSource::callback, g_node_, _1), sub_opts_);
 
-        auto cb_func = [this](const typename MsgType::SharedPtr msg) { this->callback(msg); };
+        auto cb_func = [this](const typename MsgType::SharedPtr msg) { this->bufferIncomingMsg(msg); };
         auto subscriber_ = g_node_->create_subscription<MsgType>(_topic,
                                                                  rclcpp::SensorDataQoS(),  // callback_queue_size_,
                                                                  cb_func, sub_opts_);
@@ -335,9 +335,6 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
             const bool success = processData(msg, robot_pose, tr);
 
-            // Once data is processed set promise so spin_until_future_complete unlocks
-            promise_.set_value(rclcpp::FutureReturnCode::SUCCESS);
-
             if (!success)
             {
                 RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Failed to process data for '" << name_ << "'");
@@ -436,51 +433,30 @@ template <typename MsgType> class TopicDataSource : public DataSource
                         RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
                                            "DataSource '" << name_ << "' has not updated for " << delay << "s");
                     }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                     continue;
                 }
 
                 // Process queued message
                 const auto t0 = std::chrono::steady_clock::now();
-
-                // const auto result = data_queue_.callOne(rclcpp::WallTimer(maximum_sensor_delay_));
-
-                // //(ros::WallDuration(maximum_sensor_delay_));
-                const auto result = executor_.spin_until_future_complete(
-                    ready_future,  // TODO, CHECK THIS FUTURE in CB func
-                    std::chrono::milliseconds((int)(1000.0 * maximum_sensor_delay_)));
+                processMsg(queued_msg);
                 const double duration =
                     std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                         .count();
 
                 std::lock_guard<std::mutex> lock(mutex_);
-                if (result == rclcpp::FutureReturnCode::SUCCESS)  // ros::CallbackQueue::CallOneResult::Called)
-                // rclcpp::FutureReturnCode::SUCCESS
-                {
-                    if (duration > maximum_sensor_delay_)  // this is redundant if
-                                                           // rclcpp::executor_::FutureReturnCode::TIMEOUT is used?
-                    {
-                        RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
-                                           "DataSource '" << name_ << "' update took: " << duration
-                                                          << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
-                                                          << "\nConsider compiling with optimisation flag -O2.");
-                    }
-
-                    // if (data_queue_.size() == callback_queue_size_)
-                    //{
-                    //     RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' callback queue is
-                    //     full!");
-                    // }
-                }
-                else if (result == rclcpp::FutureReturnCode::TIMEOUT)  // ros::CallbackQueue::CallOneResult::Empty)
-                {
-
-                }
-                else
+                if (duration > maximum_sensor_delay_)
                 {
                     RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
-                                       "DataSource '"
-                                           << name_ << "' error, spinning was interrupted by Ctrl-C or another error");
+                                       "DataSource '" << name_ << "' update took: " << duration
+                                                      << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
+                                                      << "\nConsider compiling with optimisation flag -O2.");
                 }
+                // if (data_queue_.size() == callback_queue_size_)
+                //{
+                //     RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' callback queue is
+                //     full!");
+                // }
             }
             catch (const std::exception& e)
             {
