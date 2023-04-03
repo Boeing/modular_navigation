@@ -8,7 +8,7 @@ int main(int argc, char** argv)
     {
         // rclcpp::spin defaults to SingleThreadedExecution, meaning
         // only one callback can be executed at a time.
-        auto autonomy_node = std::make_shared<autonomy::Autonomy>();
+        auto autonomy_node = std::make_shared<autonomy::Autonomy>("autonomy");
 
         rclcpp::executors::MultiThreadedExecutor executor;
         executor.add_node(autonomy_node);

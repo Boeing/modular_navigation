@@ -81,7 +81,7 @@ class Autonomy : public rclcpp::Node
     using Drive = autonomy_interface::action::Drive;
     using GoalHandleDrive = rclcpp_action::ServerGoalHandle<Drive>;
 
-    Autonomy();
+    Autonomy(const std::string& node_name);
     virtual ~Autonomy();
     rclcpp::Node::SharedPtr service_node_;
     rclcpp::Node::SharedPtr param_client_node;
