@@ -657,10 +657,7 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        node_ = rclcpp::Node::make_shared("~");
-        //  ros::NodeHandle nh("~");
-        //  target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
-        //  footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
+        node_ = rclcpp::Node::make_shared("controller_debug_viz");
         target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
         footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
     }

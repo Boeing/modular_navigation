@@ -217,8 +217,7 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        node_ = rclcpp::Node::make_shared("~");
-        // ros::NodeHandle nh("~");
+        node_ = rclcpp::Node::make_shared("path_planner_debug_viz");
         explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", 100);
     }
 }
