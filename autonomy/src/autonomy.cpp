@@ -137,7 +137,7 @@ void Autonomy::init()
     const rcl_action_server_options_t & options = rcl_action_server_get_default_options();
 
     this->action_server_ = rclcpp_action::create_server<autonomy_interface::action::Drive>(
-            this->shared_from_this(), "autonomy", std::bind(&Autonomy::goalCallback, this, std::placeholders::_1, std::placeholders::_2),
+            shared_from_this(), "autonomy", std::bind(&Autonomy::goalCallback, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&Autonomy::cancelCallback, this, std::placeholders::_1),
         std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1),
         options,
@@ -185,34 +185,26 @@ void Autonomy::init()
     RCLCPP_INFO_STREAM(this->get_logger(), "path_swap_fraction: " << path_swap_fraction_);
 
     robot_tracker_.reset(new gridmap::RobotTracker());
-    urdf::Model urdf;
-    // Recover robot_description param from robot_state_publisher_node 
-    // TODO consider passing robot_state_publisher_node as an optional arg
-    param_client_node = rclcpp::Node::make_shared("robot_state_publisher_client");
-    auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(param_client_node, "robot_state_publisher");
 
-    // Wait for robot description to be available
-    using namespace std::chrono_literals;
+    // Get the robot_description from robot_state_publisher node
+    auto parameters_client = std::make_shared<rclcpp::SyncParametersClient>(shared_from_this(), "robot_state_publisher");
     RCLCPP_INFO(this->get_logger(), "Waiting for robot_state_publisher parameter service...");
-    if (!parameters_client->wait_for_service(30s))
+    if (!parameters_client->wait_for_service(std::chrono::seconds(30)))
     {
         throw std::runtime_error("Timed out while waiting for robot_description parameter service. Exiting.");
     }
-
-    // Recover robot description from robot_state_publisher
     auto robot_description_param = parameters_client->get_parameters({"robot_description"});
-    //auto robot_description_future = parameters_client->get_parameters({"robot_description"});
-    
     RCLCPP_INFO(this->get_logger(), "Getting robot_description DONE");
 
     // Save the URDF with gridmap format
+    urdf::Model urdf;
     urdf.initString(robot_description_param[0].value_to_string());
     urdf_tree_.reset(new gridmap::URDFTree(urdf));
-    urdf_tree_ = nullptr;
+//    urdf_tree_ = nullptr;
 
     const YAML::Node costmap_config = root_config["costmap"];
 
-    auto layers = loadMapLayers(costmap_config, layer_loader_, robot_footprint, robot_tracker_, urdf_tree_, this->shared_from_this());
+    auto layers = loadMapLayers(costmap_config, layer_loader_, robot_footprint, robot_tracker_, urdf_tree_, shared_from_this());
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
     base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
@@ -306,41 +298,47 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
 
         // Call each service client synchronously
         const std::chrono::seconds timeout = std::chrono::seconds(10);
+        auto srv_callback_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-        auto map_client = this->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info");
+        auto map_client = this->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
         map_req->map_name = map->name;
         auto map_res_future = map_client->async_send_request(map_req);
 
-        // Requires node executor to be spinning to receive the service response
-        if (map_res_future.wait_for(timeout) != std::future_status::ready)
-        {
-            throw std::runtime_error("Failed to call: " + std::string(map_client->get_service_name()));
-        }
-
-        auto og_client = this->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+        auto og_client = this->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto og_req = std::make_shared<map_manager::srv::GetOccupancyGrid::Request>();
         og_req->map_name = map->name;
         auto og_res_future = og_client->async_send_request(og_req);
 
-        // Requires node executor to be spinning to receive the service response
-        if (og_res_future.wait_for(timeout) != std::future_status::ready)
-        {
-            throw std::runtime_error("Failed to call: " + std::string(og_client->get_service_name()));
-        }
-
-        auto zones_client = this->create_client<map_manager::srv::GetZones>("/map_manager/get_zones");
+        auto zones_client = this->create_client<map_manager::srv::GetZones>("/map_manager/get_zones", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto zones_req = std::make_shared<map_manager::srv::GetZones::Request>();
         zones_req->map_name = map->name;
         auto zones_res_future = zones_client->async_send_request(zones_req);
 
         // Requires node executor to be spinning to receive the service response
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(map_client->get_service_name()));
+        if (map_res_future.wait_for(timeout) != std::future_status::ready)
+        {
+            throw std::runtime_error("Failed to call: " + std::string(map_client->get_service_name()));
+        }
+
+        // Requires node executor to be spinning to receive the service response
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(og_client->get_service_name()));
+        if (og_res_future.wait_for(timeout) != std::future_status::ready)
+        {
+            throw std::runtime_error("Failed to call: " + std::string(og_client->get_service_name()));
+        }
+
+        // Requires node executor to be spinning to receive the service response
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(zones_client->get_service_name()));
         if (zones_res_future.wait_for(timeout) != std::future_status::ready)
         {
             throw std::runtime_error("Failed to call: " + std::string(zones_client->get_service_name()));
         }
         
         layered_map_->setMap(map_res_future.get()->map_info, og_res_future.get()->grid, zones_res_future.get()->zones);
+
+        RCLCPP_INFO_STREAM(this->get_logger(), "Set layered map");
     }
     else
     {

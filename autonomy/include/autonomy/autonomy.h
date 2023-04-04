@@ -183,9 +183,6 @@ class Autonomy : public rclcpp::Node
     std::shared_ptr<gridmap::URDFTree> urdf_tree_;
     std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
 
-    //rclcpp::Node::SharedPtr service_node_;
-    //rclcpp::Node::SharedPtr param_client_node;
-
     // ros::Subscriber odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);

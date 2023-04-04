@@ -144,7 +144,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
         rclcpp::SubscriptionOptions sub_opts_;
         sub_opts_.callback_group = cbg;
 
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Subscribing to: " << _topic);
+        RCLCPP_INFO_STREAM(node_->get_logger(), "Subscribing to: " << _topic);
         // Create a callback group for the node
         // sub_opts_.callback_group = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
         // auto subscriber_ = node_->create_subscription<MsgType>(_topic, rclcpp::SensorDataQoS(),
@@ -262,16 +262,18 @@ template <typename MsgType> class TopicDataSource : public DataSource
     {
         if (sub_sample_ == 0 || (sub_sample_ > 0 && sub_sample_count_ > sub_sample_))
         {
+            RCLCPP_INFO_STREAM(node_->get_logger(), "Process data for '" << name_ << "'");
             sub_sample_count_ = 0;
 
             std::lock_guard<std::mutex> lock(mutex_);
             if (!map_data_)
+                RCLCPP_INFO_STREAM(node_->get_logger(), "No map data");
                 return;
 
             const double delay = (node_->get_clock()->now() - msg->header.stamp).seconds();
             if (delay > maximum_sensor_delay_)
             {
-                RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                RCLCPP_WARN_STREAM(node_->get_logger(),
                                    "DataSource '" << name_ << "' incoming data is " << delay << "s old!");
             }
 
@@ -284,14 +286,14 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
             if (!success)
             {
-                RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Failed to process data for '" << name_ << "'");
+                RCLCPP_ERROR_STREAM(node_->get_logger(), "Failed to process data for '" << name_ << "'");
             }
             else
             {
                 std::lock_guard<std::mutex> l(last_updated_mutex_);
                 last_updated_ = msg->header.stamp;
             }
-            RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "SUCCEDED! to process data for '" << name_ << "'");//DEBUG
+            RCLCPP_INFO_STREAM(node_->get_logger(), "SUCCEDED! to process data for '" << name_ << "'");
         }
         else
         {
@@ -328,7 +330,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 {
                     if (connected)
                     {
-                        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Disconnecting data for: " << name_);
+                        RCLCPP_INFO_STREAM(node_->get_logger(), "Disconnecting data for: " << name_);
                         std::lock_guard<std::mutex> lock(connected_mutex_);
                         connected_ = false;
                     }
@@ -339,7 +341,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 // If localised, but not already connected...
                 if (!connected)
                 {
-                    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Connecting data for: " << name_);
+                    RCLCPP_INFO_STREAM(node_->get_logger(), "Connecting data for: " << name_);
                     // Clear stale data from message buffer
                     {
                         std::lock_guard<std::mutex> lock(msg_buffer_mutex_);
@@ -377,7 +379,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     const double delay = (node_->get_clock()->now() - last_updated_).seconds();
                     if (delay > maximum_sensor_delay_)
                     {
-                        RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                        RCLCPP_WARN_STREAM(node_->get_logger(),
                                            "DataSource '" << name_ << "' has not updated for " << delay << "s");
                     }
                     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -394,20 +396,20 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 std::lock_guard<std::mutex> lock(mutex_);
                 if (duration > maximum_sensor_delay_)
                 {
-                    RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+                    RCLCPP_WARN_STREAM(node_->get_logger(),
                                        "DataSource '" << name_ << "' update took: " << duration
                                                       << "s. maximum_sensor_delay is: " << maximum_sensor_delay_
                                                       << "\nConsider compiling with optimisation flag -O2.");
                 }
                 // if (data_queue_.size() == callback_queue_size_)
                 //{
-                //     RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "' callback queue is
+                //     RCLCPP_WARN_STREAM(node_->get_logger(), "DataSource '" << name_ << "' callback queue is
                 //     full!");
                 // }
             }
             catch (const std::exception& e)
             {
-                RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "DataSource '" << name_ << "': " << e.what());
+                RCLCPP_ERROR_STREAM(node_->get_logger(), "DataSource '" << name_ << "': " << e.what());
                 // data_queue_.flushMessages();
                 // data_queue_.clear();
             }
