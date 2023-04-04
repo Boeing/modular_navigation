@@ -84,16 +84,15 @@ class Autonomy : public rclcpp::Node
     Autonomy(const std::string& node_name, const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
     virtual ~Autonomy();
 
-    void init();  // node must be initialized out-of-constructor to enable access to this->shared_from_this()
-
-    rclcpp::Node::SharedPtr service_node_;
-    rclcpp::Node::SharedPtr param_client_node;
+    void init();  // node must be initialized out-of-constructor to enable access to shared_from_this()
 
   private:
     void activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map);
 
     void executionThread();
-    void executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle);
+    void executeCurrentGoal();
+
+    void cancelCurrentGoal();
 
     rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid,
                                              std::shared_ptr<const Drive::Goal> goal);
@@ -104,9 +103,9 @@ class Autonomy : public rclcpp::Node
     void trajectoryPlannerThread();
     void controllerThread();
     
-    std::mutex goal_mutex_;
-    std::shared_ptr<const Drive::Goal> goal_;
+    std::mutex goal_handle_mutex_;
     std::shared_ptr<GoalHandleDrive> goal_handle_;
+
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
     std::thread execution_thread_;
     std::thread goal_exec_thread_; // DEBUG
@@ -131,7 +130,6 @@ class Autonomy : public rclcpp::Node
     rclcpp::Subscription<map_manager::msg::MapInfo>::SharedPtr active_map_sub_;
 
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_publisher_;
-
     rclcpp::Publisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr costmap_updates_publisher_;
 
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr current_goal_pub_;
@@ -154,6 +152,8 @@ class Autonomy : public rclcpp::Node
 
     std::atomic<bool> running_;
     std::atomic<bool> execution_thread_running_;
+    std::atomic<bool> goal_executing_;
+    std::atomic<bool> map_updating_;
 
     std::unique_ptr<std::thread> path_planner_thread_;
     std::unique_ptr<std::thread> trajectory_planner_thread_;

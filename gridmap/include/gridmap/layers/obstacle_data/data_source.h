@@ -290,10 +290,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
             }
             else
             {
+                RCLCPP_INFO_STREAM(node_->get_logger(), "SUCCEDED! to process data for '" << name_ << "'");
                 std::lock_guard<std::mutex> l(last_updated_mutex_);
                 last_updated_ = msg->header.stamp;
             }
-            RCLCPP_INFO_STREAM(node_->get_logger(), "SUCCEDED! to process data for '" << name_ << "'");
         }
         else
         {
