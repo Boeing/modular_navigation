@@ -74,7 +74,7 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
                                                            const std::vector<Eigen::Vector2d>& robot_footprint,
                                                            const std::shared_ptr<gridmap::RobotTracker>& robot_tracker,
                                                            std::shared_ptr<gridmap::URDFTree> urdf_tree,
-                                                           const rclcpp::Logger& logger)
+                                                           const rclcpp::Node::SharedPtr node)
 {
     std::vector<std::shared_ptr<gridmap::Layer>> plugin_ptrs;
     if (parameters["layers"])
@@ -89,9 +89,9 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
 
             try
             {
-                RCLCPP_INFO_STREAM(logger, "Loading plugin: " << pname << " type: " << type);
+                RCLCPP_INFO_STREAM(node->get_logger(), "Loading plugin: " << pname << " type: " << type);
                 auto plugin_ptr = std::shared_ptr<gridmap::Layer>(loader.createUnmanagedInstance(type));
-                plugin_ptr->initialize(pname, parameters[pname], robot_footprint, robot_tracker, urdf_tree);
+                plugin_ptr->initialize(pname, parameters[pname], robot_footprint, robot_tracker, urdf_tree, node);
                 plugin_ptrs.push_back(plugin_ptr);
             }
             catch (const pluginlib::PluginlibException& e)
@@ -110,32 +110,26 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
 
 }  // namespace
 
-Autonomy::Autonomy(const std::string& node_name)  // const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
-    : Node(node_name), // autonomy_action_server
-
+Autonomy::Autonomy(const std::string& node_name, const rclcpp::NodeOptions& options)
+    : rclcpp::Node(node_name, options),
     layer_loader_("gridmap", "gridmap::Layer"),
     pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
     tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
     c_loader_("navigation_interface", "navigation_interface::Controller"),
-
     running_(false), execution_thread_running_(false), controller_done_(false),
-
-    current_path_(nullptr), current_trajectory_(nullptr)
-
-{
+    current_path_(nullptr), current_trajectory_(nullptr) {
     // Create cb groups for different subscriptions
     callback_group_action_srv_ = this->create_callback_group(
-    rclcpp::CallbackGroupType::MutuallyExclusive);
+            rclcpp::CallbackGroupType::MutuallyExclusive);
     umbrella_callback_group_ = this->create_callback_group(
-    rclcpp::CallbackGroupType::MutuallyExclusive);
+            rclcpp::CallbackGroupType::MutuallyExclusive);
 
     // Each of these callback groups is basically a thread
     // Everything assigned to one of them gets bundled into the same thread
-    //auto sub_odom_opt = rclcpp::SubscriptionOptions();
-    //sub_odom_opt.callback_group = callback_group_odom_;
-    //auto sub_map_opt = rclcpp::SubscriptionOptions();
-    //sub_map_opt.callback_group = callback_group_map_;
-    // Create Sub Options with the reentrant callback group
+}
+
+void Autonomy::init()
+{
     auto umbrella_sub_opt = rclcpp::SubscriptionOptions();
     umbrella_sub_opt.callback_group = umbrella_callback_group_;
 
@@ -143,7 +137,7 @@ Autonomy::Autonomy(const std::string& node_name)  // const rclcpp::NodeOptions &
     const rcl_action_server_options_t & options = rcl_action_server_get_default_options();
 
     this->action_server_ = rclcpp_action::create_server<autonomy_interface::action::Drive>(
-        this, "autonomy", std::bind(&Autonomy::goalCallback, this, std::placeholders::_1, std::placeholders::_2),
+            this->shared_from_this(), "autonomy", std::bind(&Autonomy::goalCallback, this, std::placeholders::_1, std::placeholders::_2),
         std::bind(&Autonomy::cancelCallback, this, std::placeholders::_1),
         std::bind(&Autonomy::acceptedCallback, this, std::placeholders::_1),
         options,
@@ -155,9 +149,6 @@ Autonomy::Autonomy(const std::string& node_name)  // const rclcpp::NodeOptions &
     tfListener_ = std::make_shared<tf2_ros::TransformListener>(*tfBuffer_);
 
     std::string navigation_config = "";
-
-	this->declare_parameter<std::string>("navigation_config", "default");
-
     if (!this->get_parameter("navigation_config", navigation_config))
     {
         throw std::invalid_argument("Could not get navigation_config param");
@@ -221,7 +212,7 @@ Autonomy::Autonomy(const std::string& node_name)  // const rclcpp::NodeOptions &
 
     const YAML::Node costmap_config = root_config["costmap"];
 
-    auto layers = loadMapLayers(costmap_config, layer_loader_, robot_footprint, robot_tracker_, urdf_tree_, this->get_logger());
+    auto layers = loadMapLayers(costmap_config, layer_loader_, robot_footprint, robot_tracker_, urdf_tree_, this->shared_from_this());
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
     base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
@@ -239,9 +230,9 @@ Autonomy::Autonomy(const std::string& node_name)  // const rclcpp::NodeOptions &
         "current_goal", rclcpp::QoS(1).transient_local());  
     path_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
         "path_goal", rclcpp::QoS(1).transient_local());                                                 
-    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("path", rclcpp::QoS(0).transient_local());  
+    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("path", rclcpp::QoS(0).transient_local());
     trajectory_pub_ =
-        this->create_publisher<nav_msgs::msg::Path>("trajectory", rclcpp::QoS(0).transient_local());  
+        this->create_publisher<nav_msgs::msg::Path>("trajectory", rclcpp::QoS(0).transient_local());
 
     planner_map_update_pub_ = this->create_publisher<std_msgs::msg::Float64>(
         "planner_map_update_time", rclcpp::QoS(0).transient_local());  
@@ -311,46 +302,43 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
 
     if (!map->name.empty())
     {
-        // Here every client call is executed synchronously
         RCLCPP_INFO_STREAM(this->get_logger(), "Received map (" << map->name << ")");
 
-        service_node_ = rclcpp::Node::make_shared("active_map_service_client_");
+        // Call each service client synchronously
+        const std::chrono::seconds timeout = std::chrono::seconds(10);
 
-        auto map_client = service_node_->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info");
-        // map_manager::srv::GetMapInfo::Request map_req;
+        auto map_client = this->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info");
         auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
         map_req->map_name = map->name;
-        // map_manager::srv::GetMapInfo::Response map_res;
-        auto map_res_future = map_client->async_send_request(
-            map_req);  // no sync call in rcpcpp, only in rclpy https://github.com/ros2/rclcpp/issues/975
+        auto map_res_future = map_client->async_send_request(map_req);
 
-        // auto og_client = this.serviceClient<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
-        auto og_client = service_node_->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
+        // Requires node executor to be spinning to receive the service response
+        if (map_res_future.wait_for(timeout) != std::future_status::ready)
+        {
+            throw std::runtime_error("Failed to call: " + std::string(map_client->get_service_name()));
+        }
+
+        auto og_client = this->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid");
         auto og_req = std::make_shared<map_manager::srv::GetOccupancyGrid::Request>();
         og_req->map_name = map->name;
-        // map_manager::srv::GetOccupancyGrid::Response og_res;
-        // rcpputils::assert_true(og_client.call(og_req, og_res));
         auto og_res_future = og_client->async_send_request(og_req);
 
-        // auto zones_client = this.serviceClient<map_manager::srv::GetZones>("/map_manager/get_zones");
-        auto zones_client = service_node_->create_client<map_manager::srv::GetZones>("/map_manager/get_zones");
-        // map_manager::srv::GetZones::Request zones_req;
+        // Requires node executor to be spinning to receive the service response
+        if (og_res_future.wait_for(timeout) != std::future_status::ready)
+        {
+            throw std::runtime_error("Failed to call: " + std::string(og_client->get_service_name()));
+        }
+
+        auto zones_client = this->create_client<map_manager::srv::GetZones>("/map_manager/get_zones");
         auto zones_req = std::make_shared<map_manager::srv::GetZones::Request>();
         zones_req->map_name = map->name;
-        // map_manager::srv::GetZones::Response zones_res;
-        // rcpputils::assert_true(zones_client.call(zones_req, zones_res));
         auto zones_res_future = zones_client->async_send_request(zones_req);
 
-        auto map_future_code = rclcpp::spin_until_future_complete(service_node_->get_node_base_interface(), map_res_future);  //,
-        rcpputils::assert_true(map_future_code == rclcpp::FutureReturnCode::SUCCESS);
-
-        auto og_future_code = rclcpp::spin_until_future_complete(service_node_->get_node_base_interface(), og_res_future);
-        rcpputils::assert_true(og_future_code == rclcpp::FutureReturnCode::SUCCESS);
-
-        auto zones_res = rclcpp::spin_until_future_complete(service_node_->get_node_base_interface(), zones_res_future);
-        // std::chrono::milliseconds((int) (1000.0*maximum_map_server_delay)));
-
-        rcpputils::assert_true(zones_res == rclcpp::FutureReturnCode::SUCCESS);
+        // Requires node executor to be spinning to receive the service response
+        if (zones_res_future.wait_for(timeout) != std::future_status::ready)
+        {
+            throw std::runtime_error("Failed to call: " + std::string(zones_client->get_service_name()));
+        }
         
         layered_map_->setMap(map_res_future.get()->map_info, og_res_future.get()->grid, zones_res_future.get()->zones);
     }

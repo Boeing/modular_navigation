@@ -81,8 +81,11 @@ class Autonomy : public rclcpp::Node
     using Drive = autonomy_interface::action::Drive;
     using GoalHandleDrive = rclcpp_action::ServerGoalHandle<Drive>;
 
-    Autonomy(const std::string& node_name);
+    Autonomy(const std::string& node_name, const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
     virtual ~Autonomy();
+
+    void init();  // node must be initialized out-of-constructor to enable access to this->shared_from_this()
+
     rclcpp::Node::SharedPtr service_node_;
     rclcpp::Node::SharedPtr param_client_node;
 
@@ -191,18 +194,6 @@ class Autonomy : public rclcpp::Node
     rclcpp::Subscription<cartographer_ros_msgs::msg::SystemState>::SharedPtr mapper_status_sub_;
     void mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg);
 };
-
-template <typename T> T get_param_or_throw(Autonomy node, const std::string& param_name)
-{
-
-    if (node.has_parameter(param_name))  // TODO does it work?
-    {
-        auto param = node.get_parameter(param_name);
-        return param.get_parameter_value().get<T>();
-    }
-
-    throw std::runtime_error("Must specify an existing param, " + param_name + " does not exist");
-}
 
 }  // namespace autonomy
 

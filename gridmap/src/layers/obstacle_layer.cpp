@@ -23,7 +23,8 @@ namespace
 std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
     loadDataSources(const YAML::Node& parameters, pluginlib::ClassLoader<gridmap::DataSource>& loader,
                     const std::vector<Eigen::Vector2d>& robot_footprint,
-                    const std::shared_ptr<RobotTracker>& robot_tracker, const std::shared_ptr<URDFTree>& urdf_tree)
+                    const std::shared_ptr<RobotTracker>& robot_tracker, const std::shared_ptr<URDFTree>& urdf_tree,
+                    const rclcpp::Node::SharedPtr& node)
 {
     std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> plugin_ptrs;
     const std::string param_name = "data_sources";
@@ -48,7 +49,7 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
                 const YAML::Node params = parameters[pname];
                 std::shared_ptr<gridmap::DataSource> plugin_ptr =
                     std::shared_ptr<gridmap::DataSource>(loader.createUnmanagedInstance(type));
-                plugin_ptr->initialize(pname, params, robot_footprint, robot_tracker, urdf_tree);
+                plugin_ptr->initialize(pname, params, robot_footprint, robot_tracker, urdf_tree, node);
                 plugin_ptrs[pname] = plugin_ptr;
             }
             catch (const pluginlib::PluginlibException& e)
@@ -201,7 +202,7 @@ void ObstacleLayer::onInitialize(const YAML::Node& parameters)
     clamping_thres_max_ = parameters["clamping_thres_max"].as<double>(clamping_thres_max_);
     occ_prob_thres_ = parameters["occ_prob_thres"].as<double>(occ_prob_thres_);
 
-    data_sources_ = loadDataSources(parameters, ds_loader_, robot_footprint_, robot_tracker_, urdf_tree_);
+    data_sources_ = loadDataSources(parameters, ds_loader_, robot_footprint_, robot_tracker_, urdf_tree_, node_);
 
     time_decay_ = parameters["time_decay"].as<bool>(time_decay_);
     if (time_decay_)
@@ -233,11 +234,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
 
     if (debug_viz_)
     {
-        // ros::NodeHandle nh(name());
-        auto node = rclcpp::Node::make_shared(name());
-
-        // debug_viz_pub_ = nh.advertise<nav_msgs::msg::OccupancyGrid>("costmap", 1);
-        debug_viz_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
+        debug_viz_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", rclcpp::QoS(1).transient_local());
 
         if (debug_viz_running_)
         {
