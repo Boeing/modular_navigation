@@ -24,7 +24,7 @@ std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>>
     loadDataSources(const YAML::Node& parameters, pluginlib::ClassLoader<gridmap::DataSource>& loader,
                     const std::vector<Eigen::Vector2d>& robot_footprint,
                     const std::shared_ptr<RobotTracker>& robot_tracker, const std::shared_ptr<URDFTree>& urdf_tree,
-                    const rclcpp::Node::SharedPtr& node)
+                    const rclcpp::Node::SharedPtr node)
 {
     std::unordered_map<std::string, std::shared_ptr<gridmap::DataSource>> plugin_ptrs;
     const std::string param_name = "data_sources";
@@ -220,7 +220,7 @@ void ObstacleLayer::onInitialize(const YAML::Node& parameters)
     }
 }
 
-void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid&)
+void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data)
 {
     probability_grid_ =
         std::make_shared<ProbabilityGrid>(dimensions(), clamping_thres_min_, clamping_thres_max_, occ_prob_thres_);

@@ -58,7 +58,7 @@ class Layer
     void initialize(const std::string& name, const YAML::Node& parameters,
                     const std::vector<Eigen::Vector2d>& robot_footprint,
                     const std::shared_ptr<RobotTracker>& robot_tracker, const std::shared_ptr<URDFTree>& urdf_tree,
-                    const rclcpp::Node::SharedPtr node = nullptr)
+                    const rclcpp::Node::SharedPtr node)
     {
         name_ = name;
         robot_tracker_ = robot_tracker;

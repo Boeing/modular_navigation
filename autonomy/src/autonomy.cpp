@@ -208,7 +208,7 @@ void Autonomy::init()
 
     auto layers = loadMapLayers(costmap_config, layer_loader_, robot_footprint, robot_tracker_, urdf_tree_, shared_from_this());
     auto base_map_layer = std::make_shared<gridmap::BaseMapLayer>();
-    base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_);
+    base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_, nullptr);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
     rmw_qos_profile_t odom_qos_profile = rmw_qos_profile_sensor_data;
