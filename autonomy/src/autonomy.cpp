@@ -117,7 +117,9 @@ Autonomy::Autonomy(const std::string& node_name, const rclcpp::NodeOptions& opti
     tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
     c_loader_("navigation_interface", "navigation_interface::Controller"),
     running_(false), execution_thread_running_(false), controller_done_(false),
-    current_path_(nullptr), current_trajectory_(nullptr) {
+    current_path_(nullptr), current_trajectory_(nullptr),
+    new_map_name_(""), active_map_name_("")
+{
     // Create cb groups for different subscriptions
     callback_group_action_srv_ = this->create_callback_group(
             rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -275,6 +277,15 @@ Autonomy::~Autonomy()
 
 void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
 {
+    if (!map->name.empty())
+    {
+        std::lock_guard<std::mutex> lock(new_map_name_mutex_);
+        new_map_name_ = map->name;
+    }
+}
+
+void Autonomy::setActiveMap(const std::string& map_name)
+{
     // preempt execution
     if (running_)
     {
@@ -292,9 +303,9 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
     goal_lock.unlock();
     rcpputils::assert_true(goal_ == nullptr);
 
-    if (!map->name.empty())
+    if (!map_name.empty())
     {
-        RCLCPP_INFO_STREAM(this->get_logger(), "Received map (" << map->name << ")");
+        RCLCPP_INFO_STREAM(this->get_logger(), "Received map (" << map_name << ")");
 
         // Call each service client synchronously
         const std::chrono::seconds timeout = std::chrono::seconds(10);
@@ -302,17 +313,17 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
 
         auto map_client = this->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
-        map_req->map_name = map->name;
+        map_req->map_name = map_name;
         auto map_res_future = map_client->async_send_request(map_req);
 
         auto og_client = this->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto og_req = std::make_shared<map_manager::srv::GetOccupancyGrid::Request>();
-        og_req->map_name = map->name;
+        og_req->map_name = map_name;
         auto og_res_future = og_client->async_send_request(og_req);
 
         auto zones_client = this->create_client<map_manager::srv::GetZones>("/map_manager/get_zones", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto zones_req = std::make_shared<map_manager::srv::GetZones::Request>();
-        zones_req->map_name = map->name;
+        zones_req->map_name = map_name;
         auto zones_res_future = zones_client->async_send_request(zones_req);
 
         // Requires node executor to be spinning to receive the service response
@@ -393,6 +404,18 @@ void Autonomy::executionThread()
     rclcpp::Rate rate(1);
     while (execution_thread_running_)
     {
+        // Check for map update
+        {
+            std::unique_lock<std::mutex> lock(new_map_name_mutex_);
+            if (new_map_name_ != active_map_name_)
+            {
+                const std::string new_map_name = new_map_name_;
+                lock.unlock();
+                setActiveMap(new_map_name);
+                active_map_name_ = new_map_name;
+            }
+        }
+
         {
             std::unique_lock<std::mutex> goal_lock(goal_mutex_);
             if (goal_)

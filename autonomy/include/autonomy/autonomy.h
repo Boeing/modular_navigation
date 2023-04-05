@@ -91,6 +91,7 @@ class Autonomy : public rclcpp::Node
 
   private:
     void activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map);
+    void setActiveMap(const std::string& map_name);
 
     void executionThread();
     void executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle);
@@ -103,8 +104,12 @@ class Autonomy : public rclcpp::Node
     void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void trajectoryPlannerThread();
     void controllerThread();
-    
-    std::mutex goal_mutex_;
+
+    mutable std::mutex new_map_name_mutex_;
+    std::string new_map_name_;
+    std::string active_map_name_;
+
+    mutable std::mutex goal_mutex_;
     std::shared_ptr<const Drive::Goal> goal_;
     std::shared_ptr<GoalHandleDrive> goal_handle_;
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
@@ -164,8 +169,8 @@ class Autonomy : public rclcpp::Node
     std::unique_ptr<TrackingPath> current_path_;
     std::unique_ptr<ControlTrajectory> current_trajectory_;
 
-    std::mutex path_mutex_;
-    std::mutex trajectory_mutex_;
+    mutable std::mutex path_mutex_;
+    mutable std::mutex trajectory_mutex_;
 
     // Configuration
     const std::string global_frame_ = "map";
