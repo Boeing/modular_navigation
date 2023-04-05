@@ -289,10 +289,14 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     void dataThread()
     {
-        rclcpp::Time last_warned = rclcpp::Time(0);
+        rclcpp::Time last_warned;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            last_warned = node_->get_clock()->now();
+        }
 
         const double update_rate_hz = 100.0;
-        rclcpp::WallRate rate(update_rate_hz);
+        rclcpp::Rate rate(update_rate_hz);
 
         while (rclcpp::ok())
         {

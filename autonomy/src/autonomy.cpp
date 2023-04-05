@@ -6,7 +6,7 @@
 #include <map_manager/srv/get_occupancy_grid.hpp>
 #include <map_manager/srv/get_zones.hpp>
 #include <navigation_interface/params.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include <algorithm>
