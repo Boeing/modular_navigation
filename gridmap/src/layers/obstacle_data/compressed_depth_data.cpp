@@ -3,7 +3,7 @@
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/codec.h>
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/compression_common.h>
 #include <gridmap/layers/obstacle_data/depth.h>
-#include <image_transport/subscriber.h>
+#include <image_transport/subscriber.hpp>
 #include <pluginlib/class_list_macros.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
@@ -100,7 +100,7 @@ bool CompressedDepthData::processData(const sensor_msgs::msg::CompressedImage::S
         return false;
     }
 
-    const sensor_msgs::msg::Image::Ptr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
+    const sensor_msgs::msg::Image::SharedPtr image = compressed_depth_image_transport::decodeCompressedDepthImage(*msg);
 
     const cv_bridge::CvImageConstPtr cv_image = getImage(image, cv_image_mask_);
 
