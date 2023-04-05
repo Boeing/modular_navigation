@@ -16,7 +16,7 @@ import pytest
 from rclpy.parameter import Parameter
 from rclpy.action import ActionClient
 
-from launch.substitutions import LaunchConfiguration, TextSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument
@@ -64,7 +64,10 @@ def generate_test_description():
             # Declare autonomy configuration file path
             DeclareLaunchArgument(
                 'navigation_config',
-                default_value=TextSubstitution(text='/home/fran/nav_ros2_ws/src/autonomy/config/navigation.yaml')
+                default_value=PathJoinSubstitution([
+                    get_package_share_directory('autonomy'),
+                    'test', 'config', 'navigation.yaml'
+                ])
             ),
 
             # Launch GAZEBO
@@ -99,11 +102,11 @@ def generate_test_description():
             ),
 
             # Launch fake localisation (map to odom transform)
-            #Node(
-            #    package='autonomy',
-            #    namespace='autonomy',
-            #    executable='fake_localisation.py'
-            #),  
+            Node(
+               package='autonomy',
+               namespace='autonomy',
+               executable='fake_localisation.py'
+            ),  
 
             # Map manager
             IncludeLaunchDescription(
