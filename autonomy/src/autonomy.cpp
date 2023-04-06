@@ -3,12 +3,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/thread.hpp>
 #include <boost/tokenizer.hpp>
-#include <map_manager/srv/get_occupancy_grid.hpp>
-#include <map_manager/srv/get_zones.hpp>
 #include <navigation_interface/params.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <yaml-cpp/yaml.h>
-
 #include <algorithm>
 #include <cmath>
 #include <random>
@@ -117,14 +114,15 @@ Autonomy::Autonomy(const std::string& node_name, const rclcpp::NodeOptions& opti
     tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
     c_loader_("navigation_interface", "navigation_interface::Controller"),
     running_(false), execution_thread_running_(false), controller_done_(false),
-    current_path_(nullptr), current_trajectory_(nullptr),
-    new_map_name_(""), active_map_name_("")
+    current_path_(nullptr), current_trajectory_(nullptr)
 {
     // Create cb groups for different subscriptions
     callback_group_action_srv_ = this->create_callback_group(
             rclcpp::CallbackGroupType::MutuallyExclusive);
     umbrella_callback_group_ = this->create_callback_group(
             rclcpp::CallbackGroupType::MutuallyExclusive);
+    srv_callback_group_ = this->create_callback_group(
+            rclcpp::CallbackGroupType::Reentrant);
 
     // Each of these callback groups is basically a thread
     // Everything assigned to one of them gets bundled into the same thread
@@ -249,11 +247,21 @@ void Autonomy::init()
 
     mapper_status_sub_ = this->create_subscription<cartographer_ros_msgs::msg::SystemState>(
         "/mapper/state",
-        1, std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1),
+        rclcpp::QoS(1).transient_local(),
+        std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1),
         umbrella_sub_opt);
 
     costmap_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
     costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", 1);
+
+    get_map_info_client_ = this->create_client<map_manager::srv::GetMapInfo>(
+            "/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);
+
+    get_occupancy_grid_client_ = this->create_client<map_manager::srv::GetOccupancyGrid>(
+            "/map_manager/get_occupancy_grid", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);
+
+    get_zones_client_ = this->create_client<map_manager::srv::GetZones>(
+            "/map_manager/get_zones", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);
 
     goal_handle_ = nullptr;
     execution_thread_running_ = true;
@@ -275,16 +283,7 @@ Autonomy::~Autonomy()
     }
 }
 
-void Autonomy::activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map)
-{
-    if (!map->name.empty())
-    {
-        std::lock_guard<std::mutex> lock(new_map_name_mutex_);
-        new_map_name_ = map->name;
-    }
-}
-
-void Autonomy::setActiveMap(const std::string& map_name)
+void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
 {
     // preempt execution
     if (running_)
@@ -303,48 +302,44 @@ void Autonomy::setActiveMap(const std::string& map_name)
     goal_lock.unlock();
     rcpputils::assert_true(goal_ == nullptr);
 
-    if (!map_name.empty())
+    if (!map.name.empty())
     {
-        RCLCPP_INFO_STREAM(this->get_logger(), "Received map (" << map_name << ")");
+        RCLCPP_INFO_STREAM(this->get_logger(), "Received map (" << map.name << ")");
 
         // Call each service client synchronously
         const std::chrono::seconds timeout = std::chrono::seconds(10);
-        auto srv_callback_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-        auto map_client = this->create_client<map_manager::srv::GetMapInfo>("/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
-        map_req->map_name = map_name;
-        auto map_res_future = map_client->async_send_request(map_req);
+        map_req->map_name = map.name;
+        auto map_res_future = get_map_info_client_->async_send_request(map_req);
 
-        auto og_client = this->create_client<map_manager::srv::GetOccupancyGrid>("/map_manager/get_occupancy_grid", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto og_req = std::make_shared<map_manager::srv::GetOccupancyGrid::Request>();
-        og_req->map_name = map_name;
-        auto og_res_future = og_client->async_send_request(og_req);
+        og_req->map_name = map.name;
+        auto og_res_future = get_occupancy_grid_client_->async_send_request(og_req);
 
-        auto zones_client = this->create_client<map_manager::srv::GetZones>("/map_manager/get_zones", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group);
         auto zones_req = std::make_shared<map_manager::srv::GetZones::Request>();
-        zones_req->map_name = map_name;
-        auto zones_res_future = zones_client->async_send_request(zones_req);
+        zones_req->map_name = map.name;
+        auto zones_res_future = get_zones_client_->async_send_request(zones_req);
 
         // Requires node executor to be spinning to receive the service response
-        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(map_client->get_service_name()));
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(get_map_info_client_->get_service_name()));
         if (map_res_future.wait_for(timeout) != std::future_status::ready)
         {
-            throw std::runtime_error("Failed to call: " + std::string(map_client->get_service_name()));
+            throw std::runtime_error("Failed to call: " + std::string(get_map_info_client_->get_service_name()));
         }
 
         // Requires node executor to be spinning to receive the service response
-        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(og_client->get_service_name()));
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(get_occupancy_grid_client_->get_service_name()));
         if (og_res_future.wait_for(timeout) != std::future_status::ready)
         {
-            throw std::runtime_error("Failed to call: " + std::string(og_client->get_service_name()));
+            throw std::runtime_error("Failed to call: " + std::string(get_occupancy_grid_client_->get_service_name()));
         }
 
         // Requires node executor to be spinning to receive the service response
-        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(zones_client->get_service_name()));
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for service: " + std::string(get_zones_client_->get_service_name()));
         if (zones_res_future.wait_for(timeout) != std::future_status::ready)
         {
-            throw std::runtime_error("Failed to call: " + std::string(zones_client->get_service_name()));
+            throw std::runtime_error("Failed to call: " + std::string(get_zones_client_->get_service_name()));
         }
         
         layered_map_->setMap(map_res_future.get()->map_info, og_res_future.get()->grid, zones_res_future.get()->zones);
@@ -404,18 +399,6 @@ void Autonomy::executionThread()
     rclcpp::Rate rate(1);
     while (execution_thread_running_)
     {
-        // Check for map update
-        {
-            std::unique_lock<std::mutex> lock(new_map_name_mutex_);
-            if (new_map_name_ != active_map_name_)
-            {
-                const std::string new_map_name = new_map_name_;
-                lock.unlock();
-                setActiveMap(new_map_name);
-                active_map_name_ = new_map_name;
-            }
-        }
-
         {
             std::unique_lock<std::mutex> goal_lock(goal_mutex_);
             if (goal_)
@@ -460,7 +443,7 @@ void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        //RCLCPP_INFO_STREAM(this->get_logger(),"Executing goal: " << goal_->order); // COMMENTED FSR
+        RCLCPP_INFO_STREAM(this->get_logger(),"Executing goal: " + rclcpp_action::to_string(goal_handle->get_goal_id()));
         current_goal_pub_->publish(transformed_goal_pose_);
     }
 
@@ -1345,15 +1328,15 @@ void Autonomy::controllerThread()
     controller_done_ = true;
 }
 
-void Autonomy::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+void Autonomy::odomCallback(const nav_msgs::msg::Odometry& msg) const
 {
-    robot_tracker_->addOdometryData(*msg);
+    robot_tracker_->addOdometryData(msg);
 }
 
-void Autonomy::mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg)
+void Autonomy::mapperCallback(const cartographer_ros_msgs::msg::SystemState& msg) const
 {
     const bool was_localised = robot_tracker_->localised();
-    robot_tracker_->addLocalisationData(*msg);
+    robot_tracker_->addLocalisationData(msg);
     const bool is_localised = robot_tracker_->localised();
 
     // reset the layers when localisation switches

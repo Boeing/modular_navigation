@@ -11,6 +11,8 @@
 #include <gridmap/robot_tracker.h>
 #include <gridmap/urdf_tree.h>
 #include <map_manager/srv/get_map_info.hpp>
+#include <map_manager/srv/get_occupancy_grid.hpp>
+#include <map_manager/srv/get_zones.hpp>
 #include <map_msgs/msg/occupancy_grid_update.hpp>
 #include <nav_msgs/msg/odometry.h>
 #include <nav_msgs/msg/path.hpp>
@@ -90,8 +92,7 @@ class Autonomy : public rclcpp::Node
     rclcpp::Node::SharedPtr param_client_node;
 
   private:
-    void activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map);
-    void setActiveMap(const std::string& map_name);
+    void activeMapCallback(const map_manager::msg::MapInfo& map);
 
     void executionThread();
     void executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle);
@@ -104,10 +105,6 @@ class Autonomy : public rclcpp::Node
     void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void trajectoryPlannerThread();
     void controllerThread();
-
-    mutable std::mutex new_map_name_mutex_;
-    std::string new_map_name_;
-    std::string active_map_name_;
 
     mutable std::mutex goal_mutex_;
     std::shared_ptr<const Drive::Goal> goal_;
@@ -135,6 +132,10 @@ class Autonomy : public rclcpp::Node
 
     rclcpp::Subscription<map_manager::msg::MapInfo>::SharedPtr active_map_sub_;
 
+    rclcpp::Client<map_manager::srv::GetMapInfo>::SharedPtr get_map_info_client_;
+    rclcpp::Client<map_manager::srv::GetOccupancyGrid>::SharedPtr get_occupancy_grid_client_;
+    rclcpp::Client<map_manager::srv::GetZones>::SharedPtr get_zones_client_;
+
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_publisher_;
 
     rclcpp::Publisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr costmap_updates_publisher_;
@@ -152,7 +153,8 @@ class Autonomy : public rclcpp::Node
 
     // callback groups
     rclcpp::CallbackGroup::SharedPtr callback_group_action_srv_;
-    rclcpp::CallbackGroup::SharedPtr umbrella_callback_group_;  
+    rclcpp::CallbackGroup::SharedPtr umbrella_callback_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_callback_group_;
 
     std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
@@ -190,11 +192,11 @@ class Autonomy : public rclcpp::Node
 
     // ros::Subscriber odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+    void odomCallback(const nav_msgs::msg::Odometry& msg) const;
 
     // ros::Subscriber mapper_status_sub_;
     rclcpp::Subscription<cartographer_ros_msgs::msg::SystemState>::SharedPtr mapper_status_sub_;
-    void mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg);
+    void mapperCallback(const cartographer_ros_msgs::msg::SystemState& msg) const;
 };
 
 }  // namespace autonomy
