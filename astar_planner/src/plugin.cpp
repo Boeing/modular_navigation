@@ -218,7 +218,7 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
     if (debug_viz_)
     {
         node_ = rclcpp::Node::make_shared("path_planner_debug_viz");
-        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", 100);
+        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", rclcpp::QoS(1).transient_local());
     }
 }
 

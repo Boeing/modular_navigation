@@ -200,7 +200,6 @@ void Autonomy::init()
     urdf::Model urdf;
     urdf.initString(robot_description_param[0].value_to_string());
     urdf_tree_.reset(new gridmap::URDFTree(urdf));
-//    urdf_tree_ = nullptr;
 
     const YAML::Node costmap_config = root_config["costmap"];
 
@@ -209,8 +208,6 @@ void Autonomy::init()
     base_map_layer->initialize("base_map", costmap_config["base_map"], robot_footprint, robot_tracker_, urdf_tree_, nullptr);
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
-    rmw_qos_profile_t odom_qos_profile = rmw_qos_profile_sensor_data;
-    
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "/odom",
         rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort(),
@@ -251,8 +248,8 @@ void Autonomy::init()
         std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1),
         umbrella_sub_opt);
 
-    costmap_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", 1);
-    costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", 1);
+    costmap_publisher_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", rclcpp::QoS(1).transient_local());
+    costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", rclcpp::QoS(1).transient_local());
 
     get_map_info_client_ = this->create_client<map_manager::srv::GetMapInfo>(
             "/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);
@@ -387,7 +384,7 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
     {
         nav_msgs::msg::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
         grid.header.frame_id = "map";
-        grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
+        grid.header.stamp = this->get_clock()->now();
         costmap_publisher_->publish(grid);
     }
 
@@ -510,8 +507,9 @@ void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 
     {
         std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        // RCLCPP_INFO_STREAM(this->get_logger(),"Goal " << std::to_string(goal_->get_goal_id()) << " execution
-        // complete");
+        RCLCPP_INFO_STREAM(
+                this->get_logger(),
+                "Goal " << rclcpp_action::to_string(goal_handle_->get_goal_id()) << " execution complete");
         goal_ = nullptr;
     }
 }
@@ -519,18 +517,19 @@ void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
 rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid,
                                                    std::shared_ptr<const Drive::Goal> goal)
 {
-
+    RCLCPP_INFO_STREAM(this->get_logger(),
+                       "Received goal: " + rclcpp_action::to_string(uuid) + " (" << goal->target_pose.pose.position.x
+                                      << ", " << goal->target_pose.pose.position.y << ")");
     RCLCPP_INFO_STREAM(this->get_logger(), "Goal standard deviations: X: "
                                                    << goal->std_x << ", Y: " << goal->std_y << ", W: " << goal->std_w
                                                    << ", Max Samples: " << goal->max_samples);
 
     const gridmap::RobotState robot_state = robot_tracker_->robotState();
-    auto result = std::make_shared<autonomy_interface::action::Drive::Result>();
 
     if (!robot_state.localised)
     {
         RCLCPP_ERROR_STREAM(this->get_logger(),
-                            "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - // Robot not localised");
+                            "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - Robot not localised");
         return rclcpp_action::GoalResponse::REJECT;
     }
 
@@ -592,8 +591,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         if (goal_)
         {
             // Goal is currently finishing up. Wait for it to gracefully finish.
-            if (goal_)// TODO DEBUG//goal_->is_canceling() ||  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED ||
-                //goal_->is_executing())    // getGoalStatus().status == actionlib_msgs::GoalStatus::SUCCEEDED)
+            if (!goal_handle_->is_active())
             {
                 while (goal_)
                 {

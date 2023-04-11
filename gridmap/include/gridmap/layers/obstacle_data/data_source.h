@@ -249,12 +249,12 @@ template <typename MsgType> class TopicDataSource : public DataSource
     {
         if (sub_sample_ == 0 || (sub_sample_ > 0 && sub_sample_count_ > sub_sample_))
         {
-            RCLCPP_INFO_STREAM(node_->get_logger(), "Process data for '" << name_ << "'");
+            RCLCPP_DEBUG_STREAM(node_->get_logger(), "Process data for '" << name_ << "'");
             sub_sample_count_ = 0;
 
             if (!map_data_)
             {
-                RCLCPP_INFO_STREAM(node_->get_logger(), "No map data");
+                RCLCPP_DEBUG_STREAM(node_->get_logger(), "No map data");
                 return;
             }
 
@@ -280,7 +280,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             {
                 last_updated_ = msg->header.stamp;
             }
-            RCLCPP_INFO_STREAM(node_->get_logger(), "SUCCEDED! to process data for '" << name_ << "'");
+            RCLCPP_DEBUG_STREAM(node_->get_logger(), "SUCCEDED! to process data for '" << name_ << "'");
         }
         else
         {
