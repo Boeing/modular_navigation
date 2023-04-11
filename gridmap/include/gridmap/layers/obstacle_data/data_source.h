@@ -236,7 +236,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
         {
             std::lock_guard<std::mutex> lock(msg_buffer_mutex_);
 
-            if (msg_buffer_.size() >= msg_buffer_size_)
+            if (msg_buffer_.size() == msg_buffer_size_)
             {
                 msg_buffer_.pop_front(); // drop oldest value
             }
@@ -252,10 +252,11 @@ template <typename MsgType> class TopicDataSource : public DataSource
             RCLCPP_INFO_STREAM(node_->get_logger(), "Process data for '" << name_ << "'");
             sub_sample_count_ = 0;
 
-            std::lock_guard<std::mutex> lock(mutex_);
             if (!map_data_)
+            {
                 RCLCPP_INFO_STREAM(node_->get_logger(), "No map data");
                 return;
+            }
 
             const double delay = (node_->get_clock()->now() - msg->header.stamp).seconds();
             if (delay > maximum_sensor_delay_)
@@ -295,7 +296,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             last_warned = node_->get_clock()->now();
         }
 
-        const double update_rate_hz = 100.0;
+        const double update_rate_hz = 50.0;
         rclcpp::Rate rate(update_rate_hz);
 
         while (rclcpp::ok())

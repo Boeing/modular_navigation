@@ -47,7 +47,7 @@ class ObstacleLayer : public Layer
     // ros::Publisher debug_viz_pub_;
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr debug_viz_pub_;  //
 
-    bool debug_viz_ = true;
+    bool debug_viz_ = false;
     std::atomic<bool> debug_viz_running_;
     double debug_viz_frequency_ = 4.0;
     std::thread debug_viz_thread_;

@@ -241,7 +241,7 @@ void Autonomy::init()
 
     active_map_sub_ = this->create_subscription<map_manager::msg::MapInfo>(
         "/map_manager/active_map",
-        rclcpp::QoS(10).transient_local(),
+        rclcpp::QoS(1).transient_local(),
         std::bind(&Autonomy::activeMapCallback, this, std::placeholders::_1),
         umbrella_sub_opt); 
 
