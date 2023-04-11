@@ -1,8 +1,6 @@
 #ifndef GRIDMAP_LAYER_H
 #define GRIDMAP_LAYER_H
 
-#include <boost/thread/locks.hpp>
-#include <boost/thread/shared_mutex.hpp>
 #include <graph_map/msg/zone.hpp>
 #include <gridmap/grids/grid_2d.h>
 #include <gridmap/grids/occupancy_grid.h>
@@ -15,6 +13,7 @@
 
 // For logging reasons
 #include <memory>
+#include <shared_mutex>
 #include <thread>
 
 #include "rclcpp/rclcpp.hpp"
@@ -93,9 +92,9 @@ class Layer
         return global_frame_;
     }
 
-    boost::shared_lock<boost::shared_mutex> getReadLock() const
+    std::shared_lock<std::shared_timed_mutex> getReadLock() const
     {
-        return boost::shared_lock<boost::shared_mutex>(layer_mutex_);
+        return std::shared_lock<std::shared_timed_mutex>(layer_mutex_);
     }
 
     // By default, the unique_lock (write lock) has priority over shared_lock. This means while the writer is trying
@@ -103,9 +102,9 @@ class Layer
     // if a writer is trying to get the lock.
     // To get around this, we use a non-blocking try_to_lock every 5ms and during the sleeps, new readers can lock.
     // This means readers have priority and writers have to wait for windows where there are no reader.
-    boost::unique_lock<boost::shared_mutex> getWriteLock() const
+    std::unique_lock<std::shared_timed_mutex> getWriteLock() const
     {
-        boost::unique_lock<boost::shared_mutex> lock(layer_mutex_, boost::try_to_lock_t());
+        std::unique_lock<std::shared_timed_mutex> lock(layer_mutex_, std::try_to_lock_t());
         while (!lock.owns_lock())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -115,7 +114,7 @@ class Layer
     }
 
   protected:
-    mutable boost::shared_timed_mutex layer_mutex_;
+    mutable std::shared_timed_mutex layer_mutex_;
 
     std::shared_ptr<RobotTracker> robot_tracker_;
     std::shared_ptr<URDFTree> urdf_tree_;

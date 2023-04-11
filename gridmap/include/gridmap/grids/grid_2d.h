@@ -5,13 +5,11 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-#include <boost/thread/locks.hpp>
-#include <boost/thread/shared_mutex.hpp>
-
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <iterator>
+#include <shared_mutex>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -132,9 +130,9 @@ template <class CellType> class Grid2D
         return map_dimensions_.size().x() * cell_index.y() + cell_index.x();
     }
 
-    boost::shared_lock<boost::shared_mutex> getReadLock() const
+    std::shared_lock<std::shared_mutex> getReadLock() const
     {
-        return boost::shared_lock<boost::shared_mutex>(shared_mutex_);
+        return std::shared_lock<std::shared_mutex>(shared_mutex_);
     }
 
     // By default, the unique_lock (write lock) has priority over shared_lock. This means while the writer is trying
@@ -142,9 +140,9 @@ template <class CellType> class Grid2D
     // if a writer is trying to get the lock.
     // To get around this, we use a non-blocking try_to_lock every 5ms and during the sleeps, new readers can lock.
     // This means readers have priority and writers have to wait for windows where there are no reader.
-    boost::unique_lock<boost::shared_mutex> getWriteLock() const
+    std::unique_lock<std::shared_mutex> getWriteLock() const
     {
-        boost::unique_lock<boost::shared_mutex> lock(shared_mutex_, boost::try_to_lock_t());
+        std::unique_lock<std::shared_mutex> lock(shared_mutex_, std::try_to_lock_t());
         while (!lock.owns_lock())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -156,7 +154,7 @@ template <class CellType> class Grid2D
   protected:
     MapDimensions map_dimensions_;
 
-    mutable boost::shared_mutex shared_mutex_;
+    mutable std::shared_mutex shared_mutex_;
     std::vector<CellType> cells_;
 };
 }  // namespace gridmap

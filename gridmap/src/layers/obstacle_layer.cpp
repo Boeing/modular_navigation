@@ -1,5 +1,3 @@
-#include <boost/thread/locks.hpp>
-#include <boost/thread/shared_mutex.hpp>
 #include <geometry_msgs/msg/polygon_stamped.hpp>
 #include <gridmap/layers/obstacle_layer.h>
 #include <opencv2/imgproc.hpp>
@@ -8,6 +6,7 @@
 
 // For logging reasons
 #include <chrono>
+#include <shared_mutex>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rcpputils/asserts.hpp"
@@ -324,13 +323,13 @@ void ObstacleLayer::debugVizThread(const double frequency)
     // Changes in expectedCycleTime explained:
     // https://answers.ros.org/question/350222/expcectedcycletime-in-ros2/
     // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    boost::chrono::milliseconds period =
-        boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::duration<double>{1.0 / frequency});
+    std::chrono::milliseconds period =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>{1.0 / frequency});
 
     while (debug_viz_running_ && rclcpp::ok())
     {
         {
-            boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
+            std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
             // if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
             if (_lock.owns_lock() && debug_viz_pub_->get_subscription_count() != 0 && probability_grid_ &&
@@ -410,13 +409,13 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
     // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
     // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    boost::chrono::milliseconds period =
-        boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::duration<double>{1.0 / frequency});
+    std::chrono::milliseconds period =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>{1.0 / frequency});
 
     while (clear_footprint_running_ && rclcpp::ok())
     {
         {
-            boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
+            std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
             if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
@@ -444,8 +443,8 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
     // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
-    boost::chrono::milliseconds period =
-        boost::chrono::duration_cast<boost::chrono::milliseconds>(boost::chrono::duration<double>{1.0 / frequency});
+    std::chrono::milliseconds period =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>{1.0 / frequency});
 
     // divide the grid into a set of blocks which we can mark as dirty
     // only update dirty blocks
@@ -503,7 +502,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     while (time_decay_running_ && rclcpp::ok())
     {
         {
-            boost::shared_lock<boost::shared_timed_mutex> _lock(layer_mutex_, period);
+            std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
             if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
