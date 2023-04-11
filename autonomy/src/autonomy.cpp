@@ -827,7 +827,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
 
         // Plan
         navigation_interface::PathPlanner::Result result;
-        const auto now = this->now();  // rclcpp::Clock(RCL_STEADY_TIME).now();//ros::SteadyTime::now();
+        const auto now = this->get_clock()->now();  // rclcpp::Clock(RCL_STEADY_TIME).now();//ros::SteadyTime::now();
         {
 
             const auto t0 = std::chrono::steady_clock::now();
@@ -837,7 +837,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
             const double plan_duration =
                 std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
                     .count();
-            if (plan_duration > path_planner_frequency_)  // rate.expectedCycleTime().toSec())
+            if (plan_duration > 1.0/path_planner_frequency_)  // rate.expectedCycleTime().toSec())
                 RCLCPP_WARN_STREAM(this->get_logger(), "Path Planning took too long: " << plan_duration << "s");
 
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Path Planning took: " << plan_duration << " s.");
