@@ -76,8 +76,6 @@ class PurePursuitController : public navigation_interface::Controller
 
     // Making a node attrb instead of usig publishers
     // Although it is only used if debug_viz_ is set inside a yaml
-    // auto node = rclcpp::Node::make_shared("~");
-    rclcpp::Node::SharedPtr node_;  // = nullptr;
     typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr target_state_pub_;
     typename rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr footprint_pub_;
 

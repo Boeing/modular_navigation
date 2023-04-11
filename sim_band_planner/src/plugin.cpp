@@ -395,7 +395,6 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        node_ = rclcpp::Node::make_shared("trajectory_planner_debug_viz");
         marker_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("sim_band", 100);
     }
 }
