@@ -47,10 +47,12 @@ class Controller
     virtual void onInitialize(const YAML::Node& parameters) = 0;
     virtual void onMapDataChanged() = 0;
 
-    void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data)
+    void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data,
+                    const rclcpp::Node::SharedPtr node)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
+        node_ = node;
         onInitialize(parameters);
     }
 
@@ -66,6 +68,7 @@ class Controller
   protected:
     std::mutex mutex_;
     std::shared_ptr<const gridmap::MapData> map_data_;
+    rclcpp::Node::SharedPtr node_;
 };
 };  // namespace navigation_interface
 

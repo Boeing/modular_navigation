@@ -37,7 +37,7 @@ template <class PluginType>
 std::shared_ptr<PluginType> load(const YAML::Node& parameters, const std::string& planner_name,
                                  pluginlib::ClassLoader<PluginType>& loader,
                                  const std::shared_ptr<const gridmap::MapData>& costmap,
-                                 const rclcpp::Logger& logger)
+                                 const rclcpp::Node::SharedPtr node)
 {
     try
     {
@@ -48,8 +48,8 @@ std::shared_ptr<PluginType> load(const YAML::Node& parameters, const std::string
 
         try
         {
-            RCLCPP_INFO_STREAM(logger, "Loading plugin: " << planner_name << " type: " << class_name);
-            sp->initialize(plugin_params, costmap);
+            RCLCPP_INFO_STREAM(node->get_logger(), "Loading plugin: " << planner_name << " type: " << class_name);
+            sp->initialize(plugin_params, costmap, node);
         }
         catch (const std::exception& e)
         {
@@ -231,10 +231,10 @@ void Autonomy::init()
         "control_map_update_time", rclcpp::QoS(0).transient_local()); 
 
     // Create the planners
-    path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr, this->get_logger());
+    path_planner_ = load<navigation_interface::PathPlanner>(root_config, "path_planner", pp_loader_, nullptr, shared_from_this());
     trajectory_planner_ =
-        load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr, this->get_logger());
-    controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr, this->get_logger());
+        load<navigation_interface::TrajectoryPlanner>(root_config, "trajectory_planner", tp_loader_, nullptr, shared_from_this());
+    controller_ = load<navigation_interface::Controller>(root_config, "controller", c_loader_, nullptr, shared_from_this());
 
     active_map_sub_ = this->create_subscription<map_manager::msg::MapInfo>(
         "/map_manager/active_map",

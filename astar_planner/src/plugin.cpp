@@ -127,8 +127,8 @@ navigation_interface::PathPlanner::Result
             cv::cvtColor(disp, disp, cv::COLOR_BGR2GRAY);
 
             nav_msgs::msg::OccupancyGrid og;
-            // og.header.stamp = ros::Time::now();
-            og.header.stamp = node_->get_clock()->now();  //.nanoseconds()
+            og.header.frame_id = "map";
+            og.header.stamp = node_->get_clock()->now();
             og.info.resolution = costmap_->resolution;
             og.info.width = costmap_->width;
             og.info.height = costmap_->height;
@@ -157,14 +157,16 @@ navigation_interface::PathPlanner::Result
 
         result.cost = astar_result.path.front()->cost_so_far;
         result.outcome = navigation_interface::PathPlanner::Outcome::SUCCESSFUL;
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "A Star succeeded!");
     }
     else
     {
         if (astar_result.start_in_collision)
-            RCLCPP_WARN(rclcpp::get_logger(""), "Start in collision!");
+            RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Start in collision!");
         if (astar_result.goal_in_collision)
-            RCLCPP_WARN(rclcpp::get_logger(""), "Goal in collision!");
+            RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Goal in collision!");
         result.outcome = navigation_interface::PathPlanner::Outcome::FAILED;
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "A Star failed!");
     }
     return result;
 }
@@ -217,7 +219,6 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        node_ = rclcpp::Node::make_shared("path_planner_debug_viz");
         explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", rclcpp::QoS(1).transient_local());
     }
 }
