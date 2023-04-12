@@ -815,19 +815,18 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
             strafe_mult = goal_->strafe_mult;
             rotation_mult = goal_->rotation_mult;
 
-            // TODO
-            // if (std::to_string(goal_->get_goal_id()) != last_goal_id)
-            //{
-            //     goal_updated = true;
-            //     RCLCPP_INFO_STREAM(this->get_logger(),"Goal updated from: " << last_goal_id << " to:" <<
-            //     std::to_string(goal_->get_goal_id()));
-            // }
-            // last_goal_id = std::to_string(goal_->get_goal_id());
+             if (rclcpp_action::to_string(goal_handle_->get_goal_id()) != last_goal_id)
+            {
+                 goal_updated = true;
+                 RCLCPP_INFO_STREAM(this->get_logger(),"Goal updated from: " << last_goal_id << " to:" <<
+                 rclcpp_action::to_string(goal_handle_->get_goal_id()));
+             }
+             last_goal_id = rclcpp_action::to_string(goal_handle_->get_goal_id());
         }
 
         // Plan
         navigation_interface::PathPlanner::Result result;
-        const auto now = this->get_clock()->now();  // rclcpp::Clock(RCL_STEADY_TIME).now();//ros::SteadyTime::now();
+        const auto now = rclcpp::Clock(RCL_STEADY_TIME).now();  //ros::SteadyTime::now();
         {
 
             const auto t0 = std::chrono::steady_clock::now();
@@ -1281,7 +1280,7 @@ void Autonomy::controllerThread()
 
             // control
             const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
-            const auto t = this->now();  // ros::SteadyTime::now();
+            const auto t = rclcpp::Clock(RCL_STEADY_TIME).now();  // ros::SteadyTime::now();
             result = controller_->control(t, roi, ks, robot_state.map_to_odom, max_velocity, xy_goal_tolerance,
                                           yaw_goal_tolerance);
 

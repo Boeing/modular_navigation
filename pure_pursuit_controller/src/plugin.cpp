@@ -137,7 +137,7 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.ns = "points";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::POINTS;
-    marker.header.stamp = node->get_clock()->now();                           //.nanoseconds()
+    marker.header.stamp = node->get_clock()->now();
     marker.header.frame_id = "map";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -653,8 +653,8 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
-        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
+        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", rclcpp::QoS(100).transient_local());
+        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", rclcpp::QoS(100).transient_local());
     }
 }
 
