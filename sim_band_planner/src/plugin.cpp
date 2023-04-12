@@ -350,18 +350,6 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
 {
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
 
-    offsets_ = navigation_interface::get_point_list(parameters, "robot_radius_offsets",
-                                                    {{-0.268, 0.000},
-                                                     {0.268, 0.000},
-                                                     {0.265, -0.185},
-                                                     {0.077, -0.185},
-                                                     {-0.077, -0.185},
-                                                     {-0.265, -0.185},
-                                                     {0.265, 0.185},
-                                                     {-0.265, 0.185},
-                                                     {-0.077, 0.185},
-                                                     {0.077, 0.185}});
-
     num_iterations_ = parameters["num_iterations"].as<int>(num_iterations_);
     collision_distance_ = parameters["collision_distance"].as<double>(collision_distance_);
 
