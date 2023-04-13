@@ -37,7 +37,7 @@ struct CollisionCheck
 
 CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen::Isometry2d& robot_pose,
                                 const Eigen::Isometry2d& future_pose, const std::vector<Eigen::Vector2d>& footprint,
-                                const float alpha)
+                                const float alpha, rclcpp::Node::SharedPtr node)
 {
     // Want to interpolate footprint between current robot pose and future robot pose
     const double linear_step = 0.01;
@@ -137,9 +137,7 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
     marker.ns = "points";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::POINTS;
-    // marker.header.stamp = ros::Time::now();
-    const auto now = rclcpp::Clock(RCL_ROS_TIME).now();  // node_->get_clock()->now();
-    marker.header.stamp = now;                           //.nanoseconds()
+    marker.header.stamp = node->get_clock()->now();
     marker.header.frame_id = "map";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -183,15 +181,14 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
 }
 
 visualization_msgs::msg::Marker buildMarker(const navigation_interface::KinodynamicState& robot_state,
-                                            const navigation_interface::KinodynamicState& target_state)
+                                            const navigation_interface::KinodynamicState& target_state,
+                                            rclcpp::Node::SharedPtr node)
 {
     visualization_msgs::msg::Marker marker;
     marker.ns = "target";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::ARROW;
-    // marker.header.stamp = ros::Time::now();
-    const auto now = rclcpp::Clock(RCL_ROS_TIME).now();  // node_->get_clock()->now();
-    marker.header.stamp = now;                           //.nanoseconds()
+    marker.header.stamp = node->get_clock()->now();                        //.nanoseconds()
     marker.header.frame_id = "odom";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -341,9 +338,8 @@ navigation_interface::KinodynamicState lookAhead(const std::vector<navigation_in
 
 }  // namespace
 
-PurePursuitController::PurePursuitController()//rclcpp::Node::SharedPtr& node)
+PurePursuitController::PurePursuitController()
 {
-    // node_ = node;
 }
 
 PurePursuitController::~PurePursuitController()
@@ -471,7 +467,7 @@ navigation_interface::Controller::Result
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
         const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
 
-        const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, map_goal_pose, robot_footprint_, 1.f);
+        const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, map_goal_pose, robot_footprint_, 1.f, node_);
         min_distance_to_collision = cc.min_distance_to_collision;
         if (debug_viz_)
             footprint_pub_->publish(cc.marker);
@@ -486,7 +482,7 @@ navigation_interface::Controller::Result
     }
 
     if (debug_viz_)
-        target_state_pub_->publish(buildMarker(robot_state, target_state));
+        target_state_pub_->publish(buildMarker(robot_state, target_state, node_));
 
     rcpputils::assert_true(robot_state.pose.linear().allFinite());
     rcpputils::assert_true(robot_state.pose.translation().allFinite());
@@ -657,12 +653,8 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        node_ = rclcpp::Node::make_shared("~");
-        //  ros::NodeHandle nh("~");
-        //  target_state_pub_ = nh.advertise<visualization_msgs::Marker>("target_state", 100);
-        //  footprint_pub_ = nh.advertise<visualization_msgs::Marker>("footprint", 100);
-        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", 100);
-        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", 100);
+        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", rclcpp::QoS(100).transient_local());
+        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", rclcpp::QoS(100).transient_local());
     }
 }
 

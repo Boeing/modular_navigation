@@ -2,17 +2,26 @@
 
 int main(int argc, char** argv)
 {
-    // Now the "autonomy" name is given in the Autonomy constructor
-    rclcpp::init(argc, argv);  //, "autonomy");
+    rclcpp::init(argc, argv);
     try
     {
-        // rclcpp::spin defaults to SingleThreadedExecution, meaning
-        // only one callback can be executed at a time.
-        auto autonomy_node = std::make_shared<autonomy::Autonomy>();
+        // Create ROS node
+        rclcpp::NodeOptions node_options;
+        node_options.allow_undeclared_parameters(true);
+        node_options.automatically_declare_parameters_from_overrides(true);
+        node_options.start_parameter_services(false);
 
+        auto node = std::make_shared<autonomy::Autonomy>("autonomy", node_options);
+        node->init();  // create services
+
+        // Create an executor to spin the node
         rclcpp::executors::MultiThreadedExecutor executor;
-        executor.add_node(autonomy_node);
+        executor.add_node(node);
+
         executor.spin();
+
+        // Shutdown
+        rclcpp::shutdown();
     }
     catch (const std::exception& e)
     {

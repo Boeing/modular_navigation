@@ -11,6 +11,8 @@
 #include <gridmap/robot_tracker.h>
 #include <gridmap/urdf_tree.h>
 #include <map_manager/srv/get_map_info.hpp>
+#include <map_manager/srv/get_occupancy_grid.hpp>
+#include <map_manager/srv/get_zones.hpp>
 #include <map_msgs/msg/occupancy_grid_update.hpp>
 #include <nav_msgs/msg/odometry.h>
 #include <nav_msgs/msg/path.hpp>
@@ -81,13 +83,16 @@ class Autonomy : public rclcpp::Node
     using Drive = autonomy_interface::action::Drive;
     using GoalHandleDrive = rclcpp_action::ServerGoalHandle<Drive>;
 
-    Autonomy();
+    Autonomy(const std::string& node_name, const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
     virtual ~Autonomy();
+
+    void init();  // node must be initialized out-of-constructor to enable access to this->shared_from_this()
+
     rclcpp::Node::SharedPtr service_node_;
     rclcpp::Node::SharedPtr param_client_node;
 
   private:
-    void activeMapCallback(const map_manager::msg::MapInfo::SharedPtr map);
+    void activeMapCallback(const map_manager::msg::MapInfo& map);
 
     void executionThread();
     void executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle);
@@ -100,8 +105,8 @@ class Autonomy : public rclcpp::Node
     void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void trajectoryPlannerThread();
     void controllerThread();
-    
-    std::mutex goal_mutex_;
+
+    mutable std::mutex goal_mutex_;
     std::shared_ptr<const Drive::Goal> goal_;
     std::shared_ptr<GoalHandleDrive> goal_handle_;
     geometry_msgs::msg::PoseStamped transformed_goal_pose_;
@@ -127,6 +132,10 @@ class Autonomy : public rclcpp::Node
 
     rclcpp::Subscription<map_manager::msg::MapInfo>::SharedPtr active_map_sub_;
 
+    rclcpp::Client<map_manager::srv::GetMapInfo>::SharedPtr get_map_info_client_;
+    rclcpp::Client<map_manager::srv::GetOccupancyGrid>::SharedPtr get_occupancy_grid_client_;
+    rclcpp::Client<map_manager::srv::GetZones>::SharedPtr get_zones_client_;
+
     rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_publisher_;
 
     rclcpp::Publisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr costmap_updates_publisher_;
@@ -144,7 +153,8 @@ class Autonomy : public rclcpp::Node
 
     // callback groups
     rclcpp::CallbackGroup::SharedPtr callback_group_action_srv_;
-    rclcpp::CallbackGroup::SharedPtr umbrella_callback_group_;  
+    rclcpp::CallbackGroup::SharedPtr umbrella_callback_group_;
+    rclcpp::CallbackGroup::SharedPtr srv_callback_group_;
 
     std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
@@ -161,8 +171,8 @@ class Autonomy : public rclcpp::Node
     std::unique_ptr<TrackingPath> current_path_;
     std::unique_ptr<ControlTrajectory> current_trajectory_;
 
-    std::mutex path_mutex_;
-    std::mutex trajectory_mutex_;
+    mutable std::mutex path_mutex_;
+    mutable std::mutex trajectory_mutex_;
 
     // Configuration
     const std::string global_frame_ = "map";
@@ -180,29 +190,14 @@ class Autonomy : public rclcpp::Node
     std::shared_ptr<gridmap::URDFTree> urdf_tree_;
     std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
 
-    //rclcpp::Node::SharedPtr service_node_;
-    //rclcpp::Node::SharedPtr param_client_node;
-
     // ros::Subscriber odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-    void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
+    void odomCallback(const nav_msgs::msg::Odometry& msg) const;
 
     // ros::Subscriber mapper_status_sub_;
     rclcpp::Subscription<cartographer_ros_msgs::msg::SystemState>::SharedPtr mapper_status_sub_;
-    void mapperCallback(const cartographer_ros_msgs::msg::SystemState::SharedPtr msg);
+    void mapperCallback(const cartographer_ros_msgs::msg::SystemState& msg) const;
 };
-
-template <typename T> T get_param_or_throw(Autonomy node, const std::string& param_name)
-{
-
-    if (node.has_parameter(param_name))  // TODO does it work?
-    {
-        auto param = node.get_parameter(param_name);
-        return param.get_parameter_value().get<T>();
-    }
-
-    throw std::runtime_error("Must specify an existing param, " + param_name + " does not exist");
-}
 
 }  // namespace autonomy
 

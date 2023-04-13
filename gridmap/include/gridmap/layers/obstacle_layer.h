@@ -44,8 +44,7 @@ class ObstacleLayer : public Layer
     double clamping_thres_max_ = 0.971;
     double occ_prob_thres_ = 0.8;
 
-    // ros::Publisher debug_viz_pub_;
-    rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr debug_viz_pub_;  //
+    rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr debug_viz_pub_;
 
     bool debug_viz_ = true;
     std::atomic<bool> debug_viz_running_;

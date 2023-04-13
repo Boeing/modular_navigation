@@ -45,8 +45,6 @@ class SimBandPlanner : public navigation_interface::TrajectoryPlanner
     }
 
   private:
-    // ros::Publisher marker_pub_;
-    rclcpp::Node::SharedPtr node_ = nullptr;
     typename rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
 
     // Runtime data

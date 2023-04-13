@@ -41,8 +41,6 @@ class AStarPlanner : public navigation_interface::PathPlanner
 
     std::vector<Eigen::Vector2d> offsets_;
 
-    // ros::Publisher explore_pub_; // this is created on initialized_pub
-    rclcpp::Node::SharedPtr node_ = nullptr;
     typename rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr explore_pub_;
 
     std::shared_ptr<Costmap> costmap_;
