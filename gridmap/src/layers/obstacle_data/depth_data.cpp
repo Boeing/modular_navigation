@@ -80,11 +80,13 @@ void DepthData::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr
 bool DepthData::processData(const sensor_msgs::msg::Image::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                             const Eigen::Isometry3d& sensor_transform)
 {
+    const std::shared_ptr<ProbabilityGrid> map_data = get_map_data();
+
     const Eigen::Isometry3f t_f = sensor_transform.cast<float>();
 
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();
     const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
-    const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
+    const Eigen::Vector2i sensor_pt_map = map_data->dimensions().getCellIndex(sensor_pt_2d);
 
     if (!got_camera_info_)
     {
@@ -93,8 +95,8 @@ bool DepthData::processData(const sensor_msgs::msg::Image::SharedPtr msg, const 
     }
 
     // Check sensor is on map
-    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
-        sensor_pt_map.y() >= map_data_->dimensions().size().y())
+    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+        sensor_pt_map.y() >= map_data->dimensions().size().y())
     {
         RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Sensor is not on gridmap for: " << name());
         return false;
@@ -103,21 +105,21 @@ bool DepthData::processData(const sensor_msgs::msg::Image::SharedPtr msg, const 
     const cv_bridge::CvImageConstPtr cv_image = getImage(msg, cv_image_mask_);
 
     // add a 5% buffer
-    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.05);
+    const auto footprint = buildFootprintSet(map_data->dimensions(), robot_pose, robot_footprint_, 1.05);
 
     {
         // cppcheck-suppress unreadVariable
-        auto _lock = map_data_->getWriteLock();
+        auto _lock = map_data->getWriteLock();
         std::lock_guard<std::mutex> lock(camera_info_mutex_);
 
         std::unordered_map<uint64_t, float> height_voxels;
 
         if (msg->encoding == sensor_msgs::image_encodings::TYPE_16UC1)
             projectDepth<uint16_t>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
-                                   cv_image->image, camera_model_, map_data_->dimensions());
+                                   cv_image->image, camera_model_, map_data->dimensions());
         else if (msg->encoding == sensor_msgs::image_encodings::TYPE_32FC1)
             projectDepth<float>(height_voxels, min_range_, max_range_, obstacle_height_, t_f, footprint,
-                                cv_image->image, camera_model_, map_data_->dimensions());
+                                cv_image->image, camera_model_, map_data->dimensions());
         else
             // ROS_ASSERT_MSG(false, "Unsupported depth image format");
             rcpputils::assert_true(false, "Unsupported depth image format");
@@ -128,8 +130,8 @@ bool DepthData::processData(const sensor_msgs::msg::Image::SharedPtr msg, const 
             const double log_odds = h * (-miss_probability_log_ / obstacle_height_) + miss_probability_log_;
 
             const Eigen::Array2i index = KeyToIndex(elem.first);
-            if (map_data_->dimensions().contains(index))
-                map_data_->update(index, log_odds);
+            if (map_data->dimensions().contains(index))
+                map_data->update(index, log_odds);
         }
     }
 

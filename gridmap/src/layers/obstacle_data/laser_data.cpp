@@ -35,13 +35,15 @@ void LaserData::onMapDataChanged()
 bool LaserData::processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, const Eigen::Isometry2d& robot_pose,
                             const Eigen::Isometry3d& sensor_transform)
 {
+    const std::shared_ptr<ProbabilityGrid> map_data = get_map_data();
+
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();
     const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
-    const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
+    const Eigen::Vector2i sensor_pt_map = map_data->dimensions().getCellIndex(sensor_pt_2d);
 
     // Check sensor is on map
-    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
-        sensor_pt_map.y() >= map_data_->dimensions().size().y())
+    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+        sensor_pt_map.y() >= map_data->dimensions().size().y())
     {
         RCLCPP_WARN(rclcpp::get_logger(""), "Laser sensor is not on gridmap");
         return false;
@@ -58,15 +60,15 @@ bool LaserData::processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, co
         }
     }
 
-    const auto footprint = buildFootprintSet(map_data_->dimensions(), robot_pose, robot_footprint_, 1.00);
+    const auto footprint = buildFootprintSet(map_data->dimensions(), robot_pose, robot_footprint_, 1.00);
 
     const unsigned int cell_raytrace_range =
-        static_cast<unsigned int>(raytrace_range_ / map_data_->dimensions().resolution());
+        static_cast<unsigned int>(raytrace_range_ / map_data->dimensions().resolution());
 
     {
-        auto _lock = map_data_->getWriteLock();
-        AddLogCost marker(map_data_->cells().data(), miss_probability_log_, map_data_->clampingThresMinLog(),
-                          map_data_->clampingThresMaxLog());
+        auto _lock = map_data->getWriteLock();
+        AddLogCost marker(map_data->cells().data(), miss_probability_log_, map_data->clampingThresMinLog(),
+                          map_data->clampingThresMaxLog());
         for (size_t i = 0; i < msg->ranges.size(); i++)
         {
             double range = static_cast<double>(msg->ranges[i]);
@@ -82,22 +84,22 @@ bool LaserData::processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, co
             }
 
             const Eigen::Vector2d pt_2d(pt.x(), pt.y());
-            Eigen::Array2i ray_end = map_data_->dimensions().getCellIndex(pt_2d);
+            Eigen::Array2i ray_end = map_data->dimensions().getCellIndex(pt_2d);
             cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
-                                       map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+                                       map_data->dimensions().size().x() - 1, map_data->dimensions().size().y() - 1);
             raytraceLine(marker, sensor_pt_map.x(), sensor_pt_map.y(), ray_end.x(), ray_end.y(),
-                         map_data_->dimensions().size().x(), cell_raytrace_range);
+                         map_data->dimensions().size().x(), cell_raytrace_range);
             if (range < static_cast<double>(msg->range_max) && range < obstacle_range_)
             {
-                map_data_->update(ray_end, -miss_probability_log_);
-                map_data_->update(ray_end, hit_probability_log_);
+                map_data->update(ray_end, -miss_probability_log_);
+                map_data->update(ray_end, hit_probability_log_);
             }
 
             for (auto elem : footprint)
             {
                 const Eigen::Array2i index = KeyToIndex(elem);
-                if (map_data_->dimensions().contains(index))
-                    map_data_->setMinThres(index);
+                if (map_data->dimensions().contains(index))
+                    map_data->setMinThres(index);
             }
         }
     }
