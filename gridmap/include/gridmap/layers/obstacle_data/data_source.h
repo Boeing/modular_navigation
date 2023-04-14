@@ -296,7 +296,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             last_warned = node_->get_clock()->now();
         }
 
-        const double update_rate_hz = 50.0;
+        const double update_rate_hz = 100.0;
         rclcpp::Rate rate(update_rate_hz);
 
         while (rclcpp::ok())

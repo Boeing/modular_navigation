@@ -214,7 +214,7 @@ void Autonomy::init()
         std::bind(&Autonomy::odomCallback, this, std::placeholders::_1),
         umbrella_sub_opt);
 
-    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 1);  //("cmd_vel", 1);
+    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", rclcpp::QoS(rclcpp::KeepLast(1)));
     current_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
         "current_goal", rclcpp::QoS(1).transient_local());  
     path_goal_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
