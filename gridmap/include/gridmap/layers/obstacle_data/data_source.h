@@ -122,7 +122,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
         urdf_tree_ = urdf_tree;
         node_ = node;
         set_map_data(nullptr);
-        set_last_updated(node->get_clock()->now());
+        {
+            std::lock_guard <std::mutex> lock(last_updated_mutex_);
+            set_last_updated(node->get_clock()->now());
+        }
         {
             std::lock_guard<std::mutex> lock(msg_buffer_mutex_);
             msg_buffer_ = {};
@@ -132,9 +135,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
         sub_sample_ = parameters["sub_sample"].as<int>(0);
 
         onInitialize(parameters);
-
-        set_last_updated(node->get_clock()->now());
-
+        {
+            std::lock_guard <std::mutex> lock(last_updated_mutex_);
+            set_last_updated(node->get_clock()->now());
+        }
         const std::string topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
 
         RCLCPP_INFO_STREAM(node_->get_logger(), "Subscribing to: " << topic);
@@ -198,10 +202,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
     // Set last_updated_
     void set_last_updated(const rclcpp::Time& last_updated)
     {
-        {
-            std::lock_guard<std::mutex> lock(last_updated_mutex_);
             last_updated_ = last_updated;
-        }  // release last_updated_mutex_
     }
 
     // Get last_updated_
@@ -319,7 +320,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
             }
             else
             {
-                set_last_updated(msg->header.stamp);
+                {
+                    std::lock_guard <std::mutex> lock(last_updated_mutex_);
+                    set_last_updated(node_->get_clock()->now());
+                }
             }
             RCLCPP_DEBUG_STREAM(node_->get_logger(), "SUCCEDED! to process data for '" << name_ << "'");
         }
@@ -361,7 +365,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
                             msg_buffer_.clear();
                         }  // release msg_buffer_mutex_
                         // Reset time buffer last updated
-                        set_last_updated(node_->get_clock()->now());
+                        {
+                            std::lock_guard <std::mutex> lock(last_updated_mutex_);
+                            set_last_updated(node_->get_clock()->now());
+                        }
                         // Enable storing values to buffer
                         connected_ = true;
                     }
