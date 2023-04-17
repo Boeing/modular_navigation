@@ -756,7 +756,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
             planner_map_update_pub_->publish(map_update_duration_msg);
 
             // if (map_update_duration > rate.expectedCycleTime().toSec())
-            if (map_update_duration > path_planner_frequency_)
+            if (map_update_duration > 1.0 / path_planner_frequency_)
                 RCLCPP_WARN_STREAM(this->get_logger(),
                                    "Path Planning map update took too long: " << map_update_duration << "s");
 
