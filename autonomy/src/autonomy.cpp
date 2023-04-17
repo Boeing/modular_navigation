@@ -739,6 +739,7 @@ void Autonomy::pathPlannerThread()
             map_update_duration_msg.data = map_update_duration;
             planner_map_update_pub_->publish(map_update_duration_msg);
 
+            // if (map_update_duration > rate.expectedCycleTime().toSec())
             if (map_update_duration > 1.0 / path_planner_frequency_)
                 RCLCPP_WARN_STREAM(this->get_logger(),
                                    "Path Planning map update took too long: " << map_update_duration << "s");
@@ -1238,10 +1239,11 @@ void Autonomy::controllerThread()
             map_update_duration_msg.data = map_update_duration;
             control_map_update_pub_->publish(map_update_duration_msg);
 
-            if (1e3 * map_update_duration > period_ms)
-            {
+            if (1e3 * map_update_duration > period_ms) {
                 RCLCPP_ERROR_STREAM(this->get_logger(),
-                                    "Control Planning map update took too long: " << map_update_duration << "s");
+                                    "Control Planning map update took too long: " << map_update_duration
+                                                                                  << "s, Controller frequency expecting update at: "
+                                                                                  << period_ms);
                 vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
