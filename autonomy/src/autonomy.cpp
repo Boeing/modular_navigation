@@ -1242,8 +1242,8 @@ void Autonomy::controllerThread()
             if (1e3 * map_update_duration > period_ms) {
                 RCLCPP_ERROR_STREAM(this->get_logger(),
                                     "Control Planning map update took too long: " << map_update_duration / 1000.0
-                                                                                  << "s, Controller frequency expecting update at: "
-                                                                                  << period_ms);
+                                                                                  << "s, Controller frequency expecting update rate of: "
+                                                                                  << period_ms << "s");
                 vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
