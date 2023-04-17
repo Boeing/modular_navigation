@@ -299,7 +299,11 @@ template <typename MsgType> class TopicDataSource : public DataSource
             if (delay > maximum_sensor_delay_)
             {
                 RCLCPP_WARN_STREAM(node_->get_logger(),
-                                   "DataSource '" << name_ << "' incoming data is " << delay << "s old!");
+                                   "DataSource '" << name_ << "' incoming data is " << delay << "s old! CLEARING ALL BUFFERED DATA");
+                {
+                    std::lock_guard<std::mutex> lock(msg_buffer_mutex_);
+                    msg_buffer_.clear();
+                }
             }
 
             const Eigen::Isometry3d sensor_tr = getSensorTransform(msg->header.frame_id);
