@@ -434,7 +434,7 @@ void Autonomy::executeGoal()
 
     RCLCPP_INFO_STREAM(this->get_logger(),"Executing goal: " + rclcpp_action::to_string(goalHandle()->get_goal_id()));
 
-    current_goal_pub_->publish(transformed_goal_pose_);
+    current_goal_pub_->publish(transformedGoalPose());
     // TODO: add mutex
 
     // make sure no threads are running
@@ -580,11 +580,13 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         }
 
         // Can't modify pose in-place because it's a const, instead store as transformed_goal_pose_
-        tf2::doTransform(goal->target_pose, transformed_goal_pose_, transform);
+        geometry_msgs::msg::PoseStamped transformed_goal_pose;
+        tf2::doTransform(goal->target_pose, transformed_goal_pose, transform);
+        setTransformedGoalPose(transformed_goal_pose);
     }
     else
     {
-        transformed_goal_pose_ = goal->target_pose;
+        setTransformedGoalPose(goal->target_pose);
     }
 
     // Check active map has been set
@@ -787,7 +789,7 @@ void Autonomy::pathPlannerThread()
             auto goal = goal_handle->get_goal();
             rcpputils::assert_true(goal != nullptr);
 
-            goal_pose = convert(transformed_goal_pose_.pose);
+            goal_pose = convert(transformedGoalPose().pose);
 
             goal_sample_settings.std_x = goal->std_x;
             goal_sample_settings.std_y = goal->std_y;

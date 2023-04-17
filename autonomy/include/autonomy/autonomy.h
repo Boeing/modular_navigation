@@ -80,8 +80,6 @@ class Autonomy : public rclcpp::Node
     void updateCostmapCallback();
     void executeGoal();
 
-    void waitForExecution(bool preempt = false);
-
     rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid,
                                              std::shared_ptr<const Drive::Goal> goal);
     rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
@@ -102,20 +100,31 @@ class Autonomy : public rclcpp::Node
         goal_handle_ptr_ = goal_handle;
     }
 
+    geometry_msgs::msg::PoseStamped transformedGoalPose()
+    {
+        std::lock_guard<std::mutex> lock(transformed_goal_pose_mutex_);
+        return transformed_goal_pose_val_;
+    }
+    void setTransformedGoalPose(geometry_msgs::msg::PoseStamped transformed_goal_pose)
+    {
+        std::lock_guard<std::mutex> lock(transformed_goal_pose_mutex_);
+        transformed_goal_pose_val_ = transformed_goal_pose;
+    }
+
     mutable std::mutex goal_handle_mutex_;
     std::shared_ptr<GoalHandleDrive> goal_handle_ptr_;
 
-    rclcpp::TimerBase::SharedPtr costmap_timer_;
+    geometry_msgs::msg::PoseStamped transformed_goal_pose_val_;
+    mutable std::mutex transformed_goal_pose_mutex_;
 
     mutable std::condition_variable map_updated_conditional_;
     mutable std::mutex map_updated_mutex_;
     bool map_updated_;
 
-    geometry_msgs::msg::PoseStamped transformed_goal_pose_;
+    rclcpp::TimerBase::SharedPtr costmap_timer_;
+
     rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;
 
-//    std::thread execution_thread_;
-//    std::thread goal_exec_thread_;
     std::shared_future<void> execution_future_;
 
     pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
