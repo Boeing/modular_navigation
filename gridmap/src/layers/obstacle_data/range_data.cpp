@@ -47,19 +47,21 @@ void RangeData::onInitialize(const YAML::Node& parameters)
 
 void RangeData::onMapDataChanged()
 {
-    const int obstacle_cells = static_cast<int>(obstacle_range_ / map_data_->dimensions().resolution());
-    const int raytrace_cells = static_cast<int>(raytrace_range_ / map_data_->dimensions().resolution());
-    const int max_range_cells = static_cast<int>(max_range_ / map_data_->dimensions().resolution() + 1);
+    const std::shared_ptr<ProbabilityGrid> map_data = get_map_data();
+
+    const int obstacle_cells = static_cast<int>(obstacle_range_ / map_data->dimensions().resolution());
+    const int raytrace_cells = static_cast<int>(raytrace_range_ / map_data->dimensions().resolution());
+    const int max_range_cells = static_cast<int>(max_range_ / map_data->dimensions().resolution() + 1);
 
     log_cost_lookup_.resize(static_cast<size_t>(max_range_cells));
     for (int c = 0; c < max_range_cells; ++c)
     {
         log_cost_lookup_[c].resize(static_cast<size_t>(max_range_cells));
-        const double range = c * map_data_->dimensions().resolution();
+        const double range = c * map_data->dimensions().resolution();
 
         for (int i = 0; i < max_range_cells; ++i)
         {
-            const double x = i * map_data_->dimensions().resolution();
+            const double x = i * map_data->dimensions().resolution();
 
             if (x < range + std_deviation_)
             {
@@ -84,15 +86,17 @@ void RangeData::onMapDataChanged()
 bool RangeData::processData(const sensor_msgs::msg::Range::SharedPtr msg, const Eigen::Isometry2d&,
                             const Eigen::Isometry3d& sensor_transform)
 {
+    const std::shared_ptr<ProbabilityGrid> map_data = get_map_data();
+
     rcpputils::assert_true(std::abs(msg->max_range - max_range_) < std::numeric_limits<double>::epsilon());
 
     const Eigen::Vector3d sensor_pt = sensor_transform.translation();
     const Eigen::Vector2d sensor_pt_2d(sensor_pt.x(), sensor_pt.y());
-    const Eigen::Vector2i sensor_pt_map = map_data_->dimensions().getCellIndex(sensor_pt_2d);
+    const Eigen::Vector2i sensor_pt_map = map_data->dimensions().getCellIndex(sensor_pt_2d);
 
     // Check sensor is on map
-    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data_->dimensions().size().x() || sensor_pt_map.y() < 0 ||
-        sensor_pt_map.y() >= map_data_->dimensions().size().y())
+    if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data->dimensions().size().x() || sensor_pt_map.y() < 0 ||
+        sensor_pt_map.y() >= map_data->dimensions().size().y())
     {
         RCLCPP_WARN(rclcpp::get_logger(""), "Range sensor is not on gridmap");
         return false;
@@ -109,18 +113,18 @@ bool RangeData::processData(const sensor_msgs::msg::Range::SharedPtr msg, const 
     const Eigen::Vector2d left_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(-half_fov) * sensor_vec);
     const Eigen::Vector2d right_pt_2d = sensor_pt_2d + (Eigen::Rotation2Dd(half_fov) * sensor_vec);
 
-    Eigen::Vector2i left_pt_map = map_data_->dimensions().getCellIndex(left_pt_2d);
-    Eigen::Vector2i right_pt_map = map_data_->dimensions().getCellIndex(right_pt_2d);
+    Eigen::Vector2i left_pt_map = map_data->dimensions().getCellIndex(left_pt_2d);
+    Eigen::Vector2i right_pt_map = map_data->dimensions().getCellIndex(right_pt_2d);
 
     cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), left_pt_map.x(), left_pt_map.y(),
-                               map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+                               map_data->dimensions().size().x() - 1, map_data->dimensions().size().y() - 1);
 
     cohenSutherlandLineClipEnd(sensor_pt_map.x(), sensor_pt_map.y(), right_pt_map.x(), right_pt_map.y(),
-                               map_data_->dimensions().size().x() - 1, map_data_->dimensions().size().y() - 1);
+                               map_data->dimensions().size().x() - 1, map_data->dimensions().size().y() - 1);
 
-    const std::size_t cell_range = static_cast<std::size_t>(range / map_data_->dimensions().resolution());
+    const std::size_t cell_range = static_cast<std::size_t>(range / map_data->dimensions().resolution());
 
-    auto shader = [this, sensor_pt_map, cell_range](const int x, const int y, const int w0, const int w1, const int w2)
+    auto shader = [this, sensor_pt_map, cell_range, map_data](const int x, const int y, const int w0, const int w1, const int w2)
     {
         const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
         const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);
@@ -136,14 +140,14 @@ bool RangeData::processData(const sensor_msgs::msg::Range::SharedPtr msg, const 
 
         rcpputils::assert_true(dist < log_cost_lookup_[cell_range].size());
 
-        map_data_->update({x, y}, log_cost_lookup_[cell_range][dist]);
+        map_data->update({x, y}, log_cost_lookup_[cell_range][dist]);
     };
 
     {
-        auto _lock = map_data_->getWriteLock();
+        auto _lock = map_data->getWriteLock();
         drawTri(shader, {sensor_pt_map.x(), sensor_pt_map.y()}, {left_pt_map.x(), left_pt_map.y()},
                 {right_pt_map.x(), right_pt_map.y()});
-        map_data_->setMinThres(sensor_pt_map);
+        map_data->setMinThres(sensor_pt_map);
     }
 
     return true;

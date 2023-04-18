@@ -113,8 +113,13 @@ Autonomy::Autonomy(const std::string& node_name, const rclcpp::NodeOptions& opti
     pp_loader_("navigation_interface", "navigation_interface::PathPlanner"),
     tp_loader_("navigation_interface", "navigation_interface::TrajectoryPlanner"),
     c_loader_("navigation_interface", "navigation_interface::Controller"),
-    running_(false), execution_thread_running_(false), controller_done_(false),
-    current_path_(nullptr), current_trajectory_(nullptr)
+    running_(false), execution_thread_running_(false), controller_done_(false), map_updated_(false),
+    current_path_(nullptr), current_trajectory_(nullptr), goal_handle_ptr_(nullptr)
+{
+
+}
+
+void Autonomy::init()
 {
     // Create cb groups for different subscriptions
     callback_group_action_srv_ = this->create_callback_group(
@@ -123,13 +128,12 @@ Autonomy::Autonomy(const std::string& node_name, const rclcpp::NodeOptions& opti
             rclcpp::CallbackGroupType::MutuallyExclusive);
     srv_callback_group_ = this->create_callback_group(
             rclcpp::CallbackGroupType::Reentrant);
+    costmap_timer_callback_group_ = this->create_callback_group(
+            rclcpp::CallbackGroupType::MutuallyExclusive);
 
     // Each of these callback groups is basically a thread
     // Everything assigned to one of them gets bundled into the same thread
-}
 
-void Autonomy::init()
-{
     auto umbrella_sub_opt = rclcpp::SubscriptionOptions();
     umbrella_sub_opt.callback_group = umbrella_callback_group_;
 
@@ -260,44 +264,34 @@ void Autonomy::init()
     get_zones_client_ = this->create_client<map_manager::srv::GetZones>(
             "/map_manager/get_zones", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);
 
-    goal_handle_ = nullptr;
-    execution_thread_running_ = true;
-    execution_thread_ = std::thread(&Autonomy::executionThread, this);
+    costmap_timer_ = rclcpp::create_timer(shared_from_this(), this->get_clock(), rclcpp::Duration::from_seconds(1.),
+                                          std::bind(&Autonomy::updateCostmapCallback, this),costmap_timer_callback_group_);
+
 
     RCLCPP_INFO(this->get_logger(), "Successfully started");
 }
 
 Autonomy::~Autonomy()
 {
-    if (running_)
-    {
-        running_ = false;
-    }
-    if (execution_thread_running_)
-    {
-        execution_thread_running_ = false;
-        execution_thread_.join();
-    }
+    running_ = false;
 }
 
 void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
 {
-    // preempt execution
-    if (running_)
+    // Block future execution tasks from executing
     {
-        running_ = false;
+        std::lock_guard<std::mutex> lock(map_updated_mutex_);
+        map_updated_ = false;
     }
 
-    // wait for goal completion
-    std::unique_lock<std::mutex> goal_lock(goal_mutex_);
-    while (goal_)
+    // Cancel current execution and wait for async task to complete
+    running_ = false;  // preempt goal execution
+
+    // Wait for async execution to complete
+    if (execution_future_.valid())
     {
-        goal_lock.unlock();
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        goal_lock.lock();
+        execution_future_.wait();
     }
-    goal_lock.unlock();
-    rcpputils::assert_true(goal_ == nullptr);
 
     if (!map.name.empty())
     {
@@ -338,7 +332,7 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
         {
             throw std::runtime_error("Failed to call: " + std::string(get_zones_client_->get_service_name()));
         }
-        
+
         layered_map_->setMap(map_res_future.get()->map_info, og_res_future.get()->grid, zones_res_future.get()->zones);
 
         RCLCPP_INFO_STREAM(this->get_logger(), "Set layered map");
@@ -389,61 +383,59 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
     }
 
     RCLCPP_INFO_STREAM(this->get_logger(), "Finished updating map");
+
+    // Permit any waiting execution task to execute
+    {
+        std::lock_guard<std::mutex> lock(map_updated_mutex_);
+        map_updated_ = true;
+    }
+    map_updated_conditional_.notify_all();
 }
 
-void Autonomy::executionThread()
+void Autonomy::updateCostmapCallback()
 {
-    rclcpp::Rate rate(1);
-    while (execution_thread_running_)
+    // Skip if execution task is running
+    if (execution_future_.valid() && execution_future_.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
     {
+        return;
+    }
+
+    // Update costmap
+    if (layered_map_->map())
+    {
+        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+
+        if (robot_state.localised)
         {
-            std::unique_lock<std::mutex> goal_lock(goal_mutex_);
-            if (goal_)
+            layered_map_->update();
+
             {
-                goal_lock.unlock();
-                //while(goal_); // DEBUG
-                if(goal_handle_){
-                    executeGoal(goal_handle_); // UNCOMMENT DEBUG TODO: ADD goal_handle_ as class param!!
-                }
+                nav_msgs::msg::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
+                grid.header.frame_id = "map";
+                grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
+                costmap_publisher_->publish(grid);
             }
         }
-
-        if (layered_map_->map())
+        else
         {
-            const gridmap::RobotState robot_state = robot_tracker_->robotState();
-
-            if (robot_state.localised)
-            {
-                layered_map_->update();
-
-                {
-                    nav_msgs::msg::OccupancyGrid grid = layered_map_->map()->grid.toMsg();
-                    grid.header.frame_id = "map";
-                    grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
-                    costmap_publisher_->publish(grid);
-                }
-            }
-            else
-            {
-                RCLCPP_INFO_STREAM(this->get_logger(), "Robot not localised");
-            }
+            RCLCPP_INFO_STREAM(this->get_logger(), "Robot not localised");
         }
-
-        rate.sleep();
     }
 }
 
-void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
+void Autonomy::executeGoal()
 {
-
-    //TODO: Check if goal_handle is valid value
-
+    if (!map_updated_)
     {
-        std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        RCLCPP_INFO_STREAM(this->get_logger(),"Executing goal: " + rclcpp_action::to_string(goal_handle->get_goal_id()));
-        current_goal_pub_->publish(transformed_goal_pose_);
+        // Wait for map to finish being updated
+        std::unique_lock<std::mutex> lock(map_updated_mutex_);
+        map_updated_conditional_.wait(lock, [this] { return this->map_updated_; });
     }
 
+    RCLCPP_INFO_STREAM(this->get_logger(),"Executing goal: " + rclcpp_action::to_string(goalHandle()->get_goal_id()));
+
+    current_goal_pub_->publish(transformedGoalPose());
+    // TODO: add mutex
 
     // make sure no threads are running
     rcpputils::assert_true(!running_);
@@ -458,30 +450,39 @@ void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
     running_ = true;
 
     // start the threads
-    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this, goal_handle));
+    path_planner_thread_.reset(new std::thread(&Autonomy::pathPlannerThread, this));
     trajectory_planner_thread_.reset(new std::thread(&Autonomy::trajectoryPlannerThread, this));
     controller_thread_.reset(new std::thread(&Autonomy::controllerThread, this));
+    // TODO: change to async tasks
 
     // wait till all threads are done
+    std::shared_ptr<GoalHandleDrive> goal_handle = nullptr;
+
     while (running_)
     {
-        {
-            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            if (goal_handle->is_canceling())  // getGoalStatus().status == actionlib_msgs::GoalStatus::PREEMPTED)
-            {
-                break;
-            }
+        goal_handle = goalHandle();  // update goal handle
 
-            if (controller_done_)
-            {
-                auto action_result = std::make_shared<autonomy_interface::action::Drive::Result>();
-                action_result->success = true;
-                goal_handle->succeed(action_result);  //, "Goal reached");
-                break;
-            }
+        if (!goalHandle()->is_active())
+        {
+            break; // stop execution
+        }
+
+        // Send successful goal result to client if complete
+        if (controller_done_)
+        {
+            auto action_result = std::make_shared<autonomy_interface::action::Drive::Result>();
+            action_result->success = true;
+            goal_handle->succeed(action_result);  //, "Goal reached");
+            break; // stop execution
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // Send aborted goal result to client if not complete
+    if (!controller_done_ && goal_handle)
+    {
+        goal_handle->abort(std::make_shared<autonomy_interface::action::Drive::Result>());
     }
 
     running_ = false;
@@ -505,13 +506,11 @@ void Autonomy::executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle)
     trajectory_planner_thread_.reset();
     controller_thread_.reset();
 
-    {
-        std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-        RCLCPP_INFO_STREAM(
-                this->get_logger(),
-                "Goal " << rclcpp_action::to_string(goal_handle_->get_goal_id()) << " execution complete");
-        goal_ = nullptr;
-    }
+    RCLCPP_INFO_STREAM(
+            this->get_logger(),
+            "Goal " << rclcpp_action::to_string(goalHandle()->get_goal_id()) << " execution complete");
+
+    setGoalHandle(nullptr);
 }
 
 rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID& uuid,
@@ -520,12 +519,15 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
     RCLCPP_INFO_STREAM(this->get_logger(),
                        "Received goal: " + rclcpp_action::to_string(uuid) + " (" << goal->target_pose.pose.position.x
                                       << ", " << goal->target_pose.pose.position.y << ")");
+
     RCLCPP_INFO_STREAM(this->get_logger(), "Goal standard deviations: X: "
                                                    << goal->std_x << ", Y: " << goal->std_y << ", W: " << goal->std_w
                                                    << ", Max Samples: " << goal->max_samples);
 
+    // Fetch current robot state
     const gridmap::RobotState robot_state = robot_tracker_->robotState();
 
+    // Check robot is localised in map
     if (!robot_state.localised)
     {
         RCLCPP_ERROR_STREAM(this->get_logger(),
@@ -533,12 +535,13 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         return rclcpp_action::GoalResponse::REJECT;
     }
 
+    // Check Euclidean distance to goal does not exceed max_planning_distance_
     if (max_planning_distance_ > 0.0)
     {
         const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
         const Eigen::Vector2d goal_position(goal->target_pose.pose.position.x, goal->target_pose.pose.position.y);
-        const double dist_to_goal = (robot_pose.translation() - goal_position).squaredNorm();
-        if (dist_to_goal > (max_planning_distance_ * max_planning_distance_))
+        const double squared_dist_to_goal = (robot_pose.translation() - goal_position).squaredNorm();
+        if (squared_dist_to_goal > (max_planning_distance_ * max_planning_distance_))
         {
             RCLCPP_INFO_STREAM(this->get_logger(),
                                "Rejected new goal: " << rclcpp_action::to_string(uuid)
@@ -548,6 +551,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         }
     }
 
+    // Check sampling settings
     if (goal->std_x < 0.0 || goal->std_y < 0.0 || goal->std_w < 0.0)
     {
         RCLCPP_INFO_STREAM(this->get_logger(),
@@ -555,6 +559,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         return rclcpp_action::GoalResponse::REJECT;
     }
 
+    // Check goal can be transformed to global_frame_, store as transformed_goal_pose_
     if (goal->target_pose.header.frame_id != global_frame_)
     {
         RCLCPP_INFO_STREAM(this->get_logger(), "Goal is in frame: " << goal->target_pose.header.frame_id
@@ -574,111 +579,90 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
             return rclcpp_action::GoalResponse::REJECT;
         }
 
-        // Can't modify pose in-place because it's a const
-        tf2::doTransform(goal->target_pose, transformed_goal_pose_, transform);
+        // Can't modify pose in-place because it's a const, instead store as transformed_goal_pose_
+        geometry_msgs::msg::PoseStamped transformed_goal_pose;
+        tf2::doTransform(goal->target_pose, transformed_goal_pose, transform);
+        setTransformedGoalPose(transformed_goal_pose);
     }
     else
     {
-        transformed_goal_pose_ = goal->target_pose;
+        setTransformedGoalPose(goal->target_pose);
     }
 
-    // A Goal is already running... preempt old goal and set new as active
-    // Note, this does not actually stop the execution thread. It only updates the goal_, so the
-    // planners should seamlessly pickup the new goal
+    // Check active map has been set
+    if (!(layered_map_->map() && path_planner_map_data_ && trajectory_planner_map_data_ && controller_map_data_))
     {
-        std::unique_lock<std::mutex> goal_lock(goal_mutex_);
-
-        if (goal_)
-        {
-            // Goal is currently finishing up. Wait for it to gracefully finish.
-            if (!goal_handle_->is_active())
-            {
-                while (goal_)
-                {
-                    goal_lock.unlock();
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    goal_lock.lock();
-                }
-            }
-            else
-            {
-                RCLCPP_INFO_STREAM(this->get_logger(),"Updating goal with: " << rclcpp_action::to_string(uuid));
-            }
-        }
-        if (layered_map_->map() && path_planner_map_data_ && trajectory_planner_map_data_ && controller_map_data_)
-        {
-            RCLCPP_INFO_STREAM(this->get_logger(), "Accepted new goal: " << rclcpp_action::to_string(uuid));
-        }
-        else
-        {
-            RCLCPP_INFO_STREAM(this->get_logger(),
-                               "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - No Map!");
-            return rclcpp_action::GoalResponse::REJECT;
-        }
+        RCLCPP_INFO_STREAM(this->get_logger(),
+                           "Rejected new goal: " << rclcpp_action::to_string(uuid) << " - No Map!");
+        return rclcpp_action::GoalResponse::REJECT;
     }
+
+    RCLCPP_INFO_STREAM(this->get_logger(), "Accepted new goal: " << rclcpp_action::to_string(uuid));
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
 }
 
-/*
-void Autonomy::cancelCallback(GoalHandle)
-{
-    std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-
-    if (goal_)
-    {
-        RCLCPP_INFO_STREAM(this->get_logger(),"Cancelling goal: " << goal_->get_goal_id().id);
-        autonomy_interface::DriveFeedback feedback;
-        feedback.state = autonomy_interface::DriveFeedback::NO_PLAN;
-        goal_->publish_feedback(feedback);
-        goal_->canceled();  // Setting as cancelled will let the executeGoal finish gracefully
-    }
-}
-*/
-
 rclcpp_action::CancelResponse Autonomy::cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
-    std::lock_guard<std::mutex> goal_lock(goal_mutex_);
+    auto current_goal_handle = goalHandle();
 
-    if (goal_)
+    // Check if goal ids match
+    if (current_goal_handle && goal_handle->get_goal_id() == current_goal_handle->get_goal_id())
     {
-        // RCLCPP_INFO_STREAM(this->get_logger(),"Cancelling goal: " << std::to_string(goal_->get_goal_id()));
-        // autonomy_interface::action::Drive::Feedback feedback;
-        auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
-        feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
-        goal_handle->publish_feedback(feedback);
-        (void)goal_;
-        // goal_->canceled();  // Setting as cancelled will let the executeGoal finish gracefully
+        // Check executing
+        if (execution_future_.valid() && running_)
+        {
+            RCLCPP_INFO_STREAM(this->get_logger(),"Cancelling goal: " << rclcpp_action::to_string(current_goal_handle->get_goal_id()));
 
-        return rclcpp_action::CancelResponse::ACCEPT;
+            auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
+            feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
+            current_goal_handle->publish_feedback(feedback);
+
+            running_ = false; // stop execution
+
+            return rclcpp_action::CancelResponse::ACCEPT;
+        }
     }
-
     return rclcpp_action::CancelResponse::REJECT;
 }
 
 void Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle)
 {
-    // this needs to return quickly to avoid blocking the executor, so spin up a new thread
-    goal_ = goal_handle->get_goal();
-    goal_handle_ = goal_handle; // this enables executeGoal()
-    //using namespace std::placeholders;
+    // Check execution status
+    if (execution_future_.valid() && running_)
+    {
+        // A goal is currently executing...
+        auto current_goal_handle = goalHandle();
+        if (current_goal_handle->is_active())
+        {
+            // Set active goal to aborted and update goal_handle_ for autonomy threads
+            // Note, this does not actually stop the execution thread. It only updates the goal_handle_, so the
+            // planners should seamlessly pick up the new goal
+            RCLCPP_INFO_STREAM(this->get_logger(),"Updating goal with: " << rclcpp_action::to_string(goal_handle->get_goal_id()));
+            current_goal_handle->abort(std::make_shared<autonomy_interface::action::Drive::Result>());
+            setGoalHandle(goal_handle); // update goal for threads
+            return;
+        }
+        else
+        {
+            // A goal is currently finishing up... wait for it to gracefully finish
+            execution_future_.wait(); // TODO: consider implications of blocking callback group
+        }
+    }
 
-    //std::thread{std::bind(&Autonomy::executeGoal, this, std::placeholders::_1), goal_handle}.detach(); // TODO
-    //std::thread goal_exec_thread_ = std::thread(&autonomy::Autonomy::executeGoal, this, goal_handle);
-    //executeGoal(goal_handle);
-    //TODO make execute goal return status?? this should not be final?
-    //return rclcpp_action::ResultCode::SUCCEEDED;
+    // Update goal_handle_ and execute goal asynchronously
+    setGoalHandle(goal_handle); // update goal for threads
+    execution_future_ = std::async(&Autonomy::executeGoal, this);
 }
 
-void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle)
+void Autonomy::pathPlannerThread()
 {
     // see pag.11 for porting ros::WallRate
     // https://info.rti.com/hubfs/podcast/rti%20site/tile/White%20paper%20on%20ROS%201%20to%20ROS%202%20Transition_Final.pdf
     rclcpp::WallRate rate(path_planner_frequency_);
-    // autonomy_interface::action::Drive::Feedback feedback;
     auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
     feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
 
-    std::string last_goal_id;  // Keeps track of the previous goal ID to see if has been updated
+    std::string last_goal_id = rclcpp_action::to_string(goalHandle()->get_goal_id());  // Keeps track of the previous goal ID to see if has been updated
 
     rcpputils::assert_true(layered_map_ != nullptr);
     rcpputils::assert_true(path_planner_map_data_ != nullptr);
@@ -694,6 +678,8 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
 
     while (running_)
     {
+        auto goal_handle = goalHandle(); // update goal handle
+
         const gridmap::RobotState robot_state = robot_tracker_->robotState();
 
         if (!robot_state.localised)
@@ -709,7 +695,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
 
             {
                 std::lock_guard<std::mutex> lock(path_mutex_);
-                rcpputils::assert_true(goal_ != nullptr);
+                rcpputils::assert_true(goal_handle->get_goal() != nullptr);
                 goal_handle->publish_feedback(feedback);
             }
 
@@ -756,7 +742,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
             planner_map_update_pub_->publish(map_update_duration_msg);
 
             // if (map_update_duration > rate.expectedCycleTime().toSec())
-            if (map_update_duration > path_planner_frequency_)
+            if (map_update_duration > 1.0 / path_planner_frequency_)
                 RCLCPP_WARN_STREAM(this->get_logger(),
                                    "Path Planning map update took too long: " << map_update_duration << "s");
 
@@ -776,8 +762,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
 
                 feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
                 {
-                    std::lock_guard<std::mutex> lock(goal_mutex_);
-                    rcpputils::assert_true(goal_ != nullptr);
+                    rcpputils::assert_true(goal_handle->get_goal() != nullptr);
                     goal_handle->publish_feedback(feedback);
                 }
 
@@ -789,7 +774,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
             {
                 nav_msgs::msg::OccupancyGrid grid = path_planner_map_data_->grid.toMsg();
                 grid.header.frame_id = "map";
-                grid.header.stamp = this->get_clock()->now();  // ros::Time::now();
+                grid.header.stamp = this->get_clock()->now();
                 costmap_publisher_->publish(grid);
             }
         }
@@ -801,27 +786,29 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
         double strafe_mult;
         double rotation_mult;
         {
-            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            rcpputils::assert_true(goal_ != nullptr);
-            goal_pose = convert(transformed_goal_pose_.pose);
-            goal_sample_settings.std_x = goal_->std_x;
-            goal_sample_settings.std_y = goal_->std_y;
-            goal_sample_settings.std_w = goal_->std_w;
-            goal_sample_settings.max_samples = goal_->max_samples;
+            auto goal = goal_handle->get_goal();
+            rcpputils::assert_true(goal != nullptr);
 
-            avoid_distance = goal_->avoid_distance;
+            goal_pose = convert(transformedGoalPose().pose);
 
-            backwards_mult = goal_->backwards_mult;
-            strafe_mult = goal_->strafe_mult;
-            rotation_mult = goal_->rotation_mult;
+            goal_sample_settings.std_x = goal->std_x;
+            goal_sample_settings.std_y = goal->std_y;
+            goal_sample_settings.std_w = goal->std_w;
+            goal_sample_settings.max_samples = goal->max_samples;
 
-             if (rclcpp_action::to_string(goal_handle_->get_goal_id()) != last_goal_id)
+            avoid_distance = goal->avoid_distance;
+
+            backwards_mult = goal->backwards_mult;
+            strafe_mult = goal->strafe_mult;
+            rotation_mult = goal->rotation_mult;
+
+            std::string new_goal_id = rclcpp_action::to_string(goal_handle->get_goal_id());
+             if (new_goal_id != last_goal_id)
             {
                  goal_updated = true;
-                 RCLCPP_INFO_STREAM(this->get_logger(),"Goal updated from: " << last_goal_id << " to:" <<
-                 rclcpp_action::to_string(goal_handle_->get_goal_id()));
+                 RCLCPP_INFO_STREAM(this->get_logger(),"Goal updated from: " << last_goal_id << " to:" << new_goal_id);
              }
-             last_goal_id = rclcpp_action::to_string(goal_handle_->get_goal_id());
+             last_goal_id = new_goal_id;
         }
 
         // Plan
@@ -972,7 +959,7 @@ void Autonomy::pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_han
         // Update feedback to correspond to our current position
         {
             std::lock_guard<std::mutex> lock(path_mutex_);
-            rcpputils::assert_true(goal_ != nullptr);
+            rcpputils::assert_true(goal_handle->get_goal() != nullptr);
             goal_handle->publish_feedback(feedback);
         }
 
@@ -996,6 +983,8 @@ void Autonomy::trajectoryPlannerThread()
 
     while (running_)
     {
+        auto goal_handle = goalHandle(); // update goal handle
+
         // check if a new path is available
         bool has_path = false;
         {
@@ -1095,10 +1084,10 @@ void Autonomy::trajectoryPlannerThread()
 
         double avoid_distance;
         {
-            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            rcpputils::assert_true(goal_ != nullptr);
+            auto goal = goal_handle->get_goal();
+            rcpputils::assert_true(goal != nullptr);
 
-            avoid_distance = goal_->avoid_distance;
+            avoid_distance = goal->avoid_distance;
         }
 
         navigation_interface::TrajectoryPlanner::Result result;
@@ -1181,6 +1170,8 @@ void Autonomy::controllerThread()
 
     while (running_)
     {
+        auto goal_handle = goalHandle(); // update goal handle
+
         // wait for a new odom (or timeout)
         gridmap::RobotState robot_state = robot_tracker_->robotState();
         try
@@ -1250,10 +1241,11 @@ void Autonomy::controllerThread()
             map_update_duration_msg.data = map_update_duration;
             control_map_update_pub_->publish(map_update_duration_msg);
 
-            if (1e3 * map_update_duration > period_ms)
-            {
+            if (1e3 * map_update_duration > period_ms) {
                 RCLCPP_ERROR_STREAM(this->get_logger(),
-                                    "Control Planning map update took too long: " << map_update_duration << "s");
+                                    "Control Planning map update took too long: " << map_update_duration / 1000.0
+                                                                                  << "s, Controller frequency expecting update rate of: "
+                                                                                  << period_ms << "s");
                 vel_pub_->publish(geometry_msgs::msg::Twist());
                 continue;
             }
@@ -1263,15 +1255,15 @@ void Autonomy::controllerThread()
         double xy_goal_tolerance;
         double yaw_goal_tolerance;
         {
-            std::lock_guard<std::mutex> goal_lock(goal_mutex_);
-            rcpputils::assert_true(goal_ != nullptr);
+            auto goal = goal_handle->get_goal();
+            rcpputils::assert_true(goal != nullptr);
 
-            max_velocity[0] = goal_->max_velocity_x;
-            max_velocity[1] = goal_->max_velocity_y;
-            max_velocity[2] = goal_->max_velocity_w;
+            max_velocity[0] = goal->max_velocity_x;
+            max_velocity[1] = goal->max_velocity_y;
+            max_velocity[2] = goal->max_velocity_w;
 
-            xy_goal_tolerance = goal_->xy_goal_tolerance;
-            yaw_goal_tolerance = goal_->yaw_goal_tolerance;
+            xy_goal_tolerance = goal->xy_goal_tolerance;
+            yaw_goal_tolerance = goal->yaw_goal_tolerance;
         }
 
         navigation_interface::Controller::Result result;

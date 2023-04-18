@@ -40,22 +40,6 @@
 namespace autonomy
 {
 
-// TODO: Is this needed? you can get params directly from the node handle
-/**
-template <typename T> T get_param_or_throw(const std::string& param_name)
-{
-    T param_val;
-    if (ros::param::has(param_name))
-    {
-        if (ros::param::get(param_name, param_val))
-        {
-            return param_val;
-        }
-    }
-    throw std::runtime_error("Must specify: " + param_name);
-}
-*/
-
 struct ControlTrajectory
 {
     bool goal_trajectory;
@@ -93,27 +77,55 @@ class Autonomy : public rclcpp::Node
 
   private:
     void activeMapCallback(const map_manager::msg::MapInfo& map);
-
-    void executionThread();
-    void executeGoal(const std::shared_ptr<GoalHandleDrive> goal_handle);
+    void updateCostmapCallback();
+    void executeGoal();
 
     rclcpp_action::GoalResponse goalCallback(const rclcpp_action::GoalUUID& uuid,
                                              std::shared_ptr<const Drive::Goal> goal);
     rclcpp_action::CancelResponse cancelCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
     void acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_handle);
 
-    void pathPlannerThread(const std::shared_ptr<GoalHandleDrive> goal_handle);
+    void pathPlannerThread();
     void trajectoryPlannerThread();
     void controllerThread();
 
-    mutable std::mutex goal_mutex_;
-    std::shared_ptr<const Drive::Goal> goal_;
-    std::shared_ptr<GoalHandleDrive> goal_handle_;
-    geometry_msgs::msg::PoseStamped transformed_goal_pose_;
-    std::thread execution_thread_;
-    std::thread goal_exec_thread_; // DEBUG
-    // actionlib::ActionServer<autonomy::DriveAction> as_;
-    rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;  
+    std::shared_ptr<GoalHandleDrive> goalHandle()
+    {
+        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
+        return goal_handle_ptr_;
+    }
+    void setGoalHandle(std::shared_ptr<GoalHandleDrive> goal_handle)
+    {
+        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
+        goal_handle_ptr_ = goal_handle;
+    }
+
+    geometry_msgs::msg::PoseStamped transformedGoalPose()
+    {
+        std::lock_guard<std::mutex> lock(transformed_goal_pose_mutex_);
+        return transformed_goal_pose_val_;
+    }
+    void setTransformedGoalPose(geometry_msgs::msg::PoseStamped transformed_goal_pose)
+    {
+        std::lock_guard<std::mutex> lock(transformed_goal_pose_mutex_);
+        transformed_goal_pose_val_ = transformed_goal_pose;
+    }
+
+    mutable std::mutex goal_handle_mutex_;
+    std::shared_ptr<GoalHandleDrive> goal_handle_ptr_;
+
+    geometry_msgs::msg::PoseStamped transformed_goal_pose_val_;
+    mutable std::mutex transformed_goal_pose_mutex_;
+
+    mutable std::condition_variable map_updated_conditional_;
+    mutable std::mutex map_updated_mutex_;
+    bool map_updated_;
+
+    rclcpp::TimerBase::SharedPtr costmap_timer_;
+
+    rclcpp_action::Server<autonomy_interface::action::Drive>::SharedPtr action_server_;
+
+    std::shared_future<void> execution_future_;
 
     pluginlib::ClassLoader<gridmap::Layer> layer_loader_;
     pluginlib::ClassLoader<navigation_interface::PathPlanner> pp_loader_;
@@ -155,6 +167,7 @@ class Autonomy : public rclcpp::Node
     rclcpp::CallbackGroup::SharedPtr callback_group_action_srv_;
     rclcpp::CallbackGroup::SharedPtr umbrella_callback_group_;
     rclcpp::CallbackGroup::SharedPtr srv_callback_group_;
+    rclcpp::CallbackGroup::SharedPtr costmap_timer_callback_group_;
 
     std::shared_ptr<tf2_ros::Buffer> tfBuffer_;
     std::shared_ptr<tf2_ros::TransformListener> tfListener_;
@@ -190,11 +203,9 @@ class Autonomy : public rclcpp::Node
     std::shared_ptr<gridmap::URDFTree> urdf_tree_;
     std::shared_ptr<gridmap::RobotTracker> robot_tracker_;
 
-    // ros::Subscriber odom_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
     void odomCallback(const nav_msgs::msg::Odometry& msg) const;
 
-    // ros::Subscriber mapper_status_sub_;
     rclcpp::Subscription<cartographer_ros_msgs::msg::SystemState>::SharedPtr mapper_status_sub_;
     void mapperCallback(const cartographer_ros_msgs::msg::SystemState& msg) const;
 };

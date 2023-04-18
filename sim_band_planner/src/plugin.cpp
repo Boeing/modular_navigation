@@ -298,7 +298,8 @@ navigation_interface::TrajectoryPlanner::Result
         {
             if (sim_band.nodes[end_i].control_points[sim_band.nodes[end_i].closest_point].distance < 0)
             {
-                RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Point: " << end_i << " of trajectory is in collision");
+                auto clock = node_->get_clock();
+                RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""),*clock, 1000, "Point: " << end_i << " of trajectory is in collision");
                 //                end_i = end_i > 1 ? end_i - 1 : 0;
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
                 result.path_end_i = moving_window_->end_i - (sim_band.nodes.size() - 1 - end_i);

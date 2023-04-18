@@ -399,6 +399,7 @@ navigation_interface::Controller::Result
                                    const double xy_goal_tolerance, const double yaw_goal_tolerance)
 {
     navigation_interface::Controller::Result result;
+    auto clock = node_->get_clock();
     result.command = Eigen::Vector3d::Zero();
 
     if (!trajectory_)
@@ -427,7 +428,7 @@ navigation_interface::Controller::Result
 
     if (angle_to_goal < yaw_goal_tolerance_applied && dist_to_goal < xy_goal_tolerance_applied)
     {
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+        RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), *clock, 1000,
                            "Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
         last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
@@ -445,7 +446,7 @@ navigation_interface::Controller::Result
     const double dist_to_closest = dist(robot_state.pose, trajectory_->states[path_index_].pose, 0.1);
     if (dist_to_closest > tracking_error_)
     {
-        RCLCPP_WARN_STREAM(rclcpp::get_logger(""),
+        RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), *clock, 1000,
                            "Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
         result.outcome = navigation_interface::Controller::Outcome::FAILED;
         last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
@@ -474,7 +475,7 @@ navigation_interface::Controller::Result
 
         if (cc.in_collision)
         {
-            RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Robot is in collision!");
+            RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), *clock, 1000, "Robot is in collision!");
             result.outcome = navigation_interface::Controller::Outcome::FAILED;
             last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
             return result;
