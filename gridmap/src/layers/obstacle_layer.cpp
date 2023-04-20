@@ -233,7 +233,7 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data)
 
     if (debug_viz_)
     {
-        debug_viz_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", rclcpp::QoS(1).transient_local());
+        debug_viz_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap_debug", rclcpp::QoS(1).transient_local());
 
         if (debug_viz_running_)
         {
