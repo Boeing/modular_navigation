@@ -45,7 +45,7 @@ class RobotTracker
         return localisation_.localised;
     }
 
-    RobotState waitForRobotState(const double timeout) const;
+    RobotState waitForRobotState(const double timeout_ms) const;
 
     RobotState robotState() const;
     RobotState robotState(const rclcpp::Time& time) const;

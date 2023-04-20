@@ -87,11 +87,11 @@ RobotTracker::RobotTracker() : localisation_{false, Eigen::Isometry2d::Identity(
 }
 
 // cppcheck-suppress unusedFunction
-RobotState RobotTracker::waitForRobotState(const double timeout) const
+RobotState RobotTracker::waitForRobotState(const double timeout_ms) const
 {
     std::unique_lock<std::mutex> lock(mutex_);
     const auto t0 = std::chrono::steady_clock::now();
-    if (conditional_.wait_for(lock, std::chrono::milliseconds(static_cast<long>(timeout))) == std::cv_status::timeout)
+    if (conditional_.wait_for(lock, std::chrono::milliseconds(static_cast<long>(timeout_ms))) == std::cv_status::timeout)
     {
         const double wait_time =
             std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
