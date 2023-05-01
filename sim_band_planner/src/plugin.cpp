@@ -384,7 +384,7 @@ void SimBandPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        marker_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("sim_band", 100);
+        marker_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>("~/sim_band/band", 100);
     }
 }
 

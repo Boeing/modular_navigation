@@ -212,20 +212,20 @@ void Autonomy::init()
         "/odom", rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort(),
         std::bind(&Autonomy::odomCallback, this, std::placeholders::_1), umbrella_sub_opt);
 
-    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", rclcpp::QoS(rclcpp::KeepLast(1)));
+    vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("~/cmd_vel", rclcpp::QoS(rclcpp::KeepLast(1)));
     current_goal_pub_ =
-        this->create_publisher<geometry_msgs::msg::PoseStamped>("current_goal", rclcpp::QoS(1).transient_local());
+        this->create_publisher<geometry_msgs::msg::PoseStamped>("~/current_goal", rclcpp::QoS(1).transient_local());
     path_goal_pub_ =
-        this->create_publisher<geometry_msgs::msg::PoseStamped>("path_goal", rclcpp::QoS(1).transient_local());
-    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("path", rclcpp::QoS(0).transient_local());
-    trajectory_pub_ = this->create_publisher<nav_msgs::msg::Path>("trajectory", rclcpp::QoS(0).transient_local());
+        this->create_publisher<geometry_msgs::msg::PoseStamped>("~/path_goal", rclcpp::QoS(1).transient_local());
+    path_pub_ = this->create_publisher<nav_msgs::msg::Path>("~/path", rclcpp::QoS(0).transient_local());
+    trajectory_pub_ = this->create_publisher<nav_msgs::msg::Path>("~/trajectory", rclcpp::QoS(0).transient_local());
 
     planner_map_update_pub_ =
-        this->create_publisher<std_msgs::msg::Float64>("planner_map_update_time", rclcpp::QoS(0).transient_local());
+        this->create_publisher<std_msgs::msg::Float64>("~/planner_map_update_time", rclcpp::QoS(0).transient_local());
     trajectory_map_update_pub_ =
-        this->create_publisher<std_msgs::msg::Float64>("trajectory_map_update_time", rclcpp::QoS(0).transient_local());
+        this->create_publisher<std_msgs::msg::Float64>("~/trajectory_map_update_time", rclcpp::QoS(0).transient_local());
     control_map_update_pub_ =
-        this->create_publisher<std_msgs::msg::Float64>("control_map_update_time", rclcpp::QoS(0).transient_local());
+        this->create_publisher<std_msgs::msg::Float64>("~/control_map_update_time", rclcpp::QoS(0).transient_local());
 
     // Create the planners
     path_planner_ =
@@ -244,9 +244,9 @@ void Autonomy::init()
         std::bind(&Autonomy::mapperCallback, this, std::placeholders::_1), umbrella_sub_opt);
 
     costmap_publisher_ =
-        this->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap", rclcpp::QoS(1).transient_local());
+        this->create_publisher<nav_msgs::msg::OccupancyGrid>("~/costmap", rclcpp::QoS(1).transient_local());
     costmap_updates_publisher_ =
-        this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("costmap_updates", rclcpp::QoS(1).transient_local());
+        this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("~/costmap_updates", rclcpp::QoS(1).transient_local());
 
     get_map_info_client_ = this->create_client<map_manager::srv::GetMapInfo>(
         "/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);

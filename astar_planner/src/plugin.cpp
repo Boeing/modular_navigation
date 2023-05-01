@@ -219,7 +219,7 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("expansion", rclcpp::QoS(1).transient_local());
+        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("~/astar/expansion", rclcpp::QoS(1).transient_local());
     }
 }
 

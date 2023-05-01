@@ -654,8 +654,8 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("target_state", rclcpp::QoS(100).transient_local());
-        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("footprint", rclcpp::QoS(100).transient_local());
+        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("~/pure_pursuit/target_state", rclcpp::QoS(100).transient_local());
+        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("~/pure_pursuit/footprint", rclcpp::QoS(100).transient_local());
     }
 }
 
