@@ -11,7 +11,6 @@ def generate_launch_description():
             namespace='map_manager',
             output='screen',
             remappings=[
-                ('/map_manager/pbstream', '/mapper/map_data'),
             ]
         )
     ])
