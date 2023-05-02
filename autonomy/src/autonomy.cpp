@@ -291,7 +291,7 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
         RCLCPP_INFO_STREAM(this->get_logger(), "Received map (" << map.name << ")");
 
         // Call each service client synchronously
-        const std::chrono::seconds timeout = std::chrono::seconds(10);
+        const std::chrono::seconds timeout = std::chrono::seconds(30);
 
         auto map_req = std::make_shared<map_manager::srv::GetMapInfo::Request>();
         map_req->map_name = map.name;

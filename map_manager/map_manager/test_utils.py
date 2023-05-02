@@ -85,14 +85,14 @@ def sdf_to_og_pbstream(
                 for point in region.points:
                     free_space.append(point[0])
                     free_space.append(point[1])
-
                 free_spaces.append(free_space)
 
+    sub_cmd = ''
     for f in free_spaces:
-        cmd += ['--free_space', ','.join([str(_f) for _f in f])]
+        sub_cmd += ','.join([str(_f) for _f in f]) + ";"
+    cmd += ['--free_space "' + sub_cmd + '"']
 
     str_cmd = ' '.join(cmd)
-
     subprocess.check_call(str_cmd, shell=True, stderr=subprocess.STDOUT)
 
 
@@ -122,9 +122,9 @@ def process_dxf(
     gm = loader.parse_dxf()
     am = gm.area_manager
 
-    with tempfile.NamedTemporaryFile() as temp_sdf_f, \
-            tempfile.NamedTemporaryFile() as temp_png_f, \
-            tempfile.NamedTemporaryFile() as temp_pb_f:
+    with tempfile.NamedTemporaryFile(delete=False) as temp_sdf_f, \
+            tempfile.NamedTemporaryFile(delete=False) as temp_png_f, \
+            tempfile.NamedTemporaryFile(delete=False) as temp_pb_f:
 
         #
         # Generate SDF
