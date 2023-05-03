@@ -209,7 +209,7 @@ void Autonomy::init()
     layered_map_ = std::make_shared<gridmap::LayeredMap>(base_map_layer, layers);
 
     odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        "/odom", rclcpp::QoS(rclcpp::KeepLast(1000)).best_effort(),
+        "/odom", rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
         std::bind(&Autonomy::odomCallback, this, std::placeholders::_1), umbrella_sub_opt);
 
     vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("~/cmd_vel", rclcpp::QoS(rclcpp::KeepLast(1)));
