@@ -227,10 +227,8 @@ def process_dxf(
                 pbstream=temp_pb_f.read()
             )
 
-            add_map_future = add_map_srv.call_async(add_req)
-            rclpy.spin_until_future_complete(node, add_map_future)
-
-            add_map_res = add_map_future.result()  # type: AddMap.Response
+            # Assumes node is spinning externally
+            add_map_res = add_map_srv.call(add_req)  # type: AddMap.Response
 
             if not add_map_res.success:
                 raise Exception('Failed to save map: {}'.format(add_map_res.message))
