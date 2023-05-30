@@ -227,7 +227,7 @@ def process_dxf(
             )
 
             # Assumes node is spinning externally
-            add_map_res = add_map_srv.call(add_req)  # type: AddMap.Response
+            add_map_res: AddMap.Response = add_map_srv.call(add_req)
 
             if not add_map_res.success:
                 raise Exception('Failed to save map: {}'.format(add_map_res.message))

@@ -69,7 +69,7 @@ class TestMapManager(unittest.TestCase):
         self.assertIsInstance(response, SetActiveMapResponse)
         self.assertTrue(response.success, msg=response.message)
 
-        md = rospy.wait_for_message('/map_manager/pbstream', UInt8MultiArray, timeout=10)  # type: UInt8MultiArray
+        md: UInt8MultiArray = rospy.wait_for_message('/map_manager/pbstream', UInt8MultiArray, timeout=10)
         md_d = struct.unpack('<%sb' % len(md.data), md.data)
         self.assertTrue(all(int(a) == int(b) for a, b in zip(md_d, request.pbstream)))
 

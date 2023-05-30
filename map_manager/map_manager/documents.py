@@ -1,7 +1,7 @@
 import calendar
 import logging
 import typing
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 
 import math6d
@@ -32,10 +32,10 @@ logger = logging.getLogger(__name__)
 
 
 class Quaternion(EmbeddedDocument):
-    w = FloatField(default=1)  # type: float
-    x = FloatField(default=0)  # type: float
-    y = FloatField(default=0)  # type: float
-    z = FloatField(default=0)  # type: float
+    w: float = FloatField(default=1)
+    x: float = FloatField(default=0)
+    y: float = FloatField(default=0)
+    z: float = FloatField(default=0)
 
     @classmethod
     def pre_save(cls, sender, document, **kwargs):
@@ -65,9 +65,9 @@ mongoengine.signals.pre_save.connect(Quaternion.pre_save, sender=Quaternion)
 
 
 class Point(EmbeddedDocument):
-    x = FloatField(default=0)  # type: float
-    y = FloatField(default=0)  # type: float
-    z = FloatField(default=0)  # type: float
+    x: float = FloatField(default=0)
+    y: float = FloatField(default=0)
+    z: float = FloatField(default=0)
 
     def get_msg(self):
         # type: () -> PointMsg
@@ -79,7 +79,7 @@ class Point(EmbeddedDocument):
 
 
 class Polygon(EmbeddedDocument):
-    points = EmbeddedDocumentListField(Point)  # type: typing.List[Point]
+    points: typing.List[Point] = EmbeddedDocumentListField(Point)
 
     def get_msg(self):
         # type: () -> PointMsg
@@ -89,10 +89,10 @@ class Polygon(EmbeddedDocument):
 
 
 class Color(EmbeddedDocument):
-    r = FloatField(default=0)  # type: float
-    g = FloatField(default=0)  # type: float
-    b = FloatField(default=0)  # type: float
-    a = FloatField(default=0)  # type: float
+    r: float = FloatField(default=0)
+    g: float = FloatField(default=0)
+    b: float = FloatField(default=0)
+    a: float = FloatField(default=0)
 
     def get_msg(self):
         # type: () -> ColorMsg
@@ -105,7 +105,7 @@ class Color(EmbeddedDocument):
 
 
 class Region(EmbeddedDocument):
-    polygon = EmbeddedDocumentField(Polygon)  # type: Polygon
+    polygon: Polygon = EmbeddedDocumentField(Polygon)
     color = EmbeddedDocumentField(Color)
 
     def get_msg(self):
@@ -117,8 +117,8 @@ class Region(EmbeddedDocument):
 
 
 class Pose(EmbeddedDocument):
-    position = EmbeddedDocumentField(Point, default=Point)  # type: Point
-    quaternion = EmbeddedDocumentField(Quaternion, default=Quaternion)  # type: Quaternion
+    position: Point = EmbeddedDocumentField(Point, default=Point)
+    quaternion: Quaternion = EmbeddedDocumentField(Quaternion, default=Quaternion)
 
     def get_msg(self):
         # type: () -> PoseMsg
@@ -129,10 +129,10 @@ class Pose(EmbeddedDocument):
 
 
 class DocumentMixin(object):
-    description = StringField()  # type: str
+    description: str = StringField()
 
-    modified = DateTimeField(default=datetime.utcnow)  # type: date
-    created = DateTimeField(default=datetime.utcnow)  # type: date
+    modified: date = DateTimeField(default=datetime.utcnow)
+    created: date = DateTimeField(default=datetime.utcnow)
 
     @classmethod
     def pre_save(cls, sender, document, **kwargs):
@@ -140,14 +140,14 @@ class DocumentMixin(object):
 
 
 class Zone(EmbeddedDocument):
-    id = StringField(max_length=256, required=True)  # type: str
-    display_name = StringField(max_length=256, required=True)  # type: str
+    id: str = StringField(max_length=256, required=True)
+    display_name: str = StringField(max_length=256, required=True)
 
-    attr = StringField()  # type: str
-    drivable = BooleanField(required=True)  # type: bool
-    cost = FloatField(required=True)  # type: float
+    attr: str = StringField()
+    drivable: bool = BooleanField(required=True)
+    cost: float = FloatField(required=True)
 
-    regions = EmbeddedDocumentListField(Region)  # type: typing.List[Region]
+    regions: typing.List[Region] = EmbeddedDocumentListField(Region)
 
     @classmethod
     def from_msg(cls, zone_msg: ZoneMsg):
@@ -213,7 +213,7 @@ class Map(Document, DocumentMixin):
                 map_info_msg.meta_data.height, map_info_msg.meta_data.width))
         else:
             b = BytesIO(occupancy_grid_msg.data)
-            im = Image.open(b)  # type: Image
+            im: Image = Image.open(b)
             if im.size != (map_info_msg.meta_data.width, map_info_msg.meta_data.height):
                 raise Exception('Map info size does not match compressed data')
 
@@ -236,19 +236,19 @@ class Map(Document, DocumentMixin):
 
         return map_obj
 
-    name = StringField(max_length=256, required=True, primary_key=True)  # type: str
+    name: str = StringField(max_length=256, required=True, primary_key=True)
 
-    resolution = FloatField()  # type: float
-    width = IntField()  # type: int
-    height = IntField()  # type: int
-    origin = EmbeddedDocumentField(Pose)  # type: Pose
+    resolution: float = FloatField()
+    width: int = IntField()
+    height: int = IntField()
+    origin: Pose = EmbeddedDocumentField(Pose)
 
-    image = FileField()  # type: GridFSProxy
-    thumbnail = FileField()  # type: GridFSProxy
+    image: GridFSProxy = FileField()
+    thumbnail: GridFSProxy = FileField()
 
-    pbstream = FileField()  # type: GridFSProxy
+    pbstream: GridFSProxy = FileField()
 
-    zones = EmbeddedDocumentListField(Zone)  # type: typing.List[Zone]
+    zones: typing.List[Zone] = EmbeddedDocumentListField(Zone)
 
     node_graph = StringField()
     area_tree = StringField()

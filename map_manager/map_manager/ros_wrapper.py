@@ -203,7 +203,7 @@ class RosWrapper(Node):
         """Callback to publish map_manager topics given a timer
         """
 
-        map_obj = Map.objects(name=self.__map_name).get()  # type: Map
+        map_obj: Map = Map.objects(name=self.__map_name).get()
 
         self.__active_map_pub.publish(map_obj.get_map_info_msg())
 
@@ -395,7 +395,7 @@ class RosWrapper(Node):
         self.__map_name = str(map_name)
 
         try:
-            map_obj = Map.objects(name=self.__map_name).get()  # type: Map
+            map_obj: Map = Map.objects(name=self.__map_name).get()
 
             self.__active_map_pub.publish(map_obj.get_map_info_msg())
 

@@ -28,7 +28,7 @@ def exception_wrapper(fn):
 @map_api.route('/')
 def home():
     try:
-        map_docs = [m for m in Map.objects]  # type: Map
+        map_docs: Map = [m for m in Map.objects]
         return render_template('index.html', maps=map_docs)
     except TemplateNotFound:
         abort(404)
@@ -39,12 +39,12 @@ def home():
 @exception_wrapper
 def get_occupancy_grid_msg(map_name, node):
     try:
-        map_doc = Map.objects.get(name=map_name)  # type: Map
+        map_doc: Map = Map.objects.get(name=map_name)
 
     except (DoesNotExist, ValidationError):
         raise abort(404)
 
-    map_msg = map_doc.get_occupancy_grid_msg(node)  # type: MapMsg
+    map_msg: MapMsg = map_doc.get_occupancy_grid_msg(node)
 
     fp = io.BytesIO()
     map_msg.serialize(fp)
@@ -64,7 +64,7 @@ def get_occupancy_grid_msg(map_name, node):
 @exception_wrapper
 def get_png(map_name):
     try:
-        map_doc = Map.objects.get(name=map_name)  # type: Map
+        map_doc: Map = Map.objects.get(name=map_name)
 
     except (DoesNotExist, ValidationError):
         raise abort(404)
@@ -87,7 +87,7 @@ def get_png(map_name):
 @exception_wrapper
 def get_thumbnail_png(map_name):
     try:
-        map_doc = Map.objects.get(name=map_name)  # type: Map
+        map_doc: Map = Map.objects.get(name=map_name)
 
     except (DoesNotExist, ValidationError):
         raise abort(404)
