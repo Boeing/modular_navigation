@@ -3,8 +3,6 @@
 
 #include <navigation_interface/types/trajectory.h>
 
-namespace navigation_interface
-{
-};
+namespace navigation_interface {};
 
 #endif

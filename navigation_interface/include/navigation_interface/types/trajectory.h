@@ -7,23 +7,20 @@
 
 #include <vector>
 
-namespace navigation_interface
-{
+namespace navigation_interface {
 
-struct KinodynamicState
-{
-    Eigen::Isometry2d pose;
-    Eigen::Vector3d velocity;
-    double min_distance_to_collision;
+struct KinodynamicState {
+  Eigen::Isometry2d pose;
+  Eigen::Vector3d velocity;
+  double min_distance_to_collision;
 };
 
-struct Trajectory
-{
-    double cost;
-    std::string id;
-    std_msgs::msg::Header header;
-    std::vector<KinodynamicState> states;
+struct Trajectory {
+  double cost;
+  std::string id;
+  std_msgs::msg::Header header;
+  std::vector<KinodynamicState> states;
 };
-};  // namespace navigation_interface
+}; // namespace navigation_interface
 
 #endif

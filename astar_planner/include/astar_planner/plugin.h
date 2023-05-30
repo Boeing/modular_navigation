@@ -9,43 +9,46 @@
 //#include <ros/ros.h>
 #include "rclcpp/rclcpp.hpp"
 
-namespace astar_planner
-{
+namespace astar_planner {
 
-class AStarPlanner : public navigation_interface::PathPlanner
-{
-  public:
-    AStarPlanner();
-    ~AStarPlanner();
+class AStarPlanner : public navigation_interface::PathPlanner {
+public:
+  AStarPlanner();
+  ~AStarPlanner();
 
-    virtual Result plan(const gridmap::AABB& local_region, const Eigen::Isometry2d& start,
-                        const Eigen::Isometry2d& goal, const GoalSampleSettings& sample, const double avoid_distance,
-                        const double backwards_mult, const double strafe_mult, const double rotation_mult) override;
+  virtual Result
+  plan(const gridmap::AABB &local_region, const Eigen::Isometry2d &start,
+       const Eigen::Isometry2d &goal, const GoalSampleSettings &sample,
+       const double avoid_distance, const double backwards_mult,
+       const double strafe_mult, const double rotation_mult) override;
 
-    virtual bool valid(const navigation_interface::Path& path, const double avoid_distance) const override;
-    virtual double cost(const navigation_interface::Path& path, const double avoid_distance) const override;
+  virtual bool valid(const navigation_interface::Path &path,
+                     const double avoid_distance) const override;
+  virtual double cost(const navigation_interface::Path &path,
+                      const double avoid_distance) const override;
 
-    virtual void onInitialize(const YAML::Node& parameters) override;
-    virtual void onMapDataChanged() override;
+  virtual void onInitialize(const YAML::Node &parameters) override;
+  virtual void onMapDataChanged() override;
 
-  private:
-    bool debug_viz_ = true;
-    double robot_radius_ = 0.230;
-    // width of default offset = 0.185
-    // conservative = width + robot_radius = 0.185 + 0.230 = 0.415
-    double conservative_robot_radius_ = 0.416;
+private:
+  bool debug_viz_ = true;
+  double robot_radius_ = 0.230;
+  // width of default offset = 0.185
+  // conservative = width + robot_radius = 0.185 + 0.230 = 0.415
+  double conservative_robot_radius_ = 0.416;
 
-    double backwards_mult_ = 1.5;
-    double strafe_mult_ = 1.5;
-    double rotation_mult_ = 0.3 / M_PI;
+  double backwards_mult_ = 1.5;
+  double strafe_mult_ = 1.5;
+  double rotation_mult_ = 0.3 / M_PI;
 
-    std::vector<Eigen::Vector2d> offsets_;
+  std::vector<Eigen::Vector2d> offsets_;
 
-    typename rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr explore_pub_;
+  typename rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr
+      explore_pub_;
 
-    std::shared_ptr<Costmap> costmap_;
-    std::shared_ptr<cv::Mat> traversal_cost_;
+  std::shared_ptr<Costmap> costmap_;
+  std::shared_ptr<cv::Mat> traversal_cost_;
 };
-}  // namespace astar_planner
+} // namespace astar_planner
 
 #endif

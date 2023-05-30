@@ -12,49 +12,50 @@
 
 #include <string>
 
-namespace navigation_interface
-{
+namespace navigation_interface {
 
-template <typename T> T get_param_with_default(const std::string& param_name, const T& default_val)
-{
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
-                        "Using old ros1 version of get_param_with_default, pass a node as first argument");
-}
-
-template <typename T> T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
-{
-    if (node.has_parameter(param_name))
-    {
-        T param_val;
-        if (node.get_parameter(param_name, param_val))
-        {
-            return param_val;
-        }
-    }
-
-    return default_val;
+template <typename T>
+T get_param_with_default(const std::string &param_name, const T &default_val) {
+  RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
+                      "Using old ros1 version of get_param_with_default, pass "
+                      "a node as first argument");
 }
 
 template <typename T>
-// T get_param_with_default_warn(ros::NodeHandle nh, const std::string& param_name, const T& default_val)
-T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, const T& default_val)
-{
-    if (node.has_parameter(param_name))
-    {
-        T param_val;
-        if (node.get_parameter(param_name, param_val))
-        {
-            return param_val;
-        }
+T get_param_with_default(rclcpp::Node node, const std::string &param_name,
+                         const T &default_val) {
+  if (node.has_parameter(param_name)) {
+    T param_val;
+    if (node.get_parameter(param_name, param_val)) {
+      return param_val;
     }
-    RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for '" << node.get_namespace() << "/" << param_name
-                                                                           << "': '" << default_val << "'");
-    return default_val;
+  }
+
+  return default_val;
+}
+
+template <typename T>
+// T get_param_with_default_warn(ros::NodeHandle nh, const std::string&
+// param_name, const T& default_val)
+T get_param_with_default_warn(rclcpp::Node node, const std::string &param_name,
+                              const T &default_val) {
+  if (node.has_parameter(param_name)) {
+    T param_val;
+    if (node.get_parameter(param_name, param_val)) {
+      return param_val;
+    }
+  }
+  RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for '"
+                                                 << node.get_namespace() << "/"
+                                                 << param_name << "': '"
+                                                 << default_val << "'");
+  return default_val;
 }
 /**
 template <typename T>
-T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string& param_name, const T& default_val,
-                               const XmlRpc::XmlRpcValue::Type& xml_type)
+T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const
+std::string& param_name, const T& default_val, const XmlRpc::XmlRpcValue::Type&
+xml_type)
 {
     if (parameters.hasMember(param_name))
     {
@@ -69,23 +70,24 @@ T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string
     }
     else
     {
-        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for " << param_name << ": " << default_val);
-        return default_val;
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for " <<
+param_name << ": " << default_val); return default_val;
     }
 }
 */
 /**
 template <typename T, size_t size>
-std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters, const std::string& param_name,
-                                                 const std::array<T, size>& default_val,
-                                                 const XmlRpc::XmlRpcValue::Type& xml_type)
+std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
+const std::string& param_name, const std::array<T, size>& default_val, const
+XmlRpc::XmlRpcValue::Type& xml_type)
 {
     if (parameters.hasMember(param_name))
     {
         XmlRpc::XmlRpcValue& value = parameters[param_name];
         if (value.getType() != XmlRpc::XmlRpcValue::TypeArray)
         {
-            throw std::runtime_error(param_name + " has incorrect type, expects a TypeArray");
+            throw std::runtime_error(param_name + " has incorrect type, expects
+a TypeArray");
         }
         if (value.size() != size)
         {
@@ -96,7 +98,8 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
         {
             if (value[i].getType() != xml_type)
             {
-                throw std::runtime_error(param_name + " element has incorrect type");
+                throw std::runtime_error(param_name + " element has incorrect
+type");
             }
             else
             {
@@ -111,41 +114,34 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
     }
 }
 */
-inline std::vector<Eigen::Vector2d> get_point_list(const YAML::Node& parameters, const std::string& param_name,
-                                                   const std::vector<Eigen::Vector2d>& default_value)
-{
-    std::vector<Eigen::Vector2d> result;
-    if (parameters[param_name])
-    {
-        const YAML::Node& value = parameters[param_name];
-        if (value.Type() != YAML::NodeType::Sequence)
-        {
-            throw std::runtime_error(param_name + " has incorrect type, expects a Sequence");
-        }
-        for (YAML::const_iterator it = value.begin(); it != value.end(); ++it)
-        {
-            rcpputils::assert_true(it->IsSequence());
-            if (it->Type() != YAML::NodeType::Sequence)
-            {
-                throw std::runtime_error(param_name + " element has incorrect type, expects a Sequence");
-            }
-            else if (it->size() == 2)
-            {
-                throw std::runtime_error(param_name + " element has incorrect size, expects a TypeArray");
-            }
-            else
-            {
-                result.push_back(
-                    {static_cast<double>((*it)[0].as<double>()), static_cast<double>((*it)[1].as<double>())});
-            }
-        }
+inline std::vector<Eigen::Vector2d>
+get_point_list(const YAML::Node &parameters, const std::string &param_name,
+               const std::vector<Eigen::Vector2d> &default_value) {
+  std::vector<Eigen::Vector2d> result;
+  if (parameters[param_name]) {
+    const YAML::Node &value = parameters[param_name];
+    if (value.Type() != YAML::NodeType::Sequence) {
+      throw std::runtime_error(param_name +
+                               " has incorrect type, expects a Sequence");
     }
-    else
-    {
-        return default_value;
+    for (YAML::const_iterator it = value.begin(); it != value.end(); ++it) {
+      rcpputils::assert_true(it->IsSequence());
+      if (it->Type() != YAML::NodeType::Sequence) {
+        throw std::runtime_error(
+            param_name + " element has incorrect type, expects a Sequence");
+      } else if (it->size() == 2) {
+        throw std::runtime_error(
+            param_name + " element has incorrect size, expects a TypeArray");
+      } else {
+        result.push_back({static_cast<double>((*it)[0].as<double>()),
+                          static_cast<double>((*it)[1].as<double>())});
+      }
     }
-    return result;
+  } else {
+    return default_value;
+  }
+  return result;
 }
-}  // namespace navigation_interface
+} // namespace navigation_interface
 
 #endif

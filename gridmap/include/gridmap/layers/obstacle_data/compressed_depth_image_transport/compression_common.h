@@ -32,36 +32,30 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-// IMPORTANT: This was copied from upstream image_transport_plugins to be able to use the decode function directly
-// without needing a modified version of the package
+// IMPORTANT: This was copied from upstream image_transport_plugins to be able
+// to use the decode function directly without needing a modified version of the
+// package
 
 #ifndef COMPRESSED_DEPTH_IMAGE_TRANSPORT_COMPRESSION_COMMON
 #define COMPRESSED_DEPTH_IMAGE_TRANSPORT_COMPRESSION_COMMON
 
-namespace gridmap
-{
+namespace gridmap {
 
-namespace compressed_depth_image_transport
-{
+namespace compressed_depth_image_transport {
 
 // Compression formats
-enum compressionFormat
-{
-    UNDEFINED = -1,
-    INV_DEPTH
-};
+enum compressionFormat { UNDEFINED = -1, INV_DEPTH };
 
 // Compression configuration
-struct ConfigHeader
-{
-    // compression format
-    compressionFormat format;
-    // quantization parameters (used in depth image compression)
-    float depthParam[2];
+struct ConfigHeader {
+  // compression format
+  compressionFormat format;
+  // quantization parameters (used in depth image compression)
+  float depthParam[2];
 };
 
-}  // namespace compressed_depth_image_transport
+} // namespace compressed_depth_image_transport
 
-}  // namespace gridmap
+} // namespace gridmap
 
 #endif

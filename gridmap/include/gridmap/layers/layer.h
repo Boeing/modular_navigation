@@ -18,118 +18,105 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-namespace gridmap
-{
+namespace gridmap {
 
-class Layer
-{
-  public:
-    Layer(){};
-    virtual ~Layer(){};
+class Layer {
+public:
+  Layer(){};
+  virtual ~Layer(){};
 
-    virtual bool draw(OccupancyGrid& grid) const = 0;
-    virtual bool draw(OccupancyGrid& grid, const AABB& bb) const = 0;
+  virtual bool draw(OccupancyGrid &grid) const = 0;
+  virtual bool draw(OccupancyGrid &grid, const AABB &bb) const = 0;
 
-    virtual bool update(OccupancyGrid& grid) const = 0;
-    virtual bool update(OccupancyGrid& grid, const AABB& bb) const = 0;
+  virtual bool update(OccupancyGrid &grid) const = 0;
+  virtual bool update(OccupancyGrid &grid, const AABB &bb) const = 0;
 
-    virtual void onInitialize(const YAML::Node& parameters) = 0;
-    virtual void onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data) = 0;
+  virtual void onInitialize(const YAML::Node &parameters) = 0;
+  virtual void onMapChanged(const nav_msgs::msg::OccupancyGrid &map_data) = 0;
 
-    virtual bool clear() = 0;
-    virtual bool clearRadius(const Eigen::Vector2i& cell_index, const int cell_radius) = 0;
+  virtual bool clear() = 0;
+  virtual bool clearRadius(const Eigen::Vector2i &cell_index,
+                           const int cell_radius) = 0;
 
-    void setMap(const map_manager::msg::MapInfo& map_info, const nav_msgs::msg::OccupancyGrid& map_data,
-                const std::vector<graph_map::msg::Zone>& zones)
-    {
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Updating map: " << name());
-        // cppcheck-suppress unreadVariable
-        const auto lock = getWriteLock();
-        map_info_ = std::make_shared<map_manager::msg::MapInfo>(map_info);
-        zones_ = std::make_shared<std::vector<graph_map::msg::Zone>>(zones);
-        map_dimensions_.reset(new MapDimensions(
-            map_info.meta_data.resolution, {map_info.meta_data.origin.position.x, map_info.meta_data.origin.position.y},
-            {map_info.meta_data.width, map_info.meta_data.height}));
-        onMapChanged(map_data);
-        RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Updating map: " << name() << " DONE");
+  void setMap(const map_manager::msg::MapInfo &map_info,
+              const nav_msgs::msg::OccupancyGrid &map_data,
+              const std::vector<graph_map::msg::Zone> &zones) {
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Updating map: " << name());
+    // cppcheck-suppress unreadVariable
+    const auto lock = getWriteLock();
+    map_info_ = std::make_shared<map_manager::msg::MapInfo>(map_info);
+    zones_ = std::make_shared<std::vector<graph_map::msg::Zone>>(zones);
+    map_dimensions_.reset(new MapDimensions(
+        map_info.meta_data.resolution,
+        {map_info.meta_data.origin.position.x,
+         map_info.meta_data.origin.position.y},
+        {map_info.meta_data.width, map_info.meta_data.height}));
+    onMapChanged(map_data);
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                       "Updating map: " << name() << " DONE");
+  }
+
+  void initialize(const std::string &name, const YAML::Node &parameters,
+                  const std::vector<Eigen::Vector2d> &robot_footprint,
+                  const std::shared_ptr<RobotTracker> &robot_tracker,
+                  const std::shared_ptr<URDFTree> &urdf_tree,
+                  const rclcpp::Node::SharedPtr node) {
+    name_ = name;
+    robot_tracker_ = robot_tracker;
+    urdf_tree_ = urdf_tree;
+    robot_footprint_ = robot_footprint;
+    node_ = node;
+    onInitialize(parameters);
+  }
+
+  const map_manager::msg::MapInfo &mapInfo() const { return *map_info_; }
+
+  const std::vector<graph_map::msg::Zone> &zones() const { return *zones_; }
+
+  const MapDimensions &dimensions() const { return *map_dimensions_; }
+
+  const std::string &name() const { return name_; }
+
+  const std::string &globalFrame() const { return global_frame_; }
+
+  std::shared_lock<std::shared_timed_mutex> getReadLock() const {
+    return std::shared_lock<std::shared_timed_mutex>(layer_mutex_);
+  }
+
+  // By default, the unique_lock (write lock) has priority over shared_lock.
+  // This means while the writer is trying to get a lock, new readers cannot
+  // grab the lock. This effectively means one reader can block another reader
+  // if a writer is trying to get the lock.
+  // To get around this, we use a non-blocking try_to_lock every 5ms and during
+  // the sleeps, new readers can lock. This means readers have priority and
+  // writers have to wait for windows where there are no reader.
+  std::unique_lock<std::shared_timed_mutex> getWriteLock() const {
+    std::unique_lock<std::shared_timed_mutex> lock(layer_mutex_,
+                                                   std::try_to_lock_t());
+    while (!lock.owns_lock()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      lock.try_lock();
     }
+    return lock;
+  }
 
-    void initialize(const std::string& name, const YAML::Node& parameters,
-                    const std::vector<Eigen::Vector2d>& robot_footprint,
-                    const std::shared_ptr<RobotTracker>& robot_tracker, const std::shared_ptr<URDFTree>& urdf_tree,
-                    const rclcpp::Node::SharedPtr node)
-    {
-        name_ = name;
-        robot_tracker_ = robot_tracker;
-        urdf_tree_ = urdf_tree;
-        robot_footprint_ = robot_footprint;
-        node_ = node;
-        onInitialize(parameters);
-    }
+protected:
+  mutable std::shared_timed_mutex layer_mutex_;
 
-    const map_manager::msg::MapInfo& mapInfo() const
-    {
-        return *map_info_;
-    }
+  std::shared_ptr<RobotTracker> robot_tracker_;
+  std::shared_ptr<URDFTree> urdf_tree_;
+  std::vector<Eigen::Vector2d> robot_footprint_;
 
-    const std::vector<graph_map::msg::Zone>& zones() const
-    {
-        return *zones_;
-    }
+  rclcpp::Node::SharedPtr node_;
 
-    const MapDimensions& dimensions() const
-    {
-        return *map_dimensions_;
-    }
+private:
+  std::shared_ptr<map_manager::msg::MapInfo> map_info_;
+  std::shared_ptr<std::vector<graph_map::msg::Zone>> zones_;
+  std::shared_ptr<MapDimensions> map_dimensions_;
+  std::string name_;
 
-    const std::string& name() const
-    {
-        return name_;
-    }
-
-    const std::string& globalFrame() const
-    {
-        return global_frame_;
-    }
-
-    std::shared_lock<std::shared_timed_mutex> getReadLock() const
-    {
-        return std::shared_lock<std::shared_timed_mutex>(layer_mutex_);
-    }
-
-    // By default, the unique_lock (write lock) has priority over shared_lock. This means while the writer is trying
-    // to get a lock, new readers cannot grab the lock. This effectively means one reader can block another reader
-    // if a writer is trying to get the lock.
-    // To get around this, we use a non-blocking try_to_lock every 5ms and during the sleeps, new readers can lock.
-    // This means readers have priority and writers have to wait for windows where there are no reader.
-    std::unique_lock<std::shared_timed_mutex> getWriteLock() const
-    {
-        std::unique_lock<std::shared_timed_mutex> lock(layer_mutex_, std::try_to_lock_t());
-        while (!lock.owns_lock())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            lock.try_lock();
-        }
-        return lock;
-    }
-
-  protected:
-    mutable std::shared_timed_mutex layer_mutex_;
-
-    std::shared_ptr<RobotTracker> robot_tracker_;
-    std::shared_ptr<URDFTree> urdf_tree_;
-    std::vector<Eigen::Vector2d> robot_footprint_;
-
-    rclcpp::Node::SharedPtr node_;
-
-  private:
-    std::shared_ptr<map_manager::msg::MapInfo> map_info_;
-    std::shared_ptr<std::vector<graph_map::msg::Zone>> zones_;
-    std::shared_ptr<MapDimensions> map_dimensions_;
-    std::string name_;
-
-    std::string global_frame_ = "map";
+  std::string global_frame_ = "map";
 };
-}  // namespace gridmap
+} // namespace gridmap
 
 #endif
