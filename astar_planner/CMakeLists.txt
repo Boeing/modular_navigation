@@ -42,7 +42,7 @@ include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 add_library(${PROJECT_NAME} SHARED src/astar.cpp src/costmap.cpp src/node.cpp src/plugin.cpp src/visualisation.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 

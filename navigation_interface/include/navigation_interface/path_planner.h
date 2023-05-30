@@ -53,7 +53,7 @@ class PathPlanner
     void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data,
                     const rclcpp::Node::SharedPtr node)
     {
-        std::lock_guard<std::mutex> lock(mutex_);        
+        std::lock_guard<std::mutex> lock(mutex_);
         map_data_ = map_data;
         node_ = node;
         onInitialize(parameters);

@@ -106,7 +106,7 @@ def generate_test_description():
                package='autonomy',
                namespace='autonomy',
                executable='fake_localisation.py'
-            ),  
+            ),
 
             # Map manager
             IncludeLaunchDescription(
@@ -114,7 +114,7 @@ def generate_test_description():
                     get_package_share_directory('map_manager'), 'test_manager.py')])
             ),
 
-            # Launch autonomy 
+            # Launch autonomy
             Node(
                 package='autonomy',
                 # namespace='autonomy',
@@ -258,7 +258,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.strafe_mult = 1.5
         self.drive_action.rotation_mult = 0.3/pi
 
-        # Wait for robot to be localised 
+        # Wait for robot to be localised
         time.sleep(35) # DEBUG
 
         # Send Goal
@@ -270,7 +270,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         drive_action_goal_handle = drive_action_future.result()
         if (drive_action_goal_handle.accepted):
             time.sleep(120)
-            return 
+            return
             # TODO code below crashes
             # Request the goal result
             drive_action_result_future = drive_action_goal_handle.get_result_asyc()

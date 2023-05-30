@@ -18,7 +18,7 @@ def generate_launch_description():
 
     # TODO USE fake_localisation LAUNCH ARG IN IF STATEMENT
     # In case launching fake localisation alongside autonomy
-    
+
     return LaunchDescription([
         navigation_config_launch_arg,
         Node(
