@@ -37,23 +37,21 @@ include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 
 # catkin_package( CATKIN_DEPENDS +
 
-# navigation_interface pluginlib roscpp INCLUDE_DIRS include LIBRARIES
-# ${PROJECT_NAME} )
+# navigation_interface pluginlib roscpp INCLUDE_DIRS include LIBRARIES ${PROJECT_NAME} )
 
-# Followed
-# https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Pluginlib.html#cmake-plugin-declaration
+# Followed https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Pluginlib.html#cmake-plugin-declaration
 # add_library( ${PROJECT_NAME} src/plugin.cpp )
 
 add_library(
-  ${PROJECT_NAME} SHARED
-  # include/${PROJECT_NAME}/plugin.h
-  src/plugin.cpp)
+    ${PROJECT_NAME} SHARED
+    # include/${PROJECT_NAME}/plugin.h
+    src/plugin.cpp
+)
 
 target_include_directories(
-  ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                         $<INSTALL_INTERFACE:include>)
-ament_target_dependencies(${PROJECT_NAME} Eigen3 navigation_interface gridmap
-                          pluginlib)
+    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(${PROJECT_NAME} Eigen3 navigation_interface gridmap pluginlib)
 
 # allow to find headers, see
 # https://docs.ros.org/en/foxy/How-To-Guides/Ament-CMake-Documentation.html#adding-files-and-headers
@@ -62,16 +60,18 @@ ament_target_dependencies(${PROJECT_NAME} Eigen3 navigation_interface gridmap
 pluginlib_export_plugin_description_file(navigation_interface plugin.xml)
 
 install(
-  TARGETS ${PROJECT_NAME}
-  EXPORT export_${PROJECT_NAME} # This one needed?
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin)
+    TARGETS ${PROJECT_NAME}
+    EXPORT export_${PROJECT_NAME} # This one needed?
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
 
 install(
-  DIRECTORY include/
-  DESTINATION include
-  PATTERN ".svn" EXCLUDE)
+    DIRECTORY include/
+    DESTINATION include
+    PATTERN ".svn" EXCLUDE
+)
 # install( DIRECTORY include/ DESTINATION include PATTERN ".svn" EXCLUDE )
 
 ament_export_libraries(${PROJECT_NAME})

@@ -18,17 +18,15 @@ find_package(Eigen3 REQUIRED)
 find_package(pluginlib REQUIRED)
 # find_package(xmlrpcpp REQUIRED)
 
-# adding an exec for testing purposes DEBUG add_executable(file_test
-# src/file_test.cpp) target_include_directories(file_test PUBLIC
-# $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+# adding an exec for testing purposes DEBUG add_executable(file_test src/file_test.cpp)
+# target_include_directories(file_test PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 # $<INSTALL_INTERFACE:include>)
 #
 # ament_target_dependencies( file_test "pluginlib" )
 #
 # END DEBUG
 
-# From:
-# https://docs.ros.org/en/foxy/The-ROS2-Project/Contributing/Migration-Guide.html#changing-the-cmake-code
+# From: https://docs.ros.org/en/foxy/The-ROS2-Project/Contributing/Migration-Guide.html#changing-the-cmake-code
 # include_directories(include)
 
 install(DIRECTORY include/ DESTINATION include)
@@ -37,7 +35,6 @@ install(DIRECTORY include/ DESTINATION include)
 
 ament_export_include_directories(include)
 
-# install( DIRECTORY include/ DESTINATION include FILES_MATCHING PATTERN "*.h"
-# PATTERN ".svn" EXCLUDE )
+# install( DIRECTORY include/ DESTINATION include FILES_MATCHING PATTERN "*.h" PATTERN ".svn" EXCLUDE )
 
 ament_package()

@@ -15,51 +15,58 @@
 #include <memory>
 #include <mutex>
 
-namespace gridmap {
+namespace gridmap
+{
 
-struct TimedOdom {
-  rclcpp::Time time;
-  Eigen::Isometry2d pose;
-  Eigen::Vector3d velocity;
+struct TimedOdom
+{
+    rclcpp::Time time;
+    Eigen::Isometry2d pose;
+    Eigen::Vector3d velocity;
 };
 
-struct RobotState {
-  TimedOdom odom;
-  bool localised; // true if map_to_odom is valid
-  Eigen::Isometry2d map_to_odom;
-};
-
-class RobotTracker {
-public:
-  RobotTracker();
-
-  RobotTracker(const RobotTracker &) = delete;
-  RobotTracker &operator=(const RobotTracker &) = delete;
-
-  bool localised() const { return localisation_.localised; }
-
-  RobotState waitForRobotState(const double timeout_ms) const;
-
-  RobotState robotState() const;
-  RobotState robotState(const rclcpp::Time &time) const;
-
-  void addOdometryData(const nav_msgs::msg::Odometry &odometry_data);
-  void addLocalisationData(
-      const cartographer_ros_msgs::msg::SystemState &localisation);
-
-private:
-  struct LocalisationState {
-    bool localised;
+struct RobotState
+{
+    TimedOdom odom;
+    bool localised;  // true if map_to_odom is valid
     Eigen::Isometry2d map_to_odom;
-  };
-
-  mutable std::condition_variable conditional_;
-  mutable std::mutex mutex_;
-
-  LocalisationState localisation_;
-  boost::circular_buffer<TimedOdom> odometry_data_;
 };
 
-} // namespace gridmap
+class RobotTracker
+{
+  public:
+    RobotTracker();
+
+    RobotTracker(const RobotTracker&) = delete;
+    RobotTracker& operator=(const RobotTracker&) = delete;
+
+    bool localised() const
+    {
+        return localisation_.localised;
+    }
+
+    RobotState waitForRobotState(const double timeout_ms) const;
+
+    RobotState robotState() const;
+    RobotState robotState(const rclcpp::Time& time) const;
+
+    void addOdometryData(const nav_msgs::msg::Odometry& odometry_data);
+    void addLocalisationData(const cartographer_ros_msgs::msg::SystemState& localisation);
+
+  private:
+    struct LocalisationState
+    {
+        bool localised;
+        Eigen::Isometry2d map_to_odom;
+    };
+
+    mutable std::condition_variable conditional_;
+    mutable std::mutex mutex_;
+
+    LocalisationState localisation_;
+    boost::circular_buffer<TimedOdom> odometry_data_;
+};
+
+}  // namespace gridmap
 
 #endif

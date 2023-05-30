@@ -1,3 +1,5 @@
 #include <astar_planner/node.h>
 
-namespace astar_planner {}
+namespace astar_planner
+{
+}

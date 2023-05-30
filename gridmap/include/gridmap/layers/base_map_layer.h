@@ -9,38 +9,41 @@
 
 #include "rclcpp/rclcpp.hpp"
 
-namespace gridmap {
+namespace gridmap
+{
 
-class BaseMapLayer : public Layer {
-public:
-  BaseMapLayer() = default;
-  virtual ~BaseMapLayer() = default;
+class BaseMapLayer : public Layer
+{
+  public:
+    BaseMapLayer() = default;
+    virtual ~BaseMapLayer() = default;
 
-  virtual bool draw(OccupancyGrid &grid) const override;
-  virtual bool draw(OccupancyGrid &grid, const AABB &bb) const override;
+    virtual bool draw(OccupancyGrid& grid) const override;
+    virtual bool draw(OccupancyGrid& grid, const AABB& bb) const override;
 
-  virtual bool update(OccupancyGrid &grid) const override;
-  virtual bool update(OccupancyGrid &grid, const AABB &bb) const override;
+    virtual bool update(OccupancyGrid& grid) const override;
+    virtual bool update(OccupancyGrid& grid, const AABB& bb) const override;
 
-  virtual void onInitialize(const YAML::Node &parameters) override;
-  virtual void
-  onMapChanged(const nav_msgs::msg::OccupancyGrid &map_data) override;
+    virtual void onInitialize(const YAML::Node& parameters) override;
+    virtual void onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data) override;
 
-  virtual bool clear() override {
-    // cppcheck-suppress unreadVariable
-    const auto lock = getReadLock();
-    return bool(map_);
-  }
-  virtual bool clearRadius(const Eigen::Vector2i &, const int) override {
-    // cppcheck-suppress unreadVariable
-    const auto lock = getReadLock();
-    return bool(map_);
-  }
+    virtual bool clear() override
+    {
+        // cppcheck-suppress unreadVariable
+        const auto lock = getReadLock();
+        return bool(map_);
+    }
+    virtual bool clearRadius(const Eigen::Vector2i&, const int) override
+    {
+        // cppcheck-suppress unreadVariable
+        const auto lock = getReadLock();
+        return bool(map_);
+    }
 
-private:
-  int lethal_threshold_;
-  std::shared_ptr<OccupancyGrid> map_;
+  private:
+    int lethal_threshold_;
+    std::shared_ptr<OccupancyGrid> map_;
 };
-} // namespace gridmap
+}  // namespace gridmap
 
 #endif

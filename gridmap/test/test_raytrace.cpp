@@ -45,40 +45,40 @@ static_cast<uint8_t>(i);
 }
 */
 
-TEST(test_polyfill, test_polyfill) {
-  gridmap::MapDimensions map_dims(1, {0, 0}, {1000, 1000});
+TEST(test_polyfill, test_polyfill)
+{
+    gridmap::MapDimensions map_dims(1, {0, 0}, {1000, 1000});
 
-  gridmap::Grid2D<uint8_t> grid(map_dims);
+    gridmap::Grid2D<uint8_t> grid(map_dims);
 
-  cv::Mat cv_im =
-      cv::Mat(grid.dimensions().size().y(), grid.dimensions().size().x(), CV_8U,
-              reinterpret_cast<void *>(grid.cells().data()));
+    cv::Mat cv_im = cv::Mat(grid.dimensions().size().y(), grid.dimensions().size().x(), CV_8U,
+                            reinterpret_cast<void*>(grid.cells().data()));
 
-  std::vector<Eigen::Array2i> polygon;
-  polygon.push_back({500, 500});
-  polygon.push_back({600, 500});
-  polygon.push_back({600, 600});
-  polygon.push_back({400, 600});
+    std::vector<Eigen::Array2i> polygon;
+    polygon.push_back({500, 500});
+    polygon.push_back({600, 500});
+    polygon.push_back({600, 600});
+    polygon.push_back({400, 600});
 
-  auto lambda = [&cv_im](int x, int y) { cv_im.at<uint8_t>(y, x) = 255; };
+    auto lambda = [&cv_im](int x, int y) { cv_im.at<uint8_t>(y, x) = 255; };
 
-  for (int t = 0; t < 40; ++t) {
-    const auto t0 = std::chrono::steady_clock::now();
+    for (int t = 0; t < 40; ++t)
+    {
+        const auto t0 = std::chrono::steady_clock::now();
 
-    gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 600);
+        gridmap::rasterPolygonFill(lambda, polygon, 400, 600, 500, 600);
 
-    RCLCPP_INFO_STREAM(
-        rclcpp::get_logger(""),
-        "rasterPolygonFill took "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(
-                   std::chrono::steady_clock::now() - t0)
-                   .count());
-  }
+        RCLCPP_INFO_STREAM(rclcpp::get_logger(""),
+                           "rasterPolygonFill took " << std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                            std::chrono::steady_clock::now() - t0)
+                                                            .count());
+    }
 
-  cv::imwrite("grid.png", cv_im);
+    cv::imwrite("grid.png", cv_im);
 }
 
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

@@ -9,68 +9,73 @@
 
 #include <memory>
 
-namespace navigation_interface {
+namespace navigation_interface
+{
 
-class TrajectoryPlanner {
-public:
-  enum class Outcome { FAILED, SUCCESSFUL, PARTIAL };
+class TrajectoryPlanner
+{
+  public:
+    enum class Outcome
+    {
+        FAILED,
+        SUCCESSFUL,
+        PARTIAL
+    };
 
-  struct Result {
-    Outcome outcome;
+    struct Result
+    {
+        Outcome outcome;
 
-    double cost;
+        double cost;
 
-    // trajectory includes [start_i, end_i) of Path
-    std::size_t path_start_i;
-    std::size_t path_end_i;
+        // trajectory includes [start_i, end_i) of Path
+        std::size_t path_start_i;
+        std::size_t path_end_i;
 
-    Trajectory trajectory;
-  };
+        Trajectory trajectory;
+    };
 
-  TrajectoryPlanner() = default;
-  virtual ~TrajectoryPlanner() = default;
+    TrajectoryPlanner() = default;
+    virtual ~TrajectoryPlanner() = default;
 
-  virtual bool setPath(const Path &path) = 0;
-  virtual void clearPath() = 0;
+    virtual bool setPath(const Path& path) = 0;
+    virtual void clearPath() = 0;
 
-  virtual boost::optional<std::string> pathId() const = 0;
-  virtual boost::optional<Path> path() const = 0;
+    virtual boost::optional<std::string> pathId() const = 0;
+    virtual boost::optional<Path> path() const = 0;
 
-  virtual Result plan(const gridmap::AABB &local_region,
-                      const KinodynamicState &robot_state,
-                      const Eigen::Isometry2d &map_to_odom,
-                      const double avoid_distance) = 0;
+    virtual Result plan(const gridmap::AABB& local_region, const KinodynamicState& robot_state,
+                        const Eigen::Isometry2d& map_to_odom, const double avoid_distance) = 0;
 
-  virtual bool valid(const Trajectory &trajectory,
-                     const double avoid_distance) const = 0;
-  virtual double cost(const Trajectory &trajectory,
-                      const double avoid_distance) const = 0;
+    virtual bool valid(const Trajectory& trajectory, const double avoid_distance) const = 0;
+    virtual double cost(const Trajectory& trajectory, const double avoid_distance) const = 0;
 
-  virtual void onInitialize(const YAML::Node &parameters) = 0;
-  virtual void onMapDataChanged() = 0;
+    virtual void onInitialize(const YAML::Node& parameters) = 0;
+    virtual void onMapDataChanged() = 0;
 
-  void initialize(const YAML::Node &parameters,
-                  const std::shared_ptr<const gridmap::MapData> &map_data,
-                  const rclcpp::Node::SharedPtr node) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    map_data_ = map_data;
-    node_ = node;
-    onInitialize(parameters);
-  }
+    void initialize(const YAML::Node& parameters, const std::shared_ptr<const gridmap::MapData>& map_data,
+                    const rclcpp::Node::SharedPtr node)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
+        node_ = node;
+        onInitialize(parameters);
+    }
 
-  void setMapData(const std::shared_ptr<const gridmap::MapData> &map_data) {
-    RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: TrajectoryPlanner");
-    std::lock_guard<std::mutex> lock(mutex_);
-    map_data_ = map_data;
-    onMapDataChanged();
-    RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: TrajectoryPlanner DONE");
-  }
+    void setMapData(const std::shared_ptr<const gridmap::MapData>& map_data)
+    {
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: TrajectoryPlanner");
+        std::lock_guard<std::mutex> lock(mutex_);
+        map_data_ = map_data;
+        onMapDataChanged();
+        RCLCPP_INFO(rclcpp::get_logger(""), "Updating map: TrajectoryPlanner DONE");
+    }
 
-protected:
-  std::mutex mutex_;
-  std::shared_ptr<const gridmap::MapData> map_data_;
-  rclcpp::Node::SharedPtr node_;
+  protected:
+    std::mutex mutex_;
+    std::shared_ptr<const gridmap::MapData> map_data_;
+    rclcpp::Node::SharedPtr node_;
 };
-} // namespace navigation_interface
+}  // namespace navigation_interface
 
 #endif

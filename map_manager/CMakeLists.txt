@@ -17,26 +17,26 @@ find_package(sensor_msgs REQUIRED)
 ament_python_install_package(${PROJECT_NAME})
 
 rosidl_generate_interfaces(
-  ${PROJECT_NAME}
-  "msg/MapInfo.msg"
-  "srv/AddMap.srv"
-  "srv/DeleteMap.srv"
-  "srv/GetActiveMap.srv"
-  "srv/GetAreaTree.srv"
-  "srv/GetMapInfo.srv"
-  "srv/GetNodeGraph.srv"
-  "srv/GetOccupancyGrid.srv"
-  "srv/GetZones.srv"
-  "srv/ListMaps.srv"
-  "srv/SetActiveMap.srv"
-  DEPENDENCIES
-  geometry_msgs
-  nav_msgs
-  sensor_msgs
-  graph_map)
+    ${PROJECT_NAME}
+    "msg/MapInfo.msg"
+    "srv/AddMap.srv"
+    "srv/DeleteMap.srv"
+    "srv/GetActiveMap.srv"
+    "srv/GetAreaTree.srv"
+    "srv/GetMapInfo.srv"
+    "srv/GetNodeGraph.srv"
+    "srv/GetOccupancyGrid.srv"
+    "srv/GetZones.srv"
+    "srv/ListMaps.srv"
+    "srv/SetActiveMap.srv"
+    DEPENDENCIES
+    geometry_msgs
+    nav_msgs
+    sensor_msgs
+    graph_map
+)
 
-install(PROGRAMS ${PROJECT_NAME}/map_manager_node.py
-        DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS ${PROJECT_NAME}/map_manager_node.py DESTINATION lib/${PROJECT_NAME})
 
 install(PROGRAMS launch/test_manager.py DESTINATION share/${PROJECT_NAME})
 

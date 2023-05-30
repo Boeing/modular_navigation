@@ -44,22 +44,23 @@
 #include "sensor_msgs/msg/image.hpp"
 //#include "sensor_msgs/msg/image_encodings.hpp"
 
-namespace gridmap {
+namespace gridmap
+{
 
 // Encoding and decoding of compressed depth images.
-namespace compressed_depth_image_transport {
+namespace compressed_depth_image_transport
+{
 
 // Returns a null pointer on bad input.
-sensor_msgs::msg::Image::SharedPtr decodeCompressedDepthImage(
-    const sensor_msgs::msg::CompressedImage &compressed_image); // changed
+sensor_msgs::msg::Image::SharedPtr
+    decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& compressed_image);  // changed
 
 // Compress a depth image. Returns a null pointer on bad input.
 sensor_msgs::msg::CompressedImage::SharedPtr
-encodeCompressedDepthImage(const sensor_msgs::msg::Image &message, // changed
-                           const std::string &compression_format,
-                           double depth_max, double depth_quantization,
-                           int png_level);
+    encodeCompressedDepthImage(const sensor_msgs::msg::Image& message,  // changed
+                               const std::string& compression_format, double depth_max, double depth_quantization,
+                               int png_level);
 
-} // namespace compressed_depth_image_transport
+}  // namespace compressed_depth_image_transport
 
-} // namespace gridmap
+}  // namespace gridmap
