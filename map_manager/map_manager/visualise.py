@@ -246,7 +246,7 @@ def build_zones_marker_array(node, map_obj: MapDoc) -> MarkerArray:
 
 
 def build_areas_marker_array(node, map_obj):
-    # type: (MapDoc) -> MarkerArray
+    # type: (Node, MapDoc) -> MarkerArray
 
     # return MarkerArray()
 

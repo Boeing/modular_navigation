@@ -20,7 +20,6 @@ from map_manager.documents import Quaternion as QuaternionDoc
 from map_manager.documents import Zone as ZoneDoc
 from map_manager.map_info import MapInfo as MapInfoCls
 
-import rclpy
 from graph_map.area import Zone
 from map_manager.msg import MapInfo as MapInfoMsg
 from map_manager.srv import AddMap

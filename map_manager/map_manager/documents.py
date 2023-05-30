@@ -1,14 +1,13 @@
 import calendar
 import logging
 import typing
-from datetime import date, datetime
+from datetime import datetime
 from io import BytesIO
 
 import math6d
 import mongoengine
 import numpy
 import rclpy
-import typing
 from PIL import Image
 from PIL.ImageOps import invert
 from geometry_msgs.msg import Point as PointMsg
@@ -25,8 +24,6 @@ from mongoengine import (BooleanField, DateTimeField, Document,
                          GridFSProxy, IntField, StringField)
 from nav_msgs.msg import MapMetaData as MapMetaDataMsg
 from nav_msgs.msg import OccupancyGrid as OccupancyGridMsg
-from PIL import Image
-from PIL.ImageOps import invert
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import ColorRGBA as ColorMsg
 from std_msgs.msg import Header
