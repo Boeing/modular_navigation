@@ -26,17 +26,16 @@ from launch.conditions import IfCondition
 
 from gazebo_msgs.srv import SpawnEntity, GetEntityState
 
-from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
+from geometry_msgs.msg import Pose, PoseStamped
 from autonomy_interface.action import Drive
 from actionlib_msgs.msg import GoalStatus
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from tf2_ros import TransformBroadcaster, TransformRegistration
+from tf2_ros import TransformBroadcaster
 
 
 import time
 from math import pi
-import numpy as np
 
 
 @pytest.mark.launch_test
@@ -188,7 +187,6 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.robot_name = 'test_robot'
         self.global_frame = 'map'
 
-
         self.robot_pose = Pose()
         self.robot_pose.position.x = 20.0
         self.robot_pose.position.y = 7.0
@@ -240,7 +238,6 @@ class TestDriveToWaypoint(unittest.TestCase):
             self.log.info('Not in simulation. Exiting.')
             self.assertTrue(True)
 
-
     def test_b_get_waypoint(self):
         # Create Drive action message
         self.drive_action = Drive.Goal()
@@ -259,7 +256,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.rotation_mult = 0.3/pi
 
         # Wait for robot to be localised
-        time.sleep(35) # DEBUG
+        time.sleep(35)  # DEBUG
 
         # Send Goal
         drive_action_future = self.drive_action_client.send_goal_async(

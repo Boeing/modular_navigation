@@ -18,10 +18,6 @@ from PIL import Image, ImageDraw
 from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import UInt8MultiArray
 
-from map_manager.msgs import MapInfo
-from map_manager.srv import AddMap, AddMapRequest, AddMapResponse
-from map_manager.srv import SetActiveMap, SetActiveMapRequest, SetActiveMapResponse
-
 
 class TestMapManager(unittest.TestCase):
 

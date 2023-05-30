@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-from matplotlib import transforms
 import rclpy
 from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
 from rclpy.node import Node
@@ -13,12 +12,6 @@ from std_msgs.msg import Header
 from std_srvs.srv import Trigger
 from tf2_msgs.msg import TFMessage
 
-from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
-from tf2_ros.transform_broadcaster import TransformBroadcaster
-
-from gazebo_msgs.srv import GetEntityState
-import time
-from threading import Thread
 
 class FakeLocalisationPublisher(Node):
 
