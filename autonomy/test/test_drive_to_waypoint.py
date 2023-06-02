@@ -20,6 +20,7 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument
+from launch.actions import Shutdown
 from launch_ros.actions import Node
 
 from launch.conditions import IfCondition
@@ -42,12 +43,16 @@ from math import pi
 def generate_test_description():
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
 
+    autonomy_share_dir = get_package_share_directory('autonomy')
+
     world_file_name = os.path.join(get_package_share_directory('autonomy'),
                                    'test', 'resources', 'sim_map.world')
     robot_file_name_urdf = os.path.join(get_package_share_directory('autonomy'),
                                         'test', 'resources', 'test_robot.urdf')
     robot_file_name_sdf = os.path.join(get_package_share_directory('autonomy'),
                                        'test', 'resources', 'test_robot.sdf')
+    navigation_config_file = os.path.join(autonomy_share_dir, 'test',
+                                          'config/navigation.yaml')
 
     print('world_file_name : {}'.format(world_file_name))
     print('robot_urdf_file_name : {}'.format(robot_file_name_urdf))
@@ -59,15 +64,6 @@ def generate_test_description():
                 'use_sim_time',
                 default_value='true',
                 description='Use simulation (Gazebo) clock if true'),
-
-            # Declare autonomy configuration file path
-            DeclareLaunchArgument(
-                'navigation_config',
-                default_value=PathJoinSubstitution([
-                    get_package_share_directory('autonomy'),
-                    'test', 'config', 'navigation.yaml'
-                ])
-            ),
 
             # Launch GAZEBO
             IncludeLaunchDescription(
@@ -100,28 +96,43 @@ def generate_test_description():
                 arguments=[robot_file_name_urdf]
             ),
 
-            # Launch fake localisation (map to odom transform)
+            # Fake localisation
             Node(
-               package='autonomy',
-               namespace='autonomy',
-               executable='fake_localisation.py'
+                package='autonomy',
+                executable='fake_localisation.py',
+                output={'full'},
+                on_exit=Shutdown(),
             ),
 
             # Map manager
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory('map_manager'), 'test_manager.py')])
+            Node(
+                package='map_manager',
+                executable='map_manager_node.py',
+                name='map_manager',
+                output={'full'},
+                remappings=[
+                ],
+                on_exit=Shutdown()
             ),
 
             # Launch autonomy
             Node(
                 package='autonomy',
-                # namespace='autonomy',
                 executable='autonomy',
-                parameters=[{
-                    'navigation_config': LaunchConfiguration('navigation_config'),
-                }]
+                name='autonomy',
+                output={'full'},
+                parameters=[
+                    {
+                        'navigation_config': navigation_config_file,
+                        'use_sim_time': LaunchConfiguration('use_sim_time')
+                    }
+                ],
+                on_exit=Shutdown(),
+                remappings=[
+                    ('/autonomy/cmd_vel', '/cmd_vel'),  # Pub, left is original
+                ],
             ),
+
             launch_testing.actions.ReadyToTest(),
         ]
     )
@@ -265,13 +276,14 @@ class TestDriveToWaypoint(unittest.TestCase):
         rclpy.spin_until_future_complete(self.node, drive_action_future)
         # Get the goal handle as result of the future
         drive_action_goal_handle = drive_action_future.result()
+
         if (drive_action_goal_handle.accepted):
-            time.sleep(120)
-            return
             # TODO code below crashes
             # Request the goal result
+            self.log.info('Waiting for drive action result')
             drive_action_result_future = drive_action_goal_handle.get_result_asyc()
             # Wait for the goal result
+            self.log.warn('SPIN UNTIL FUTURE action result')
             rclpy.spin_until_future_complete(
                 self.node, drive_action_result_future)
             # Get the goal result
