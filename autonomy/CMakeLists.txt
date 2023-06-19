@@ -74,16 +74,9 @@ install(
     RUNTIME DESTINATION bin
 )
 
-#
-# Add ros tests TODO, Conditional testing
 if(BUILD_TESTING)
-    enable_testing()
-    find_file(NOSETESTS_EXECUTABLE nosetests)
-    add_test(nosetests "${NOSETESTS_EXECUTABLE}" -v --with-xunit)
-
-    install(DIRECTORY test/ DESTINATION share/${PROJECT_NAME}/test)
-
-    find_package(launch_testing_ament_cmake)
-    add_launch_test(test/test_drive_to_waypoint.py)
+    find_package(ros_testing REQUIRED)
+    add_ros_test(test/test_drive_to_waypoint.py)
 endif()
+
 ament_package()
