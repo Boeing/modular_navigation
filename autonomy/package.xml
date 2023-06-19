@@ -31,6 +31,14 @@
     <member_of_group>rosidl_interface_packages</member_of_group>
 
     <test_depend>ros_testing</test_depend>
+    <!--======================================-->
+    <!--Simulation & Testing-->
+    <!--======================================-->
+    <test_depend>gazebo_ros</test_depend>
+    <test_depend>gazebo_msgs</test_depend>
+
+    <test_depend>gazebo_planar_move_plugin</test_depend>
+    <test_depend>gazebo_no_physics_plugin</test_depend>
 
     <export>
         <build_type>ament_cmake</build_type>
