@@ -16,7 +16,7 @@ import pytest
 from rclpy.parameter import Parameter
 from rclpy.action import ActionClient
 
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument
@@ -279,6 +279,8 @@ class TestDriveToWaypoint(unittest.TestCase):
 
         if (drive_action_goal_handle.accepted):
             # TODO code below crashes
+            # time.sleep(60)
+            # return
             # Request the goal result
             self.log.info('Waiting for drive action result')
             drive_action_result_future = drive_action_goal_handle.get_result_asyc()
