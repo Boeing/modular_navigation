@@ -8,3 +8,11 @@
 - git:
     local-name: graph_map
     uri: git@gitlab.com:mtdi/pi9419/boeing/graph_map.git
+- git:
+    local-name: gazebo_no_physics_plugin
+    url: git@gitlab.com:mtdi/pi9419/pi9419-sw/gazebo-plugins/gazebo_no_physics_plugin.git
+    version: humble
+- git:
+    local-name: gazebo_planar_move_plugin
+    url: git@gitlab.com:mtdi/pi9419/boeing/gazebo_planar_move_plugin.git
+    version: humble
