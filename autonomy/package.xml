@@ -37,8 +37,8 @@
     <test_depend>gazebo_ros</test_depend>
     <test_depend>gazebo_msgs</test_depend>
 
-    <test_depend>gazebo_planar_move_plugin</test_depend>
-    <test_depend>gazebo_no_physics_plugin</test_depend>
+    <!--<test_depend>gazebo_planar_move_plugin</test_depend>-->
+    <!--<test_depend>gazebo_no_physics_plugin</test_depend>-->
 
     <export>
         <build_type>ament_cmake</build_type>
