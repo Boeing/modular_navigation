@@ -42,6 +42,7 @@ add_executable(
     ${PROJECT_NAME} include/${PROJECT_NAME}/${PROJECT_NAME}.h include/${PROJECT_NAME}/math.h src/${PROJECT_NAME}.cpp
                     src/main.cpp
 )
+
 ament_target_dependencies(
     ${PROJECT_NAME}
     geometry_msgs
@@ -75,6 +76,8 @@ install(
 )
 
 if(BUILD_TESTING)
+    install(DIRECTORY test/ DESTINATION share/${PROJECT_NAME}/test)
+
     find_package(ros_testing REQUIRED)
     add_ros_test(test/test_drive_to_waypoint.py)
 endif()
