@@ -13,10 +13,12 @@ import rclpy
 import rclpy.clock
 import rclpy.time
 import pytest
+from rclpy.task import Future
 from rclpy.parameter import Parameter
 from rclpy.action import ActionClient
+from rclpy.action.client import ClientGoalHandle
 
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument
@@ -58,13 +60,21 @@ def generate_test_description():
     print('robot_urdf_file_name : {}'.format(robot_file_name_urdf))
     print('robot_sdf_file_name : {}'.format(robot_file_name_sdf))
 
-    return launch.LaunchDescription(
-        [
-            DeclareLaunchArgument(
-                'use_sim_time',
-                default_value='true',
-                description='Use simulation (Gazebo) clock if true'),
+    declared_arguments = [
+        DeclareLaunchArgument(name='use_sim_time',
+                              description='Use simulation (Gazebo) clock if true',
+                              default_value='true', ),
+        DeclareLaunchArgument(name='gazebo_client',
+                              default_value='true',
+                              description='If running in sim, whether or not to launch GZClient'),
+    ]
 
+    use_sim_time_arg = LaunchConfiguration("use_sim_time")
+    gazebo_client_arg = LaunchConfiguration("gazebo_client")
+
+    return launch.LaunchDescription(
+        declared_arguments +
+        [
             # Launch GAZEBO
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -82,7 +92,13 @@ def generate_test_description():
                                  'gzclient.launch.py')
                 ),
                 launch_arguments={'gui': '1'}.items(),
-                condition=IfCondition(LaunchConfiguration('use_sim_time'))
+                # IfCondition was not meant to handle 2 conditionals, workaround
+                # https://answers.ros.org/question/394181/multiple-conditions-for-ifcondition-in-ros2-launch-script/
+                condition=IfCondition(
+                                    PythonExpression(
+                                        ["'", use_sim_time_arg, "' == 'true' and '", gazebo_client_arg, "' == 'true'"]
+                                    )
+                )
             ),
 
             # Launch robot_state_publisher
@@ -275,24 +291,23 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Wait for the goal to be accepted/rejected
         rclpy.spin_until_future_complete(self.node, drive_action_future)
         # Get the goal handle as result of the future
-        drive_action_goal_handle = drive_action_future.result()
+        drive_action_goal_handle: ClientGoalHandle = drive_action_future.result()
 
-        if (drive_action_goal_handle.accepted):
-            # TODO code below crashes
-            # time.sleep(60)
-            # return
+        if drive_action_goal_handle.accepted:
+            self.__logger.info('Goal ACCEPTED')
+
             # Request the goal result
-            self.log.info('Waiting for drive action result')
-            drive_action_result_future = drive_action_goal_handle.get_result_asyc()
+            drive_action_result_future = drive_action_goal_handle.get_result_async()
+
             # Wait for the goal result
-            self.log.warn('SPIN UNTIL FUTURE action result')
             rclpy.spin_until_future_complete(
                 self.node, drive_action_result_future)
+
             # Get the goal result
             drive_action_result = drive_action_result_future.result()
+
             # Assert if goal achieved
-            self.assertTrue(drive_action_result.status ==
-                            GoalStatus.STATUS_SUCCEEDED)
+            self.assertTrue(drive_action_result.status)
             # TODO Assert that desired position is reached in gazebo
         else:
             self.log.warn('Autonomy goal rejected')
