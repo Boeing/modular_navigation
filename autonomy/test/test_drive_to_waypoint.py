@@ -294,7 +294,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         drive_action_goal_handle: ClientGoalHandle = drive_action_future.result()
 
         if drive_action_goal_handle.accepted:
-            self.__logger.info('Goal ACCEPTED')
+            self.log.info('Goal ACCEPTED')
 
             # Request the goal result
             drive_action_result_future = drive_action_goal_handle.get_result_async()

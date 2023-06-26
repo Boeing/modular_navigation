@@ -39,6 +39,7 @@ costmap:
 #      - {name: laser_back, type: 'gridmap::LaserData'}
     scan:
       sub_sample: 10
+      topic: "scan"
 
   sonar_data:
     data_sources:
