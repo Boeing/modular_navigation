@@ -79,6 +79,9 @@ if(BUILD_TESTING)
     install(DIRECTORY test/ DESTINATION share/${PROJECT_NAME}/test)
 
     find_package(ros_testing REQUIRED)
+    find_package(astar_planner REQUIRED)
+    find_package(sim_band_planner REQUIRED)
+    find_package(pure_pursuit_controller REQUIRED)
     add_ros_test(test/test_drive_to_waypoint.py)
 endif()
 
