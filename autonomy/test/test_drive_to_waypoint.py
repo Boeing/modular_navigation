@@ -13,7 +13,6 @@ import rclpy
 import rclpy.clock
 import rclpy.time
 import pytest
-from rclpy.task import Future
 from rclpy.parameter import Parameter
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
@@ -31,7 +30,6 @@ from gazebo_msgs.srv import SpawnEntity, GetEntityState
 
 from geometry_msgs.msg import Pose, PoseStamped
 from autonomy_interface.action import Drive
-from actionlib_msgs.msg import GoalStatus
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros import TransformBroadcaster
@@ -65,7 +63,7 @@ def generate_test_description():
                               description='Use simulation (Gazebo) clock if true',
                               default_value='true', ),
         DeclareLaunchArgument(name='gazebo_client',
-                              default_value='true',
+                              default_value='false',
                               description='If running in sim, whether or not to launch GZClient'),
     ]
 
