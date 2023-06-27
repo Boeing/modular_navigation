@@ -3,3 +3,11 @@ include:
     file:
       - ci-templates/auto-rules/with-rosinstall/humble-default.yml
       - ci-templates/lfs-pull.yml
+
+industrial_ci_humble_test:
+  stage: test
+  services:
+    - name: mongodb
+      image: mongo:latest
+      ports:
+        - 27017:27017
