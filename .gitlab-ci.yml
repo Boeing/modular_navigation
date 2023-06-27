@@ -6,9 +6,37 @@ include:
 
 industrial_ci_humble_test:
   stage: test
+  image: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/docker:20.10.16
   services:
-    - name: mongo:latest
-      alias: mongodb
+  - name: ${CI_DEPENDENCY_PROXY_DIRECT_GROUP_IMAGE_PREFIX}/docker:20.10.16-dind
+    alias: docker
+  - name: mongo:latest
+    alias: mongodb
+  script:
+    - apk add --update git bash coreutils tar
+    - git clone --quiet --depth 1 https://github.com/ros-industrial/industrial_ci.git .ci_config
+    - if [[ "$ROS_DISTRO" = "humble" ]] ; then
+        UNDERLAY=/opt/ros/underlay/install ;
+      else
+        UNDERLAY=/opt/ros/${ROS_DISTRO} ;
+      fi
+    - if docker load -i docker_cache/industrial_ci_${ROS_DISTRO}.tar ; then
+        DOCKER_IMAGE=industrial_ci:${ROS_DISTRO} ;
+      else
+        echo "\e[31mError loading cache, rebuilding instead\e[0m" ;
+        DOCKER_IMAGE=${CI_REGISTRY}/mtdi/pi9419/continuous-integration/flexbotics-base-devel:${ROS_DISTRO}${REGISTRY_TAG_SUFFIX} ;
+        docker login ${CI_REGISTRY} -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ;
+      fi
+    - .ci_config/gitlab.sh DOCKER_IMAGE=${DOCKER_IMAGE} UNDERLAY=${UNDERLAY}
   variables:
+    ADDITIONAL_DEBS: curl
+    PARALLEL_BUILDS: 2 # keep this for now, since there seems to be memory limit issues in the ci VM
+    CMAKE_ARGS: -DCMAKE_CXX_FLAGS=-Wno-ignored-attributes -Wno-int-in-bool-context
+    DOCKER_PULL: "false"
     MONGODB_HOST: mongodb
     MONGODB_PORT: 27017
+  cache:
+    key: $CI_PIPELINE_ID
+    paths:
+      - docker_cache/
+  when: always
