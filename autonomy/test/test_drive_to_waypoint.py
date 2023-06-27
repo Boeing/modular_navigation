@@ -65,10 +65,14 @@ def generate_test_description():
         DeclareLaunchArgument(name='gazebo_client',
                               default_value='false',
                               description='If running in sim, whether or not to launch GZClient'),
+        DeclareLaunchArgument(name='mongo_hostname',
+                              default_value='mongodb',
+                              description='Hostname of the MongoDB server'),
     ]
 
     use_sim_time_arg = LaunchConfiguration("use_sim_time")
     gazebo_client_arg = LaunchConfiguration("gazebo_client")
+    mongo_hostname_arg = LaunchConfiguration("mongo_hostname")
 
     return launch.LaunchDescription(
         declared_arguments +
@@ -124,6 +128,7 @@ def generate_test_description():
                 executable='map_manager_node.py',
                 name='map_manager',
                 output={'full'},
+                parameters=[{'~mongo_hostname': mongo_hostname_arg}],
                 remappings=[
                 ],
                 on_exit=Shutdown()
