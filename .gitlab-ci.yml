@@ -36,7 +36,7 @@ industrial_ci_humble_test:
     PARALLEL_BUILDS: 2 # keep this for now, since there seems to be memory limit issues in the ci VM
     CMAKE_ARGS: -DCMAKE_CXX_FLAGS=-Wno-ignored-attributes -Wno-int-in-bool-context
     DOCKER_PULL: "false"
-    DOCKER_RUN_OPTS: "--network=host"
+    # DOCKER_RUN_OPTS: "--network=host"
   cache:
     key: $CI_PIPELINE_ID
     paths:
