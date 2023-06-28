@@ -66,7 +66,8 @@ struct Costmap
             cv::dilate(obstacle_map, dilated, ellipse);
         }
 
-        // flip because distanceTransform finds the distance to the nearest ZERO pixel
+        // flip because distanceTransform finds the distance to the nearest ZERO
+        // pixel
         cv::bitwise_not(dilated, dilated);
 
         // allocate
@@ -94,7 +95,8 @@ struct Costmap
             cv::dilate(obstacle_map_roi, dilated_roi, ellipse);
         }
 
-        // flip because distanceTransform finds the distance to the nearest ZERO pixel
+        // flip because distanceTransform finds the distance to the nearest ZERO
+        // pixel
         cv::bitwise_not(dilated_roi, dilated_roi);
 
         // allocate. Set distance to 0.0 by default.

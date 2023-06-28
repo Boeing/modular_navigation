@@ -124,7 +124,8 @@ bool RangeData::processData(const sensor_msgs::msg::Range::SharedPtr msg, const 
 
     const std::size_t cell_range = static_cast<std::size_t>(range / map_data->dimensions().resolution());
 
-    auto shader = [this, sensor_pt_map, cell_range, map_data](const int x, const int y, const int w0, const int w1, const int w2)
+    auto shader =
+        [this, sensor_pt_map, cell_range, map_data](const int x, const int y, const int w0, const int w1, const int w2)
     {
         const double _w0 = static_cast<double>(w0) / static_cast<double>(w0 + w1 + w2);
         const double _w1 = static_cast<double>(w1) / static_cast<double>(w0 + w1 + w2);

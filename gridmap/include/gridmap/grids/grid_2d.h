@@ -9,8 +9,8 @@
 #include <cmath>
 #include <iostream>
 #include <iterator>
-#include <shared_mutex>
 #include <mutex>
+#include <shared_mutex>
 #include <thread>
 #include <vector>
 
@@ -135,11 +135,13 @@ template <class CellType> class Grid2D
         return std::shared_lock<std::shared_mutex>(shared_mutex_);
     }
 
-    // By default, the unique_lock (write lock) has priority over shared_lock. This means while the writer is trying
-    // to get a lock, new readers cannot grab the lock. This effectively means one reader can block another reader
+    // By default, the unique_lock (write lock) has priority over shared_lock.
+    // This means while the writer is trying to get a lock, new readers cannot
+    // grab the lock. This effectively means one reader can block another reader
     // if a writer is trying to get the lock.
-    // To get around this, we use a non-blocking try_to_lock every 5ms and during the sleeps, new readers can lock.
-    // This means readers have priority and writers have to wait for windows where there are no reader.
+    // To get around this, we use a non-blocking try_to_lock every 5ms and during
+    // the sleeps, new readers can lock. This means readers have priority and
+    // writers have to wait for windows where there are no reader.
     std::unique_lock<std::shared_mutex> getWriteLock() const
     {
         std::unique_lock<std::shared_mutex> lock(shared_mutex_, std::try_to_lock_t());

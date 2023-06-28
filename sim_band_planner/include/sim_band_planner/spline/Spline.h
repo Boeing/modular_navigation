@@ -27,9 +27,9 @@ namespace Eigen
  *
  * \tparam _Scalar The underlying data type (typically float or double)
  * \tparam _Dim The curve dimension (e.g. 2 or 3)
- * \tparam _Degree Per default set to Dynamic; could be set to the actual desired
- *                degree for optimization purposes (would result in stack allocation
- *                of several temporary variables).
+ * \tparam _Degree Per default set to Dynamic; could be set to the actual
+ *desired degree for optimization purposes (would result in stack allocation of
+ *several temporary variables).
  **/
 template <typename _Scalar, int _Dim, int _Degree> class Spline
 {
@@ -56,7 +56,8 @@ template <typename _Scalar, int _Dim, int _Degree> class Spline
     /** \brief The data type used to store non-zero basis functions. */
     typedef typename SplineTraits<Spline>::BasisVectorType BasisVectorType;
 
-    /** \brief The data type used to store the values of the basis function derivatives. */
+    /** \brief The data type used to store the values of the basis function
+     * derivatives. */
     typedef typename SplineTraits<Spline>::BasisDerivativeType BasisDerivativeType;
 
     /** \brief The data type representing the spline's control points. */
@@ -138,8 +139,8 @@ template <typename _Scalar, int _Dim, int _Degree> class Spline
      * \f}
      * for i ranging between 0 and order.
      *
-     * \param u Parameter \f$u \in [0;1]\f$ at which the spline derivative is evaluated.
-     * \param order The order up to which the derivatives are computed.
+     * \param u Parameter \f$u \in [0;1]\f$ at which the spline derivative is
+     *evaluated. \param order The order up to which the derivatives are computed.
      **/
     typename SplineTraits<Spline>::DerivativeType derivatives(Scalar u, DenseIndex order) const;
 
@@ -171,7 +172,8 @@ template <typename _Scalar, int _Dim, int _Degree> class Spline
     typename SplineTraits<Spline>::BasisVectorType basisFunctions(Scalar u) const;
 
     /**
-     * \brief Computes the non-zero spline basis function derivatives up to given order.
+     * \brief Computes the non-zero spline basis function derivatives up to given
+     *order.
      *
      * The function computes
      * \f{align*}{
@@ -181,7 +183,8 @@ template <typename _Scalar, int _Dim, int _Degree> class Spline
      *
      * \param u Parameter \f$u \in [0;1]\f$ at which the non-zero basis function
      *          derivatives are computed.
-     * \param order The order up to which the basis function derivatives are computes.
+     * \param order The order up to which the basis function derivatives are
+     *computes.
      **/
     typename SplineTraits<Spline>::BasisDerivativeType basisFunctionDerivatives(Scalar u, DenseIndex order) const;
 
@@ -206,7 +209,8 @@ template <typename _Scalar, int _Dim, int _Degree> class Spline
     DenseIndex span(Scalar u) const;
 
     /**
-     * \brief Computes the spang within the provided knot vector in which u is falling.
+     * \brief Computes the spang within the provided knot vector in which u is
+     *falling.
      **/
     static DenseIndex Span(typename SplineTraits<Spline>::Scalar u, DenseIndex degree,
                            const typename SplineTraits<Spline>::KnotVectorType& knots);
@@ -323,7 +327,8 @@ typename Spline<_Scalar, _Dim, _Degree>::PointType Spline<_Scalar, _Dim, _Degree
     return (ctrl_weights * ctrl_pts).rowwise().sum();
 }
 
-/* --------------------------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------------------------
+ */
 
 template <typename SplineType, typename DerivativeType>
 void derivativesImpl(const SplineType& spline, typename SplineType::Scalar u, DenseIndex order, DerivativeType& der)
@@ -391,7 +396,8 @@ typename SplineTraits<Spline<_Scalar, _Dim, _Degree>>::BasisVectorType
     return Spline::BasisFunctions(u, degree(), knots());
 }
 
-/* --------------------------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------------------------------
+ */
 
 template <typename _Scalar, int _Dim, int _Degree>
 template <typename DerivativeType>
@@ -419,7 +425,8 @@ void Spline<_Scalar, _Dim, _Degree>::BasisFunctionDerivativesImpl(
 
     Matrix<Scalar, Order, Order> ndu(p + 1, p + 1);
 
-    Scalar saved, temp;  // FIXME These were double instead of Scalar. Was there a reason for that?
+    Scalar saved, temp;  // FIXME These were double instead of Scalar. Was there a
+                         // reason for that?
 
     ndu(0, 0) = 1.0;
 

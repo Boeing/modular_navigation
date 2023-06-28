@@ -33,8 +33,9 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-// IMPORTANT: This was copied from upstream image_transport_plugins to be able to use the decode function directly
-// without needing a modified version of the package
+// IMPORTANT: This was copied from upstream image_transport_plugins to be able
+// to use the decode function directly without needing a modified version of the
+// package
 
 #include <cv_bridge/cv_bridge.h>
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/codec.h>
@@ -58,7 +59,8 @@
 #endif
 #endif
 
-namespace enc = sensor_msgs::image_encodings;  // changed from sensor_msgs::msg::Image::encodings
+namespace enc = sensor_msgs::image_encodings;  // changed from
+                                               // sensor_msgs::msg::Image::encodings
 using namespace cv;
 
 namespace gridmap
@@ -68,7 +70,8 @@ namespace gridmap
 namespace compressed_depth_image_transport
 {
 
-sensor_msgs::msg::Image::SharedPtr decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& message)  // changed
+sensor_msgs::msg::Image::SharedPtr
+    decodeCompressedDepthImage(const sensor_msgs::msg::CompressedImage& message)  // changed
 {
     cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
 
@@ -229,9 +232,9 @@ sensor_msgs::msg::Image::SharedPtr decodeCompressedDepthImage(const sensor_msgs:
 
 // cppcheck-suppress unusedFunction
 sensor_msgs::msg::CompressedImage::SharedPtr encodeCompressedDepthImage(const sensor_msgs::msg::Image& message,
-                                                                  const std::string& compression_format,
-                                                                  double depth_max, double depth_quantization,
-                                                                  int png_level)
+                                                                        const std::string& compression_format,
+                                                                        double depth_max, double depth_quantization,
+                                                                        int png_level)
 {
 
     // Compressed image message
@@ -325,8 +328,9 @@ sensor_msgs::msg::CompressedImage::SharedPtr encodeCompressedDepthImage(const se
                         float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize()) /
                                        (float)compressedImage.size();
                         RCLCPP_DEBUG(rclcpp::get_logger(""),
-                                     "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
-                                     compressedImage.size());
+                                     "Compressed Depth Image Transport - Compression: "
+                                     "1:%.2f (%lu bytes)",
+                                     cRatio, compressedImage.size());
                     }
                     else
                     {
@@ -348,7 +352,8 @@ sensor_msgs::msg::CompressedImage::SharedPtr encodeCompressedDepthImage(const se
                 uint32_t _cols = invDepthImg.cols;
                 uint32_t _rows = invDepthImg.rows;
                 memcpy(&compressedImage[0], &_cols, 4);
-                memcpy(&compressedImage[4], &_rows, 4);  // cppcheck-suppress containerOutOfBounds
+                memcpy(&compressedImage[4], &_rows,
+                       4);  // cppcheck-suppress containerOutOfBounds
                 RvlCodec rvl;
                 // cppcheck-suppress containerOutOfBounds
                 int compressedSize = rvl.CompressRVL(invDepthImg.ptr<unsigned short>(), &compressedImage[8], numPixels);
@@ -398,8 +403,9 @@ sensor_msgs::msg::CompressedImage::SharedPtr encodeCompressedDepthImage(const se
                     float cRatio = (float)(cv_ptr->image.rows * cv_ptr->image.cols * cv_ptr->image.elemSize()) /
                                    (float)compressedImage.size();
                     RCLCPP_DEBUG(rclcpp::get_logger(""),
-                                 "Compressed Depth Image Transport - Compression: 1:%.2f (%lu bytes)", cRatio,
-                                 compressedImage.size());
+                                 "Compressed Depth Image Transport - Compression: 1:%.2f "
+                                 "(%lu bytes)",
+                                 cRatio, compressedImage.size());
                 }
                 else
                 {
@@ -415,7 +421,8 @@ sensor_msgs::msg::CompressedImage::SharedPtr encodeCompressedDepthImage(const se
                 uint32_t _cols = cv_ptr->image.cols;
                 uint32_t _rows = cv_ptr->image.rows;
                 memcpy(&compressedImage[0], &_cols, 4);
-                memcpy(&compressedImage[4], &_rows, 4);  // cppcheck-suppress containerOutOfBounds
+                memcpy(&compressedImage[4], &_rows,
+                       4);  // cppcheck-suppress containerOutOfBounds
                 RvlCodec rvl;
                 int compressedSize =
                     // cppcheck-suppress containerOutOfBounds
@@ -427,7 +434,8 @@ sensor_msgs::msg::CompressedImage::SharedPtr encodeCompressedDepthImage(const se
     else
     {
         RCLCPP_ERROR(rclcpp::get_logger(""),
-                     "Compressed Depth Image Transport - Compression requires single-channel 32bit-floating point or "
+                     "Compressed Depth Image Transport - Compression requires "
+                     "single-channel 32bit-floating point or "
                      "16bit raw depth images (input format is: %s).",
                      message.encoding.c_str());
         return sensor_msgs::msg::CompressedImage::SharedPtr();

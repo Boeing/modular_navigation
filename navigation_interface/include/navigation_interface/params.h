@@ -17,8 +17,8 @@ namespace navigation_interface
 
 template <typename T> T get_param_with_default(const std::string& param_name, const T& default_val)
 {
-    RCLCPP_ERROR_STREAM(rclcpp::get_logger(""),
-                        "Using old ros1 version of get_param_with_default, pass a node as first argument");
+    RCLCPP_ERROR_STREAM(rclcpp::get_logger(""), "Using old ros1 version of get_param_with_default, pass "
+                                                "a node as first argument");
 }
 
 template <typename T> T get_param_with_default(rclcpp::Node node, const std::string& param_name, const T& default_val)
@@ -36,7 +36,8 @@ template <typename T> T get_param_with_default(rclcpp::Node node, const std::str
 }
 
 template <typename T>
-// T get_param_with_default_warn(ros::NodeHandle nh, const std::string& param_name, const T& default_val)
+// T get_param_with_default_warn(ros::NodeHandle nh, const std::string&
+// param_name, const T& default_val)
 T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, const T& default_val)
 {
     if (node.has_parameter(param_name))
@@ -53,8 +54,9 @@ T get_param_with_default_warn(rclcpp::Node node, const std::string& param_name, 
 }
 /**
 template <typename T>
-T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string& param_name, const T& default_val,
-                               const XmlRpc::XmlRpcValue::Type& xml_type)
+T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const
+std::string& param_name, const T& default_val, const XmlRpc::XmlRpcValue::Type&
+xml_type)
 {
     if (parameters.hasMember(param_name))
     {
@@ -69,23 +71,24 @@ T get_config_with_default_warn(XmlRpc::XmlRpcValue parameters, const std::string
     }
     else
     {
-        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for " << param_name << ": " << default_val);
-        return default_val;
+        RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "Using default value for " <<
+param_name << ": " << default_val); return default_val;
     }
 }
 */
 /**
 template <typename T, size_t size>
-std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters, const std::string& param_name,
-                                                 const std::array<T, size>& default_val,
-                                                 const XmlRpc::XmlRpcValue::Type& xml_type)
+std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
+const std::string& param_name, const std::array<T, size>& default_val, const
+XmlRpc::XmlRpcValue::Type& xml_type)
 {
     if (parameters.hasMember(param_name))
     {
         XmlRpc::XmlRpcValue& value = parameters[param_name];
         if (value.getType() != XmlRpc::XmlRpcValue::TypeArray)
         {
-            throw std::runtime_error(param_name + " has incorrect type, expects a TypeArray");
+            throw std::runtime_error(param_name + " has incorrect type, expects
+a TypeArray");
         }
         if (value.size() != size)
         {
@@ -96,7 +99,8 @@ std::array<T, size> get_config_list_with_default(XmlRpc::XmlRpcValue parameters,
         {
             if (value[i].getType() != xml_type)
             {
-                throw std::runtime_error(param_name + " element has incorrect type");
+                throw std::runtime_error(param_name + " element has incorrect
+type");
             }
             else
             {

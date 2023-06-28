@@ -20,7 +20,6 @@ from map_manager.documents import Quaternion as QuaternionDoc
 from map_manager.documents import Zone as ZoneDoc
 from map_manager.map_info import MapInfo as MapInfoCls
 
-import rclpy
 from graph_map.area import Zone
 from map_manager.msg import MapInfo as MapInfoMsg
 from map_manager.srv import AddMap
@@ -228,7 +227,7 @@ def process_dxf(
             )
 
             # Assumes node is spinning externally
-            add_map_res = add_map_srv.call(add_req)  # type: AddMap.Response
+            add_map_res: AddMap.Response = add_map_srv.call(add_req)
 
             if not add_map_res.success:
                 raise Exception('Failed to save map: {}'.format(add_map_res.message))

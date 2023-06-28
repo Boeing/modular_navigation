@@ -35,11 +35,12 @@ namespace Eigen
  * where \f$p\f$ is the degree and \f$m+1\f$ the number knots
  * of the desired interpolating spline.
  *
- * \param[in] parameters The input parameters. During interpolation one for each data point.
- * \param[in] degree The spline degree which is used during the interpolation.
- * \param[out] knots The output knot vector.
+ * \param[in] parameters The input parameters. During interpolation one for each
+ *data point. \param[in] degree The spline degree which is used during the
+ *interpolation. \param[out] knots The output knot vector.
  *
- * \sa Les Piegl and Wayne Tiller, The NURBS book (2nd ed.), 1997, 9.2.1 Global Curve Interpolation to Point Data
+ * \sa Les Piegl and Wayne Tiller, The NURBS book (2nd ed.), 1997, 9.2.1 Global
+ *Curve Interpolation to Point Data
  **/
 template <typename KnotVectorType>
 void KnotAveraging(const KnotVectorType& parameters, DenseIndex degree, KnotVectorType& knots)
@@ -173,13 +174,14 @@ void KnotAveragingWithDerivatives(const ParameterVectorType& parameters, const u
 }
 
 /**
- * \brief Computes chord length parameters which are required for spline interpolation.
- * \ingroup Splines_Module
+ * \brief Computes chord length parameters which are required for spline
+ *interpolation. \ingroup Splines_Module
  *
  * \param[in] pts The data points to which a spline should be fit.
  * \param[out] chord_lengths The resulting chord lenggth vector.
  *
- * \sa Les Piegl and Wayne Tiller, The NURBS book (2nd ed.), 1997, 9.2.1 Global Curve Interpolation to Point Data
+ * \sa Les Piegl and Wayne Tiller, The NURBS book (2nd ed.), 1997, 9.2.1 Global
+ *Curve Interpolation to Point Data
  **/
 template <typename PointArrayType, typename KnotVectorType>
 void ChordLengths(const PointArrayType& pts, KnotVectorType& chord_lengths)
@@ -237,14 +239,14 @@ template <typename SplineType> struct SplineFitting
      * \brief Fits an interpolating spline to the given data points and
      * derivatives.
      *
-     * \param points The points for which an interpolating spline will be computed.
-     * \param derivatives The desired derivatives of the interpolating spline at interpolation
-     *                    points.
-     * \param derivativeIndices An array indicating which point each derivative belongs to. This
-     *                          must be the same size as @a derivatives.
-     * \param degree The degree of the interpolating spline.
+     * \param points The points for which an interpolating spline will be
+     *computed. \param derivatives The desired derivatives of the interpolating
+     *spline at interpolation points. \param derivativeIndices An array indicating
+     *which point each derivative belongs to. This must be the same size as @a
+     *derivatives. \param degree The degree of the interpolating spline.
      *
-     * \returns A spline interpolating @a points with @a derivatives at those points.
+     * \returns A spline interpolating @a points with @a derivatives at those
+     *points.
      *
      * \sa Les A. Piegl, Khairan Rajab, Volha Smarodzinana. 2008.
      * Curve interpolation with directional constraints for engineering design.
@@ -255,16 +257,19 @@ template <typename SplineType> struct SplineFitting
                                                  const IndexArray& derivativeIndices, const unsigned int degree);
 
     /**
-     * \brief Fits an interpolating spline to the given data points and derivatives.
+     * \brief Fits an interpolating spline to the given data points and
+     * derivatives.
      *
-     * \param points The points for which an interpolating spline will be computed.
-     * \param derivatives The desired derivatives of the interpolating spline at interpolation points.
-     * \param derivativeIndices An array indicating which point each derivative belongs to. This
-     *                          must be the same size as @a derivatives.
-     * \param degree The degree of the interpolating spline.
-     * \param parameters The parameters corresponding to the interpolation points.
+     * \param points The points for which an interpolating spline will be
+     * computed. \param derivatives The desired derivatives of the interpolating
+     * spline at interpolation points. \param derivativeIndices An array
+     * indicating which point each derivative belongs to. This must be the same
+     * size as @a derivatives. \param degree The degree of the interpolating
+     * spline. \param parameters The parameters corresponding to the interpolation
+     * points.
      *
-     * \returns A spline interpolating @a points with @a derivatives at those points.
+     * \returns A spline interpolating @a points with @a derivatives at those
+     * points.
      *
      * \sa Les A. Piegl, Khairan Rajab, Volha Smarodzinana. 2008.
      * Curve interpolation with directional constraints for engineering design.

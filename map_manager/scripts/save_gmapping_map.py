@@ -24,13 +24,13 @@ def task(map_name):
 
     # Get the OccupancyGrid
     try:
-        get_map_response = get_map.call(GetMapRequest())  # type: GetMapResponse
+        get_map_response: GetMapResponse = get_map.call(GetMapRequest())
     except rospy.ServiceException as e:
         logger.error('Failed to get map from gmapping: {}'.format(e))
         return FAILED
 
     # Save the map
-    save_map_response = save_map.call(
+    save_map_response: AddMapResponse = save_map.call(
         AddMapRequest(
             map_info=MapInfo(
                 name=map_name,
@@ -41,7 +41,7 @@ def task(map_name):
                 data=get_map_response.map.data
             )
         )
-    )  # type: AddMapResponse
+    )
 
     if save_map_response.success is False:
         logger.error('Failed to save map: {}'.format(save_map_response.message))

@@ -1,5 +1,6 @@
-// IMPORTANT: This was copied from upstream image_transport_plugins to be able to use the decode function directly
-// without needing a modified version of the package
+// IMPORTANT: This was copied from upstream image_transport_plugins to be able
+// to use the decode function directly without needing a modified version of the
+// package
 
 #ifndef COMPRESSED_DEPTH_IMAGE_TRANSPORT_RVL_CODEC_H_
 #define COMPRESSED_DEPTH_IMAGE_TRANSPORT_RVL_CODEC_H_

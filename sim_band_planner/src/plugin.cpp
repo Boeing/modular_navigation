@@ -118,7 +118,8 @@ navigation_interface::TrajectoryPlanner::Result
         // Add the robot position to the front of the band
         sim_band.nodes.push_back(Node(robot_pose, sim_band.radius_offsets));
 
-        // The first moving window node is the previous segment (exclude from optimization)
+        // The first moving window node is the previous segment (exclude from
+        // optimization)
         rcpputils::assert_true(moving_window_->window.nodes.size() >= 1);
         if (moving_window_->window.nodes.size() > 1)
             sim_band.nodes.insert(sim_band.nodes.end(), moving_window_->window.nodes.begin(),
@@ -299,7 +300,8 @@ navigation_interface::TrajectoryPlanner::Result
             if (sim_band.nodes[end_i].control_points[sim_band.nodes[end_i].closest_point].distance < 0)
             {
                 auto clock = node_->get_clock();
-                RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""),*clock, 1000, "Point: " << end_i << " of trajectory is in collision");
+                RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), *clock, 1000,
+                                            "Point: " << end_i << " of trajectory is in collision");
                 //                end_i = end_i > 1 ? end_i - 1 : 0;
                 result.outcome = navigation_interface::TrajectoryPlanner::Outcome::PARTIAL;
                 result.path_end_i = moving_window_->end_i - (sim_band.nodes.size() - 1 - end_i);

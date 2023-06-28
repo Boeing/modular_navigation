@@ -34,7 +34,8 @@ struct ExploreDirection
 }  // namespace
 
 // This is using the costmap (which is inflated the robot offset radius)
-// Since we are considering the robot as a point for this check we need to subtract the conservative radius
+// Since we are considering the robot as a point for this check we need to
+// subtract the conservative radius
 double collisionCost(const int map_x, const int map_y, const CollisionChecker& collision_checker)
 {
     const int distance_to_collision_px =
@@ -86,7 +87,8 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
     }
 
     // attempt to find path from goal to start
-    // reverse order so that we can reuse the explore data structure as the start state changes
+    // reverse order so that we can reuse the explore data structure as the start
+    // state changes
 
     const std::size_t start_index = costmap.to2DGridIndex(start);
     const std::size_t goal_index = costmap.to2DGridIndex(goal);
@@ -105,16 +107,17 @@ ShortestPath2D shortestPath2D(const State2D& start, const State2D& goal, Explore
         return {true, &(start_it->second), 0};
     }
 
-    std::unordered_map<std::size_t, PriorityQueue2D::handle_type>
-        handles;  // explore_cache.explore_2d.size(), PriorityQueue2D::handle_type{nullptr});
+    std::unordered_map<std::size_t, PriorityQueue2D::handle_type> handles;  // explore_cache.explore_2d.size(),
+                                                                            // PriorityQueue2D::handle_type{nullptr});
 
     PriorityQueue2D* open_set = new PriorityQueue2D();
 
     // re-calculate the heuristic
     // the start-state is moving, so the fastest way to get their changes
     // consequently the priority queue needs to be resorted
-    // so we copy all nodes from the last priority queue into a new one but recalculate heuristics
-    // all nodes which have already been searched remain searched and contain valid shortest paths
+    // so we copy all nodes from the last priority queue into a new one but
+    // recalculate heuristics all nodes which have already been searched remain
+    // searched and contain valid shortest paths
     if (explore_cache.open_set)
     {
         handles.reserve(explore_cache.open_set->size());

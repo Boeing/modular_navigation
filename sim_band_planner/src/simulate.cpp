@@ -161,11 +161,11 @@ Eigen::Vector3d rotationForce(const Node& prev, const Node& curr, const Node& ne
     //        // face forward (or backwards) force
     //        if (d_2_norm > std::numeric_limits<double>::epsilon())
     //        {
-    //            const Eigen::Vector2d pose_dir = curr.pose.linear() * Eigen::Vector2d::UnitX();
-    //            const double dot = pose_dir.dot(d_2_normalized);
-    //            const double det = pose_dir.x() * d_2_normalized.y() - pose_dir.y() * d_2_normalized.x();
-    //            double fwd_angle = std::atan2(det, dot);
-    //            if (fwd_angle > M_PI / 2.0)
+    //            const Eigen::Vector2d pose_dir = curr.pose.linear() *
+    //            Eigen::Vector2d::UnitX(); const double dot =
+    //            pose_dir.dot(d_2_normalized); const double det = pose_dir.x() *
+    //            d_2_normalized.y() - pose_dir.y() * d_2_normalized.x(); double
+    //            fwd_angle = std::atan2(det, dot); if (fwd_angle > M_PI / 2.0)
     //                fwd_angle = M_PI - fwd_angle;
     //            else if (fwd_angle < -M_PI / 2.0)
     //                fwd_angle = -M_PI - fwd_angle;

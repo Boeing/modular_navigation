@@ -76,7 +76,8 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
 
             const Eigen::Vector3f reading((u - center_x) * d * constant_x, (v - center_y) * d * constant_y, depth);
 
-            // ROS_ASSERT_MSG(reading.allFinite(), "%f %f %f", reading.x(), reading.y(), reading.z());
+            // ROS_ASSERT_MSG(reading.allFinite(), "%f %f %f", reading.x(),
+            // reading.y(), reading.z());
             std::string text = "";
             text += std::to_string(reading.x());  // TODO use streams cmon
             text += std::to_string(reading.y());
@@ -86,7 +87,8 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
             const Eigen::Vector3f pt = sensor_transform * reading;
             const Eigen::Array2i pt_map = map_dimensions.getCellIndex(pt.head<2>().cast<double>());
 
-            // Skip points greater than max_range unless the scan to the floor and help clear obstacles
+            // Skip points greater than max_range unless the scan to the floor and
+            // help clear obstacles
             if (reading.norm() > max_range && pt.z() >= obstacle_height)
                 continue;
 
@@ -94,8 +96,9 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
 
             // Check if point is inside footprint
             // If inside footprint then we need to discount points on the robot
-            // A hack at the moment is to allow points above 400mm within the robot footprint
-            // This is not ideal and perhaps we need a second footprint to cover the cabinet
+            // A hack at the moment is to allow points above 400mm within the robot
+            // footprint This is not ideal and perhaps we need a second footprint to
+            // cover the cabinet
             if (footprint.count(key) > 0)
             {
                 if (pt.z() < 0.40f)
@@ -122,7 +125,8 @@ void projectDepth(std::unordered_map<uint64_t, float>& height_voxels, const floa
 
 template <typename T> void maskImage(cv::Mat& image, const cv::Mat& mask)
 {
-    // ROS_ASSERT_MSG(image.size == mask.size, "Image and mask are not the same size.");
+    // ROS_ASSERT_MSG(image.size == mask.size, "Image and mask are not the same
+    // size.");
     rcpputils::assert_true(image.size == mask.size, "Image and mask are not the same size.");
 
     for (unsigned int i = 0; i < image.total(); ++i)
@@ -185,7 +189,8 @@ inline std::string getPackageUriPath(const std::string& package_uri)
     // if (!rospack.find(package_name, package_dir))
     //     throw std::runtime_error("Unable to find package: " + package_name);
 
-    // ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
+    // ROS_ASSERT_MSG(package_uri.rfind(prefix, 0) == 0, "URI does not begin with
+    // package://");
     rcpputils::assert_true(package_uri.rfind(prefix, 0) == 0, "URI does not begin with package://");
 
     return (package_dir + path);

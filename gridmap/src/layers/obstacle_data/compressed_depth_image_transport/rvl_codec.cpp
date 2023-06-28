@@ -2,8 +2,9 @@
 // Andrew D. Wilson in "Fast Lossless Depth Image Compression" at SIGCHI'17.
 // The original code is licensed under the MIT License.
 
-// IMPORTANT: This was copied from upstream image_transport_plugins to be able to use the decode function directly
-// without needing a modified version of the package
+// IMPORTANT: This was copied from upstream image_transport_plugins to be able
+// to use the decode function directly without needing a modified version of the
+// package
 
 #include <gridmap/layers/obstacle_data/compressed_depth_image_transport/rvl_codec.h>
 

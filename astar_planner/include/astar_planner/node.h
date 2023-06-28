@@ -153,11 +153,14 @@ struct CompareNodes
 inline Node3dIndex StateToIndex(const State3D& state, const double linear_resolution, const double angular_resolution)
 {
     // TODO perhaps bounds check
-    //    ROS_ASSERT_MSG(state.x < linear_resolution * std::numeric_limits<int>::max(), "state: %f %f", state.x,
-    //    state.y); ROS_ASSERT_MSG(state.y < linear_resolution * std::numeric_limits<int>::max(), "state: %f %f",
-    //    state.x, state.y); ROS_ASSERT_MSG(state.x > linear_resolution * std::numeric_limits<int>::min(), "state: %f
-    //    %f", state.x, state.y); ROS_ASSERT_MSG(state.y > linear_resolution * std::numeric_limits<int>::min(), "state:
-    //    %f %f", state.x, state.y);
+    //    ROS_ASSERT_MSG(state.x < linear_resolution *
+    //    std::numeric_limits<int>::max(), "state: %f %f", state.x, state.y);
+    //    ROS_ASSERT_MSG(state.y < linear_resolution *
+    //    std::numeric_limits<int>::max(), "state: %f %f", state.x, state.y);
+    //    ROS_ASSERT_MSG(state.x > linear_resolution *
+    //    std::numeric_limits<int>::min(), "state: %f %f", state.x, state.y);
+    //    ROS_ASSERT_MSG(state.y > linear_resolution *
+    //    std::numeric_limits<int>::min(), "state: %f %f", state.x, state.y);
 
     const int x = static_cast<int>(std::round(state.x / linear_resolution));
     const int y = static_cast<int>(std::round(state.y / linear_resolution));

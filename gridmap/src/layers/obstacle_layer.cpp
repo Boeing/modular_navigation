@@ -233,7 +233,8 @@ void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data)
 
     if (debug_viz_)
     {
-        debug_viz_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap_debug", rclcpp::QoS(1).transient_local());
+        debug_viz_pub_ =
+            node_->create_publisher<nav_msgs::msg::OccupancyGrid>("costmap_debug", rclcpp::QoS(1).transient_local());
 
         if (debug_viz_running_)
         {
@@ -322,7 +323,8 @@ void ObstacleLayer::debugVizThread(const double frequency)
     rclcpp::Rate rate(frequency);
     // Changes in expectedCycleTime explained:
     // https://answers.ros.org/question/350222/expcectedcycletime-in-ros2/
-    // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    // const boost::chrono::milliseconds
+    // period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
     std::chrono::milliseconds period =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>{1.0 / frequency});
 
@@ -331,7 +333,8 @@ void ObstacleLayer::debugVizThread(const double frequency)
         {
             std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
             const RobotState robot_state = robot_tracker_->robotState();
-            // if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 && probability_grid_ &&
+            // if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 &&
+            // probability_grid_ &&
             if (_lock.owns_lock() && debug_viz_pub_->get_subscription_count() != 0 && probability_grid_ &&
                 robot_state.localised)
             {
@@ -408,7 +411,8 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
 {
     // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    // const boost::chrono::milliseconds
+    // period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
     std::chrono::milliseconds period =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>{1.0 / frequency});
 
@@ -442,7 +446,8 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
 {
     // ros::Rate rate(frequency);
     rclcpp::Rate rate(frequency);
-    // const boost::chrono::milliseconds period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
+    // const boost::chrono::milliseconds
+    // period(static_cast<long>(rate.expectedCycleTime().toSec() * 1000));
     std::chrono::milliseconds period =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::duration<double>{1.0 / frequency});
 

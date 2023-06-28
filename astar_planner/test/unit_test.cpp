@@ -135,8 +135,9 @@ TEST_F(PlanningTest, test_out_of_lane)
 
 TEST_F(PlanningTest, test_straight_line)
 {
-    //    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
-    //    cv::rectangle(cv_im, cv::Point(200, 420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
+    //    cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320),
+    //    cv::Scalar(255), -1, cv::LINE_8); cv::rectangle(cv_im, cv::Point(200,
+    //    420), cv::Point(1000, 500), cv::Scalar(255), -1, cv::LINE_8);
     cv::circle(cv_im, cv::Point(500, 470), static_cast<int>(0.1 / resolution), cv::Scalar(255), -1);
 
     auto costmap = std::make_shared<astar_planner::Costmap>(*map_data, robot_radius);
@@ -172,14 +173,16 @@ TEST_F(PlanningTest, test_straight_line)
     cv::imwrite("test_straight_line.png", disp);
 
     //    astar_planner::drawPathSVG(astar_result, "result.svg");
-    //    astar_planner::drawDot(*costmap, astar_result, goal, "result.dot", linear_resolution, angular_resolution);
+    //    astar_planner::drawDot(*costmap, astar_result, goal, "result.dot",
+    //    linear_resolution, angular_resolution);
 }
 
 TEST_F(PlanningTest, test_avoid_zone)
 {
     cv::rectangle(cv_im, cv::Point(200, 200), cv::Point(1000, 320), cv::Scalar(255), -1, cv::LINE_8);
     cv::rectangle(cv_im, cv::Point(200, 700), cv::Point(1000, 800), cv::Scalar(255), -1, cv::LINE_8);
-    //    cv::rectangle(cv_im, cv::Point(700, 520), cv::Point(740, 2000), cv::Scalar(255), -1, cv::LINE_8);
+    //    cv::rectangle(cv_im, cv::Point(700, 520), cv::Point(740, 2000),
+    //    cv::Scalar(255), -1, cv::LINE_8);
 
     cv::circle(cv_im, cv::Point(400, 400), 5, cv::Scalar(255), -1, cv::LINE_8);
     cv::circle(cv_im, cv::Point(500, 400), 5, cv::Scalar(255), -1, cv::LINE_8);

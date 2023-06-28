@@ -70,7 +70,8 @@ class Autonomy : public rclcpp::Node
     Autonomy(const std::string& node_name, const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
     virtual ~Autonomy();
 
-    void init();  // node must be initialized out-of-constructor to enable access to this->shared_from_this()
+    void init();  // node must be initialized out-of-constructor to enable access
+                  // to this->shared_from_this()
 
     rclcpp::Node::SharedPtr service_node_;
     rclcpp::Node::SharedPtr param_client_node;

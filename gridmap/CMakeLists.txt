@@ -51,8 +51,7 @@ include_directories(include ${YAML_CPP_INCLUDE_DIR})
 # std_msgs tf2_geometry_msgs tf2_ros tf2_sensor_msgs urdf visualization_msgs DEPENDS Boost EIGEN3 )
 
 add_library(
-    ${PROJECT_NAME}
-    SHARED
+    ${PROJECT_NAME} SHARED
     src/grids/grid_2d.cpp
     src/grids/occupancy_grid.cpp
     src/grids/probability_grid.cpp

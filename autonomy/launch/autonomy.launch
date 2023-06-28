@@ -4,7 +4,7 @@
     <arg name="navigation_config" default="$(find autonomy)/test/navigation.yaml"/>
     <arg name="autonomy" default="true"/>
     <arg name="fake_localisation" default="true"/>
-    
+
     <node if="$(arg fake_localisation)" name="fake_localisation" pkg="autonomy" exec="fake_localisation.py">
     </node>
 

@@ -16,7 +16,8 @@
 namespace sim_band_planner
 {
 
-// We can treat rotation like a Z axis, so we can calculate a 3D norm between any two poses
+// We can treat rotation like a Z axis, so we can calculate a 3D norm between
+// any two poses
 template <typename NodeType1, typename NodeType2>
 double dist(const NodeType1& pose_1, const NodeType2& pose_2, const double a_weight)
 {

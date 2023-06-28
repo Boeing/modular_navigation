@@ -41,9 +41,8 @@ include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 
 add_library(${PROJECT_NAME} SHARED src/astar.cpp src/costmap.cpp src/node.cpp src/plugin.cpp src/visualisation.cpp)
 
-target_include_directories(${PROJECT_NAME} PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> 
-    $<INSTALL_INTERFACE:include>
+target_include_directories(
+    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
 )
 
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -70,8 +69,7 @@ ament_target_dependencies(
 # catkin_add_gtest(unit_test test/unit_test.cpp) target_link_libraries(unit_test ${PROJECT_NAME} ${OpenCV_LIBRARIES})
 # endif()
 
-# Plugging Declaration
-#pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
+# Plugging Declaration pluginlib_export_plugin_description_file(${PROJECT_NAME} plugin.xml)
 pluginlib_export_plugin_description_file(navigation_interface plugin.xml)
 
 install(

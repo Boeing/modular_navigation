@@ -43,8 +43,8 @@ template <typename _Scalar, int _Dim, int _Degree> struct SplineTraits<Spline<_S
     };
     enum
     {
-        NumOfDerivativesAtCompileTime =
-            OrderAtCompileTime /*!< The number of derivatives defined for the current spline. */
+        NumOfDerivativesAtCompileTime = OrderAtCompileTime /*!< The number of derivatives defined for the
+                                                              current spline. */
     };
 
     enum
@@ -55,7 +55,8 @@ template <typename _Scalar, int _Dim, int _Degree> struct SplineTraits<Spline<_S
     /** \brief The data type used to store non-zero basis functions. */
     typedef Array<Scalar, 1, OrderAtCompileTime> BasisVectorType;
 
-    /** \brief The data type used to store the values of the basis function derivatives. */
+    /** \brief The data type used to store the values of the basis function
+     * derivatives. */
     typedef Array<Scalar, Dynamic, Dynamic, RowMajor, NumOfDerivativesAtCompileTime, OrderAtCompileTime>
         BasisDerivativeType;
 
@@ -80,7 +81,8 @@ template <typename _Scalar, int _Dim, int _Degree> struct SplineTraits<Spline<_S
  * \ingroup Splines_Module
  * \brief Compile-time attributes of the Spline class for fixed degree.
  *
- * The traits class inherits all attributes from the SplineTraits of Dynamic degree.
+ * The traits class inherits all attributes from the SplineTraits of Dynamic
+ *degree.
  **/
 template <typename _Scalar, int _Dim, int _Degree, int _DerivativeOrder>
 struct SplineTraits<Spline<_Scalar, _Dim, _Degree>, _DerivativeOrder>
@@ -94,9 +96,8 @@ struct SplineTraits<Spline<_Scalar, _Dim, _Degree>, _DerivativeOrder>
     enum
     {
         NumOfDerivativesAtCompileTime =
-            _DerivativeOrder == Dynamic
-                ? Dynamic
-                : _DerivativeOrder + 1 /*!< The number of derivatives defined for the current spline. */
+            _DerivativeOrder == Dynamic ? Dynamic : _DerivativeOrder + 1 /*!< The number of derivatives defined for
+                                                                            the current spline. */
     };
 
     enum
@@ -104,7 +105,8 @@ struct SplineTraits<Spline<_Scalar, _Dim, _Degree>, _DerivativeOrder>
         DerivativeMemoryLayout = _Dim == 1 ? RowMajor : ColMajor /*!< The derivative type's memory layout. */
     };
 
-    /** \brief The data type used to store the values of the basis function derivatives. */
+    /** \brief The data type used to store the values of the basis function
+     * derivatives. */
     typedef Array<_Scalar, Dynamic, Dynamic, RowMajor, NumOfDerivativesAtCompileTime, OrderAtCompileTime>
         BasisDerivativeType;
 

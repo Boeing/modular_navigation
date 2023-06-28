@@ -18,7 +18,7 @@ namespace pure_pursuit_controller
 class PurePursuitController : public navigation_interface::Controller
 {
   public:
-    PurePursuitController();//rclcpp::Node::SharedPtr& node);
+    PurePursuitController();  // rclcpp::Node::SharedPtr& node);
     virtual ~PurePursuitController() override;
 
     virtual bool setTrajectory(const navigation_interface::Trajectory& trajectory) override;
@@ -27,11 +27,13 @@ class PurePursuitController : public navigation_interface::Controller
     virtual boost::optional<std::string> trajectoryId() const override;
     virtual boost::optional<navigation_interface::Trajectory> trajectory() const override;
 
-    // virtual Result control(const ros::SteadyTime& time, const gridmap::AABB& local_region,
+    // virtual Result control(const ros::SteadyTime& time, const gridmap::AABB&
+    // local_region,
     virtual Result control(const rclcpp::Time& time, const gridmap::AABB& local_region,
                            const navigation_interface::KinodynamicState& robot_state,
                            const Eigen::Isometry2d& map_to_odom, const Eigen::Vector3d max_velocity,
-                           const double xy_goal_tolerance, const double yaw_goal_tolerance);  // override;
+                           const double xy_goal_tolerance,
+                           const double yaw_goal_tolerance);  // override;
 
     virtual void onInitialize(const YAML::Node& parameters) override;
     virtual void onMapDataChanged() override;

@@ -72,7 +72,8 @@ navigation_interface::PathPlanner::Result
 {
     navigation_interface::PathPlanner::Result result;
 
-    // Add the avoid_distance to the robot_radius_ (little circles) and the conservative_robot_radius_ (big circle)
+    // Add the avoid_distance to the robot_radius_ (little circles) and the
+    // conservative_robot_radius_ (big circle)
     const double _avoid_distance = std::max(0.0, avoid_distance);
     const double inflated_robot_radius = robot_radius_ + _avoid_distance;
     const double inflated_conservative_robot_radius = conservative_robot_radius_ + _avoid_distance;
@@ -219,7 +220,8 @@ void AStarPlanner::onInitialize(const YAML::Node& parameters)
 
     if (debug_viz_)
     {
-        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("~/astar/expansion", rclcpp::QoS(1).transient_local());
+        explore_pub_ = node_->create_publisher<nav_msgs::msg::OccupancyGrid>("~/astar/expansion",
+                                                                             rclcpp::QoS(1).transient_local());
     }
 }
 

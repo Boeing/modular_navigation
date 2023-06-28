@@ -25,7 +25,8 @@ bool LayeredMap::update()
     return success;
 }
 
-// Create the combined map but write it to a provided grid instead of the internal one
+// Create the combined map but write it to a provided grid instead of the
+// internal one
 bool LayeredMap::update(OccupancyGrid& grid)
 {
     rcpputils::assert_true(map_data_ != NULL);  // This used to be ROS_ASSERT(map_data_); now just checks for null

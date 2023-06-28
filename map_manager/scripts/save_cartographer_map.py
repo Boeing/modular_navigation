@@ -38,11 +38,11 @@ def task(map_name, resolution, out, upload):
 
     # Get the Map
     try:
-        get_map_response = get_map.call(
+        get_map_response: WriteStateResponse = get_map.call(
             WriteStateRequest(
                 resolution=resolution
             )
-        )  # type: WriteStateResponse
+        )
     except rospy.ServiceException as e:
         logger.error('Failed to get map from cartographer: {}'.format(e))
         exit(1)
@@ -54,13 +54,13 @@ def task(map_name, resolution, out, upload):
                            meta_data=get_map_response.map_info)
 
     if upload:
-        save_map_response = save_map.call(
+        save_map_response: AddMapResponse = save_map.call(
             AddMapRequest(
                 map_info=map_info_msg,
                 occupancy_grid=get_map_response.occupancy_grid,
                 pbstream=get_map_response.pbstream_data
             )
-        )  # type: AddMapResponse
+        )
 
         if save_map_response.success is False:
             logger.error('Failed to save map: {}'.format(save_map_response.message))

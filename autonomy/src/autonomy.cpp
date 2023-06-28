@@ -189,7 +189,8 @@ void Autonomy::init()
     RCLCPP_INFO(this->get_logger(), "Waiting for robot_state_publisher parameter service...");
     if (!parameters_client->wait_for_service(std::chrono::seconds(30)))
     {
-        throw std::runtime_error("Timed out while waiting for robot_description parameter service. Exiting.");
+        throw std::runtime_error("Timed out while waiting for robot_description "
+                                 "parameter service. Exiting.");
     }
     auto robot_description_param = parameters_client->get_parameters({"robot_description"});
     RCLCPP_INFO(this->get_logger(), "Getting robot_description DONE");
@@ -222,8 +223,8 @@ void Autonomy::init()
 
     planner_map_update_pub_ =
         this->create_publisher<std_msgs::msg::Float64>("~/planner_map_update_time", rclcpp::QoS(0).transient_local());
-    trajectory_map_update_pub_ =
-        this->create_publisher<std_msgs::msg::Float64>("~/trajectory_map_update_time", rclcpp::QoS(0).transient_local());
+    trajectory_map_update_pub_ = this->create_publisher<std_msgs::msg::Float64>("~/trajectory_map_update_time",
+                                                                                rclcpp::QoS(0).transient_local());
     control_map_update_pub_ =
         this->create_publisher<std_msgs::msg::Float64>("~/control_map_update_time", rclcpp::QoS(0).transient_local());
 
@@ -245,8 +246,8 @@ void Autonomy::init()
 
     costmap_publisher_ =
         this->create_publisher<nav_msgs::msg::OccupancyGrid>("~/costmap", rclcpp::QoS(1).transient_local());
-    costmap_updates_publisher_ =
-        this->create_publisher<map_msgs::msg::OccupancyGridUpdate>("~/costmap_updates", rclcpp::QoS(1).transient_local());
+    costmap_updates_publisher_ = this->create_publisher<map_msgs::msg::OccupancyGridUpdate>(
+        "~/costmap_updates", rclcpp::QoS(1).transient_local());
 
     get_map_info_client_ = this->create_client<map_manager::srv::GetMapInfo>(
         "/map_manager/get_map_info", rclcpp::ServicesQoS().get_rmw_qos_profile(), srv_callback_group_);
@@ -354,8 +355,9 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
         layered_map_->setMap(map_info, map_data, zones);
     }
 
-    // Create a separate instance of MapData (which contains the occupancy grid) for each planner
-    // This way, updating the map in one planner thread will not slow down the others
+    // Create a separate instance of MapData (which contains the occupancy grid)
+    // for each planner This way, updating the map in one planner thread will not
+    // slow down the others
     path_planner_map_data_ = std::make_shared<gridmap::MapData>(
         layered_map_->map()->map_info, layered_map_->map()->grid.dimensions(), layered_map_->map()->zones);
     path_planner_->setMapData(path_planner_map_data_);
@@ -553,7 +555,8 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         return rclcpp_action::GoalResponse::REJECT;
     }
 
-    // Check goal can be transformed to global_frame_, store as transformed_goal_pose_
+    // Check goal can be transformed to global_frame_, store as
+    // transformed_goal_pose_
     if (goal->target_pose.header.frame_id != global_frame_)
     {
         RCLCPP_INFO_STREAM(this->get_logger(), "Goal is in frame: " << goal->target_pose.header.frame_id << ", not: "
@@ -572,7 +575,8 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
             return rclcpp_action::GoalResponse::REJECT;
         }
 
-        // Can't modify pose in-place because it's a const, instead store as transformed_goal_pose_
+        // Can't modify pose in-place because it's a const, instead store as
+        // transformed_goal_pose_
         geometry_msgs::msg::PoseStamped transformed_goal_pose;
         tf2::doTransform(goal->target_pose, transformed_goal_pose, transform);
         setTransformedGoalPose(transformed_goal_pose);
@@ -628,8 +632,9 @@ void Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_hand
         if (current_goal_handle->is_active())
         {
             // Set active goal to aborted and update goal_handle_ for autonomy threads
-            // Note, this does not actually stop the execution thread. It only updates the goal_handle_, so the
-            // planners should seamlessly pick up the new goal
+            // Note, this does not actually stop the execution thread. It only updates
+            // the goal_handle_, so the planners should seamlessly pick up the new
+            // goal
             RCLCPP_INFO_STREAM(this->get_logger(),
                                "Updating goal with: " << rclcpp_action::to_string(goal_handle->get_goal_id()));
             current_goal_handle->abort(std::make_shared<autonomy_interface::action::Drive::Result>());
@@ -655,8 +660,9 @@ void Autonomy::pathPlannerThread()
     auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
     feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
 
-    std::string last_goal_id = rclcpp_action::to_string(
-        goalHandle()->get_goal_id());  // Keeps track of the previous goal ID to see if has been updated
+    std::string last_goal_id =
+        rclcpp_action::to_string(goalHandle()->get_goal_id());  // Keeps track of the previous goal ID to
+                                                                // see if has been updated
 
     rcpputils::assert_true(layered_map_ != nullptr);
     rcpputils::assert_true(path_planner_map_data_ != nullptr);
@@ -829,7 +835,8 @@ void Autonomy::pathPlannerThread()
         if (!running_)
             break;
 
-        // Use some heuristics to decide if the new plan should be used or we stick to the old one
+        // Use some heuristics to decide if the new plan should be used or we stick
+        // to the old one
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
             bool update = false;
@@ -873,7 +880,8 @@ void Autonomy::pathPlannerThread()
                 // when path becomes impossible wait a bit before swapping to a new path
                 const bool case_2 = !old_path_possible && new_path_possible && old_path_expired;
 
-                // if the new path is much better while the old path is still possible then swap
+                // if the new path is much better while the old path is still possible
+                // then swap
                 const bool case_3 = new_path_much_better && old_path_possible && old_path_is_long;
 
                 update = case_1 || case_2 || case_3;

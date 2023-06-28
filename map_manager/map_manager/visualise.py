@@ -118,7 +118,7 @@ def build_pose_markers(pose, size=0.05):
 
 
 def build_node_markers(node: Node, color, radius, height, lifetime):
-    markers = list()  # type: typing.List[Marker]
+    markers: typing.List[Marker] = list()
 
     up_vec = Vector3(0, 0, 1)
     qt = Quaternion.from_axis_angle(axis=up_vec, angle=0)
@@ -178,7 +178,7 @@ def build_edge_marker(start: Node, end: Node, color: ColorRGBA, diameter: float,
 
 def build_region_markers(region):
     # type: (RegionDoc) -> typing.Sequence[Marker]
-    markers = list()  # type: typing.List[Marker]
+    markers: typing.List[Marker] = list()
 
     polygon_points = [
         (point.x, point.y, point.z)
@@ -246,7 +246,7 @@ def build_zones_marker_array(node, map_obj: MapDoc) -> MarkerArray:
 
 
 def build_areas_marker_array(node, map_obj):
-    # type: (MapDoc) -> MarkerArray
+    # type: (Node, MapDoc) -> MarkerArray
 
     # return MarkerArray()
 

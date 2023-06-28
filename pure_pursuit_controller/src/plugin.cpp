@@ -39,7 +39,8 @@ CollisionCheck robotInCollision(const gridmap::OccupancyGrid& grid, const Eigen:
                                 const Eigen::Isometry2d& future_pose, const std::vector<Eigen::Vector2d>& footprint,
                                 const float alpha, rclcpp::Node::SharedPtr node)
 {
-    // Want to interpolate footprint between current robot pose and future robot pose
+    // Want to interpolate footprint between current robot pose and future robot
+    // pose
     const double linear_step = 0.01;
     const double angular_step = 0.04;
     const size_t max_steps = 20;
@@ -188,7 +189,7 @@ visualization_msgs::msg::Marker buildMarker(const navigation_interface::Kinodyna
     marker.ns = "target";
     marker.id = 0;
     marker.type = visualization_msgs::msg::Marker::ARROW;
-    marker.header.stamp = node->get_clock()->now();                        //.nanoseconds()
+    marker.header.stamp = node->get_clock()->now();  //.nanoseconds()
     marker.header.frame_id = "odom";
     marker.frame_locked = true;
     marker.scale.x = 0.02;
@@ -216,7 +217,8 @@ visualization_msgs::msg::Marker buildMarker(const navigation_interface::Kinodyna
     return marker;
 }
 
-// We can treat rotation like a Z axis, so we can calculate a 3D norm between any two poses
+// We can treat rotation like a Z axis, so we can calculate a 3D norm between
+// any two poses
 double dist(const Eigen::Isometry2d& pose_1, const Eigen::Isometry2d& pose_2, const double a_weight)
 {
     const double diff_x = pose_2.translation().x() - pose_1.translation().x();
@@ -227,8 +229,9 @@ double dist(const Eigen::Isometry2d& pose_1, const Eigen::Isometry2d& pose_2, co
 }
 
 // Find the node on the path that is closest to the robot.
-// If the robot is between two nodes, it will always pick the one in front to prevent back-tracking
-// Because the nodes aren't evenly spaced, this is actually not a trivial problem
+// If the robot is between two nodes, it will always pick the one in front to
+// prevent back-tracking Because the nodes aren't evenly spaced, this is
+// actually not a trivial problem
 std::size_t findClosest(const std::vector<navigation_interface::KinodynamicState>& nodes, const Eigen::Isometry2d& pose)
 {
     if (nodes.size() <= 2)
@@ -246,8 +249,8 @@ std::size_t findClosest(const std::vector<navigation_interface::KinodynamicState
         return static_cast<std::size_t>(closest_i);
     }
 
-    // Resolve ambiguity by checking points slightly before and after the closest node
-    // Find midpoints  -----A------M1---closest_i---M2-------B------->
+    // Resolve ambiguity by checking points slightly before and after the closest
+    // node Find midpoints  -----A------M1---closest_i---M2-------B------->
     Eigen::Isometry2d m_1;
     Eigen::Isometry2d m_2;
     {
@@ -292,15 +295,16 @@ navigation_interface::KinodynamicState lookAhead(const std::vector<navigation_in
     future_pose.pretranslate(look_ahead_time * Eigen::Vector2d(velocity.topRows(2)));
     future_pose.rotate(Eigen::Rotation2Dd(look_ahead_time * velocity[2]));
 
-    // To prevent the robot from getting stuck with 0 lookahead, set a minimum of 5cm
-    // Note: these are squared distances!
+    // To prevent the robot from getting stuck with 0 lookahead, set a minimum of
+    // 5cm Note: these are squared distances!
     const double required_distance = std::max(0.0025, dist(robot_pose, future_pose, 0.1));
 
     for (std::size_t i = path_index; i < nodes.size(); ++i)
     {
         const double dist_to_node = dist(robot_pose, nodes[i].pose, 0.1);
 
-        // Found first node that is far enough. Now interpolate between previous node and this node.
+        // Found first node that is far enough. Now interpolate between previous
+        // node and this node.
         if (dist_to_node > required_distance)
         {
             const Eigen::Isometry2d start_pose = (i == 0) ? robot_pose : nodes[i - 1].pose;
@@ -329,7 +333,8 @@ navigation_interface::KinodynamicState lookAhead(const std::vector<navigation_in
                 prev_interpolated_pose = interpolated_pose;
             }
 
-            // None of the interpolated poses are within required_distance. Just use the node itself.
+            // None of the interpolated poses are within required_distance. Just use
+            // the node itself.
             return nodes[i];
         }
     }
@@ -429,7 +434,8 @@ navigation_interface::Controller::Result
     if (angle_to_goal < yaw_goal_tolerance_applied && dist_to_goal < xy_goal_tolerance_applied)
     {
         RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), *clock, 1000,
-                           "Control Complete! angle_to_goal: " << angle_to_goal << " dist_to_goal: " << dist_to_goal);
+                                    "Control Complete! angle_to_goal: " << angle_to_goal
+                                                                        << " dist_to_goal: " << dist_to_goal);
         result.outcome = navigation_interface::Controller::Outcome::COMPLETE;
         last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
         return result;
@@ -447,7 +453,8 @@ navigation_interface::Controller::Result
     if (dist_to_closest > tracking_error_)
     {
         RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), *clock, 1000,
-                           "Tracking error. Distance to trajectory: " << dist_to_closest << " > " << tracking_error_);
+                                    "Tracking error. Distance to trajectory: " << dist_to_closest << " > "
+                                                                               << tracking_error_);
         result.outcome = navigation_interface::Controller::Outcome::FAILED;
         last_update_ = rclcpp::Clock(RCL_STEADY_TIME).now();
         return result;
@@ -468,7 +475,8 @@ navigation_interface::Controller::Result
         const Eigen::Isometry2d map_robot_pose = map_to_odom * robot_state.pose;
         const Eigen::Isometry2d map_goal_pose = map_to_odom * target_state.pose;
 
-        const CollisionCheck cc = robotInCollision(local_grid, map_robot_pose, map_goal_pose, robot_footprint_, 1.f, node_);
+        const CollisionCheck cc =
+            robotInCollision(local_grid, map_robot_pose, map_goal_pose, robot_footprint_, 1.f, node_);
         min_distance_to_collision = cc.min_distance_to_collision;
         if (debug_viz_)
             footprint_pub_->publish(cc.marker);
@@ -540,8 +548,8 @@ navigation_interface::Controller::Result
     const double translation_accel = translation_dv.norm() / dt;
     if (translation_accel > max_translation_accel_)
     {
-        // ROS_INFO_STREAM("Excessive translation acceleration: " << translation_accel << " > " <<
-        // max_translation_accel_);
+        // ROS_INFO_STREAM("Excessive translation acceleration: " <<
+        // translation_accel << " > " << max_translation_accel_);
         vel_command[0] = prev_cmd_vel[0] + translation_dv[0] * (max_translation_accel_ / translation_accel);
         vel_command[1] = prev_cmd_vel[1] + translation_dv[1] * (max_translation_accel_ / translation_accel);
     }
@@ -549,7 +557,8 @@ navigation_interface::Controller::Result
     const double rotation_accel = std::abs(rotation_dv) / dt;
     if (rotation_accel > max_rotation_accel_)
     {
-        // ROS_INFO_STREAM("Excessive rotation acceleration: " << rotation_accel << " > " << max_rotation_accel_);
+        // ROS_INFO_STREAM("Excessive rotation acceleration: " << rotation_accel <<
+        // " > " << max_rotation_accel_);
         vel_command[2] = prev_cmd_vel[2] + rotation_dv * (max_rotation_accel_ / rotation_accel);
     }
 
@@ -654,8 +663,10 @@ void PurePursuitController::onInitialize(const YAML::Node& parameters)
     debug_viz_ = parameters["debug_viz"].as<bool>(debug_viz_);
     if (debug_viz_)
     {
-        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("~/pure_pursuit/target_state", rclcpp::QoS(100).transient_local());
-        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("~/pure_pursuit/footprint", rclcpp::QoS(100).transient_local());
+        target_state_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>(
+            "~/pure_pursuit/target_state", rclcpp::QoS(100).transient_local());
+        footprint_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("~/pure_pursuit/footprint",
+                                                                                  rclcpp::QoS(100).transient_local());
     }
 }
 

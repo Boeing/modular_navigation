@@ -5,7 +5,8 @@ namespace gridmap
 
 std::vector<Eigen::Array2i> drawLine(int x, int y, int x2, int y2)
 {
-    // THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point PreCalc)
+    // THE EXTREMELY FAST LINE ALGORITHM Variation E (Addition Fixed Point
+    // PreCalc)
 
     std::vector<Eigen::Array2i> line;
     bool yLonger = false;

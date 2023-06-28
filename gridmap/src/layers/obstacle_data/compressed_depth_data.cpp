@@ -45,12 +45,15 @@ void CompressedDepthData::onInitialize(const YAML::Node& parameters)
 
     // ros::NodeHandle g_nh;
     auto g_node = rclcpp::Node::make_shared(name());  // No name?
-    // camera_info_sub_ = g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
-    //                                                            &CompressedDepthData::cameraInfoCallback, this);
+    // camera_info_sub_ =
+    // g_nh.subscribe<sensor_msgs::msg::CameraInfo>(camera_info_topic_, 1000,
+    //                                                            &CompressedDepthData::cameraInfoCallback,
+    //                                                            this);
 
     rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
 
-    // currently ignoring "this" in the ros1 implementation... (look for transport_hints in ros2 QoS)
+    // currently ignoring "this" in the ros1 implementation... (look for
+    // transport_hints in ros2 QoS)
     auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 1000), qos_profile);
 
     auto camera_info_sub_ = g_node->create_subscription<sensor_msgs::msg::CameraInfo>(

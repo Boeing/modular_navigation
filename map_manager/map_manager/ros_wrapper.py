@@ -68,7 +68,6 @@ class RosWrapper(Node):
         #
         super().__init__('map_manager')
 
-
         self.__map_name = None
 
         # Parameters are now handled by the node, no more param server
@@ -103,21 +102,27 @@ class RosWrapper(Node):
         self.__add_map = self.create_service(AddMap, self.get_name() + '/add_map', self.__add_map_cb)
         self.__delete_map = self.create_service(DeleteMap, self.get_name() + '/delete_map', self.__delete_map_cb)
 
-        self.__get_map_info = self.create_service(GetMapInfo, self.get_name() + '/get_map_info', self.__get_map_info_cb)
-        self.__get_og = self.create_service(GetOccupancyGrid, self.get_name() + '/get_occupancy_grid', self.__get_occupancy_grid_cb)
-        self.__get_node_graph = self.create_service(GetNodeGraph, self.get_name() + '/get_node_graph', self.__get_node_graph_cb)
-        self.__get_area_tree = self.create_service(GetAreaTree, self.get_name() + '/get_area_tree', self.__get_area_tree_cb)
-        self.__get_zones = self.create_service(GetZones, self.get_name() + '/get_zones', self.__get_zones_cb)
-
-        self.__list_maps = self.create_service(ListMaps, self.get_name() + '/list_maps', self.__list_maps_cb)
-
-        self.__set_active_map = self.create_service(SetActiveMap, self.get_name() + '/set_active_map', self.__set_active_map_cb)
-        self.__get_active_map = self.create_service(GetActiveMap, self.get_name() + '/get_active_map', self.__get_active_map_cb)
+        self.__get_map_info = self.create_service(
+            GetMapInfo, self.get_name() + '/get_map_info', self.__get_map_info_cb)
+        self.__get_og = self.create_service(
+            GetOccupancyGrid, self.get_name() + '/get_occupancy_grid', self.__get_occupancy_grid_cb)
+        self.__get_node_graph = self.create_service(
+            GetNodeGraph, self.get_name() + '/get_node_graph', self.__get_node_graph_cb)
+        self.__get_area_tree = self.create_service(
+            GetAreaTree, self.get_name() + '/get_area_tree', self.__get_area_tree_cb)
+        self.__get_zones = self.create_service(
+            GetZones, self.get_name() + '/get_zones', self.__get_zones_cb)
+        self.__list_maps = self.create_service(
+            ListMaps, self.get_name() + '/list_maps', self.__list_maps_cb)
+        self.__set_active_map = self.create_service(
+            SetActiveMap, self.get_name() + '/set_active_map', self.__set_active_map_cb)
+        self.__get_active_map = self.create_service(
+            GetActiveMap, self.get_name() + '/get_active_map', self.__get_active_map_cb)
 
         # QoS profile, substitutes latch and queue_size args in create_publisher
         # See: https://docs.ros.org/en/rolling/Concepts/About-Quality-of-Service-Settings.html
         # Using geometry2 latching params:
-        #https://github.com/ros2/geometry2/blob/6788c1b78fe35e1a459a9d8f184afeb79792bd71/tf2_ros/src/tf2_ros/static_transform_broadcaster.py#L55
+        # https://github.com/ros2/geometry2/blob/6788c1b78fe35e1a459a9d8f184afeb79792bd71/tf2_ros/src/tf2_ros/static_transform_broadcaster.py#L55
         self.qos_profile = QoSProfile(depth=100,
                                       durability=DurabilityPolicy.TRANSIENT_LOCAL,
                                       history=HistoryPolicy.KEEP_LAST,
@@ -160,10 +165,6 @@ class RosWrapper(Node):
 
         self.logger.info('Successfully started')
 
-        # Publish every topic with a timer callback, TODO just in case latching fails
-        #timer_period = 0.5  # seconds
-        #self.timer = self.create_timer(timer_period, self.timer_callback)
-
     def __init_publishers(self):
         self.logger.info('Initialising publishers')
 
@@ -202,7 +203,7 @@ class RosWrapper(Node):
         """Callback to publish map_manager topics given a timer
         """
 
-        map_obj = Map.objects(name=self.__map_name).get()  # type: Map
+        map_obj: Map = Map.objects(name=self.__map_name).get()
 
         self.__active_map_pub.publish(map_obj.get_map_info_msg())
 
@@ -394,7 +395,7 @@ class RosWrapper(Node):
         self.__map_name = str(map_name)
 
         try:
-            map_obj = Map.objects(name=self.__map_name).get()  # type: Map
+            map_obj: Map = Map.objects(name=self.__map_name).get()
 
             self.__active_map_pub.publish(map_obj.get_map_info_msg())
 

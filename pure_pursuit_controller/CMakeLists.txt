@@ -42,9 +42,9 @@ include_directories(SYSTEM ${Eigen3_INCLUDE_DIRS}) # ${catkin_INCLUDE_DIRS})
 # Followed https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Pluginlib.html#cmake-plugin-declaration
 # add_library( ${PROJECT_NAME} src/plugin.cpp )
 
-add_library(${PROJECT_NAME}
-    SHARED
-    #include/${PROJECT_NAME}/plugin.h
+add_library(
+    ${PROJECT_NAME} SHARED
+    # include/${PROJECT_NAME}/plugin.h
     src/plugin.cpp
 )
 

@@ -15,33 +15,35 @@ import rclpy.time
 import pytest
 from rclpy.parameter import Parameter
 from rclpy.action import ActionClient
+from rclpy.action.client import ClientGoalHandle
 
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import DeclareLaunchArgument
+from launch.actions import Shutdown
 from launch_ros.actions import Node
 
 from launch.conditions import IfCondition
 
 from gazebo_msgs.srv import SpawnEntity, GetEntityState
 
-from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
+from geometry_msgs.msg import Pose, PoseStamped
 from autonomy_interface.action import Drive
-from actionlib_msgs.msg import GoalStatus
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from tf2_ros import TransformBroadcaster, TransformRegistration
+from tf2_ros import TransformBroadcaster
 
 
 import time
 from math import pi
-import numpy as np
 
 
 @pytest.mark.launch_test
 def generate_test_description():
     pkg_gazebo_ros = get_package_share_directory('gazebo_ros')
+
+    autonomy_share_dir = get_package_share_directory('autonomy')
 
     world_file_name = os.path.join(get_package_share_directory('autonomy'),
                                    'test', 'resources', 'sim_map.world')
@@ -49,27 +51,32 @@ def generate_test_description():
                                         'test', 'resources', 'test_robot.urdf')
     robot_file_name_sdf = os.path.join(get_package_share_directory('autonomy'),
                                        'test', 'resources', 'test_robot.sdf')
+    navigation_config_file = os.path.join(autonomy_share_dir, 'test',
+                                          'config/navigation.yaml')
 
     print('world_file_name : {}'.format(world_file_name))
     print('robot_urdf_file_name : {}'.format(robot_file_name_urdf))
     print('robot_sdf_file_name : {}'.format(robot_file_name_sdf))
 
+    declared_arguments = [
+        DeclareLaunchArgument(name='use_sim_time',
+                              description='Use simulation (Gazebo) clock if true',
+                              default_value='true', ),
+        DeclareLaunchArgument(name='gazebo_client',
+                              default_value='false',
+                              description='If running in sim, whether or not to launch GZClient'),
+        DeclareLaunchArgument(name='mongo_hostname',
+                              default_value='mongodb',
+                              description='Hostname of the MongoDB server'),
+    ]
+
+    use_sim_time_arg = LaunchConfiguration("use_sim_time")
+    gazebo_client_arg = LaunchConfiguration("gazebo_client")
+    mongo_hostname_arg = LaunchConfiguration("mongo_hostname")
+
     return launch.LaunchDescription(
+        declared_arguments +
         [
-            DeclareLaunchArgument(
-                'use_sim_time',
-                default_value='true',
-                description='Use simulation (Gazebo) clock if true'),
-
-            # Declare autonomy configuration file path
-            DeclareLaunchArgument(
-                'navigation_config',
-                default_value=PathJoinSubstitution([
-                    get_package_share_directory('autonomy'),
-                    'test', 'config', 'navigation.yaml'
-                ])
-            ),
-
             # Launch GAZEBO
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -87,7 +94,13 @@ def generate_test_description():
                                  'gzclient.launch.py')
                 ),
                 launch_arguments={'gui': '1'}.items(),
-                condition=IfCondition(LaunchConfiguration('use_sim_time'))
+                # IfCondition was not meant to handle 2 conditionals, workaround
+                # https://answers.ros.org/question/394181/multiple-conditions-for-ifcondition-in-ros2-launch-script/
+                condition=IfCondition(
+                                    PythonExpression(
+                                        ["'", use_sim_time_arg, "' == 'true' and '", gazebo_client_arg, "' == 'true'"]
+                                    )
+                )
             ),
 
             # Launch robot_state_publisher
@@ -101,28 +114,44 @@ def generate_test_description():
                 arguments=[robot_file_name_urdf]
             ),
 
-            # Launch fake localisation (map to odom transform)
-            Node(
-               package='autonomy',
-               namespace='autonomy',
-               executable='fake_localisation.py'
-            ),  
-
-            # Map manager
-            IncludeLaunchDescription(
-                PythonLaunchDescriptionSource([os.path.join(
-                    get_package_share_directory('map_manager'), 'test_manager.py')])
-            ),
-
-            # Launch autonomy 
+            # Fake localisation
             Node(
                 package='autonomy',
-                # namespace='autonomy',
-                executable='autonomy',
-                parameters=[{
-                    'navigation_config': LaunchConfiguration('navigation_config'),
-                }]
+                executable='fake_localisation.py',
+                output={'full'},
+                on_exit=Shutdown(),
             ),
+
+            # Map manager
+            Node(
+                package='map_manager',
+                executable='map_manager_node.py',
+                name='map_manager',
+                output={'full'},
+                parameters=[{'~mongo_hostname': mongo_hostname_arg}],
+                remappings=[
+                ],
+                on_exit=Shutdown()
+            ),
+
+            # Launch autonomy
+            Node(
+                package='autonomy',
+                executable='autonomy',
+                name='autonomy',
+                output={'full'},
+                parameters=[
+                    {
+                        'navigation_config': navigation_config_file,
+                        'use_sim_time': LaunchConfiguration('use_sim_time')
+                    }
+                ],
+                on_exit=Shutdown(),
+                remappings=[
+                    ('/autonomy/cmd_vel', '/cmd_vel'),  # Pub, left is original
+                ],
+            ),
+
             launch_testing.actions.ReadyToTest(),
         ]
     )
@@ -188,7 +217,6 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.robot_name = 'test_robot'
         self.global_frame = 'map'
 
-
         self.robot_pose = Pose()
         self.robot_pose.position.x = 20.0
         self.robot_pose.position.y = 7.0
@@ -240,7 +268,6 @@ class TestDriveToWaypoint(unittest.TestCase):
             self.log.info('Not in simulation. Exiting.')
             self.assertTrue(True)
 
-
     def test_b_get_waypoint(self):
         # Create Drive action message
         self.drive_action = Drive.Goal()
@@ -258,8 +285,8 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.strafe_mult = 1.5
         self.drive_action.rotation_mult = 0.3/pi
 
-        # Wait for robot to be localised 
-        time.sleep(35) # DEBUG
+        # Wait for robot to be localised
+        time.sleep(35)  # DEBUG
 
         # Send Goal
         drive_action_future = self.drive_action_client.send_goal_async(
@@ -267,21 +294,23 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Wait for the goal to be accepted/rejected
         rclpy.spin_until_future_complete(self.node, drive_action_future)
         # Get the goal handle as result of the future
-        drive_action_goal_handle = drive_action_future.result()
-        if (drive_action_goal_handle.accepted):
-            time.sleep(120)
-            return 
-            # TODO code below crashes
+        drive_action_goal_handle: ClientGoalHandle = drive_action_future.result()
+
+        if drive_action_goal_handle.accepted:
+            self.log.info('Goal ACCEPTED')
+
             # Request the goal result
-            drive_action_result_future = drive_action_goal_handle.get_result_asyc()
+            drive_action_result_future = drive_action_goal_handle.get_result_async()
+
             # Wait for the goal result
             rclpy.spin_until_future_complete(
                 self.node, drive_action_result_future)
+
             # Get the goal result
             drive_action_result = drive_action_result_future.result()
+
             # Assert if goal achieved
-            self.assertTrue(drive_action_result.status ==
-                            GoalStatus.STATUS_SUCCEEDED)
+            self.assertTrue(drive_action_result.status)
             # TODO Assert that desired position is reached in gazebo
         else:
             self.log.warn('Autonomy goal rejected')

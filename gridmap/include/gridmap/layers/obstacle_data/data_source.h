@@ -92,8 +92,7 @@ class DataSource
     virtual void initialize(const std::string& name, const YAML::Node& parameters,
                             const std::vector<Eigen::Vector2d>& robot_footprint,
                             const std::shared_ptr<RobotTracker>& robot_tracker,
-                            const std::shared_ptr<URDFTree>& urdf_tree,
-                            const rclcpp::Node::SharedPtr node) = 0;
+                            const std::shared_ptr<URDFTree>& urdf_tree, const rclcpp::Node::SharedPtr node) = 0;
     virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) = 0;
     virtual std::string name() const = 0;
     virtual bool isDataOk() const = 0;
@@ -102,8 +101,7 @@ class DataSource
 template <typename MsgType> class TopicDataSource : public DataSource
 {
   public:
-    TopicDataSource(const std::string& default_topic)
-        : default_topic_(default_topic)
+    TopicDataSource(const std::string& default_topic) : default_topic_(default_topic)
     {
     }
     virtual ~TopicDataSource()
@@ -113,8 +111,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
     virtual void initialize(const std::string& name, const YAML::Node& parameters,
                             const std::vector<Eigen::Vector2d>& robot_footprint,
                             const std::shared_ptr<RobotTracker>& robot_tracker,
-                            const std::shared_ptr<URDFTree>& urdf_tree,
-                            const rclcpp::Node::SharedPtr node) override
+                            const std::shared_ptr<URDFTree>& urdf_tree, const rclcpp::Node::SharedPtr node) override
     {
         name_ = name;
         robot_footprint_ = robot_footprint;
@@ -123,7 +120,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
         node_ = node;
         set_map_data(nullptr);
         {
-            std::lock_guard <std::mutex> lock(last_updated_mutex_);
+            std::lock_guard<std::mutex> lock(last_updated_mutex_);
             set_last_updated(node->get_clock()->now());
         }
         {
@@ -136,7 +133,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
         onInitialize(parameters);
         {
-            std::lock_guard <std::mutex> lock(last_updated_mutex_);
+            std::lock_guard<std::mutex> lock(last_updated_mutex_);
             set_last_updated(node->get_clock()->now());
         }
         const std::string topic = parameters["topic"].as<std::string>(name_ + "/" + default_topic_);
@@ -148,10 +145,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
         rclcpp::SubscriptionOptions sub_opts_;
         sub_opts_.callback_group = sub_callback_group_;
 
-        subscriber_ = node_->create_subscription<MsgType>(topic,
-                                                          rclcpp::SensorDataQoS(),
-                                                          std::bind(&TopicDataSource<MsgType>::bufferIncomingMsg, this, std::placeholders::_1),
-                                                          sub_opts_);
+        subscriber_ = node_->create_subscription<MsgType>(
+            topic, rclcpp::SensorDataQoS(),
+            std::bind(&TopicDataSource<MsgType>::bufferIncomingMsg, this, std::placeholders::_1), sub_opts_);
 
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
     }
@@ -202,7 +198,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
     // Set last_updated_
     void set_last_updated(const rclcpp::Time& last_updated)
     {
-            last_updated_ = last_updated;
+        last_updated_ = last_updated;
     }
 
     // Get last_updated_
@@ -244,7 +240,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
     mutable std::mutex last_updated_mutex_;
     rclcpp::Time last_updated_;
 
-    // msg_buffer_ needs a separate mutex as it is accessed from the topic subscriber callback
+    // msg_buffer_ needs a separate mutex as it is accessed from the topic
+    // subscriber callback
     mutable std::mutex msg_buffer_mutex_;
     std::list<typename MsgType::SharedPtr> msg_buffer_;
     const std::atomic<size_t> msg_buffer_size_ = 100;
@@ -275,11 +272,11 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
                 if (msg_buffer_.size() == msg_buffer_size_)
                 {
-                    msg_buffer_.pop_front(); // drop oldest value
+                    msg_buffer_.pop_front();  // drop oldest value
                 }
 
                 msg_buffer_.push_back(msg);  // add message to buffer
-            } // release msg_buffer_mutex_
+            }                                // release msg_buffer_mutex_
         }
     }
 
@@ -299,8 +296,8 @@ template <typename MsgType> class TopicDataSource : public DataSource
             const double delay = (node_->get_clock()->now() - msg->header.stamp).seconds();
             if (delay > maximum_sensor_delay_)
             {
-                RCLCPP_WARN_STREAM(node_->get_logger(),
-                                   "DataSource '" << name_ << "' incoming data is " << delay << "s old! CLEARING ALL BUFFERED DATA");
+                RCLCPP_WARN_STREAM(node_->get_logger(), "DataSource '" << name_ << "' incoming data is " << delay
+                                                                       << "s old! CLEARING ALL BUFFERED DATA");
                 {
                     std::lock_guard<std::mutex> lock(msg_buffer_mutex_);
                     msg_buffer_.clear();
@@ -321,7 +318,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             else
             {
                 {
-                    std::lock_guard <std::mutex> lock(last_updated_mutex_);
+                    std::lock_guard<std::mutex> lock(last_updated_mutex_);
                     set_last_updated(node_->get_clock()->now());
                 }
             }
@@ -366,7 +363,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                         }  // release msg_buffer_mutex_
                         // Reset time buffer last updated
                         {
-                            std::lock_guard <std::mutex> lock(last_updated_mutex_);
+                            std::lock_guard<std::mutex> lock(last_updated_mutex_);
                             set_last_updated(node_->get_clock()->now());
                         }
                         // Enable storing values to buffer
@@ -400,9 +397,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
                         // Process queued message
                         const auto t0 = std::chrono::steady_clock::now();
                         processMsg(queued_msg);
-                        const double duration =
-                                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                                        .count();
+                        const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
+                                                    std::chrono::steady_clock::now() - t0)
+                                                    .count();
                         if (duration > maximum_sensor_delay_)
                         {
                             RCLCPP_WARN_STREAM(node_->get_logger(),
@@ -422,7 +419,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                 {
                     std::lock_guard<std::mutex> lock(msg_buffer_mutex_);
                     msg_buffer_.clear();
-                } // release msg_buffer_mutex_
+                }  // release msg_buffer_mutex_
             }
 
             rate.sleep();

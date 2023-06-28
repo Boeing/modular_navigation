@@ -97,11 +97,13 @@ class Layer
         return std::shared_lock<std::shared_timed_mutex>(layer_mutex_);
     }
 
-    // By default, the unique_lock (write lock) has priority over shared_lock. This means while the writer is trying
-    // to get a lock, new readers cannot grab the lock. This effectively means one reader can block another reader
+    // By default, the unique_lock (write lock) has priority over shared_lock.
+    // This means while the writer is trying to get a lock, new readers cannot
+    // grab the lock. This effectively means one reader can block another reader
     // if a writer is trying to get the lock.
-    // To get around this, we use a non-blocking try_to_lock every 5ms and during the sleeps, new readers can lock.
-    // This means readers have priority and writers have to wait for windows where there are no reader.
+    // To get around this, we use a non-blocking try_to_lock every 5ms and during
+    // the sleeps, new readers can lock. This means readers have priority and
+    // writers have to wait for windows where there are no reader.
     std::unique_lock<std::shared_timed_mutex> getWriteLock() const
     {
         std::unique_lock<std::shared_timed_mutex> lock(layer_mutex_, std::try_to_lock_t());
