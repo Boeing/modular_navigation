@@ -395,11 +395,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
                     else
                     {
                         // Process queued message
-                        const auto t0 = std::chrono::steady_clock::now();
+                        const auto t0 = node_->get_clock()->now();
                         processMsg(queued_msg);
-                        const double duration = std::chrono::duration_cast<std::chrono::duration<double>>(
-                                                    std::chrono::steady_clock::now() - t0)
-                                                    .count();
+                        const double duration = rclcpp::Duration(node_->get_clock()->now() - t0).seconds();
                         if (duration > maximum_sensor_delay_)
                         {
                             RCLCPP_WARN_STREAM(node_->get_logger(),

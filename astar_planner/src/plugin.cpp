@@ -72,8 +72,7 @@ navigation_interface::PathPlanner::Result
 {
     navigation_interface::PathPlanner::Result result;
 
-    // Add the avoid_distance to the robot_radius_ (little circles) and the
-    // conservative_robot_radius_ (big circle)
+    // Add the avoid_distance to the robot_radius_ (little circles) and the conservative_robot_radius_ (big circle)
     const double _avoid_distance = std::max(0.0, avoid_distance);
     const double inflated_robot_radius = robot_radius_ + _avoid_distance;
     const double inflated_conservative_robot_radius = conservative_robot_radius_ + _avoid_distance;
@@ -107,17 +106,16 @@ navigation_interface::PathPlanner::Result
     const double strafe_mult_applied = strafe_mult > 0.0 ? strafe_mult : strafe_mult_;
     const double rotation_mult_applied = rotation_mult > 0.0 ? rotation_mult : rotation_mult_;
 
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = node_->get_clock()->now();
 
     const astar_planner::PathResult astar_result = astar_planner::hybridAStar(
         start, goal, max_iterations, collision_checker, linear_resolution, angular_resolution, sample,
         backwards_mult_applied, strafe_mult_applied, rotation_mult_applied);
 
-    RCLCPP_INFO_STREAM(
-        rclcpp::get_logger(""),
-        "Hybrid A Star took "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count()
-            << " iterations: " << astar_result.iterations << " nodes: " << astar_result.explore_3d.size());
+    RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Hybrid A Star took "
+                                                   << rclcpp::Duration(node_->get_clock()->now() - t0).nanoseconds()
+                                                   << " iterations: " << astar_result.iterations
+                                                   << " nodes: " << astar_result.explore_3d.size());
 
     if (debug_viz_)
     {
