@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-namespace autonomys
+namespace autonomy
 {
 
 namespace
@@ -1331,4 +1331,4 @@ void Autonomy::mapperCallback(const cartographer_ros_msgs::msg::SystemState& msg
     }
 }
 
-}  // namespace autonomys
+}  // namespace autonomy
