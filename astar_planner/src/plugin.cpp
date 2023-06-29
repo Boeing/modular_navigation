@@ -113,7 +113,7 @@ navigation_interface::PathPlanner::Result
         backwards_mult_applied, strafe_mult_applied, rotation_mult_applied);
 
     RCLCPP_INFO_STREAM(rclcpp::get_logger(""), "Hybrid A Star took "
-                                                   << rclcpp::Duration(node_->get_clock()->now() - t0).nanoseconds()
+                                                   << rclcpp::Duration(node_->get_clock()->now() - t0).seconds()
                                                    << " iterations: " << astar_result.iterations
                                                    << " nodes: " << astar_result.explore_3d.size());
 
