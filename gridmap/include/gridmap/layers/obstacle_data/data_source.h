@@ -305,7 +305,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             }
 
             const Eigen::Isometry3d sensor_tr = getSensorTransform(msg->header.frame_id);
-            const RobotState robot_state = robot_tracker_->robotState(msg->header.stamp);
+            const RobotState robot_state = robot_tracker_->robotState(msg->header.stamp, node_->get_clock());
             const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
             const Eigen::Isometry3d tr = embed3d(robot_pose) * sensor_tr;
 

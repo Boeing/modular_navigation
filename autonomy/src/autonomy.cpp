@@ -399,7 +399,7 @@ void Autonomy::updateCostmapCallback()
     // Update costmap
     if (layered_map_->map())
     {
-        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+        const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
         if (robot_state.localised)
         {
@@ -521,7 +521,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
                                                                            << ", Max Samples: " << goal->max_samples);
 
     // Fetch current robot state
-    const gridmap::RobotState robot_state = robot_tracker_->robotState();
+    const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
     // Check robot is localised in map
     if (!robot_state.localised)
@@ -675,7 +675,7 @@ void Autonomy::pathPlannerThread()
     {
         auto goal_handle = goalHandle();  // update goal handle
 
-        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+        const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
         if (!robot_state.localised)
         {
@@ -1009,7 +1009,7 @@ void Autonomy::trajectoryPlannerThread()
             continue;
         }
 
-        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+        const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
         if (!robot_state.localised)
         {
@@ -1166,11 +1166,11 @@ void Autonomy::controllerThread()
         auto goal_handle = goalHandle();  // update goal handle
 
         // wait for a new odom (or timeout)
-        gridmap::RobotState robot_state = robot_tracker_->robotState();
+        gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
         try
         {
             if (robot_state.odom.time.seconds() == last_odom_time.seconds())
-                robot_state = robot_tracker_->waitForRobotState(2.0 * controller_period_s * 1000.0, this);
+                robot_state = robot_tracker_->waitForRobotState(2.0 * controller_period_s * 1000.0, this->get_clock());
         }
         catch (const std::exception& e)
         {
