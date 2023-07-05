@@ -1170,7 +1170,7 @@ void Autonomy::controllerThread()
         try
         {
             if (robot_state.odom.time.seconds() == last_odom_time.seconds())
-                robot_state = robot_tracker_->waitForRobotState(2.0 * controller_period_s * 1000.0);
+                robot_state = robot_tracker_->waitForRobotState(2.0 * controller_period_s * 1000.0, this);
         }
         catch (const std::exception& e)
         {

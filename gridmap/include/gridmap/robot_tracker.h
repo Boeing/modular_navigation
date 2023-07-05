@@ -46,6 +46,7 @@ class RobotTracker
     }
 
     RobotState waitForRobotState(const double timeout_ms) const;
+    RobotState waitForRobotState(const double timeout_ms, const rclcpp::Node::SharedPtr node) const;
 
     RobotState robotState() const;
     RobotState robotState(const rclcpp::Time& time) const;
