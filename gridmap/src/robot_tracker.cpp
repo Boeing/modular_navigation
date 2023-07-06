@@ -86,28 +86,9 @@ RobotTracker::RobotTracker() : localisation_{false, Eigen::Isometry2d::Identity(
 {
 }
 
-// cppcheck-suppress unusedFunction
-RobotState RobotTracker::waitForRobotState(const double timeout_ms) const
-{
-    std::unique_lock<std::mutex> lock(mutex_);
-    // const auto t0 = std::chrono::steady_clock::now();
-    const auto t0 = rclcpp::Clock{RCL_ROS_TIME}.now();
-    if (conditional_.wait_for(lock, std::chrono::milliseconds(static_cast<long>(timeout_ms))) ==
-        std::cv_status::timeout)
-    {
-        const double wait_time =
-            // std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0).count();
-            rclcpp::Duration(rclcpp::Clock{RCL_ROS_TIME}.now() - t0).seconds();
-        throw std::runtime_error("Did not receive an odom message at the desired frequency: waited: " +
-                                 std::to_string(wait_time));
-    }
-    return RobotState{odometry_data_.back(), localisation_.localised, localisation_.map_to_odom};
-}
-
 RobotState RobotTracker::waitForRobotState(const double timeout_ms, const rclcpp::Clock::SharedPtr node_clock) const
 {
     std::unique_lock<std::mutex> lock(mutex_);
-    // const auto t0 = std::chrono::steady_clock::now();
     const auto t0 = node_clock->now();
     if (conditional_.wait_for(lock, std::chrono::milliseconds(static_cast<long>(timeout_ms))) ==
         std::cv_status::timeout)
