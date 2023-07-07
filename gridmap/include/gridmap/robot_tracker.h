@@ -45,7 +45,6 @@ class RobotTracker
         return localisation_.localised;
     }
 
-    RobotState waitForRobotState(const double timeout_ms) const;
     RobotState waitForRobotState(const double timeout_ms, const rclcpp::Clock::SharedPtr node_clock) const;
 
     RobotState robotState(const rclcpp::Clock::SharedPtr node_clock) const;
