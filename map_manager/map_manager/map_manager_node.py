@@ -3,6 +3,10 @@
 import logging
 
 import flask
+import signal
+import sys
+from functools import partial
+from multiprocessing import Process
 # import mongoengine
 # import pymongo
 # import rospy.impl.rosout
@@ -13,15 +17,12 @@ from map_manager.http_utils.routes import map_api
 from threading import Thread
 from map_manager.config import RESOURCE_PORT  # , DATABASE_NAME
 
-logger = logging.getLogger(__name__)
 
+def signal_handler(server: Process, sig, frame):
+    server.terminate()
+    server.join(timeout=5)
+    sys.exit(0)
 
-def parallel_flask_run(app):
-    app.run(host='0.0.0.0', port=RESOURCE_PORT)
-    logger.info('Starting Flask run in a thread...')
-
-
-# name = 'map_manager'
 
 if __name__ == '__main__':
     # rospy.init_node(name, disable_signals=True)
@@ -29,6 +30,8 @@ if __name__ == '__main__':
 
     map_manager_node = RosWrapper()
     # node = rclpy.create_node(name)
+
+    logger = logging.getLogger(__name__)
 
     handlers = logging.getLogger('rosout').handlers
     for handler in handlers:
@@ -77,6 +80,10 @@ if __name__ == '__main__':
     #    raise e
 
     app = flask.Flask(__name__, template_folder='/map_manager/map_manager/http_utils')
+    server_name = '0.0.0.0:' + str(RESOURCE_PORT)
+
+    logger.info('Map Manager at ' + server_name)
+    app.config['SERVER_NAME'] = server_name
 
     app.logger.setLevel(logging.INFO)
     for handler in handlers:
@@ -84,14 +91,11 @@ if __name__ == '__main__':
 
     app.register_blueprint(map_api)
 
-    # rclpy.spin_once(map_manager_node) #Explicit spin for ros2 reasons
-    # parallel_flask_run(app)
+    server = Process(target=app.run)
+    signal.signal(signal.SIGINT, partial(signal_handler, server))
+    server.start()
 
-    app_run = Thread(
-        target=parallel_flask_run,
-        args=(app,)
-    )
-    app_run.start()
-
-    # app.run(host='0.0.0.0', port=RESOURCE_PORT)
     rclpy.spin(map_manager_node)  # This one doesnt get called
+
+    map_manager_node.destroy_node()
+    rclpy.shutdown()
