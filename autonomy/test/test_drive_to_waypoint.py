@@ -216,18 +216,18 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Make constants constant
         self.robot_name = 'test_robot'
         self.global_frame = 'map'
-
+        # Set robot position
         self.robot_pose = Pose()
-        self.robot_pose.position.x = 20.0
-        self.robot_pose.position.y = 7.0
-        # Drive action field target_pose must be of type PoseStamped
+        self.robot_pose.position.x = 3.0
+        self.robot_pose.position.y = 10.0
         self.waypoint_offset = -2.0
         self.waypoint_pose = PoseStamped()
-        self.waypoint_pose.pose.position.x = 22.0
-        self.waypoint_pose.pose.position.y = 9.0
+        # Set goal position
+        self.waypoint_pose.pose.position.x = 6.2
+        self.waypoint_pose.pose.position.y = 5.0
 
-    def tearDown(self):
-        self.node.destroy_node()
+    # def tearDown(self):
+    #     self.node.destroy_node()
 
     def test_a_spawn_robot(self):
         # Gazebo stuff if use_sim_time = True
