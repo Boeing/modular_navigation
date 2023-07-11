@@ -14,7 +14,6 @@ import rclpy
 
 from map_manager.ros_wrapper import RosWrapper
 from map_manager.http_utils.routes import map_api
-from threading import Thread
 from map_manager.config import RESOURCE_PORT  # , DATABASE_NAME
 
 

@@ -189,8 +189,7 @@ void Autonomy::init()
     RCLCPP_INFO(this->get_logger(), "Waiting for robot_state_publisher parameter service...");
     if (!parameters_client->wait_for_service(std::chrono::seconds(30)))
     {
-        throw std::runtime_error("Timed out while waiting for robot_description "
-                                 "parameter service. Exiting.");
+        throw std::runtime_error("Timed out while waiting for robot_description parameter service. Exiting.");
     }
     auto robot_description_param = parameters_client->get_parameters({"robot_description"});
     RCLCPP_INFO(this->get_logger(), "Getting robot_description DONE");
@@ -355,9 +354,8 @@ void Autonomy::activeMapCallback(const map_manager::msg::MapInfo& map)
         layered_map_->setMap(map_info, map_data, zones);
     }
 
-    // Create a separate instance of MapData (which contains the occupancy grid)
-    // for each planner This way, updating the map in one planner thread will not
-    // slow down the others
+    // Create a separate instance of MapData (which contains the occupancy grid) for each planner
+    // This way, updating the map in one planner thread will not slow down the others
     path_planner_map_data_ = std::make_shared<gridmap::MapData>(
         layered_map_->map()->map_info, layered_map_->map()->grid.dimensions(), layered_map_->map()->zones);
     path_planner_->setMapData(path_planner_map_data_);
@@ -401,7 +399,7 @@ void Autonomy::updateCostmapCallback()
     // Update costmap
     if (layered_map_->map())
     {
-        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+        const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
         if (robot_state.localised)
         {
@@ -426,6 +424,7 @@ void Autonomy::executeGoal()
     if (!map_updated_)
     {
         // Wait for map to finish being updated
+        RCLCPP_INFO_STREAM(this->get_logger(), "Waiting for map to be updated...");
         std::unique_lock<std::mutex> lock(map_updated_mutex_);
         map_updated_conditional_.wait(lock, [this] { return this->map_updated_; });
     }
@@ -522,7 +521,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
                                                                            << ", Max Samples: " << goal->max_samples);
 
     // Fetch current robot state
-    const gridmap::RobotState robot_state = robot_tracker_->robotState();
+    const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
     // Check robot is localised in map
     if (!robot_state.localised)
@@ -555,8 +554,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
         return rclcpp_action::GoalResponse::REJECT;
     }
 
-    // Check goal can be transformed to global_frame_, store as
-    // transformed_goal_pose_
+    // Check goal can be transformed to global_frame_, store as transformed_goal_pose_
     if (goal->target_pose.header.frame_id != global_frame_)
     {
         RCLCPP_INFO_STREAM(this->get_logger(), "Goal is in frame: " << goal->target_pose.header.frame_id << ", not: "
@@ -575,8 +573,7 @@ rclcpp_action::GoalResponse Autonomy::goalCallback(const rclcpp_action::GoalUUID
             return rclcpp_action::GoalResponse::REJECT;
         }
 
-        // Can't modify pose in-place because it's a const, instead store as
-        // transformed_goal_pose_
+        // Can't modify pose in-place because it's a const, instead store as transformed_goal_pose_
         geometry_msgs::msg::PoseStamped transformed_goal_pose;
         tf2::doTransform(goal->target_pose, transformed_goal_pose, transform);
         setTransformedGoalPose(transformed_goal_pose);
@@ -632,9 +629,8 @@ void Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_hand
         if (current_goal_handle->is_active())
         {
             // Set active goal to aborted and update goal_handle_ for autonomy threads
-            // Note, this does not actually stop the execution thread. It only updates
-            // the goal_handle_, so the planners should seamlessly pick up the new
-            // goal
+            // Note, this does not actually stop the execution thread. It only updates the goal_handle_, so the
+            // planners should seamlessly pick up the new goal
             RCLCPP_INFO_STREAM(this->get_logger(),
                                "Updating goal with: " << rclcpp_action::to_string(goal_handle->get_goal_id()));
             current_goal_handle->abort(std::make_shared<autonomy_interface::action::Drive::Result>());
@@ -660,9 +656,8 @@ void Autonomy::pathPlannerThread()
     auto feedback = std::make_shared<autonomy_interface::action::Drive::Feedback>();
     feedback->state = autonomy_interface::action::Drive::Feedback::NO_PLAN;
 
-    std::string last_goal_id =
-        rclcpp_action::to_string(goalHandle()->get_goal_id());  // Keeps track of the previous goal ID to
-                                                                // see if has been updated
+    std::string last_goal_id = rclcpp_action::to_string(
+        goalHandle()->get_goal_id());  // Keeps track of the previous goal ID to see if has been updated
 
     rcpputils::assert_true(layered_map_ != nullptr);
     rcpputils::assert_true(path_planner_map_data_ != nullptr);
@@ -680,7 +675,7 @@ void Autonomy::pathPlannerThread()
     {
         auto goal_handle = goalHandle();  // update goal handle
 
-        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+        const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
         if (!robot_state.localised)
         {
@@ -724,7 +719,7 @@ void Autonomy::pathPlannerThread()
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
         {
             bool success = false;
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = this->get_clock()->now();
             if (max_planning_distance_ > 0.0)
             {
                 success = layered_map_->update(path_planner_map_data_->grid, roi);
@@ -734,9 +729,7 @@ void Autonomy::pathPlannerThread()
                 success = layered_map_->update(path_planner_map_data_->grid);
             }
 
-            const double map_update_duration_s =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
+            const double map_update_duration_s = rclcpp::Duration(this->get_clock()->now() - t0).seconds();
             std_msgs::msg::Float64 map_update_duration_msg;
             map_update_duration_msg.data = map_update_duration_s;
             planner_map_update_pub_->publish(map_update_duration_msg);
@@ -817,13 +810,11 @@ void Autonomy::pathPlannerThread()
         const auto now = rclcpp::Clock(RCL_STEADY_TIME).now();  // ros::SteadyTime::now();
         {
 
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = this->get_clock()->now();
             result = path_planner_->plan(roi, robot_pose, goal_pose, goal_sample_settings, avoid_distance,
                                          backwards_mult, strafe_mult, rotation_mult);
 
-            const double plan_duration_s =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
+            const double plan_duration_s = rclcpp::Duration(this->get_clock()->now() - t0).seconds();
             if (plan_duration_s > path_planner_period_s)  // rate.expectedCycleTime().toSec())
                 RCLCPP_WARN_STREAM(this->get_logger(), "Path Planning PLAN call took too long: "
                                                            << plan_duration_s
@@ -835,8 +826,7 @@ void Autonomy::pathPlannerThread()
         if (!running_)
             break;
 
-        // Use some heuristics to decide if the new plan should be used or we stick
-        // to the old one
+        // Use some heuristics to decide if the new plan should be used or we stick to the old one
         if (result.outcome == navigation_interface::PathPlanner::Outcome::SUCCESSFUL)
         {
             bool update = false;
@@ -880,8 +870,7 @@ void Autonomy::pathPlannerThread()
                 // when path becomes impossible wait a bit before swapping to a new path
                 const bool case_2 = !old_path_possible && new_path_possible && old_path_expired;
 
-                // if the new path is much better while the old path is still possible
-                // then swap
+                // if the new path is much better while the old path is still possible then swap
                 const bool case_3 = new_path_much_better && old_path_possible && old_path_is_long;
 
                 update = case_1 || case_2 || case_3;
@@ -1020,7 +1009,7 @@ void Autonomy::trajectoryPlannerThread()
             continue;
         }
 
-        const gridmap::RobotState robot_state = robot_tracker_->robotState();
+        const gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
 
         if (!robot_state.localised)
         {
@@ -1055,12 +1044,10 @@ void Autonomy::trajectoryPlannerThread()
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
         {
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = this->get_clock()->now();
             const bool success = layered_map_->update(trajectory_planner_map_data_->grid, roi);
 
-            const double map_update_duration_s =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
+            const double map_update_duration_s = rclcpp::Duration(this->get_clock()->now() - t0).seconds();
 
             std_msgs::msg::Float64 map_update_duration_msg;
             map_update_duration_msg.data = map_update_duration_s;
@@ -1099,15 +1086,13 @@ void Autonomy::trajectoryPlannerThread()
 
         navigation_interface::TrajectoryPlanner::Result result;
         {
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = this->get_clock()->now();
 
             // optimise path
             const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
             result = trajectory_planner_->plan(roi, ks, robot_state.map_to_odom, avoid_distance);
 
-            const double plan_duration_s =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
+            const double plan_duration_s = rclcpp::Duration(this->get_clock()->now() - t0).seconds();
             if (plan_duration_s > trajectory_planner_period_s)  // rate.expectedCycleTime().toSec())
                 RCLCPP_WARN_STREAM(this->get_logger(), "Trajectory Planning PLAN duration took too long: "
                                                            << plan_duration_s
@@ -1181,11 +1166,11 @@ void Autonomy::controllerThread()
         auto goal_handle = goalHandle();  // update goal handle
 
         // wait for a new odom (or timeout)
-        gridmap::RobotState robot_state = robot_tracker_->robotState();
+        gridmap::RobotState robot_state = robot_tracker_->robotState(this->get_clock());
         try
         {
             if (robot_state.odom.time.seconds() == last_odom_time.seconds())
-                robot_state = robot_tracker_->waitForRobotState(2.0 * controller_period_s * 1000.0);
+                robot_state = robot_tracker_->waitForRobotState(2.0 * controller_period_s * 1000.0, this->get_clock());
         }
         catch (const std::exception& e)
         {
@@ -1230,7 +1215,7 @@ void Autonomy::controllerThread()
         const gridmap::AABB roi{{top_left_x, top_left_y}, {actual_size_x, actual_size_y}};
 
         {
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = this->get_clock()->now();
 
             const bool success = layered_map_->update(controller_map_data_->grid, roi);
 
@@ -1241,9 +1226,7 @@ void Autonomy::controllerThread()
                 continue;
             }
 
-            const double map_update_duration_s =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
+            const double map_update_duration_s = rclcpp::Duration(this->get_clock()->now() - t0).seconds();
 
             std_msgs::msg::Float64 map_update_duration_msg;
             map_update_duration_msg.data = map_update_duration_s;
@@ -1276,7 +1259,7 @@ void Autonomy::controllerThread()
 
         navigation_interface::Controller::Result result;
         {
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = this->get_clock()->now();
 
             // control
             const auto ks = navigation_interface::KinodynamicState{robot_state.odom.pose, robot_state.odom.velocity, 0};
@@ -1284,9 +1267,7 @@ void Autonomy::controllerThread()
             result = controller_->control(t, roi, ks, robot_state.map_to_odom, max_velocity, xy_goal_tolerance,
                                           yaw_goal_tolerance);
 
-            const double control_duration_s =
-                std::chrono::duration_cast<std::chrono::duration<double>>(std::chrono::steady_clock::now() - t0)
-                    .count();
+            const double control_duration_s = rclcpp::Duration(this->get_clock()->now() - t0).seconds();
             if (control_duration_s > controller_period_s)
             {
                 RCLCPP_ERROR_STREAM(this->get_logger(), "Control Planning CONTROL duration took too long: "

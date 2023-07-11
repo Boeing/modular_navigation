@@ -332,7 +332,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
     {
         {
             std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
-            const RobotState robot_state = robot_tracker_->robotState();
+            const RobotState robot_state = robot_tracker_->robotState(node_->get_clock());
             // if (_lock.owns_lock() && debug_viz_pub_.getNumSubscribers() != 0 &&
             // probability_grid_ &&
             if (_lock.owns_lock() && debug_viz_pub_->get_subscription_count() != 0 && probability_grid_ &&
@@ -368,7 +368,7 @@ void ObstacleLayer::debugVizThread(const double frequency)
                 grid.info.origin.position.y = probability_grid_->dimensions().origin().y() +
                                               top_left_y * probability_grid_->dimensions().resolution();
 
-                grid.header.stamp = rclcpp::Clock(RCL_ROS_TIME).now();
+                grid.header.stamp = node_->get_clock()->now();
 
                 {
                     // cppcheck-suppress unreadVariable
@@ -420,7 +420,7 @@ void ObstacleLayer::clearFootprintThread(const double frequency)
     {
         {
             std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
-            const RobotState robot_state = robot_tracker_->robotState();
+            const RobotState robot_state = robot_tracker_->robotState(node_->get_clock());
             if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
                 const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;
@@ -508,7 +508,7 @@ void ObstacleLayer::timeDecayThread(const double frequency, const double alpha_d
     {
         {
             std::shared_lock<std::shared_timed_mutex> _lock(layer_mutex_, period);
-            const RobotState robot_state = robot_tracker_->robotState();
+            const RobotState robot_state = robot_tracker_->robotState(node_->get_clock());
             if (_lock.owns_lock() && probability_grid_ && robot_state.localised)
             {
                 const Eigen::Isometry2d robot_pose = robot_state.map_to_odom * robot_state.odom.pose;

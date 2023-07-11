@@ -45,10 +45,10 @@ class RobotTracker
         return localisation_.localised;
     }
 
-    RobotState waitForRobotState(const double timeout_ms) const;
+    RobotState waitForRobotState(const double timeout_ms, const rclcpp::Clock::SharedPtr node_clock) const;
 
-    RobotState robotState() const;
-    RobotState robotState(const rclcpp::Time& time) const;
+    RobotState robotState(const rclcpp::Clock::SharedPtr node_clock) const;
+    RobotState robotState(const rclcpp::Time& time, const rclcpp::Clock::SharedPtr node_clock) const;
 
     void addOdometryData(const nav_msgs::msg::Odometry& odometry_data);
     void addLocalisationData(const cartographer_ros_msgs::msg::SystemState& localisation);
