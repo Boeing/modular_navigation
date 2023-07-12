@@ -1,5 +1,9 @@
 import os
 import unittest
+import time
+import tempfile
+import yaml
+from math import pi
 
 import launch
 import launch.actions
@@ -34,9 +38,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros import TransformBroadcaster
 
-
-import time
-from math import pi
+from map_manager.test_utils import process_dxf
 
 
 @pytest.mark.launch_test
@@ -46,11 +48,11 @@ def generate_test_description():
     autonomy_share_dir = get_package_share_directory('autonomy')
 
     world_file_name = os.path.join(get_package_share_directory('autonomy'),
-                                   'test', 'resources', 'sim_map.world')
+                                   'test', 'resources', 'worlds', 'sim_map.world')
     robot_file_name_urdf = os.path.join(get_package_share_directory('autonomy'),
-                                        'test', 'resources', 'test_robot.urdf')
+                                        'test', 'resources', 'robots', 'test_robot.urdf')
     robot_file_name_sdf = os.path.join(get_package_share_directory('autonomy'),
-                                       'test', 'resources', 'test_robot.sdf')
+                                       'test', 'resources', 'robots', 'test_robot.sdf')
     navigation_config_file = os.path.join(autonomy_share_dir, 'test',
                                           'config/navigation.yaml')
 
@@ -68,11 +70,15 @@ def generate_test_description():
         DeclareLaunchArgument(name='mongo_hostname',
                               default_value='mongodb',
                               description='Hostname of the MongoDB server'),
+        DeclareLaunchArgument(name='dxf_map',
+                              default_value='south_prep',
+                              description='The dxf map file to use for localisation.'),
     ]
 
     use_sim_time_arg = LaunchConfiguration("use_sim_time")
     gazebo_client_arg = LaunchConfiguration("gazebo_client")
     mongo_hostname_arg = LaunchConfiguration("mongo_hostname")
+    # dxf_map_arg = LaunchConfiguration('dxf_map') # TODO: Unused
 
     return launch.LaunchDescription(
         declared_arguments +
@@ -234,7 +240,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         if (self.node.get_parameter('use_sim_time').get_parameter_value().bool_value):
             # Spawn robot
             gz_urdf = os.path.join(get_package_share_directory('autonomy'),
-                                   'test', 'resources', 'test_robot.sdf')
+                                   'test', 'resources', 'robots', 'test_robot.sdf')
             self.log.debug('Opening file ' + gz_urdf)
             f = open(gz_urdf, 'r')
             urdf_file_data = f.read()
@@ -268,7 +274,57 @@ class TestDriveToWaypoint(unittest.TestCase):
             self.log.info('Not in simulation. Exiting.')
             self.assertTrue(True)
 
-    def test_b_get_waypoint(self):
+    def test_b_load_map(self):
+        cartographer_configuration_directory = os.path.join(
+                get_package_share_directory('autonomy'),
+                'test',
+                'config',
+                'cartographer'
+            )
+
+        # Get dxf file path
+        dxf_map_file = os.path.join(get_package_share_directory('autonomy'),
+                                    'test',
+                                    'resources',
+                                    'worlds',
+                                    'south_prep.dxf'
+                                    )
+
+        # Load submap definitions
+        submap_config_file = os.path.join(get_package_share_directory('autonomy'),
+                                          'test',
+                                          'resources',
+                                          'worlds',
+                                          'south_prep.yaml'
+                                          )
+
+        with open(submap_config_file, 'r') as file:
+            submap = yaml.safe_load(file)
+
+        self.log.info('Loading map...')
+
+        process_dxf(
+                    self.node,
+                    dxf_map_file,
+                    cartographer_configuration_directory,
+                    submap['map_size_x'],
+                    submap['map_size_y'],
+                    0.02,
+                    submap['map_origin_x'],
+                    submap['map_origin_y'],
+                    submap_locations=submap['submap_locations'],
+                    name='dtw_test_map',
+                    description='Test map',
+                    output_dir=None,
+                    plot=False,
+                    upload=True,
+                    node_name='map_manager',
+        )
+
+        # TODO assert map is loaded
+        self.log.info('Map loaded.')
+
+    def test_c_get_waypoint(self):
         # Create Drive action message
         self.drive_action = Drive.Goal()
         # Populate Drive action msg with the goal pose
@@ -286,7 +342,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.rotation_mult = 0.3/pi
 
         # Wait for robot to be localised
-        time.sleep(35)  # DEBUG
+        time.sleep(10)  # DEBUG
 
         # Send Goal
         drive_action_future = self.drive_action_client.send_goal_async(

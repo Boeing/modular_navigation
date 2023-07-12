@@ -114,12 +114,16 @@ def process_dxf(
 
     logger = node.get_logger()
 
+    logger.info('Processing DXF file: {}'.format(dxf_file))  # DEBUG
+
     if name is None or name == '':
         name = os.path.splitext(os.path.basename(dxf_file))[0]
 
     loader = DxfLoader(dxf_file)
     gm = loader.parse_dxf()
     am = gm.area_manager
+
+    logger.info('Loaded {} zones'.format(len(loader.zones)))  # DEBUG
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_sdf_f, \
             tempfile.NamedTemporaryFile(delete=False) as temp_png_f, \
@@ -146,6 +150,8 @@ def process_dxf(
             submap_locations=submap_locations,
             zones=loader.zones.values(),
         )
+
+        logger.info('Wrote OG to {}'.format(os.path.abspath(temp_png_f.name)))  # DEBUG
 
         temp_png_f.seek(0)
         im = Image.open(temp_png_f)
