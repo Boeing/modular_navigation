@@ -303,6 +303,14 @@ class TestDriveToWaypoint(unittest.TestCase):
 
         self.log.info('Loading map...')
 
+        submap_locations_flattened = [float(x) for x in submap['submap_locations']]
+
+        assert len(submap_locations_flattened) % 4 == 0, \
+            'Submap locations should be a flattened array of (centre_x, centre_y, width, height) in metres'
+
+        submap_locations = tuple(tuple(submap_locations_flattened[i * 4:i * 4 + 4])
+                                 for i in range(int(len(submap_locations_flattened) / 4)))
+
         process_dxf(
                     self.node,
                     dxf_map_file,
@@ -312,7 +320,7 @@ class TestDriveToWaypoint(unittest.TestCase):
                     0.02,
                     submap['map_origin_x'],
                     submap['map_origin_y'],
-                    submap_locations=submap['submap_locations'],
+                    submap_locations=submap_locations,
                     name='dtw_test_map',
                     description='Test map',
                     output_dir=None,
