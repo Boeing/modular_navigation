@@ -156,12 +156,13 @@ class RosWrapper(Node):
         self.__init_publishers()
 
         # Load the most recently modified Map by default
-        map_query = Map.objects.order_by('-modified')
-        if map_query.count():
-            map_obj = map_query.first()
-            self.__load_map(map_name=str(map_obj.name))  # __load_map loads map even without rcl.spin()
-        else:
-            self.__active_map_pub.publish(MapInfoMsg())
+        # TODO: There is probably no need for this as autonomy already waits for the map to be loaded
+        # map_query = Map.objects.order_by('-modified')
+        # if map_query.count():
+        #     map_obj = map_query.first()
+        #     self.__load_map(map_name=str(map_obj.name))  # __load_map loads map even without rcl.spin()
+        # else:
+        #     self.__active_map_pub.publish(MapInfoMsg())
 
         self.logger.info('Successfully started')
 
