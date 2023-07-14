@@ -1,7 +1,6 @@
 import os
 import unittest
 import time
-import tempfile
 import yaml
 from math import pi
 
@@ -224,13 +223,13 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.global_frame = 'map'
         # Set robot position
         self.robot_pose = Pose()
-        self.robot_pose.position.x = 3.0
-        self.robot_pose.position.y = 10.0
+        self.robot_pose.position.x = 20.0
+        self.robot_pose.position.y = 8.0
         self.waypoint_offset = -2.0
         self.waypoint_pose = PoseStamped()
         # Set goal position
-        self.waypoint_pose.pose.position.x = 6.2
-        self.waypoint_pose.pose.position.y = 5.0
+        self.waypoint_pose.pose.position.x = 22.2
+        self.waypoint_pose.pose.position.y = 10.0
 
     # def tearDown(self):
     #     self.node.destroy_node()
