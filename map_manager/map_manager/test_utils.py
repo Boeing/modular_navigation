@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import json
+import rclpy
 from datetime import datetime
 from math import ceil
 from typing import Optional, List
@@ -218,6 +219,7 @@ def process_dxf(
             temp_png_f.seek(0)
             temp_pb_f.seek(0)
 
+            logger.info('Waiting for AddMap service...')  # DEBUG
             add_map_srv.wait_for_service(timeout_sec=5.0)
 
             add_req = AddMap.Request(
@@ -232,8 +234,13 @@ def process_dxf(
                 pbstream=temp_pb_f.read()
             )
 
+            logger.info('Calling AddMap service...')  # DEBUG
             # Assumes node is spinning externally
-            add_map_res: AddMap.Response = add_map_srv.call(add_req)
+            # Call AddMap service asynchronously
+            # add_map_res: AddMap.Response = add_map_srv.call(add_req)
+            add_map_future = add_map_srv.call_async(add_req)
+            rclpy.spin_until_future_complete(node, node.future)
+            add_map_res: AddMap.Response = add_map_future.result()
 
             if not add_map_res.success:
                 raise Exception('Failed to save map: {}'.format(add_map_res.message))
