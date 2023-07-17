@@ -17,12 +17,13 @@ from PIL import Image
 import mongoengine
 import os
 import io
+import threading
 
 import matplotlib.pyplot as plt
 import networkx as nx
 from networkx.drawing.nx_pydot import graphviz_layout
 
-import rospy
+import rclpy
 
 from map_manager.documents import Map as MapDoc
 from map_manager.documents import Point as PointDoc
@@ -41,10 +42,8 @@ from map_manager.config import DATABASE_NAME
 
 logger = logging.getLogger(__name__)
 
-mongo_hostname = 'localhost'
+mongo_hostname = 'localhost'  # TODO get from config
 mongo_port = 27017
-
-node_name = 'upload_map'
 
 
 def dir_path(string):
@@ -57,7 +56,8 @@ def dir_path(string):
             raise NotADirectoryError(string)
 
 
-def run(dir,
+def run(node,
+        dir,
         plot,
         node_name):
 
@@ -146,7 +146,7 @@ def run(dir,
     #
     # Save the map via ROS interface
     #
-    if node_name:
+    if node_name and (node is not None):
         logger.info('Uploading map via ROS to {}'.format(node_name))
 
         if gm is not None:
@@ -161,15 +161,17 @@ def run(dir,
         if zones is None:
             zones = list()
 
-        add_map_srv = rospy.ServiceProxy(
-            name=node_name + '/add_map',
-            service_class=AddMap
+        add_map_client = node.create_client(
+            AddMap,
+            node_name + '/add_map'
         )
 
-        add_map_srv.wait_for_service(timeout=10)
-        add_response = add_map_srv.call(
+        logger.info('Waiting for AddMap service...')
+        add_map_client.wait_for_service(timeout_sec=5.0)
+
+        add_map_future = add_map_client.call_async(
             AddMap.Request(
-                map_info=map_info.to_msg(),
+                map_info=map_info.to_msg(node),
                 node_graph=gm_str,
                 area_tree=am_str,
                 zones=[zone.to_msg() for zone in zones],
@@ -180,8 +182,15 @@ def run(dir,
                 pbstream=pb_bytes
             )
         )  # type: AddMap.Response
-        if not add_response.success:
-            raise Exception('Failed to save map: {}'.format(add_response.message))
+
+        logger.info('Calling AddMap service...')  # DEBUG
+
+        rclpy.spin_until_future_complete(node, add_map_future)
+        add_map_res: AddMap.Response = add_map_future.result()
+
+        if not add_map_res.success:
+            raise Exception(
+                'Failed to save map: {}'.format(add_map_res.message))
 
     #
     # Save to mongo database without ROS
@@ -254,27 +263,42 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('dir', type=dir_path, help='Directory containing map data')
-    parser.add_argument('--plot', action='store_true', help='Enable debug plotting')
-    parser.add_argument('--node', type=str, default=None, help='ROS node name to upload via ROS interface')
+    parser.add_argument('dir', type=dir_path,
+                        help='Directory containing map data')
+    parser.add_argument('--plot',
+                        action='store_true',
+                        help='Enable debug plotting')
+    parser.add_argument('--node',
+                        type=str,
+                        default=None,
+                        help='ROS node name to upload via ROS interface')
 
     args = parser.parse_args()
 
-    if args.node:
-        rospy.init_node(node_name, disable_signals=True)
+    node = None
 
-        handlers = logging.getLogger('rosout').handlers
-        for handler in handlers:
-            logger.addHandler(handler)
-            logger.setLevel(logging.INFO)
-            for _logger_name, _logger in logging.Logger.manager.loggerDict.items():  # type: ignore
-                if _logger_name not in ['rosgraph', 'rospy', 'rosout'] and '.' not in _logger_name:
-                    if isinstance(_logger, logging.PlaceHolder):
-                        _logger = logging.getLogger(_logger_name)
-                    _logger.addHandler(handler)
-                    _logger.setLevel(logging.INFO)
+    if args.node:
+        rclpy.init()
+
+        # Create node
+        node = rclpy.create_node("upload_map")
+        logger = node.get_logger()
+
+        # Set parameters
+        node.mongo_hostname = node.declare_parameter(
+            '~mongo_hostname', 'localhost').value
+        node.mongo_port = node.declare_parameter('~mongo_port', 27017).value
+
+        # Create executor
+        executor = rclpy.executors.SingleThreadedExecutor()
+        executor.add_node(node)
+
+        # Spin nodes in a separate thread
+        executor_thread = threading.Thread(target=executor.spin, daemon=True)
+        executor_thread.start()
 
     run(
+        node=node,
         dir=args.dir,
         plot=args.plot,
         node_name=args.node
