@@ -211,7 +211,7 @@ def process_dxf(
         if node_name and upload:
             logger.info('Uploading map via ROS to {}'.format(node_name))
 
-            add_map_srv = node.create_client(
+            add_map_client = node.create_client(
                 AddMap,
                 node_name + '/add_map'
             )
@@ -220,7 +220,7 @@ def process_dxf(
             temp_pb_f.seek(0)
 
             logger.info('Waiting for AddMap service...')  # DEBUG
-            add_map_srv.wait_for_service(timeout_sec=5.0)
+            add_map_client.wait_for_service(timeout_sec=5.0)
 
             add_req = AddMap.Request(
                 map_info=map_info_msg,
@@ -237,9 +237,9 @@ def process_dxf(
             logger.info('Calling AddMap service...')  # DEBUG
             # Assumes node is spinning externally
             # Call AddMap service asynchronously
-            # add_map_res: AddMap.Response = add_map_srv.call(add_req)
-            add_map_future = add_map_srv.call_async(add_req)
-            rclpy.spin_until_future_complete(node, node.future)
+            # add_map_res: AddMap.Response = add_map_client.call(add_req)
+            add_map_future = add_map_client.call_async(add_req)
+            rclpy.spin_until_future_complete(node, add_map_future)
             add_map_res: AddMap.Response = add_map_future.result()
 
             if not add_map_res.success:
@@ -308,10 +308,12 @@ def process_dxf(
         # Save artifacts
         #
         if output_dir is not None:
+            logger.info('Saving artifacts to {}'.format(output_dir))
             # Create directory with dxf_name
             dxf_name = os.path.splitext(os.path.basename(dxf_file))[0]
             artifacts_dir = os.path.join(output_dir, dxf_name)
             if not os.path.exists(artifacts_dir):
+                logger.info('Creating directory {}'.format(artifacts_dir))
                 os.makedirs(artifacts_dir)
 
             # Map Info
@@ -340,4 +342,5 @@ def process_dxf(
                 json.dump(zone_dicts, fp, indent=4)
 
             # DXF (to keep everything together)
+            logger.info('Copying {} to {}'.format(dxf_file, artifacts_dir))
             copy2(dxf_file, os.path.join(artifacts_dir, os.path.basename(dxf_file)))
