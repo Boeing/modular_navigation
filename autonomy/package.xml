@@ -39,6 +39,7 @@
     <test_depend>astar_planner</test_depend>
     <test_depend>sim_band_planner</test_depend>
     <test_depend>pure_pursuit_controller</test_depend>
+    <test_depend>cartographer_ros</test_depend>
 
     <!--<test_depend>gazebo_planar_move_plugin</test_depend>-->
     <!--<test_depend>gazebo_no_physics_plugin</test_depend>-->
