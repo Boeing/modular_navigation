@@ -268,14 +268,12 @@ if __name__ == '__main__':
     parser.add_argument('--plot',
                         action='store_true',
                         help='Enable debug plotting')
-    parser.add_argument('--node',
+    parser.add_argument('--node_name',
                         type=str,
-                        default=None,
+                        default='map_manager',
                         help='ROS node name to upload via ROS interface')
 
     args = parser.parse_args()
-
-    node = None
 
     if args.node:
         rclpy.init()
@@ -297,9 +295,21 @@ if __name__ == '__main__':
         executor_thread = threading.Thread(target=executor.spin, daemon=True)
         executor_thread.start()
 
-    run(
-        node=node,
-        dir=args.dir,
-        plot=args.plot,
-        node_name=args.node
-    )
+        run(
+            node=node,
+            dir=args.dir,
+            plot=args.plot,
+            node_name=args.node
+        )
+
+        node.destroy_node()
+
+        executor.shutdown()
+        executor_thread.join()
+    else:
+        run(
+            node=None,
+            dir=args.dir,
+            plot=args.plot,
+            node_name=args.node
+        )
