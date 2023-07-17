@@ -1,0 +1,13 @@
+{
+    "name": "dtw_test_map",
+    "description": "Test map",
+    "created": "1970-01-01T00:00:00",
+    "modified": "1970-01-01T00:00:00",
+    "meta_data": {
+        "resolution": 0.02,
+        "width": 3200,
+        "height": 3200,
+        "origin_x": -32.0,
+        "origin_y": -10.0
+    }
+}

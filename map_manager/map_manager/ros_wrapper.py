@@ -6,7 +6,6 @@ import mongoengine
 import pymongo
 
 import geometry_msgs.msg
-# import rospy
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
