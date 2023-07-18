@@ -307,7 +307,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.rotation_mult = 0.3/pi
 
         # Wait for robot to be localised
-        time.sleep(10)
+        time.sleep(30)
 
         self.log.info('Sending goal...')
         # Send Goal
