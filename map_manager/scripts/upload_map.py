@@ -17,7 +17,6 @@ from PIL import Image
 import mongoengine
 import os
 import io
-import threading
 
 import matplotlib.pyplot as plt
 import networkx as nx
