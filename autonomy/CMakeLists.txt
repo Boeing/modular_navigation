@@ -82,7 +82,6 @@ if(BUILD_TESTING)
     find_package(astar_planner REQUIRED)
     find_package(sim_band_planner REQUIRED)
     find_package(pure_pursuit_controller REQUIRED)
-    find_package(cartographer_ros REQUIRED)
     add_ros_test(test/test_drive_to_waypoint.py)
 endif()
 
