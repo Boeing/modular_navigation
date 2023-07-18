@@ -37,7 +37,7 @@ rosidl_generate_interfaces(
 )
 
 install(PROGRAMS ${PROJECT_NAME}/map_manager_node.py DESTINATION lib/${PROJECT_NAME})
-install(PROGRAMS scripts/upload_map.py DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY scripts/ DESTINATION lib/${PROJECT_NAME})
 
 install(PROGRAMS launch/test_manager.py DESTINATION share/${PROJECT_NAME})
 

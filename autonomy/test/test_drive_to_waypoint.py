@@ -51,6 +51,8 @@ def generate_test_description():
                                        'test', 'resources', 'robots', 'test_robot.sdf')
     navigation_config_file = os.path.join(autonomy_share_dir, 'test',
                                           'config/navigation.yaml')
+    map_dir_arg = os.path.join(autonomy_share_dir, 'test',
+                               'resources', 'worlds', 'south_prep')
 
     print('world_file_name : {}'.format(world_file_name))
     print('robot_urdf_file_name : {}'.format(robot_file_name_urdf))
@@ -136,7 +138,19 @@ def generate_test_description():
                 on_exit=Shutdown()
             ),
 
-            # TODO: Add upload_map executable w/ mongo params
+            # upload_map executable
+            Node(
+                package='map_manager',
+                executable='upload_map_ros.py',
+                output={'full'},
+                parameters=[
+                    {
+                        '~mongo_hostname': mongo_hostname_arg,
+                        '~map_dir': map_dir_arg,
+                        '~node_name': 'map_manager'
+                    }
+                ],
+            ),
 
             # Launch autonomy
             Node(
@@ -260,8 +274,10 @@ class TestDriveToWaypoint(unittest.TestCase):
             # Check status of robot in Gazebo
             self.entity_state_req = GetEntityState.Request()
             self.entity_state_req.name = self.robot_name
+            self.log.info('Getting entity state...')  # REMOVE
             self.entity_state_future = self.entity_state_client.call_async(
                 self.entity_state_req)
+            self.log.info('Waiting for entity state...')  # REMOVE
             rclpy.spin_until_future_complete(
                 self.node, self.entity_state_future)
             self.entity_state_res = self.entity_state_future.result()
@@ -273,6 +289,7 @@ class TestDriveToWaypoint(unittest.TestCase):
             self.assertTrue(True)
 
     def test_b_get_waypoint(self):
+        self.log.info('Getting waypoint...')  # REMOVE
         # Create Drive action message
         self.drive_action = Drive.Goal()
         # Populate Drive action msg with the goal pose
@@ -292,9 +309,12 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Wait for robot to be localised
         time.sleep(10)
 
+        self.log.info('Sending goal...')
         # Send Goal
         drive_action_future = self.drive_action_client.send_goal_async(
             self.drive_action)
+
+        self.log.info('Waiting for the goal to be accepted...')  # REMOVE
         # Wait for the goal to be accepted/rejected
         rclpy.spin_until_future_complete(self.node, drive_action_future)
         # Get the goal handle as result of the future
@@ -316,4 +336,4 @@ class TestDriveToWaypoint(unittest.TestCase):
             self.assertTrue(drive_action_result.status)
             # TODO Assert that desired position is reached in gazebo
         else:
-            self.log.warn('Autonomy goal rejected')
+            self.assertTrue(False, 'Goal REJECTED')
