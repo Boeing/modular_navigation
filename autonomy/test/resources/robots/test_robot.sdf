@@ -154,7 +154,7 @@
         </ray>
         <plugin name="robot_laserscan" filename="libgazebo_ros_ray_sensor.so">
           <ros>
-            <remapping>~/out:=scan</remapping>
+            <remapping>~/out:=/scan</remapping>
           </ros>
           <output_type>sensor_msgs/LaserScan</output_type>
           <frame_name>base_scan</frame_name>
