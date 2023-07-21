@@ -3,25 +3,15 @@
 import logging
 
 import flask
-import signal
-from functools import partial
-from multiprocessing import Process
+import threading
 import rclpy
 
 from map_manager.ros_wrapper import RosWrapper
 from map_manager.http_utils.routes import map_api
-from map_manager.config import RESOURCE_PORT 
-
-terminating = False
-
-
-def signal_handler(signal_num, frame):
-    global terminating
-    terminating = True
+from map_manager.config import RESOURCE_PORT
 
 
 def main(args=None):
-    signal.signal(signal.SIGINT, partial(signal_handler))
     rclpy.init()
 
     map_manager_node = RosWrapper()
@@ -56,16 +46,14 @@ def main(args=None):
 
     app.register_blueprint(map_api)
 
-    server = Process(target=app.run, daemon=True)
-    server.start()
+    server_thread = threading.Thread(target=app.run, daemon=True)
+    server_thread.start()
 
     logger.info('Spinning map manager')
 
-    while (rclpy.ok and not terminating):
-        rclpy.spin_once(map_manager_node, timeout_sec=0.0)
+    rclpy.spin(map_manager_node)
 
-    server.kill()
-
+    # server_thread.kill()
     map_manager_node.destroy_node()
     rclpy.shutdown()
 
