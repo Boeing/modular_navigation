@@ -31,6 +31,7 @@ from launch.conditions import IfCondition
 from gazebo_msgs.srv import SpawnEntity, GetEntityState
 
 from geometry_msgs.msg import Pose, PoseStamped
+from sensor_msgs.msg import LaserScan
 from autonomy_interface.action import Drive
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
@@ -200,10 +201,14 @@ class TestDriveToWaypoint(unittest.TestCase):
         rclpy.shutdown()
 
     def setUp(self):
+        # DEBUG
+        self.scan_count = 0.
+
         self.node = rclpy.create_node('test_node', parameter_overrides=[
             Parameter('use_sim_time', Parameter.Type.BOOL, True)])
         self.clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.ROS_TIME)
+        self.node_clock = self.node.get_clock()
         self.log = self.node.get_logger()
 
         # Clients for spawning robot and checking status in gazebo
@@ -243,6 +248,9 @@ class TestDriveToWaypoint(unittest.TestCase):
         # Set goal position
         self.waypoint_pose.pose.position.x = 20.0
         self.waypoint_pose.pose.position.y = 9.0
+
+    def scan_count_callback(self, msg):
+        self.scan_count += 1
 
     def tearDown(self):
         self.node.destroy_node()
@@ -287,6 +295,22 @@ class TestDriveToWaypoint(unittest.TestCase):
         else:
             self.log.info('Not in simulation. Exiting.')
             self.assertTrue(True)
+
+    def test_measure_topic_rate(self):
+        # Subscribe to a topic for 10s and measure the average rate
+        scan_topic = 'scan'
+        period = 5.0
+        self.node.create_subscription(
+            LaserScan, scan_topic, self.scan_count_callback, 1)
+
+        self.scan_start_time = self.clock.now()
+
+        while self.clock.now() - self.scan_start_time < rclpy.time.Duration(seconds=period):
+            rclpy.spin_once(self.node)
+
+        scan_rate = self.scan_count / period
+
+        self.log.info('Scan rate: ' + str(scan_rate))
 
     def test_b_get_waypoint(self):
         self.log.info('Getting waypoint...')  # REMOVE
