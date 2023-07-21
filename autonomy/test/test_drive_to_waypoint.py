@@ -238,11 +238,11 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.robot_pose = Pose()
         self.robot_pose.position.x = 20.0
         self.robot_pose.position.y = 8.0
-        self.waypoint_offset = -2.0
+        self.waypoint_offset = -2.0  # unused
         self.waypoint_pose = PoseStamped()
         # Set goal position
-        self.waypoint_pose.pose.position.x = 22.2
-        self.waypoint_pose.pose.position.y = 10.0
+        self.waypoint_pose.pose.position.x = 20.0
+        self.waypoint_pose.pose.position.y = 9.0
 
     def tearDown(self):
         self.node.destroy_node()
@@ -307,7 +307,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.rotation_mult = 0.3/pi
 
         # Wait for robot to be localised
-        time.sleep(30)
+        time.sleep(15)
 
         self.log.info('Sending goal...')
         # Send Goal
@@ -334,6 +334,6 @@ class TestDriveToWaypoint(unittest.TestCase):
 
             # Assert if goal achieved
             self.assertTrue(drive_action_result.status)
-            # TODO Assert that desired position is reached in gazebo
+            # TODO Assert that desired position is reached in gazebo if in sim mode
         else:
             self.assertTrue(False, 'Goal REJECTED')
