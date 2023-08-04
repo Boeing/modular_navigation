@@ -246,8 +246,8 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.waypoint_offset = -2.0  # unused
         self.waypoint_pose = PoseStamped()
         # Set goal position
-        self.waypoint_pose.pose.position.x = 22.0
-        self.waypoint_pose.pose.position.y = 10.0
+        self.waypoint_pose.pose.position.x = 16.0
+        self.waypoint_pose.pose.position.y = 14.0
 
     def scan_count_callback(self, msg):
         self.scan_count += 1
