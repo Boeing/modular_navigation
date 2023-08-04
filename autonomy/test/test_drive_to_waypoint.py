@@ -246,8 +246,8 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.waypoint_offset = -2.0  # unused
         self.waypoint_pose = PoseStamped()
         # Set goal position
-        self.waypoint_pose.pose.position.x = 20.0
-        self.waypoint_pose.pose.position.y = 9.0
+        self.waypoint_pose.pose.position.x = 22.0
+        self.waypoint_pose.pose.position.y = 10.0
 
     def scan_count_callback(self, msg):
         self.scan_count += 1
@@ -341,6 +341,7 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.log.info('Waiting for the goal to be accepted...')  # REMOVE
         # Wait for the goal to be accepted/rejected
         rclpy.spin_until_future_complete(self.node, drive_action_future)
+
         # Get the goal handle as result of the future
         drive_action_goal_handle: ClientGoalHandle = drive_action_future.result()
 

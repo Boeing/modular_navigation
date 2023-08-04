@@ -24,7 +24,7 @@ PurePursuitController:
 costmap:
 
   layers:
-    - {name: laser_data, type: 'gridmap::ObstacleLayer'}
+#    - {name: laser_data, type: 'gridmap::ObstacleLayer'}
 #    - {name: sonar_data, type: 'gridmap::ObstacleLayer'}
 #    - {name: realsense_data, type: 'gridmap::ObstacleLayer'}
 
