@@ -2,7 +2,6 @@ import os
 import subprocess
 import tempfile
 import json
-import rclpy
 from datetime import datetime
 from math import ceil
 from typing import Optional, List
@@ -67,7 +66,8 @@ def sdf_to_og_pbstream(
     ]
 
     if submap_locations is None:
-        submap_locations = [(map_size[0]/2.0, map_size[1]/2.0, map_size[0], map_size[1])]
+        submap_locations = [
+            (map_size[0]/2.0, map_size[1]/2.0, map_size[0], map_size[1])]
 
     for s in submap_locations:
         cmd += ['--submap_location', ','.join([str(_s) for _s in s])]
@@ -115,16 +115,12 @@ def process_dxf(
 
     logger = node.get_logger()
 
-    logger.info('Processing DXF file: {}'.format(dxf_file))  # DEBUG
-
     if name is None or name == '':
         name = os.path.splitext(os.path.basename(dxf_file))[0]
 
     loader = DxfLoader(dxf_file)
     gm = loader.parse_dxf()
     am = gm.area_manager
-
-    logger.info('Loaded {} zones'.format(len(loader.zones)))  # DEBUG
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_sdf_f, \
             tempfile.NamedTemporaryFile(delete=False) as temp_png_f, \
@@ -152,8 +148,6 @@ def process_dxf(
             zones=loader.zones.values(),
         )
 
-        logger.info('Wrote OG to {}'.format(os.path.abspath(temp_png_f.name)))  # DEBUG
-
         temp_png_f.seek(0)
         im = Image.open(temp_png_f)
         im.load()
@@ -166,7 +160,8 @@ def process_dxf(
 
             label_dict = {node: node.display_name for node in gm.nodes}
             pos_dict = {node: (node.x, node.y) for node in gm.nodes}
-            nx.draw(gm.graph, pos=pos_dict, labels=label_dict, with_labels=True, node_size=100, font_size=6, ax=axs[0])
+            nx.draw(gm.graph, pos=pos_dict, labels=label_dict,
+                    with_labels=True, node_size=100, font_size=6, ax=axs[0])
 
             # Occupancy grid
             im.show()
@@ -179,12 +174,15 @@ def process_dxf(
 
             axs[0].axis('equal')
             axs[0].axis('on')
-            axs[0].tick_params(left=True, bottom=True, labelbottom=True, labelleft=True)
+            axs[0].tick_params(left=True, bottom=True,
+                               labelbottom=True, labelleft=True)
 
             # Plot area tree
-            label_dict = {area: area.display_name for area in am.get_areas(level=None)}
+            label_dict = {
+                area: area.display_name for area in am.get_areas(level=None)}
             pos = graphviz_layout(am.tree, prog="dot")
-            nx.draw(am.tree, pos, labels=label_dict, with_labels=True, font_size=6, ax=axs[1])
+            nx.draw(am.tree, pos, labels=label_dict,
+                    with_labels=True, font_size=6, ax=axs[1])
 
             plt.show()
 
@@ -199,7 +197,8 @@ def process_dxf(
                 width=ceil(width_m / resolution),
                 height=ceil(height_m / resolution),
                 origin=PoseMsg(
-                    position=PointMsg(x=float(origin_x), y=float(origin_y), z=0.0),
+                    position=PointMsg(x=float(origin_x),
+                                      y=float(origin_y), z=0.0),
                     orientation=QuaternionMsg(x=0.0, y=0.0, z=0.0, w=1.0)
                 )
             )
@@ -211,7 +210,7 @@ def process_dxf(
         if node_name and upload:
             logger.info('Uploading map via ROS to {}'.format(node_name))
 
-            add_map_client = node.create_client(
+            add_map_srv = node.create_client(
                 AddMap,
                 node_name + '/add_map'
             )
@@ -219,8 +218,7 @@ def process_dxf(
             temp_png_f.seek(0)
             temp_pb_f.seek(0)
 
-            logger.info('Waiting for AddMap service...')  # DEBUG
-            add_map_client.wait_for_service(timeout_sec=5.0)
+            add_map_srv.wait_for_service(timeout_sec=5.0)
 
             add_req = AddMap.Request(
                 map_info=map_info_msg,
@@ -234,16 +232,12 @@ def process_dxf(
                 pbstream=temp_pb_f.read()
             )
 
-            logger.info('Calling AddMap service...')  # DEBUG
             # Assumes node is spinning externally
-            # Call AddMap service asynchronously
-            # add_map_res: AddMap.Response = add_map_client.call(add_req)
-            add_map_future = add_map_client.call_async(add_req)
-            rclpy.spin_until_future_complete(node, add_map_future)
-            add_map_res: AddMap.Response = add_map_future.result()
+            add_map_res: AddMap.Response = add_map_srv.call(add_req)
 
             if not add_map_res.success:
-                raise Exception('Failed to save map: {}'.format(add_map_res.message))
+                raise Exception(
+                    'Failed to save map: {}'.format(add_map_res.message))
 
         #
         # Save to mongo database without ROS
@@ -254,14 +248,16 @@ def process_dxf(
             map_query = MapDoc.objects(name=map_info_msg.name)
             if map_query.count():
                 map_obj = map_query.first()
-                logger.info('Map {} already exists in the database. Updating.'.format(map_info_msg.name))
+                logger.info('Map {} already exists in the database. Updating.'.format(
+                    map_info_msg.name))
             else:
                 map_obj = MapDoc()
 
             map_obj.name = map_info_msg.name
             map_obj.description = description
             map_obj.modified = datetime.utcnow()
-            map_obj.width = ceil(width_m / resolution)  # width and height are stored as number of cells
+            # width and height are stored as number of cells
+            map_obj.width = ceil(width_m / resolution)
             map_obj.height = ceil(height_m / resolution)
             map_obj.resolution = resolution
             map_obj.origin = PoseDoc(
@@ -308,12 +304,10 @@ def process_dxf(
         # Save artifacts
         #
         if output_dir is not None:
-            logger.info('Saving artifacts to {}'.format(output_dir))
             # Create directory with dxf_name
             dxf_name = os.path.splitext(os.path.basename(dxf_file))[0]
             artifacts_dir = os.path.join(output_dir, dxf_name)
             if not os.path.exists(artifacts_dir):
-                logger.info('Creating directory {}'.format(artifacts_dir))
                 os.makedirs(artifacts_dir)
 
             # Map Info
@@ -328,7 +322,8 @@ def process_dxf(
             im.save(os.path.join(artifacts_dir, 'occupancy_grid.png'))
 
             # Pbstream
-            copy2(temp_pb_f.name, os.path.join(artifacts_dir, 'cartographer_map.pbstream'))
+            copy2(temp_pb_f.name, os.path.join(
+                artifacts_dir, 'cartographer_map.pbstream'))
 
             # Node graph
             gm.write_graph(os.path.join(artifacts_dir, 'node_graph.json'))
@@ -337,10 +332,11 @@ def process_dxf(
             am.write_graph(os.path.join(artifacts_dir, 'area_tree.json'))
 
             # Zones
-            zone_dicts = [zone.to_simple_dict() for zone in loader.zones.values()]
+            zone_dicts = [zone.to_simple_dict()
+                          for zone in loader.zones.values()]
             with open(os.path.join(artifacts_dir, 'zones.json'), 'w') as fp:
                 json.dump(zone_dicts, fp, indent=4)
 
             # DXF (to keep everything together)
-            logger.info('Copying {} to {}'.format(dxf_file, artifacts_dir))
-            copy2(dxf_file, os.path.join(artifacts_dir, os.path.basename(dxf_file)))
+            copy2(dxf_file, os.path.join(
+                artifacts_dir, os.path.basename(dxf_file)))
