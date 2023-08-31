@@ -9,7 +9,6 @@
 # Area Tree (JSON)
 # Zones (JSON)
 
-import argparse
 from datetime import datetime
 import json
 import logging
@@ -17,12 +16,11 @@ from PIL import Image
 import mongoengine
 import os
 import io
-
-import matplotlib.pyplot as plt
-import networkx as nx
-from networkx.drawing.nx_pydot import graphviz_layout
+import threading
 
 import rclpy
+import rclpy.executors
+from rclpy.parameter import Parameter
 
 from map_manager.documents import Map as MapDoc
 from map_manager.documents import Point as PointDoc
@@ -41,9 +39,6 @@ from map_manager.config import DATABASE_NAME
 
 logger = logging.getLogger(__name__)
 
-mongo_hostname = 'localhost'
-mongo_port = 27017
-
 
 def dir_path(string):
     if string is None:
@@ -55,11 +50,12 @@ def dir_path(string):
             raise NotADirectoryError(string)
 
 
-def run(node,
+def run(
+        node,
         dir,
-        plot,
-        node_name):
-
+        node_name,
+        mongo_hostname='localhost',
+        mongo_port=27017):
     # Map Info
     if os.path.exists(os.path.join(dir, 'map_info.json')):
         with open(os.path.join(dir, 'map_info.json'), 'r') as fp:
@@ -112,35 +108,6 @@ def run(node,
     else:
         zones = None
         logger.warning('"zones.json" not found')
-
-    if plot:
-        _, axs = plt.subplots(1, 2)
-
-        label_dict = {node: node.display_name for node in gm.nodes}
-        pos_dict = {node: (node.x, node.y) for node in gm.nodes}
-        nx.draw(gm.graph, pos=pos_dict, labels=label_dict, with_labels=True, node_size=100, font_size=6, ax=axs[0])
-
-        # Occupancy grid
-        im = Image.open(io.BytesIO(og_bytes))
-        im.show()
-        del im
-
-        # Plot nodes, zones and areas
-        for zone in zones:
-            zone.plot(ax=axs[0])
-        for area in am.areas.keys():
-            area.plot(ax=axs[0])
-
-        axs[0].axis('equal')
-        axs[0].axis('on')
-        axs[0].tick_params(left=True, bottom=True, labelbottom=True, labelleft=True)
-
-        # Plot area tree
-        label_dict = {area: area.display_name for area in am.get_areas(level=None)}
-        pos = graphviz_layout(am.tree, prog="dot")
-        nx.draw(am.tree, pos, labels=label_dict, with_labels=True, font_size=6, ax=axs[1])
-
-        plt.show()
 
     #
     # Save the map via ROS interface
@@ -258,25 +225,52 @@ def run(node,
     logger.info('Done!')
 
 
-if __name__ == '__main__':
-    logger.addHandler(logging.StreamHandler())
-    logger.setLevel(logging.INFO)
+def upload_map(args=None):
+    try:
+        rclpy.init(args=args)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('dir', type=dir_path,
-                        help='Directory containing map data')
-    parser.add_argument('--plot',
-                        action='store_true',
-                        help='Enable debug plotting')
-    parser.add_argument('--node_name',
-                        type=str,
-                        help='ROS node name to upload via ROS interface')
+        node = rclpy.create_node("upload_map")
 
-    args = parser.parse_args()
+        executor = rclpy.executors.MultiThreadedExecutor()
+        executor.add_node(node)
 
-    run(
-        node=None,
-        dir=args.dir,
-        plot=args.plot,
-        node_name=args.node_name
+        # Spin nodes in a separate thread
+        executor_thread = threading.Thread(target=executor.spin, daemon=True)
+        executor_thread.start()
+
+        # Get node parameters
+        node.mongo_hostname = node.declare_parameter(
+            '~mongo_hostname', 'localhost').value
+        mongo_hostname = node.get_parameter('~mongo_hostname').value
+
+        node.mongo_port = node.declare_parameter('~mongo_port', 27017).value
+        mongo_port = node.get_parameter('~mongo_port').value
+
+        node.declare_parameter('~map_dir', Parameter.Type.STRING)
+        map_dir = node.get_parameter(
+            '~map_dir').value  # path string
+
+        node.declare_parameter('~node_name', 'map_manager')
+        node_name = node.get_parameter(
+            '~node_name').value  # string
+
+        run(
+            node=node,
+            dir=map_dir,
+            node_name=node_name,
+            mongo_hostname=mongo_hostname,
+            mongo_port=mongo_port
         )
+
+        node.destroy_node()
+
+        executor.shutdown()
+        executor_thread.join()
+
+    except Exception:
+        rclpy.shutdown()
+        raise
+
+
+if __name__ == '__main__':
+    upload_map()

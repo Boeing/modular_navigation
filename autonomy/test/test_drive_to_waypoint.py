@@ -1,5 +1,7 @@
 import os
 import unittest
+import time
+from math import pi
 
 import launch
 import launch.actions
@@ -29,14 +31,11 @@ from launch.conditions import IfCondition
 from gazebo_msgs.srv import SpawnEntity, GetEntityState
 
 from geometry_msgs.msg import Pose, PoseStamped
+from sensor_msgs.msg import LaserScan
 from autonomy_interface.action import Drive
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from tf2_ros import TransformBroadcaster
-
-
-import time
-from math import pi
 
 
 @pytest.mark.launch_test
@@ -46,13 +45,15 @@ def generate_test_description():
     autonomy_share_dir = get_package_share_directory('autonomy')
 
     world_file_name = os.path.join(get_package_share_directory('autonomy'),
-                                   'test', 'resources', 'sim_map.world')
+                                   'test', 'resources', 'worlds', 'south_prep', 'sim_map.world')
     robot_file_name_urdf = os.path.join(get_package_share_directory('autonomy'),
-                                        'test', 'resources', 'test_robot.urdf')
+                                        'test', 'resources', 'robots', 'test_robot.urdf')
     robot_file_name_sdf = os.path.join(get_package_share_directory('autonomy'),
-                                       'test', 'resources', 'test_robot.sdf')
+                                       'test', 'resources', 'robots', 'test_robot.sdf')
     navigation_config_file = os.path.join(autonomy_share_dir, 'test',
                                           'config/navigation.yaml')
+    map_dir_arg = os.path.join(autonomy_share_dir, 'test',
+                               'resources', 'worlds', 'south_prep')
 
     print('world_file_name : {}'.format(world_file_name))
     print('robot_urdf_file_name : {}'.format(robot_file_name_urdf))
@@ -68,11 +69,15 @@ def generate_test_description():
         DeclareLaunchArgument(name='mongo_hostname',
                               default_value='mongodb',
                               description='Hostname of the MongoDB server'),
+        DeclareLaunchArgument(name='dxf_map',
+                              default_value='south_prep',
+                              description='The dxf map file to use for localisation.'),
     ]
 
     use_sim_time_arg = LaunchConfiguration("use_sim_time")
     gazebo_client_arg = LaunchConfiguration("gazebo_client")
     mongo_hostname_arg = LaunchConfiguration("mongo_hostname")
+    # dxf_map_arg = LaunchConfiguration('dxf_map') # TODO: Unused
 
     return launch.LaunchDescription(
         declared_arguments +
@@ -134,6 +139,20 @@ def generate_test_description():
                 on_exit=Shutdown()
             ),
 
+            # upload_map executable
+            Node(
+                package='map_manager',
+                executable='upload_map_ros.py',
+                output={'full'},
+                parameters=[
+                    {
+                        '~mongo_hostname': mongo_hostname_arg,
+                        '~map_dir': map_dir_arg,
+                        '~node_name': 'map_manager'
+                    }
+                ],
+            ),
+
             # Launch autonomy
             Node(
                 package='autonomy',
@@ -182,10 +201,14 @@ class TestDriveToWaypoint(unittest.TestCase):
         rclpy.shutdown()
 
     def setUp(self):
+        # DEBUG
+        self.scan_count = 0.
+
         self.node = rclpy.create_node('test_node', parameter_overrides=[
             Parameter('use_sim_time', Parameter.Type.BOOL, True)])
         self.clock = rclpy.clock.Clock(
             clock_type=rclpy.clock.ClockType.ROS_TIME)
+        self.node_clock = self.node.get_clock()
         self.log = self.node.get_logger()
 
         # Clients for spawning robot and checking status in gazebo
@@ -218,23 +241,26 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.global_frame = 'map'
         # Set robot position
         self.robot_pose = Pose()
-        self.robot_pose.position.x = 3.0
-        self.robot_pose.position.y = 10.0
-        self.waypoint_offset = -2.0
+        self.robot_pose.position.x = 20.0
+        self.robot_pose.position.y = 8.0
+        self.waypoint_offset = -2.0  # unused
         self.waypoint_pose = PoseStamped()
         # Set goal position
-        self.waypoint_pose.pose.position.x = 6.2
-        self.waypoint_pose.pose.position.y = 5.0
+        self.waypoint_pose.pose.position.x = 16.0
+        self.waypoint_pose.pose.position.y = 14.0
 
-    # def tearDown(self):
-    #     self.node.destroy_node()
+    def scan_count_callback(self, msg):
+        self.scan_count += 1
+
+    def tearDown(self):
+        self.node.destroy_node()
 
     def test_a_spawn_robot(self):
         # Gazebo stuff if use_sim_time = True
         if (self.node.get_parameter('use_sim_time').get_parameter_value().bool_value):
             # Spawn robot
             gz_urdf = os.path.join(get_package_share_directory('autonomy'),
-                                   'test', 'resources', 'test_robot.sdf')
+                                   'test', 'resources', 'robots', 'test_robot.sdf')
             self.log.debug('Opening file ' + gz_urdf)
             f = open(gz_urdf, 'r')
             urdf_file_data = f.read()
@@ -256,8 +282,10 @@ class TestDriveToWaypoint(unittest.TestCase):
             # Check status of robot in Gazebo
             self.entity_state_req = GetEntityState.Request()
             self.entity_state_req.name = self.robot_name
+            self.log.info('Getting entity state...')  # REMOVE
             self.entity_state_future = self.entity_state_client.call_async(
                 self.entity_state_req)
+            self.log.info('Waiting for entity state...')  # REMOVE
             rclpy.spin_until_future_complete(
                 self.node, self.entity_state_future)
             self.entity_state_res = self.entity_state_future.result()
@@ -268,7 +296,24 @@ class TestDriveToWaypoint(unittest.TestCase):
             self.log.info('Not in simulation. Exiting.')
             self.assertTrue(True)
 
+    def test_measure_topic_rate(self):
+        # Subscribe to a topic for 10s and measure the average rate
+        scan_topic = 'scan'
+        period = 5.0
+        self.node.create_subscription(
+            LaserScan, scan_topic, self.scan_count_callback, 1)
+
+        self.scan_start_time = self.clock.now()
+
+        while self.clock.now() - self.scan_start_time < rclpy.time.Duration(seconds=period):
+            rclpy.spin_once(self.node)
+
+        scan_rate = self.scan_count / period
+
+        self.log.info('Scan rate: ' + str(scan_rate))
+
     def test_b_get_waypoint(self):
+        self.log.info('Getting waypoint...')  # REMOVE
         # Create Drive action message
         self.drive_action = Drive.Goal()
         # Populate Drive action msg with the goal pose
@@ -286,19 +331,22 @@ class TestDriveToWaypoint(unittest.TestCase):
         self.drive_action.rotation_mult = 0.3/pi
 
         # Wait for robot to be localised
-        time.sleep(35)  # DEBUG
+        time.sleep(15)
 
+        self.log.info('Sending goal...')
         # Send Goal
         drive_action_future = self.drive_action_client.send_goal_async(
             self.drive_action)
+
+        self.log.info('Waiting for the goal to be accepted...')  # REMOVE
         # Wait for the goal to be accepted/rejected
         rclpy.spin_until_future_complete(self.node, drive_action_future)
+
         # Get the goal handle as result of the future
         drive_action_goal_handle: ClientGoalHandle = drive_action_future.result()
 
         if drive_action_goal_handle.accepted:
             self.log.info('Goal ACCEPTED')
-
             # Request the goal result
             drive_action_result_future = drive_action_goal_handle.get_result_async()
 
@@ -311,6 +359,6 @@ class TestDriveToWaypoint(unittest.TestCase):
 
             # Assert if goal achieved
             self.assertTrue(drive_action_result.status)
-            # TODO Assert that desired position is reached in gazebo
+            # TODO Assert that desired position is reached in gazebo if in sim mode
         else:
-            self.log.warn('Autonomy goal rejected')
+            self.assertTrue(False, 'Goal REJECTED')

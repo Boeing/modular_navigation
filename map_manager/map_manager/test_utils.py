@@ -66,7 +66,8 @@ def sdf_to_og_pbstream(
     ]
 
     if submap_locations is None:
-        submap_locations = [(map_size[0]/2.0, map_size[1]/2.0, map_size[0], map_size[1])]
+        submap_locations = [
+            (map_size[0]/2.0, map_size[1]/2.0, map_size[0], map_size[1])]
 
     for s in submap_locations:
         cmd += ['--submap_location', ','.join([str(_s) for _s in s])]
@@ -159,7 +160,8 @@ def process_dxf(
 
             label_dict = {node: node.display_name for node in gm.nodes}
             pos_dict = {node: (node.x, node.y) for node in gm.nodes}
-            nx.draw(gm.graph, pos=pos_dict, labels=label_dict, with_labels=True, node_size=100, font_size=6, ax=axs[0])
+            nx.draw(gm.graph, pos=pos_dict, labels=label_dict,
+                    with_labels=True, node_size=100, font_size=6, ax=axs[0])
 
             # Occupancy grid
             im.show()
@@ -172,12 +174,15 @@ def process_dxf(
 
             axs[0].axis('equal')
             axs[0].axis('on')
-            axs[0].tick_params(left=True, bottom=True, labelbottom=True, labelleft=True)
+            axs[0].tick_params(left=True, bottom=True,
+                               labelbottom=True, labelleft=True)
 
             # Plot area tree
-            label_dict = {area: area.display_name for area in am.get_areas(level=None)}
+            label_dict = {
+                area: area.display_name for area in am.get_areas(level=None)}
             pos = graphviz_layout(am.tree, prog="dot")
-            nx.draw(am.tree, pos, labels=label_dict, with_labels=True, font_size=6, ax=axs[1])
+            nx.draw(am.tree, pos, labels=label_dict,
+                    with_labels=True, font_size=6, ax=axs[1])
 
             plt.show()
 
@@ -192,7 +197,8 @@ def process_dxf(
                 width=ceil(width_m / resolution),
                 height=ceil(height_m / resolution),
                 origin=PoseMsg(
-                    position=PointMsg(x=float(origin_x), y=float(origin_y), z=0.0),
+                    position=PointMsg(x=float(origin_x),
+                                      y=float(origin_y), z=0.0),
                     orientation=QuaternionMsg(x=0.0, y=0.0, z=0.0, w=1.0)
                 )
             )
@@ -230,7 +236,8 @@ def process_dxf(
             add_map_res: AddMap.Response = add_map_srv.call(add_req)
 
             if not add_map_res.success:
-                raise Exception('Failed to save map: {}'.format(add_map_res.message))
+                raise Exception(
+                    'Failed to save map: {}'.format(add_map_res.message))
 
         #
         # Save to mongo database without ROS
@@ -241,14 +248,16 @@ def process_dxf(
             map_query = MapDoc.objects(name=map_info_msg.name)
             if map_query.count():
                 map_obj = map_query.first()
-                logger.info('Map {} already exists in the database. Updating.'.format(map_info_msg.name))
+                logger.info('Map {} already exists in the database. Updating.'.format(
+                    map_info_msg.name))
             else:
                 map_obj = MapDoc()
 
             map_obj.name = map_info_msg.name
             map_obj.description = description
             map_obj.modified = datetime.utcnow()
-            map_obj.width = ceil(width_m / resolution)  # width and height are stored as number of cells
+            # width and height are stored as number of cells
+            map_obj.width = ceil(width_m / resolution)
             map_obj.height = ceil(height_m / resolution)
             map_obj.resolution = resolution
             map_obj.origin = PoseDoc(
@@ -313,7 +322,8 @@ def process_dxf(
             im.save(os.path.join(artifacts_dir, 'occupancy_grid.png'))
 
             # Pbstream
-            copy2(temp_pb_f.name, os.path.join(artifacts_dir, 'cartographer_map.pbstream'))
+            copy2(temp_pb_f.name, os.path.join(
+                artifacts_dir, 'cartographer_map.pbstream'))
 
             # Node graph
             gm.write_graph(os.path.join(artifacts_dir, 'node_graph.json'))
@@ -322,9 +332,11 @@ def process_dxf(
             am.write_graph(os.path.join(artifacts_dir, 'area_tree.json'))
 
             # Zones
-            zone_dicts = [zone.to_simple_dict() for zone in loader.zones.values()]
+            zone_dicts = [zone.to_simple_dict()
+                          for zone in loader.zones.values()]
             with open(os.path.join(artifacts_dir, 'zones.json'), 'w') as fp:
                 json.dump(zone_dicts, fp, indent=4)
 
             # DXF (to keep everything together)
-            copy2(dxf_file, os.path.join(artifacts_dir, os.path.basename(dxf_file)))
+            copy2(dxf_file, os.path.join(
+                artifacts_dir, os.path.basename(dxf_file)))
