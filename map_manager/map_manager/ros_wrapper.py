@@ -92,11 +92,20 @@ class RosWrapper(Node):
         #
         # Force check to make sure Mongo is alive
         #
-        try:
-            database.server_info()
-        except pymongo.errors.ServerSelectionTimeoutError as e:
-            self.logger.error("Mongodb is offline", exc_info=e)
-            raise e
+        retries = 4
+        rate = self.create_rate(0.5)  # 2s wait
+        while retries > 0:
+            retries = retries - 1
+            try:
+                server = database.server_info()  # noqa
+                break
+            except pymongo.errors.ServerSelectionTimeoutError as e:
+                if retries > 0:
+                    logger.warn("Mongodb server is offline, will wait and retry {} more times.".format(retries))
+                    rate.sleep()
+                else:
+                    logger.error("Mongodb server is offline, maximum wait time exceeded.".format(retries))
+                    raise e
 
         self.__add_map = self.create_service(AddMap, self.get_name() + '/add_map', self.__add_map_cb)
         self.__delete_map = self.create_service(DeleteMap, self.get_name() + '/delete_map', self.__delete_map_cb)
