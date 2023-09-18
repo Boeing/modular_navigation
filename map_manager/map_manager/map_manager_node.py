@@ -32,7 +32,7 @@ def main(args=None):
 
     logger.info('Starting Map Manager...')
 
-    map_manager = RosWrapper(node)
+    map_manager = RosWrapper(node)  # noqa
 
     app = flask.Flask(__name__, template_folder='/map_manager/map_manager/http_utils')
     server_name = '0.0.0.0:' + str(RESOURCE_PORT)

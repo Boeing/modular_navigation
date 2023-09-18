@@ -7,7 +7,6 @@ import pymongo
 
 import geometry_msgs.msg
 import rclpy
-from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
 import std_msgs.msg
 import typing
@@ -20,18 +19,18 @@ from map_manager.config import DATABASE_NAME
 
 from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
-from map_manager.srv import AddMap  # , AddMapRequest, AddMapResponse
+from map_manager.srv import AddMap
 from map_manager.msg import MapInfo as MapInfoMsg
 from map_manager.documents import Map
-from map_manager.srv import DeleteMap  # , DeleteMapRequest, DeleteMapResponse
-from map_manager.srv import GetActiveMap  # , GetActiveMapRequest, GetActiveMapResponse
-from map_manager.srv import GetAreaTree  # , GetAreaTreeRequest, GetAreaTreeResponse
-from map_manager.srv import GetMapInfo  # , GetMapInfoRequest, GetMapInfoResponse
-from map_manager.srv import GetNodeGraph  # , GetNodeGraphRequest, GetNodeGraphResponse
-from map_manager.srv import GetOccupancyGrid  # , GetOccupancyGridRequest, GetOccupancyGridResponse
-from map_manager.srv import GetZones  # , GetZonesRequest, GetZonesResponse
-from map_manager.srv import ListMaps  # , ListMapsRequest, ListMapsResponse
-from map_manager.srv import SetActiveMap  # , SetActiveMapRequest, SetActiveMapResponse
+from map_manager.srv import DeleteMap
+from map_manager.srv import GetActiveMap
+from map_manager.srv import GetAreaTree
+from map_manager.srv import GetMapInfo
+from map_manager.srv import GetNodeGraph
+from map_manager.srv import GetOccupancyGrid
+from map_manager.srv import GetZones
+from map_manager.srv import ListMaps
+from map_manager.srv import SetActiveMap
 from map_manager.visualise import build_zones_marker_array, build_areas_marker_array, build_graph_marker_array
 
 logger = logging.getLogger(__name__)
