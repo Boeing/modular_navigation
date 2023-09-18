@@ -5,56 +5,57 @@ import logging
 import flask
 import threading
 import rclpy
-
+from rclpy.executors import MultiThreadedExecutor
 from map_manager.ros_wrapper import RosWrapper
 from map_manager.http_utils.routes import map_api
 from map_manager.config import RESOURCE_PORT
+from threading import Thread
 
 
 def main(args=None):
-    rclpy.init()
+    rclpy.init(args=args)
 
-    map_manager_node = RosWrapper()
+    def spin_srv(executor):
+        try:
+            executor.spin()
+        except rclpy.executors.ExternalShutdownException:
+            pass
 
-    logger = logging.getLogger(__name__)
+    node = rclpy.create_node('map_manager', start_parameter_services=False)
+    logger = node.get_logger()
 
-    handlers = logging.getLogger('rosout').handlers
-    for handler in handlers:
-        logger.addHandler(handler)
-        logger.setLevel(logging.DEBUG)
-        for _logger_name, _logger in logging.Logger.manager.loggerDict.items():  # type: ignore
-            if _logger_name not in ['rosgraph', 'rospy', 'rosout'] and '.' not in _logger_name:
-                if isinstance(_logger, logging.PlaceHolder):
-                    _logger = logging.getLogger(_logger_name)
-                _logger.addHandler(handler)
-                _logger.setLevel(logging.DEBUG)
-
-    logger = map_manager_node.get_logger()
+    # Spin in a separate thread
+    srv_executor = MultiThreadedExecutor()
+    srv_executor.add_node(node)
+    srv_thread = Thread(target=spin_srv, args=(srv_executor,), daemon=True)
+    srv_thread.start()
 
     logger.info('Starting Map Manager...')
+
+    map_manager = RosWrapper(node)  # noqa
 
     app = flask.Flask(__name__, template_folder='/map_manager/map_manager/http_utils')
     server_name = '0.0.0.0:' + str(RESOURCE_PORT)
 
-    logger.info('Map Manager at ' + server_name)
+    logger.info('Running MapManager at address:' + server_name)
     app.config['SERVER_NAME'] = server_name
-
     app.logger.setLevel(logging.INFO)
-
-    for handler in handlers:
-        app.logger.addHandler(handler)
 
     app.register_blueprint(map_api)
 
     server_thread = threading.Thread(target=app.run, daemon=True)
     server_thread.start()
 
-    logger.info('Spinning map manager')
-
-    rclpy.spin(map_manager_node)
-
-    # server_thread.kill()
-    map_manager_node.destroy_node()
+    rate = node.create_rate(1)
+    try:
+        while rclpy.ok():
+            rate.sleep()
+    except KeyboardInterrupt:
+        pass
+    logger.info('Shutting down...')
+    rate.destroy()
+    srv_executor.shutdown()
+    node.destroy_node()  # destroy the node explicity (optional)
     rclpy.shutdown()
 
 

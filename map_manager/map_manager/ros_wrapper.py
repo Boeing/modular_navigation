@@ -7,7 +7,6 @@ import pymongo
 
 import geometry_msgs.msg
 import rclpy
-from rclpy.node import Node
 from rclpy.qos import QoSProfile, DurabilityPolicy, HistoryPolicy
 import std_msgs.msg
 import typing
@@ -20,18 +19,18 @@ from map_manager.config import DATABASE_NAME
 
 from visualization_msgs.msg import MarkerArray as MarkerArrayMsg
 
-from map_manager.srv import AddMap  # , AddMapRequest, AddMapResponse
+from map_manager.srv import AddMap
 from map_manager.msg import MapInfo as MapInfoMsg
 from map_manager.documents import Map
-from map_manager.srv import DeleteMap  # , DeleteMapRequest, DeleteMapResponse
-from map_manager.srv import GetActiveMap  # , GetActiveMapRequest, GetActiveMapResponse
-from map_manager.srv import GetAreaTree  # , GetAreaTreeRequest, GetAreaTreeResponse
-from map_manager.srv import GetMapInfo  # , GetMapInfoRequest, GetMapInfoResponse
-from map_manager.srv import GetNodeGraph  # , GetNodeGraphRequest, GetNodeGraphResponse
-from map_manager.srv import GetOccupancyGrid  # , GetOccupancyGridRequest, GetOccupancyGridResponse
-from map_manager.srv import GetZones  # , GetZonesRequest, GetZonesResponse
-from map_manager.srv import ListMaps  # , ListMapsRequest, ListMapsResponse
-from map_manager.srv import SetActiveMap  # , SetActiveMapRequest, SetActiveMapResponse
+from map_manager.srv import DeleteMap
+from map_manager.srv import GetActiveMap
+from map_manager.srv import GetAreaTree
+from map_manager.srv import GetMapInfo
+from map_manager.srv import GetNodeGraph
+from map_manager.srv import GetOccupancyGrid
+from map_manager.srv import GetZones
+from map_manager.srv import ListMaps
+from map_manager.srv import SetActiveMap
 from map_manager.visualise import build_zones_marker_array, build_areas_marker_array, build_graph_marker_array
 
 logger = logging.getLogger(__name__)
@@ -44,13 +43,13 @@ def exception_wrapper(return_cls):
             try:
                 return func(self, msg, *args, **kwargs)
             except ValidationError as e:
-                logger.error('exception_wrapper: ValidationError: {}'.format(str(e)))
-                return return_cls(success=False, message='object_id is not valid: {}'.format(str(e)))
+                logger.error(f'exception_wrapper: ValidationError: {str(e)}')
+                return return_cls(success=False, message=f'object_id is not valid: {str(e)}')
             except DoesNotExist as e:
-                logger.error('exception_wrapper: object does not exist: {}'.format(str(e)))
-                return return_cls(success=False, message='Object does not exist: {}'.format(str(e)))
+                logger.error(f'exception_wrapper: object does not exist: {str(e)}')
+                return return_cls(success=False, message=f'Object does not exist: {str(e)}')
             except Exception as e:
-                msg = 'exception_wrapper: exception: {}: {}'.format(str(e), traceback.format_exc())
+                msg = f'exception_wrapper: exception: {str(e)}: {traceback.format_exc()}'
                 logger.error(msg)
                 return return_cls(success=False, message=msg)
 
@@ -59,26 +58,22 @@ def exception_wrapper(return_cls):
     return wrapper
 
 
-class RosWrapper(Node):
+class RosWrapper(object):
     def __init__(self, node=None):
 
-        #
-        # State
-        #
-        super().__init__('map_manager')
+        self.__node = node
+        self.__logger = node.get_logger()
 
         self.__map_name = None
 
         # Parameters are now handled by the node, no more param server
-        self.mongo_hostname = self.declare_parameter('~mongo_hostname', 'localhost').value
-        self.mongo_port = self.declare_parameter('~mongo_port', 27017).value
-
-        self.logger = self.get_logger()
+        self.mongo_hostname = self.__node.declare_parameter('~mongo_hostname', 'localhost').value
+        self.mongo_port = self.__node.declare_parameter('~mongo_port', 27017).value
 
         #
         # Connect to the db
         #
-        self.logger.info('Connecting to {}:{}'.format(self.mongo_hostname, self.mongo_port))
+        self.__logger.info(f'Connecting to {self.mongo_hostname}:{self.mongo_port}')
         try:
             database = mongoengine.connect(
                 db=DATABASE_NAME,
@@ -86,37 +81,46 @@ class RosWrapper(Node):
                 port=self.mongo_port,
                 serverSelectionTimeoutMS=30)
         except mongoengine.ConnectionFailure as e:
-            self.logger.error("Failed to connect to Mongodb", exc_info=e)
+            self.__logger.error("Failed to connect to Mongodb", exc_info=e)
             raise e
 
         #
         # Force check to make sure Mongo is alive
         #
-        try:
-            database.server_info()
-        except pymongo.errors.ServerSelectionTimeoutError as e:
-            self.logger.error("Mongodb is offline", exc_info=e)
-            raise e
+        retries = 4
+        rate = self.__node.create_rate(0.5)  # 2s wait
+        while retries > 0:
+            retries = retries - 1
+            try:
+                server = database.server_info()  # noqa
+                break
+            except pymongo.errors.ServerSelectionTimeoutError as e:
+                if retries > 0:
+                    logger.warn(f"Mongodb server is offline, will wait and retry {retries} more times.")
+                    rate.sleep()
+                else:
+                    logger.error("Mongodb server is offline, maximum wait time exceeded.")
+                    raise e
 
-        self.__add_map = self.create_service(AddMap, self.get_name() + '/add_map', self.__add_map_cb)
-        self.__delete_map = self.create_service(DeleteMap, self.get_name() + '/delete_map', self.__delete_map_cb)
+        self.__add_map = self.__node.create_service(AddMap, '~/add_map', self.__add_map_cb)
+        self.__delete_map = self.__node.create_service(DeleteMap, '~/delete_map', self.__delete_map_cb)
 
-        self.__get_map_info = self.create_service(
-            GetMapInfo, self.get_name() + '/get_map_info', self.__get_map_info_cb)
-        self.__get_og = self.create_service(
-            GetOccupancyGrid, self.get_name() + '/get_occupancy_grid', self.__get_occupancy_grid_cb)
-        self.__get_node_graph = self.create_service(
-            GetNodeGraph, self.get_name() + '/get_node_graph', self.__get_node_graph_cb)
-        self.__get_area_tree = self.create_service(
-            GetAreaTree, self.get_name() + '/get_area_tree', self.__get_area_tree_cb)
-        self.__get_zones = self.create_service(
-            GetZones, self.get_name() + '/get_zones', self.__get_zones_cb)
-        self.__list_maps = self.create_service(
-            ListMaps, self.get_name() + '/list_maps', self.__list_maps_cb)
-        self.__set_active_map = self.create_service(
-            SetActiveMap, self.get_name() + '/set_active_map', self.__set_active_map_cb)
-        self.__get_active_map = self.create_service(
-            GetActiveMap, self.get_name() + '/get_active_map', self.__get_active_map_cb)
+        self.__get_map_info = self.__node.create_service(
+            GetMapInfo, '~/get_map_info', self.__get_map_info_cb)
+        self.__get_og = self.__node.create_service(
+            GetOccupancyGrid, '~/get_occupancy_grid', self.__get_occupancy_grid_cb)
+        self.__get_node_graph = self.__node.create_service(
+            GetNodeGraph, '~/get_node_graph', self.__get_node_graph_cb)
+        self.__get_area_tree = self.__node.create_service(
+            GetAreaTree, '~/get_area_tree', self.__get_area_tree_cb)
+        self.__get_zones = self.__node.create_service(
+            GetZones, '~/get_zones', self.__get_zones_cb)
+        self.__list_maps = self.__node.create_service(
+            ListMaps, '~/list_maps', self.__list_maps_cb)
+        self.__set_active_map = self.__node.create_service(
+            SetActiveMap, '~/set_active_map', self.__set_active_map_cb)
+        self.__get_active_map = self.__node.create_service(
+            GetActiveMap, '~/get_active_map', self.__get_active_map_cb)
 
         # QoS profile, substitutes latch and queue_size args in create_publisher
         # See: https://docs.ros.org/en/rolling/Concepts/About-Quality-of-Service-Settings.html
@@ -127,12 +131,12 @@ class RosWrapper(Node):
                                       history=HistoryPolicy.KEEP_LAST,
                                       )
         # Initialise a unit world->map transform
-        self.__static_tf_pub = self.create_publisher(TFMessage, "/tf_static", self.qos_profile)
+        self.__static_tf_pub = self.__node.create_publisher(TFMessage, "/tf_static", self.qos_profile)
         self.__static_tf_pub.publish(
             TFMessage(
                 transforms=[
                     geometry_msgs.msg.TransformStamped(
-                        header=std_msgs.msg.Header(frame_id='world', stamp=self.get_clock().now().to_msg()),
+                        header=std_msgs.msg.Header(frame_id='world', stamp=self.__node.get_clock().now().to_msg()),
                         child_frame_id='map',
                         transform=geometry_msgs.msg.Transform(
                             translation=geometry_msgs.msg.Vector3(x=0., y=0., z=0.),
@@ -163,39 +167,39 @@ class RosWrapper(Node):
         # else:
         #     self.__active_map_pub.publish(MapInfoMsg())
 
-        self.logger.info('Successfully started')
+        self.__logger.info('Successfully started')
 
     def __init_publishers(self):
-        self.logger.info('Initialising publishers')
+        self.__logger.info('Initialising publishers')
 
-        self.__active_map_pub = self.create_publisher(
+        self.__active_map_pub = self.__node.create_publisher(
             MapInfoMsg,
-            self.get_name() + '/active_map',
+            '~/active_map',
             qos_profile=self.qos_profile
         )
-        self.__og_pub = self.create_publisher(
+        self.__og_pub = self.__node.create_publisher(
             OccupancyGridMsg,
-            self.get_name() + '/occupancy_grid',
+            '~/occupancy_grid',
             qos_profile=self.qos_profile
         )
-        self.__pbstream_pub = self.create_publisher(
+        self.__pbstream_pub = self.__node.create_publisher(
             UInt8MultiArray,
-            self.get_name() + '/pbstream',
+            '~/pbstream',
             qos_profile=self.qos_profile
         )
-        self.__zones_pub = self.create_publisher(
+        self.__zones_pub = self.__node.create_publisher(
             MarkerArrayMsg,
-            self.get_name() + '/zones',
+            '~/zones',
             qos_profile=self.qos_profile
         )
-        self.__areas_pub = self.create_publisher(
+        self.__areas_pub = self.__node.create_publisher(
             MarkerArrayMsg,
-            self.get_name() + '/areas',
+            '~/areas',
             qos_profile=self.qos_profile
         )
-        self.__graph_pub = self.create_publisher(
+        self.__graph_pub = self.__node.create_publisher(
             MarkerArrayMsg,
-            self.get_name() + '/graph',
+            '~/graph',
             qos_profile=self.qos_profile
         )
 
@@ -207,7 +211,7 @@ class RosWrapper(Node):
 
         self.__active_map_pub.publish(map_obj.get_map_info_msg())
 
-        grid = map_obj.get_occupancy_grid_msg(self)
+        grid = map_obj.get_occupancy_grid_msg(self.__node)
         self.__og_pub.publish(grid)
 
         if map_obj.pbstream:
@@ -215,11 +219,11 @@ class RosWrapper(Node):
         else:
             self.__pbstream_pub.publish(UInt8MultiArray())
 
-        self.__zones_pub.publish(build_zones_marker_array(self, map_obj))
-        self.__areas_pub.publish(build_areas_marker_array(self, map_obj))
+        self.__zones_pub.publish(build_zones_marker_array(self.__node, map_obj))
+        self.__areas_pub.publish(build_areas_marker_array(self.__node, map_obj))
         self.__graph_pub.publish(
             build_graph_marker_array(
-                self, map_obj, node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()},
+                self.__node, map_obj, node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()},
                 edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()}))
 
     #
@@ -228,7 +232,7 @@ class RosWrapper(Node):
 
     @exception_wrapper(AddMap.Response)
     def __add_map_cb(self, req: AddMap.Request, res) -> AddMap.Response:
-        self.logger.info('Request to add a new Map: {}'.format(req.map_info.name))
+        self.__logger.info(f'Request to add a new Map: {req.map_info.name}')
 
         if len(req.occupancy_grid.data) <= 0:
             return AddMap.Response(
@@ -239,7 +243,7 @@ class RosWrapper(Node):
         map_query = Map.objects(name=req.map_info.name)
         if map_query.count():
             map_obj = map_query.first()
-            self.logger.info('Map {} already exists in the database. Overwriting.'.format(req.map_info.name))
+            self.__logger.info(f'Map {req.map_info.name} already exists in the database. Overwriting.')
             map_obj.delete()
         else:
             map_obj = Map()
@@ -262,7 +266,7 @@ class RosWrapper(Node):
 
     @exception_wrapper(DeleteMap.Response)
     def __delete_map_cb(self, req: DeleteMap.Request, res) -> DeleteMap.Response:
-        self.logger.info('Request to delete Map: {}'.format(req.map_name))
+        self.__logger.info(f'Request to delete Map: {req.map_name}')
 
         obj = Map.objects(name=req.map_name).get()
         obj.delete()
@@ -289,7 +293,7 @@ class RosWrapper(Node):
         map_obj = Map.objects(name=req.map_name).get()
 
         return GetOccupancyGrid.Response(
-            grid=map_obj.get_occupancy_grid_msg(self),
+            grid=map_obj.get_occupancy_grid_msg(self.__node),
             success=True
         )
 
@@ -367,7 +371,7 @@ class RosWrapper(Node):
 
     @exception_wrapper(SetActiveMap.Response)
     def __set_active_map_cb(self, req: SetActiveMap.Request, res) -> SetActiveMap.Response:
-        self.logger.info('Request to set active Map: {}'.format(req.map_name))
+        self.__logger.info(f'Request to set active Map: {req.map_name}')
 
         Map.objects(name=req.map_name).get()
         self.__load_map(map_name=req.map_name)
@@ -389,7 +393,7 @@ class RosWrapper(Node):
 
     def __load_map(self, map_name):
 
-        self.logger.info('Loading Map: {}'.format(map_name))
+        self.__logger.info(f'Loading Map: {map_name}')
 
         # Set as the current map
         self.__map_name = str(map_name)
@@ -399,7 +403,7 @@ class RosWrapper(Node):
 
             self.__active_map_pub.publish(map_obj.get_map_info_msg())
 
-            grid = map_obj.get_occupancy_grid_msg(self)
+            grid = map_obj.get_occupancy_grid_msg(self.__node)
             self.__og_pub.publish(grid)
 
             if map_obj.pbstream:
@@ -407,12 +411,12 @@ class RosWrapper(Node):
             else:
                 self.__pbstream_pub.publish(UInt8MultiArray())
 
-            self.__zones_pub.publish(build_zones_marker_array(self, map_obj))
-            self.__areas_pub.publish(build_areas_marker_array(self, map_obj))
+            self.__zones_pub.publish(build_zones_marker_array(self.__node, map_obj))
+            self.__areas_pub.publish(build_areas_marker_array(self.__node, map_obj))
             self.__graph_pub.publish(
                 build_graph_marker_array(
-                    self, map_obj, node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()},
+                    self.__node, map_obj, node_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()},
                     edge_params={'lifetime': rclpy.duration.Duration(seconds=0).to_msg()}))
-            self.logger.info('Map: {} is Loaded'.format(map_name))
+            self.__logger.info(f'Map: {map_name} is Loaded')
         except Exception as e:
-            self.logger.error('Exception publishing data: {} - {}'.format(e, traceback.format_exc()))
+            self.__logger.error(f'Exception publishing data: {e} - {traceback.format_exc()}')
