@@ -479,7 +479,9 @@ void Autonomy::executeGoal()
     // Send aborted goal result to client if not complete
     if (!controller_done_ && goal_handle)
     {
-        goal_handle->abort(std::make_shared<autonomy_interface::action::Drive::Result>());
+        auto action_result_aborted = std::make_shared<autonomy_interface::action::Drive::Result>();
+        action_result_aborted->success = false;
+        goal_handle->abort(action_result_aborted);
     }
 
     running_ = false;
@@ -633,8 +635,10 @@ void Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_hand
             // planners should seamlessly pick up the new goal
             RCLCPP_INFO_STREAM(this->get_logger(),
                                "Updating goal with: " << rclcpp_action::to_string(goal_handle->get_goal_id()));
-            current_goal_handle->abort(std::make_shared<autonomy_interface::action::Drive::Result>());
-            setGoalHandle(goal_handle);  // update goal for threads
+            auto action_result_aborted = std::make_shared<autonomy_interface::action::Drive::Result>();
+            action_result_aborted->success = false;
+            current_goal_handle->abort(action_result_aborted);
+            setGoalHandle(goal_handle); // update goal for threads
             return;
         }
         else
