@@ -638,7 +638,7 @@ void Autonomy::acceptedCallback(const std::shared_ptr<GoalHandleDrive> goal_hand
             auto action_result_aborted = std::make_shared<autonomy_interface::action::Drive::Result>();
             action_result_aborted->success = false;
             current_goal_handle->abort(action_result_aborted);
-            setGoalHandle(goal_handle); // update goal for threads
+            setGoalHandle(goal_handle);  // update goal for threads
             return;
         }
         else
