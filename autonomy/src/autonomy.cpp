@@ -93,22 +93,26 @@ std::vector<std::shared_ptr<gridmap::Layer>> loadMapLayers(const YAML::Node& par
             }
             catch (const pluginlib::CreateClassException& e)
             {
-                RCLCPP_ERROR_STREAM(node->get_logger(), "CreateClassException while loading plugin '" + pname + "': " + std::string(e.what()));
+                RCLCPP_ERROR_STREAM(node->get_logger(), "CreateClassException while loading plugin '" + pname +
+                                                            "': " + std::string(e.what()));
                 throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
             }
             catch (const pluginlib::LibraryLoadException& e)
             {
-                RCLCPP_ERROR_STREAM(node->get_logger(), "LibraryLoadException while loading plugin '" + pname + "': " + std::string(e.what()));
+                RCLCPP_ERROR_STREAM(node->get_logger(), "LibraryLoadException while loading plugin '" + pname +
+                                                            "': " + std::string(e.what()));
                 throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
             }
             catch (const pluginlib::PluginlibException& e)
             {
-                RCLCPP_ERROR_STREAM(node->get_logger(), "PluginlibException while loading plugin '" + pname + "': " + std::string(e.what()));
+                RCLCPP_ERROR_STREAM(node->get_logger(), "PluginlibException while loading plugin '" + pname +
+                                                            "': " + std::string(e.what()));
                 throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
             }
             catch (const std::exception& e)
             {
-                RCLCPP_ERROR_STREAM(node->get_logger(), "General Exception while loading plugin '" + pname + "': " + std::string(e.what()));
+                RCLCPP_ERROR_STREAM(node->get_logger(),
+                                    "General Exception while loading plugin '" + pname + "': " + std::string(e.what()));
                 throw std::runtime_error("Exception while loading plugin '" + pname + "': " + std::string(e.what()));
             }
         }
