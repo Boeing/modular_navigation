@@ -34,7 +34,6 @@ class LaserData : public TopicDataSource<sensor_msgs::msg::LaserScan>
     std::chrono::time_point<std::chrono::system_clock> initChronoTime_;
     const int INIT_PRINT_DELAY = 45;
 
-
     std::vector<Eigen::Vector3d> laser_directions_;
 };
 }  // namespace gridmap
