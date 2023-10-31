@@ -47,9 +47,9 @@ bool LaserData::processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, co
         sensor_pt_map.y() >= map_data->dimensions().size().y())
     {
         if (std::chrono::system_clock::now() - initChronoTime_ > std::chrono::seconds(INIT_PRINT_DELAY))
-            ;
         {  // Only log once everything is up and running
-            RCLCPP_WARN(rclcpp::get_logger(""), "Laser sensor is not on gridmap");
+            rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+            RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), steady_clock, 10000, "Laser sensor is not on gridmap");
         }
         return false;
     }

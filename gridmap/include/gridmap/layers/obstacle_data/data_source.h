@@ -319,7 +319,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
             {
                 if (std::chrono::system_clock::now() - initChronoTime_ > std::chrono::seconds(INIT_PRINT_DELAY))
                 {
-                    RCLCPP_ERROR_STREAM(node_->get_logger(), "Failed to process data for '" << name_ << "'");
+                    rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+                    RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), steady_clock, 10000,
+                                                "Failed to process data for '" << name_ << "'");
                 }
             }
             else

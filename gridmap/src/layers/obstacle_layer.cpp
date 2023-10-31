@@ -312,7 +312,11 @@ bool ObstacleLayer::isDataOk() const
         const bool ds_ok = ds.second->isDataOk();
         if (!ds_ok)
             if (std::chrono::system_clock::now() - initChronoTime_ > std::chrono::seconds(INIT_PRINT_DELAY))
-                RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "'" << ds.first << "' has stale data");
+            {
+                rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+                RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), steady_clock, 10000,
+                                            "'" << ds.first << "' has stale data");
+            }
         ok &= ds_ok;
     }
     return ok;
