@@ -98,6 +98,7 @@ class DataSource
     virtual bool isDataOk() const = 0;
 
     std::chrono::time_point<std::chrono::system_clock> initChronoTime_;
+    const int INIT_PRINT_DELAY = 45;
 };
 
 template <typename MsgType> class TopicDataSource : public DataSource
@@ -316,7 +317,10 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
             if (!success)
             {
-                RCLCPP_ERROR_STREAM(node_->get_logger(), "Failed to process data for '" << name_ << "'");
+                if (std::chrono::system_clock::now() - initChronoTime_ >  std::chrono::seconds(INIT_PRINT_DELAY))
+                {
+                    RCLCPP_ERROR_STREAM(node_->get_logger(), "Failed to process data for '" << name_ << "'");
+                }
             }
             else
             {
@@ -391,7 +395,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
                         const double delay = (node_->get_clock()->now() - get_last_updated()).seconds();
                         if (delay > maximum_sensor_delay_ && (node_->get_clock()->now() - last_warned).seconds() > 1.0)
                         {
-                            if (std::chrono::system_clock::now() - initChronoTime_ >  std::chrono::seconds(45))
+                            if (std::chrono::system_clock::now() - initChronoTime_ >  std::chrono::seconds(INIT_PRINT_DELAY))
                             {
                                 RCLCPP_WARN_STREAM(node_->get_logger(),
                                                    "DataSource '" << name_ << "' has not updated for " << delay << "s");

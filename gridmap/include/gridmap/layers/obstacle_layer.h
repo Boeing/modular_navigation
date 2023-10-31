@@ -64,6 +64,7 @@ class ObstacleLayer : public Layer
     std::thread time_decay_thread_;
     void timeDecayThread(const double frequency, const double alpha_decay);
     std::chrono::time_point<std::chrono::system_clock> initChronoTime_;
+    const int INIT_PRINT_DELAY = 45;
 };
 }  // namespace gridmap
 
