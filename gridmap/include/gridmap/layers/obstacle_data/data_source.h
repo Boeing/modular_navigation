@@ -332,7 +332,9 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     void dataThread()
     {
-        rclcpp::Time last_warned = node_->get_clock()->now();
+        // Period in which to not log warnings (startup time)
+        const rclcpp::Duration STARTUP_SILENT_PERIOD = rclcpp::Duration::from_seconds(30.0);
+        rclcpp::Time last_warned = node_->get_clock()->now() + STARTUP_SILENT_PERIOD;
 
         const double update_rate_hz = 100.0;
         rclcpp::Rate rate(update_rate_hz);

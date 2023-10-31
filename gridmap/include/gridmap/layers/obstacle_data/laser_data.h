@@ -31,6 +31,8 @@ class LaserData : public TopicDataSource<sensor_msgs::msg::LaserScan>
     double max_obstacle_height_;
     double obstacle_range_;
     double raytrace_range_;
+    std::chrono::time_point<std::chrono::system_clock> initChronoTime_;
+
 
     std::vector<Eigen::Vector3d> laser_directions_;
 };
