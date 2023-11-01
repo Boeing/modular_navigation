@@ -26,6 +26,7 @@ void LaserData::onInitialize(const YAML::Node& parameters)
     max_obstacle_height_ = parameters["max_obstacle_height"].as<double>(2.0);
     obstacle_range_ = parameters["obstacle_range"].as<double>(3.5);
     raytrace_range_ = parameters["raytrace_range"].as<double>(4.0);
+    initChronoTime_ = std::chrono::system_clock::now();
 }
 
 void LaserData::onMapDataChanged()
@@ -45,7 +46,11 @@ bool LaserData::processData(const sensor_msgs::msg::LaserScan::SharedPtr msg, co
     if (sensor_pt_map.x() < 0 || sensor_pt_map.x() >= map_data->dimensions().size().x() || sensor_pt_map.y() < 0 ||
         sensor_pt_map.y() >= map_data->dimensions().size().y())
     {
-        RCLCPP_WARN(rclcpp::get_logger(""), "Laser sensor is not on gridmap");
+        if (std::chrono::system_clock::now() - initChronoTime_ > std::chrono::seconds(INIT_PRINT_DELAY))
+        {  // Only log once everything is up and running
+            rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+            RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), steady_clock, 10000, "Laser sensor is not on gridmap");
+        }
         return false;
     }
 

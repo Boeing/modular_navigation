@@ -96,6 +96,9 @@ class DataSource
     virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) = 0;
     virtual std::string name() const = 0;
     virtual bool isDataOk() const = 0;
+
+    std::chrono::time_point<std::chrono::system_clock> initChronoTime_;
+    const int INIT_PRINT_DELAY = 45;
 };
 
 template <typename MsgType> class TopicDataSource : public DataSource
@@ -150,6 +153,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
             std::bind(&TopicDataSource<MsgType>::bufferIncomingMsg, this, std::placeholders::_1), sub_opts_);
 
         data_thread_ = std::thread(&TopicDataSource<MsgType>::dataThread, this);
+        initChronoTime_ = std::chrono::system_clock::now();
     }
 
     virtual void setMapData(const std::shared_ptr<ProbabilityGrid>& map_data) override
@@ -313,7 +317,12 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
             if (!success)
             {
-                RCLCPP_ERROR_STREAM(node_->get_logger(), "Failed to process data for '" << name_ << "'");
+                if (std::chrono::system_clock::now() - initChronoTime_ > std::chrono::seconds(INIT_PRINT_DELAY))
+                {
+                    rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+                    RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), steady_clock, 10000,
+                                                "Failed to process data for '" << name_ << "'");
+                }
             }
             else
             {
@@ -332,6 +341,7 @@ template <typename MsgType> class TopicDataSource : public DataSource
 
     void dataThread()
     {
+        // Period in which to not log warnings (startup time)
         rclcpp::Time last_warned = node_->get_clock()->now();
 
         const double update_rate_hz = 100.0;
@@ -387,9 +397,13 @@ template <typename MsgType> class TopicDataSource : public DataSource
                         const double delay = (node_->get_clock()->now() - get_last_updated()).seconds();
                         if (delay > maximum_sensor_delay_ && (node_->get_clock()->now() - last_warned).seconds() > 1.0)
                         {
-                            RCLCPP_WARN_STREAM(node_->get_logger(),
-                                               "DataSource '" << name_ << "' has not updated for " << delay << "s");
-                            last_warned = node_->get_clock()->now();
+                            if (std::chrono::system_clock::now() - initChronoTime_ >
+                                std::chrono::seconds(INIT_PRINT_DELAY))
+                            {
+                                RCLCPP_WARN_STREAM(node_->get_logger(),
+                                                   "DataSource '" << name_ << "' has not updated for " << delay << "s");
+                                last_warned = node_->get_clock()->now();
+                            }
                         }
                     }
                     else

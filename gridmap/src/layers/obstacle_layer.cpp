@@ -217,6 +217,7 @@ void ObstacleLayer::onInitialize(const YAML::Node& parameters)
         debug_viz_frequency_ = parameters["debug_viz_frequency"].as<double>(debug_viz_frequency_);
         rcpputils::assert_true(debug_viz_frequency_ > 0);
     }
+    initChronoTime_ = std::chrono::system_clock::now();
 }
 
 void ObstacleLayer::onMapChanged(const nav_msgs::msg::OccupancyGrid& map_data)
@@ -310,7 +311,12 @@ bool ObstacleLayer::isDataOk() const
     {
         const bool ds_ok = ds.second->isDataOk();
         if (!ds_ok)
-            RCLCPP_WARN_STREAM(rclcpp::get_logger(""), "'" << ds.first << "' has stale data");
+            if (std::chrono::system_clock::now() - initChronoTime_ > std::chrono::seconds(INIT_PRINT_DELAY))
+            {
+                rclcpp::Clock steady_clock(RCL_STEADY_TIME);
+                RCLCPP_WARN_STREAM_THROTTLE(rclcpp::get_logger(""), steady_clock, 10000,
+                                            "'" << ds.first << "' has stale data");
+            }
         ok &= ds_ok;
     }
     return ok;
