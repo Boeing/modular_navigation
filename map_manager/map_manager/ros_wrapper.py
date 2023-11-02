@@ -67,7 +67,7 @@ class RosWrapper(object):
         self.__map_name = None
 
         # Parameters are now handled by the node, no more param server
-        self.mongo_hostname = self.__node.declare_parameter('~mongo_hostname', 'localhost').value
+        self.mongo_hostname = self.__node.declare_parameter('~mongo_hostname', 'mongodb').value
         self.mongo_port = self.__node.declare_parameter('~mongo_port', 27017).value
 
         #
