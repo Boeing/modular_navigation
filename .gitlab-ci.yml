@@ -1,6 +1,0 @@
-include:
-  - project: mtdi/pi9419/continuous-integration
-    file:
-      - ci-templates/auto-rules/with-rosinstall/humble-default.yml
-      - ci-templates/lfs-pull.yml
-    ref: master
